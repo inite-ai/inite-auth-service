@@ -91,10 +91,10 @@ jobs:
         EOF
         
         # Create docker-compose.yml
-        tee docker-compose.yml > /dev/null << EOF
+        cat > docker-compose.yml << 'COMPOSE_EOF'
         services:
           auth-service:
-            image: ${DOCKERHUB_USERNAME}/inite-auth-service:latest
+            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
             container_name: inite-auth-service
             restart: unless-stopped
             labels:
@@ -157,7 +157,7 @@ jobs:
               start_period: 60s
 
           auth-frontend:
-            image: ${DOCKERHUB_USERNAME}/inite-auth-frontend:latest
+            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
             container_name: inite-auth-frontend
             restart: unless-stopped
             labels:
@@ -236,7 +236,7 @@ jobs:
             driver: local
           redis_data:
             driver: local
-        EOF
+        COMPOSE_EOF
         
         # Pull latest images
         echo "🔄 Pulling latest Docker images..."

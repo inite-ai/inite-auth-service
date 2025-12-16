@@ -52,6 +52,18 @@ jobs:
         with:
           path: inite-auth-service
 
+      - name: Create .env file
+        run: |
+          cd inite-auth-service
+          cat > .env << EOF
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          EOF
+          echo "✅ .env file created"
+
       - name: Deploy services
         run: |
           cd inite-auth-service

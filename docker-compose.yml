@@ -71,7 +71,7 @@ services:
       - "traefik.http.routers.auth-frontend.tls=true"
       - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
       - "traefik.http.routers.auth-frontend.priority=1"
-      - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
+      - "traefik.http.services.auth-frontend.loadbalancer.server.port=3000"
       # HTTP to HTTPS redirect
       - "traefik.http.routers.auth-frontend-http.rule=Host(`auth.inite.ai`)"
       - "traefik.http.routers.auth-frontend-http.entrypoints=web"
@@ -85,7 +85,7 @@ services:
       - traefik-global
       - inite-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -1,0 +1,6 @@
+# Добавь эти скрипты в package.json секцию "scripts":
+
+"register-smart-chat-client": "ts-node scripts/register-smart-chat-client.ts",
+"register-admin-client": "ts-node scripts/register-smart-chat-admin-client.ts",
+"register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client"
+

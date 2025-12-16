@@ -22,6 +22,9 @@
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
     "register-clients": "ts-node -r tsconfig-paths/register scripts/register-oauth-clients.ts",
+    "register-smart-chat-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-client.ts",
+    "register-admin-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-admin-client.ts",
+    "register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin-user.ts"
   },
   "dependencies": {

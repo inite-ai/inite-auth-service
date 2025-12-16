@@ -7,6 +7,7 @@ import { IdentityModule } from './identity/identity.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
+import { AdminModule } from './admin/admin.module';
 import { HealthController } from './common/health.controller';
 
 @Module({
@@ -54,6 +55,7 @@ import { HealthController } from './common/health.controller';
     OAuthModule,
     SessionModule,
     EmailModule,
+    AdminModule,
   ],
   controllers: [HealthController],
 })

@@ -10,7 +10,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-global"
       # API routes - higher priority
-      - "traefik.http.routers.auth-api.rule=Host(`auth.inite.ai`) && (PathPrefix(`/api`) || PathPrefix(`/oauth`) || PathPrefix(`/auth`) || PathPrefix(`/identity`) || PathPrefix(`/session`) || PathPrefix(`/.well-known`))"
+      - "traefik.http.routers.auth-api.rule=Host(`auth.inite.ai`) && (PathPrefix(`/api`) || PathPrefix(`/oauth`) || PathPrefix(`/identity`) || PathPrefix(`/session`) || PathPrefix(`/.well-known`) || PathPrefix(`/auth/password`) || PathPrefix(`/auth/email`) || PathPrefix(`/auth/passkey`) || PathPrefix(`/auth/me`))"
       - "traefik.http.routers.auth-api.entrypoints=websecure"
       - "traefik.http.routers.auth-api.tls=true"
       - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
@@ -19,6 +19,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3002
+      - FRONTEND_URL=https://auth.inite.ai
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
       - DB_HOST=postgres
       - DB_PORT=5432

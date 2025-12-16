@@ -107,10 +107,16 @@ export class OAuthController {
         },
       };
 
-      // Redirect to login page
-      return res.redirect(
-        `/auth/login?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`,
-      );
+      // Redirect to frontend login page
+      const loginUrl = new URL('/login', process.env.FRONTEND_URL || `https://${req.headers.host}`);
+      loginUrl.searchParams.set('client_id', clientId);
+      loginUrl.searchParams.set('redirect_uri', redirectUri);
+      if (scope) loginUrl.searchParams.set('scope', scope);
+      if (state) loginUrl.searchParams.set('state', state);
+      if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge);
+      if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
+      
+      return res.redirect(loginUrl.toString());
     }
 
     // User is authenticated, show consent screen (or auto-approve for trusted clients)

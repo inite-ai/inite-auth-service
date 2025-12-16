@@ -91,56 +91,56 @@ jobs:
         EOF
         
         # Create docker-compose.yml
-        tee docker-compose.yml > /dev/null << 'EOF'
+        tee docker-compose.yml > /dev/null << EOF
         services:
           auth-service:
-            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
+            image: ${DOCKERHUB_USERNAME}/inite-auth-service:latest
             container_name: inite-auth-service
             restart: unless-stopped
             labels:
               - "traefik.enable=true"
               - "traefik.docker.network=traefik-global"
               # Backend API на отдельном домене - все запросы идут на backend
-              - "traefik.http.routers.auth-api.rule=Host(\`${{ env.API_DOMAIN }}\`)"
+              - "traefik.http.routers.auth-api.rule=Host(\\\`auth-api.inite.ai\\\`)"
               - "traefik.http.routers.auth-api.entrypoints=websecure"
               - "traefik.http.routers.auth-api.tls=true"
               - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
               - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
               # HTTP to HTTPS redirect для API
-              - "traefik.http.routers.auth-api-http.rule=Host(\`${{ env.API_DOMAIN }}\`)"
+              - "traefik.http.routers.auth-api-http.rule=Host(\\\`auth-api.inite.ai\\\`)"
               - "traefik.http.routers.auth-api-http.entrypoints=web"
               - "traefik.http.routers.auth-api-http.middlewares=redirect-to-https"
             environment:
               - NODE_ENV=production
               - PORT=3002
-              - FRONTEND_URL=https://${{ env.DOMAIN }}
-              - API_URL=https://${{ env.API_DOMAIN }}
-              - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
+              - FRONTEND_URL=https://auth.inite.ai
+              - API_URL=https://auth-api.inite.ai
+              - DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/inite_auth
               - DB_HOST=postgres
               - DB_PORT=5432
               - DB_NAME=inite_auth
               - DB_USER=postgres
-              - DB_PASSWORD=${POSTGRES_PASSWORD}
+              - DB_PASSWORD=\${POSTGRES_PASSWORD}
               - REDIS_HOST=redis
               - REDIS_PORT=6379
-              - REDIS_PASSWORD=${REDIS_PASSWORD}
-              - JWT_SECRET=${JWT_SECRET}
-              - JWT_ISSUER=https://${{ env.API_DOMAIN }}
-              - OIDC_ISSUER=https://${{ env.API_DOMAIN }}
-              - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://${{ env.DOMAIN }},https://break3.inite.health/admin
+              - REDIS_PASSWORD=\${REDIS_PASSWORD}
+              - JWT_SECRET=\${JWT_SECRET}
+              - JWT_ISSUER=https://auth-api.inite.ai
+              - OIDC_ISSUER=https://auth-api.inite.ai
+              - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://auth.inite.ai,https://break3.inite.health/admin
               - SMTP_HOST=smtp.mailgun.org
               - SMTP_PORT=587
               - SMTP_SECURE=false
-              - SMTP_USER=${SMTP_USER}
-              - SMTP_PASS=${SMTP_PASS}
+              - SMTP_USER=\${SMTP_USER}
+              - SMTP_PASS=\${SMTP_PASS}
               - SMTP_FROM=auth@inite.ai
               - RP_NAME=INITE Identity
               - RP_ID=inite.ai
-              - RP_ORIGIN=https://${{ env.DOMAIN }}
+              - RP_ORIGIN=https://auth.inite.ai
               - DID_METHOD=key
-              - ADMIN_EMAIL=${ADMIN_EMAIL}
-              - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-              - ADMIN_NAME=${ADMIN_NAME}
+              - ADMIN_EMAIL=\${ADMIN_EMAIL}
+              - ADMIN_PASSWORD=\${ADMIN_PASSWORD}
+              - ADMIN_NAME=\${ADMIN_NAME}
             ports:
               - "3002:3002"
             depends_on:
@@ -157,27 +157,27 @@ jobs:
               start_period: 60s
 
           auth-frontend:
-            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
+            image: ${DOCKERHUB_USERNAME}/inite-auth-frontend:latest
             container_name: inite-auth-frontend
             restart: unless-stopped
             labels:
               - "traefik.enable=true"
               - "traefik.docker.network=traefik-global"
               # Frontend на основном домене - все запросы идут на frontend
-              - "traefik.http.routers.auth-frontend.rule=Host(\`${{ env.DOMAIN }}\`)"
+              - "traefik.http.routers.auth-frontend.rule=Host(\\\`auth.inite.ai\\\`)"
               - "traefik.http.routers.auth-frontend.entrypoints=websecure"
               - "traefik.http.routers.auth-frontend.tls=true"
               - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
               - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
               # HTTP to HTTPS redirect для frontend
-              - "traefik.http.routers.auth-frontend-http.rule=Host(\`${{ env.DOMAIN }}\`)"
+              - "traefik.http.routers.auth-frontend-http.rule=Host(\\\`auth.inite.ai\\\`)"
               - "traefik.http.routers.auth-frontend-http.entrypoints=web"
               - "traefik.http.routers.auth-frontend-http.middlewares=redirect-to-https"
               - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
               - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
             environment:
               - NODE_ENV=production
-              - NEXT_PUBLIC_API_URL=https://${{ env.API_DOMAIN }}
+              - NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
             networks:
               - traefik-global
               - inite-network

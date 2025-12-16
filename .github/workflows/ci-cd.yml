@@ -60,23 +60,13 @@ jobs:
     runs-on: self-hosted
     
     steps:
-      - name: Set deployment directory
-        run: |
-          echo "DEPLOY_DIR=/opt/projects/inite-auth-service" >> $GITHUB_ENV
-
-      - name: Create deployment directory
-        run: |
-          sudo mkdir -p $DEPLOY_DIR
-          sudo chown -R $USER:$USER $DEPLOY_DIR
-
-      - name: Checkout code to deployment directory
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: ${{ env.DEPLOY_DIR }}
-          clean: false
+          path: inite-auth-service
 
       - name: Create .env file
-        working-directory: ${{ env.DEPLOY_DIR }}
+        working-directory: inite-auth-service
         run: |
           cat > .env << EOF
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
@@ -90,18 +80,18 @@ jobs:
           EOF
 
       - name: Pull latest images
-        working-directory: ${{ env.DEPLOY_DIR }}
+        working-directory: inite-auth-service
         run: |
           docker pull ${{ env.BACKEND_IMAGE }}:latest
           docker pull ${{ env.FRONTEND_IMAGE }}:latest
 
       - name: Stop old containers
-        working-directory: ${{ env.DEPLOY_DIR }}
+        working-directory: inite-auth-service
         run: |
           docker-compose down || true
 
       - name: Start services
-        working-directory: ${{ env.DEPLOY_DIR }}
+        working-directory: inite-auth-service
         run: |
           docker-compose up -d
 

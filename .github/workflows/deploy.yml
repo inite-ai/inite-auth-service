@@ -78,7 +78,7 @@ jobs:
         cd /opt/projects/${{ env.PROJECT_NAME }}
         
         # Create .env file
-        tee .env > /dev/null << 'EOF'
+        cat > .env << EOF
         POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
         REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}

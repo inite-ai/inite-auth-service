@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Auth Service (Backend API)
+  # Auth Service (Backend API) - на отдельном домене
   auth-service:
     image: ${DOCKERHUB_USERNAME:-mikefluff}/inite-auth-service:latest
     container_name: inite-auth-service
@@ -9,17 +9,21 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-global"
-      # API routes - higher priority
-      - "traefik.http.routers.auth-api.rule=Host(`auth.inite.ai`) && (PathPrefix(`/api`) || PathPrefix(`/oauth`) || PathPrefix(`/identity`) || PathPrefix(`/session`) || PathPrefix(`/.well-known`) || PathPrefix(`/auth/password`) || PathPrefix(`/auth/email`) || PathPrefix(`/auth/passkey`) || PathPrefix(`/auth/me`))"
+      # Backend API на auth-api.inite.ai - все запросы идут на backend
+      - "traefik.http.routers.auth-api.rule=Host(`auth-api.inite.ai`)"
       - "traefik.http.routers.auth-api.entrypoints=websecure"
       - "traefik.http.routers.auth-api.tls=true"
       - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.auth-api.priority=10"
       - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.auth-api-http.rule=Host(`auth-api.inite.ai`)"
+      - "traefik.http.routers.auth-api-http.entrypoints=web"
+      - "traefik.http.routers.auth-api-http.middlewares=redirect-to-https"
     environment:
       - NODE_ENV=production
       - PORT=3002
       - FRONTEND_URL=https://auth.inite.ai
+      - API_URL=https://auth-api.inite.ai
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -30,9 +34,9 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
-      - JWT_ISSUER=https://auth.inite.ai
-      - OIDC_ISSUER=https://auth.inite.ai
-      - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,http://localhost:3003
+      - JWT_ISSUER=https://auth-api.inite.ai
+      - OIDC_ISSUER=https://auth-api.inite.ai
+      - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://auth.inite.ai,http://localhost:3003
       - SMTP_HOST=smtp.mailgun.org
       - SMTP_PORT=587
       - SMTP_SECURE=false
@@ -58,7 +62,7 @@ services:
       retries: 5
       start_period: 60s
 
-  # Auth Frontend (Next.js)
+  # Auth Frontend (Next.js) - на основном домене
   auth-frontend:
     image: ${DOCKERHUB_USERNAME:-mikefluff}/inite-auth-frontend:latest
     container_name: inite-auth-frontend
@@ -66,12 +70,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-global"
-      # Frontend routes - lower priority (catches everything else)
+      # Frontend на auth.inite.ai - все запросы идут на frontend
       - "traefik.http.routers.auth-frontend.rule=Host(`auth.inite.ai`)"
       - "traefik.http.routers.auth-frontend.entrypoints=websecure"
       - "traefik.http.routers.auth-frontend.tls=true"
       - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.auth-frontend.priority=1"
       - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
       # HTTP to HTTPS redirect
       - "traefik.http.routers.auth-frontend-http.rule=Host(`auth.inite.ai`)"
@@ -81,7 +84,7 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://auth.inite.ai
+      - NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
     networks:
       - traefik-global
       - inite-network

@@ -8,6 +8,7 @@ on:
 env:
   PROJECT_NAME: inite-auth-service
   DOMAIN: auth.inite.ai
+  API_DOMAIN: auth-api.inite.ai
 
 jobs:
   build-and-push:
@@ -99,16 +100,21 @@ jobs:
             labels:
               - "traefik.enable=true"
               - "traefik.docker.network=traefik-global"
-              - "traefik.http.routers.auth-api.rule=(Host(\`${{ env.DOMAIN }}\`) && PathPrefix(\`/api\`, \`/oauth\`, \`/identity\`, \`/.well-known\`, \`/admin\`, \`/auth/password\`, \`/auth/email\`, \`/auth/passkey\`, \`/auth/me\`))"
+              # Backend API на отдельном домене - все запросы идут на backend
+              - "traefik.http.routers.auth-api.rule=Host(\`${{ env.API_DOMAIN }}\`)"
               - "traefik.http.routers.auth-api.entrypoints=websecure"
               - "traefik.http.routers.auth-api.tls=true"
               - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
-              - "traefik.http.routers.auth-api.priority=10"
               - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
+              # HTTP to HTTPS redirect для API
+              - "traefik.http.routers.auth-api-http.rule=Host(\`${{ env.API_DOMAIN }}\`)"
+              - "traefik.http.routers.auth-api-http.entrypoints=web"
+              - "traefik.http.routers.auth-api-http.middlewares=redirect-to-https"
             environment:
               - NODE_ENV=production
               - PORT=3002
               - FRONTEND_URL=https://${{ env.DOMAIN }}
+              - API_URL=https://${{ env.API_DOMAIN }}
               - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
               - DB_HOST=postgres
               - DB_PORT=5432
@@ -119,8 +125,8 @@ jobs:
               - REDIS_PORT=6379
               - REDIS_PASSWORD=${REDIS_PASSWORD}
               - JWT_SECRET=${JWT_SECRET}
-              - JWT_ISSUER=https://${{ env.DOMAIN }}
-              - OIDC_ISSUER=https://${{ env.DOMAIN }}
+              - JWT_ISSUER=https://${{ env.API_DOMAIN }}
+              - OIDC_ISSUER=https://${{ env.API_DOMAIN }}
               - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://${{ env.DOMAIN }},https://break3.inite.health/admin
               - SMTP_HOST=smtp.mailgun.org
               - SMTP_PORT=587
@@ -157,12 +163,13 @@ jobs:
             labels:
               - "traefik.enable=true"
               - "traefik.docker.network=traefik-global"
+              # Frontend на основном домене - все запросы идут на frontend
               - "traefik.http.routers.auth-frontend.rule=Host(\`${{ env.DOMAIN }}\`)"
               - "traefik.http.routers.auth-frontend.entrypoints=websecure"
               - "traefik.http.routers.auth-frontend.tls=true"
               - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
-              - "traefik.http.routers.auth-frontend.priority=1"
               - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
+              # HTTP to HTTPS redirect для frontend
               - "traefik.http.routers.auth-frontend-http.rule=Host(\`${{ env.DOMAIN }}\`)"
               - "traefik.http.routers.auth-frontend-http.entrypoints=web"
               - "traefik.http.routers.auth-frontend-http.middlewares=redirect-to-https"
@@ -170,7 +177,7 @@ jobs:
               - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
             environment:
               - NODE_ENV=production
-              - NEXT_PUBLIC_API_URL=https://${{ env.DOMAIN }}
+              - NEXT_PUBLIC_API_URL=https://${{ env.API_DOMAIN }}
             networks:
               - traefik-global
               - inite-network

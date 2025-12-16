@@ -11,8 +11,9 @@ import {
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
-} from '@simplewebauthn/server';
+} from '@simplewebauthn/types';
 import { Passkey, User } from '../database/entities';
+import { isoUint8Array } from '@simplewebauthn/server/helpers';
 
 @Injectable()
 export class PasskeyService {
@@ -49,13 +50,13 @@ export class PasskeyService {
     const options = await generateRegistrationOptions({
       rpName: this.rpName,
       rpID: this.rpID,
-      userID: user.id,
+      userID: isoUint8Array.fromUTF8String(user.id),
       userName: user.email || user.did,
       userDisplayName: user.name || user.email || 'User',
       attestationType: 'none',
       excludeCredentials: existingPasskeys.map((passkey) => ({
-        id: Buffer.from(passkey.credentialId, 'base64'),
-        type: 'public-key',
+        id: passkey.credentialId,
+        type: 'public-key' as const,
         transports: passkey.transports as any,
       })),
       authenticatorSelection: {
@@ -166,8 +167,8 @@ export class PasskeyService {
       expectedOrigin: this.origin,
       expectedRPID: this.rpID,
       authenticator: {
-        credentialID: Buffer.from(passkey.credentialId, 'base64'),
-        credentialPublicKey: Buffer.from(passkey.publicKey, 'base64'),
+        credentialID: passkey.credentialId,
+        credentialPublicKey: isoUint8Array.fromBase64(passkey.publicKey),
         counter: Number(passkey.counter),
       },
     });

@@ -207,7 +207,7 @@ export class OAuthService {
         entitlements: this.parseScope(scope),
       },
       {
-        expiresIn: accessTokenExpiry,
+        expiresIn: accessTokenExpiry as string | number,
         audience: clientId,
         issuer,
       },
@@ -224,7 +224,7 @@ export class OAuthService {
         iat: Math.floor(Date.now() / 1000),
       },
       {
-        expiresIn: accessTokenExpiry,
+        expiresIn: accessTokenExpiry as string | number,
         audience: clientId,
         issuer,
       },
@@ -273,7 +273,7 @@ export class OAuthService {
     expiresIn: number;
   }> {
     // Find all non-revoked refresh tokens for this client
-    const tokens = await this.refreshTokenRepository.find({
+    const existingTokens = await this.refreshTokenRepository.find({
       where: {
         clientId,
         revoked: false,
@@ -284,7 +284,7 @@ export class OAuthService {
 
     // Find matching token by comparing hashes
     let matchedToken: RefreshToken | null = null;
-    for (const token of tokens) {
+    for (const token of existingTokens) {
       const isMatch = await bcrypt.compare(refreshTokenValue, token.tokenHash);
       if (isMatch) {
         matchedToken = token;

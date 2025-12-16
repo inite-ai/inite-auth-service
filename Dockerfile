@@ -47,5 +47,6 @@ USER nestjs
 
 EXPOSE 3002
 
-CMD ["node", "dist/main"]
+# Run migrations and then start the application
+CMD ["sh", "-c", "npm run migration:run && node dist/main"]
 

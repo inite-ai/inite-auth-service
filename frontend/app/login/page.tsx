@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Fingerprint, Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
+import { Fingerprint, Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react'
 import PasskeyAuth from '@/components/PasskeyAuth'
 import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
 
 type AuthMethod = 'passkey' | 'magic-link' | 'password'
 
-export default function LoginPage() {
+function LoginContent() {
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
   const searchParams = useSearchParams()
   
@@ -174,6 +174,21 @@ export default function LoginPage() {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 flex items-center justify-center p-4">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-12 max-w-md w-full border border-white/20 dark:border-gray-700/20">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-center text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
 

@@ -13,6 +13,7 @@ RUN npm ci
 
 # Copy source
 COPY src ./src
+COPY scripts ./scripts
 
 # Build
 RUN npm run build

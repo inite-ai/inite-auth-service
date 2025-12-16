@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { User } from '../src/database/entities';
+import * as entities from '../src/database/entities';
 import * as crypto from 'crypto';
 
 const dataSource = new DataSource({
@@ -10,7 +10,7 @@ const dataSource = new DataSource({
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
   database: process.env.DB_NAME || 'inite_auth',
-  entities: [User],
+  entities: Object.values(entities),
   synchronize: false,
 });
 
@@ -27,7 +27,7 @@ function generateDidKey(): string {
 
 async function createAdminUser() {
   await dataSource.initialize();
-  const userRepo = dataSource.getRepository(User);
+  const userRepo = dataSource.getRepository(entities.User);
 
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@inite.ai';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';

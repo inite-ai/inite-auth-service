@@ -11,10 +11,18 @@ export class InitialSchema1734364800000 implements MigrationInterface {
         "did" character varying NOT NULL,
         "email" character varying,
         "emailVerified" boolean NOT NULL DEFAULT false,
-        "passwordHash" character varying,
         "name" character varying,
         "avatarUrl" character varying,
-        "roles" text NOT NULL DEFAULT 'user',
+        "bio" character varying,
+        "location" character varying,
+        "profession" character varying,
+        "passwordHash" character varying,
+        "twoFactorSecret" character varying,
+        "twoFactorEnabled" boolean NOT NULL DEFAULT false,
+        "emailVerificationToken" character varying,
+        "emailVerificationExpires" TIMESTAMP,
+        "passwordResetToken" character varying,
+        "passwordResetExpires" TIMESTAMP,
         "metadata" jsonb,
         "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
         "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
@@ -175,6 +183,8 @@ export class InitialSchema1734364800000 implements MigrationInterface {
     // Create indexes
     await queryRunner.query(`CREATE INDEX "IDX_users_email" ON "users" ("email")`);
     await queryRunner.query(`CREATE INDEX "IDX_users_did" ON "users" ("did")`);
+    await queryRunner.query(`CREATE INDEX "IDX_users_emailVerificationToken" ON "users" ("emailVerificationToken")`);
+    await queryRunner.query(`CREATE INDEX "IDX_users_passwordResetToken" ON "users" ("passwordResetToken")`);
     await queryRunner.query(`CREATE INDEX "IDX_passkeys_userId" ON "passkeys" ("userId")`);
     await queryRunner.query(`CREATE INDEX "IDX_wallets_userId" ON "wallets" ("userId")`);
     await queryRunner.query(`CREATE INDEX "IDX_wallets_address" ON "wallets" ("address")`);
@@ -199,6 +209,8 @@ export class InitialSchema1734364800000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX "IDX_wallets_address"`);
     await queryRunner.query(`DROP INDEX "IDX_wallets_userId"`);
     await queryRunner.query(`DROP INDEX "IDX_passkeys_userId"`);
+    await queryRunner.query(`DROP INDEX "IDX_users_passwordResetToken"`);
+    await queryRunner.query(`DROP INDEX "IDX_users_emailVerificationToken"`);
     await queryRunner.query(`DROP INDEX "IDX_users_did"`);
     await queryRunner.query(`DROP INDEX "IDX_users_email"`);
 

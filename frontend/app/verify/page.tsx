@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
@@ -13,18 +13,7 @@ export default function VerifyPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
 
-  useEffect(() => {
-    const token = searchParams.get('token')
-    if (!token) {
-      setStatus('error')
-      setMessage('No verification token provided')
-      return
-    }
-
-    verifyMagicLink(token)
-  }, [searchParams])
-
-  const verifyMagicLink = async (token: string) => {
+  const verifyMagicLink = useCallback(async (token: string) => {
     try {
       const { data } = await api.get(`/auth/email/verify?token=${token}`)
       
@@ -44,7 +33,18 @@ export default function VerifyPage() {
       setMessage(error.response?.data?.message || 'Verification failed')
       toast.error('Magic link verification failed')
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    const token = searchParams.get('token')
+    if (!token) {
+      setStatus('error')
+      setMessage('No verification token provided')
+      return
+    }
+
+    verifyMagicLink(token)
+  }, [searchParams, verifyMagicLink])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">

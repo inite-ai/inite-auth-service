@@ -162,7 +162,7 @@ export default function LoginPage() {
           className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400"
         >
           <p>
-            By continuing, you agree to INITE's{' '}
+            By continuing, you agree to INITE&apos;s{' '}
             <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">
               Terms of Service
             </a>{' '}

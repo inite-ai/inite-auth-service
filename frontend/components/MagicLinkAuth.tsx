@@ -59,7 +59,7 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
             Check your email
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            We've sent a magic link to
+            We&apos;ve sent a magic link to
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
             {email}
@@ -93,7 +93,7 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
           Sign in with Email
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          We'll send you a magic link to sign in
+          We&apos;ll send you a magic link to sign in
         </p>
       </div>
 

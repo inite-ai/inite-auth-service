@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { User, Wallet, Fingerprint, LogOut, Shield, Link as LinkIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -15,11 +15,7 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    loadUserData()
-  }, [])
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       const accessToken = localStorage.getItem('access_token')
       if (!accessToken) {
@@ -45,7 +41,11 @@ export default function AccountPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    loadUserData()
+  }, [loadUserData])
 
   const handleLinkWallet = async () => {
     try {

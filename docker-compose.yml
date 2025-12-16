@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # Auth Service (Backend API)
+  auth-service:
+    image: ${DOCKERHUB_USERNAME:-mikefluff}/inite-auth-service:latest
+    container_name: inite-auth-service
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-global"
+      # API routes - higher priority
+      - "traefik.http.routers.auth-api.rule=Host(`auth.inite.ai`) && (PathPrefix(`/api`) || PathPrefix(`/oauth`) || PathPrefix(`/auth`) || PathPrefix(`/identity`) || PathPrefix(`/session`) || PathPrefix(`/.well-known`))"
+      - "traefik.http.routers.auth-api.entrypoints=websecure"
+      - "traefik.http.routers.auth-api.tls=true"
+      - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth-api.priority=10"
+      - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=inite_auth
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=https://auth.inite.ai
+      - OIDC_ISSUER=https://auth.inite.ai
+      - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,http://localhost:3003
+      - SMTP_HOST=smtp.mailgun.org
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=auth@inite.ai
+      - RP_NAME=INITE Identity
+      - RP_ID=inite.ai
+      - RP_ORIGIN=https://auth.inite.ai
+      - DID_METHOD=key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - traefik-global
+      - inite-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Auth Frontend (Next.js)
+  auth-frontend:
+    image: ${DOCKERHUB_USERNAME:-mikefluff}/inite-auth-frontend:latest
+    container_name: inite-auth-frontend
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-global"
+      # Frontend routes - lower priority (catches everything else)
+      - "traefik.http.routers.auth-frontend.rule=Host(`auth.inite.ai`)"
+      - "traefik.http.routers.auth-frontend.entrypoints=websecure"
+      - "traefik.http.routers.auth-frontend.tls=true"
+      - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth-frontend.priority=1"
+      - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.auth-frontend-http.rule=Host(`auth.inite.ai`)"
+      - "traefik.http.routers.auth-frontend-http.entrypoints=web"
+      - "traefik.http.routers.auth-frontend-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://auth.inite.ai
+    networks:
+      - traefik-global
+      - inite-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: inite-auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inite_auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - inite-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: inite-auth-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - inite-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  inite-network:
+    driver: bridge
+  traefik-global:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+

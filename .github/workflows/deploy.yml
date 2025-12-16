@@ -1,0 +1,282 @@
+name: Deploy INITE Auth Service
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: inite-auth-service
+  DOMAIN: auth.inite.ai
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push backend
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache,mode=max
+        platforms: linux/amd64
+
+    - name: Build and push frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:buildcache,mode=max
+        platforms: linux/amd64
+
+    - name: Build info
+      run: |
+        echo "✅ Docker images built and pushed successfully!"
+        echo "📦 Backend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest"
+        echo "📦 Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest"
+        echo "🏷️ SHA: ${{ github.sha }}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    
+    steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Deploy to server
+      run: |
+        # Create deployment directory
+        mkdir -p /opt/projects/${{ env.PROJECT_NAME }}
+        cd /opt/projects/${{ env.PROJECT_NAME }}
+        
+        # Create .env file
+        tee .env > /dev/null << 'EOF'
+        POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+        REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        SMTP_USER=${{ secrets.SMTP_USER }}
+        SMTP_PASS=${{ secrets.SMTP_PASS }}
+        ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+        ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+        ADMIN_NAME=${{ secrets.ADMIN_NAME }}
+        DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+        EOF
+        
+        # Create docker-compose.yml
+        tee docker-compose.yml > /dev/null << 'EOF'
+        services:
+          auth-service:
+            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
+            container_name: inite-auth-service
+            restart: unless-stopped
+            labels:
+              - "traefik.enable=true"
+              - "traefik.docker.network=traefik-global"
+              - "traefik.http.routers.auth-api.rule=(Host(\`${{ env.DOMAIN }}\`) && PathPrefix(\`/api\`, \`/oauth\`, \`/auth\`, \`/identity\`, \`/.well-known\`, \`/admin\`))"
+              - "traefik.http.routers.auth-api.entrypoints=websecure"
+              - "traefik.http.routers.auth-api.tls=true"
+              - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
+              - "traefik.http.routers.auth-api.priority=10"
+              - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
+            environment:
+              - NODE_ENV=production
+              - PORT=3002
+              - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/inite_auth
+              - DB_HOST=postgres
+              - DB_PORT=5432
+              - DB_NAME=inite_auth
+              - DB_USER=postgres
+              - DB_PASSWORD=${POSTGRES_PASSWORD}
+              - REDIS_HOST=redis
+              - REDIS_PORT=6379
+              - REDIS_PASSWORD=${REDIS_PASSWORD}
+              - JWT_SECRET=${JWT_SECRET}
+              - JWT_ISSUER=https://${{ env.DOMAIN }}
+              - OIDC_ISSUER=https://${{ env.DOMAIN }}
+              - CORS_ORIGINS=https://break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://${{ env.DOMAIN }},https://break3.inite.health/admin
+              - SMTP_HOST=smtp.mailgun.org
+              - SMTP_PORT=587
+              - SMTP_SECURE=false
+              - SMTP_USER=${SMTP_USER}
+              - SMTP_PASS=${SMTP_PASS}
+              - SMTP_FROM=auth@inite.ai
+              - RP_NAME=INITE Identity
+              - RP_ID=inite.ai
+              - RP_ORIGIN=https://${{ env.DOMAIN }}
+              - DID_METHOD=key
+              - ADMIN_EMAIL=${ADMIN_EMAIL}
+              - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+              - ADMIN_NAME=${ADMIN_NAME}
+            ports:
+              - "3002:3002"
+            depends_on:
+              - postgres
+              - redis
+            networks:
+              - inite-network
+              - traefik-global
+            healthcheck:
+              test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 5
+              start_period: 60s
+
+          auth-frontend:
+            image: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
+            container_name: inite-auth-frontend
+            restart: unless-stopped
+            labels:
+              - "traefik.enable=true"
+              - "traefik.docker.network=traefik-global"
+              - "traefik.http.routers.auth-frontend.rule=Host(\`${{ env.DOMAIN }}\`)"
+              - "traefik.http.routers.auth-frontend.entrypoints=websecure"
+              - "traefik.http.routers.auth-frontend.tls=true"
+              - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
+              - "traefik.http.routers.auth-frontend.priority=1"
+              - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
+              - "traefik.http.routers.auth-frontend-http.rule=Host(\`${{ env.DOMAIN }}\`)"
+              - "traefik.http.routers.auth-frontend-http.entrypoints=web"
+              - "traefik.http.routers.auth-frontend-http.middlewares=redirect-to-https"
+              - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+              - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+            environment:
+              - NODE_ENV=production
+              - NEXT_PUBLIC_API_URL=https://${{ env.DOMAIN }}
+            networks:
+              - traefik-global
+              - inite-network
+            healthcheck:
+              test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/"]
+              interval: 30s
+              timeout: 10s
+              retries: 5
+              start_period: 40s
+
+          postgres:
+            image: postgres:15-alpine
+            container_name: inite-auth-postgres
+            restart: unless-stopped
+            environment:
+              POSTGRES_DB: inite_auth
+              POSTGRES_USER: postgres
+              POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            ports:
+              - "5434:5432"
+            volumes:
+              - postgres_data:/var/lib/postgresql/data
+            networks:
+              - inite-network
+            healthcheck:
+              test: ["CMD-SHELL", "pg_isready -U postgres"]
+              interval: 10s
+              timeout: 5s
+              retries: 5
+
+          redis:
+            image: redis:7-alpine
+            container_name: inite-auth-redis
+            restart: unless-stopped
+            command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+            ports:
+              - "6381:6379"
+            volumes:
+              - redis_data:/data
+            networks:
+              - inite-network
+            healthcheck:
+              test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+              interval: 10s
+              timeout: 5s
+              retries: 5
+
+        networks:
+          inite-network:
+            driver: bridge
+          traefik-global:
+            external: true
+
+        volumes:
+          postgres_data:
+            driver: local
+          redis_data:
+            driver: local
+        EOF
+        
+        # Pull latest images
+        echo "🔄 Pulling latest Docker images..."
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
+        
+        # Deploy
+        echo "🚀 Deploying auth service..."
+        docker-compose down --remove-orphans
+        docker-compose up -d
+        
+        # Wait for services
+        sleep 30
+        
+        # Run migrations
+        echo "🗄️ Running database migrations..."
+        docker exec inite-auth-service npm run migration:run || echo "⚠️ Migrations failed or already applied"
+        
+        # Create admin
+        echo "👤 Creating admin user..."
+        docker exec inite-auth-service npm run create-admin || echo "⚠️ Admin user already exists"
+        
+        # Register OAuth clients
+        echo "🔐 Registering OAuth clients..."
+        docker exec inite-auth-service npm run register-all-clients || echo "⚠️ OAuth clients already registered"
+        
+        # Verify
+        if docker-compose ps | grep -q "Up"; then
+          echo "✅ Deployment successful!"
+          echo "🌐 https://${{ env.DOMAIN }}"
+        else
+          echo "❌ Deployment failed!"
+          docker-compose logs
+          exit 1
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker system prune -f
+
+    - name: Notify
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 INITE Auth Service deployed successfully!"
+          echo "🔗 URL: https://${{ env.DOMAIN }}"
+        else
+          echo "❌ Deployment failed! Check the logs above."
+        fi
+

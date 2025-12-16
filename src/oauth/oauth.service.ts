@@ -207,7 +207,7 @@ export class OAuthService {
         entitlements: this.parseScope(scope),
       },
       {
-        expiresIn: accessTokenExpiry as string | number,
+        expiresIn: accessTokenExpiry as any,
         audience: clientId,
         issuer,
       },
@@ -224,7 +224,7 @@ export class OAuthService {
         iat: Math.floor(Date.now() / 1000),
       },
       {
-        expiresIn: accessTokenExpiry as string | number,
+        expiresIn: accessTokenExpiry as any,
         audience: clientId,
         issuer,
       },

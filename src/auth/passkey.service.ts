@@ -13,7 +13,7 @@ import type {
   AuthenticationResponseJSON,
 } from '@simplewebauthn/types';
 import { Passkey, User } from '../database/entities';
-import { isoUint8Array } from '@simplewebauthn/server/helpers';
+import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers';
 
 @Injectable()
 export class PasskeyService {
@@ -168,7 +168,7 @@ export class PasskeyService {
       expectedRPID: this.rpID,
       authenticator: {
         credentialID: passkey.credentialId,
-        credentialPublicKey: isoUint8Array.fromBase64(passkey.publicKey),
+        credentialPublicKey: isoBase64URL.toBuffer(passkey.publicKey),
         counter: Number(passkey.counter),
       },
     });

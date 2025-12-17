@@ -58,7 +58,7 @@ export class AuthService {
   ): Promise<{ user: User; accessToken: string }> {
     const user = await this.userRepository.findOne({
       where: { email },
-      select: ['id', 'did', 'email', 'emailVerified', 'name', 'avatarUrl', 'passwordHash'],
+      select: ['id', 'did', 'email', 'emailVerified', 'name', 'avatarUrl', 'passwordHash', 'metadata'],
     });
 
     if (!user || !user.passwordHash) {

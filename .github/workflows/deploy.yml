@@ -46,6 +46,8 @@ jobs:
         context: ./frontend
         file: ./frontend/Dockerfile
         push: true
+        build-args: |
+          NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
         tags: |
           ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:${{ github.sha }}

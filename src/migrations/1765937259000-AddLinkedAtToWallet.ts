@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddLinkedAtToWallet$(date +%s)000 implements MigrationInterface {
+export class AddLinkedAtToWallet1765937259000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Check if column exists before adding
     const table = await queryRunner.getTable('wallet');

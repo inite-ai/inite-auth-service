@@ -221,6 +221,7 @@ export class OAuthService {
         email_verified: user.emailVerified,
         name: user.name,
         picture: user.avatarUrl,
+        roles: user.metadata?.roles || ['user'],
         iat: Math.floor(Date.now() / 1000),
       },
       {

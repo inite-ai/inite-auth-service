@@ -123,6 +123,7 @@ export class AuthService {
       userId: user.id,
       email: user.email,
       email_verified: user.emailVerified,
+      metadata: user.metadata, // Include metadata for admin check
     };
 
     return this.jwtService.sign(payload, {

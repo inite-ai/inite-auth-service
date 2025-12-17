@@ -115,7 +115,7 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
     try {
       // Create authorization code
       const { data } = await api.post(
-        '/oauth/authorize/create-code',
+        '/oauth/create-code',
         {
           clientId: oauthParams.clientId,
           redirectUri: oauthParams.redirectUri,

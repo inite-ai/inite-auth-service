@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import {
   User,
   OAuthClient,
@@ -191,8 +193,6 @@ export class AdminService {
     if (!client) return null;
 
     // Generate new secret
-    const crypto = require('crypto');
-    const bcrypt = require('bcrypt');
     const newSecret = crypto.randomBytes(32).toString('base64url');
     const newSecretHash = await bcrypt.hash(newSecret, 10);
 

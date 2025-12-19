@@ -108,3 +108,4 @@ jobs:
         working-directory: ./frontend
         run: npm audit --audit-level=moderate || echo "Security issues found, review recommended"
 
+

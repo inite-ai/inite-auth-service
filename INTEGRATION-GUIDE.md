@@ -576,3 +576,4 @@ async function linkWallet(accessToken: string) {
 - Email: support@inite.ai
 - Документация: См. INITE-AUTH-SERVICE-SETUP.md
 
+

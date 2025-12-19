@@ -27,6 +27,32 @@ async function registerBreak3Client() {
     'https://break3.inite.health/silent-callback',
   ];
 
+  // Check if client already exists
+  const existing = await dataSource.query(
+    `SELECT client_id FROM oauth_clients WHERE client_id = $1`,
+    [clientId]
+  );
+
+  if (existing.length > 0) {
+    // Update only configuration, NOT the secret
+    await dataSource.query(
+      `
+      UPDATE oauth_clients SET
+        redirect_uris = $2,
+        updated_at = NOW()
+      WHERE client_id = $1
+    `,
+      [clientId, redirectUris],
+    );
+    console.log('✅ Break3 OAuth2 client configuration updated (secret unchanged)');
+    console.log('');
+    console.log('Client ID:', clientId);
+    console.log('⚠️  Secret was NOT changed. Use admin panel to rotate secrets.');
+    await dataSource.destroy();
+    return;
+  }
+
+  // Create new client only if it doesn't exist
   await dataSource.query(
     `
     INSERT INTO oauth_clients (
@@ -48,11 +74,6 @@ async function registerBreak3Client() {
       NOW(),
       NOW()
     )
-    ON CONFLICT (client_id) 
-    DO UPDATE SET
-      client_secret_hash = $2,
-      redirect_uris = $4,
-      updated_at = NOW()
   `,
     [
       clientId,

@@ -35,3 +35,4 @@ export class MagicLink {
   createdAt: Date;
 }
 
+

@@ -339,3 +339,4 @@ docker-compose up -d auth-service
 **Last Updated**: 15 декабря 2024  
 **Status**: ✅ Ready to use
 
+

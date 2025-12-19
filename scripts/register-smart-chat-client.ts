@@ -51,23 +51,18 @@ async function registerSmartChatClient() {
 
     if (existing) {
       console.log(`✅ Client '${smartChatClient.name}' already exists`);
-      console.log(`   Updating configuration...`);
+      console.log(`   Updating configuration (NOT secret - use admin panel for rotation)...`);
 
-      // Update existing client
+      // Update existing client - but NEVER touch the secret!
+      // Secret should only be changed via admin panel rotation
       existing.name = smartChatClient.name;
       existing.redirectUris = smartChatClient.redirectUris;
       existing.allowedScopes = smartChatClient.allowedScopes;
       existing.allowedGrants = smartChatClient.allowedGrants;
       existing.active = true;
 
-      // Update secret if provided
-      if (process.env.SMART_CHAT_CLIENT_SECRET) {
-        existing.clientSecretHash = await bcrypt.hash(smartChatClient.clientSecret, 10);
-        console.log(`   Client Secret: UPDATED`);
-      }
-
       await clientRepo.save(existing);
-      console.log(`   ✅ Configuration updated!`);
+      console.log(`   ✅ Configuration updated! (secret unchanged)`);
     } else {
       // Hash client secret
       const clientSecretHash = await bcrypt.hash(smartChatClient.clientSecret, 10);
@@ -112,4 +107,5 @@ async function registerSmartChatClient() {
 }
 
 registerSmartChatClient();
+
 

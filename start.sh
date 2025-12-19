@@ -39,3 +39,4 @@ echo ""
 echo "📝 View logs: docker-compose logs -f auth-service"
 echo "🛑 Stop services: docker-compose down"
 
+

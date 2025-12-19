@@ -183,6 +183,33 @@ export class AdminService {
     return client ? { ...client, clientSecret: undefined } : null;
   }
 
+  async rotateClientSecret(clientId: string) {
+    const client = await this.oauthClientRepository.findOne({
+      where: { clientId },
+    });
+
+    if (!client) return null;
+
+    // Generate new secret
+    const crypto = require('crypto');
+    const bcrypt = require('bcrypt');
+    const newSecret = crypto.randomBytes(32).toString('base64url');
+    const newSecretHash = await bcrypt.hash(newSecret, 10);
+
+    // Update in database
+    await this.oauthClientRepository.update(
+      { clientId },
+      { clientSecretHash: newSecretHash },
+    );
+
+    // Return the new secret (only shown once!)
+    return {
+      clientId,
+      clientSecret: newSecret,
+      message: 'Secret rotated successfully. Save this secret - it will not be shown again!',
+    };
+  }
+
   async deleteOAuthClient(clientId: string) {
     // Revoke all tokens for this client
     await this.refreshTokenRepository.update(

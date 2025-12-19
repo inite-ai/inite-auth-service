@@ -89,6 +89,11 @@ export class AdminController {
     return this.adminService.updateOAuthClient(clientId, body);
   }
 
+  @Post('oauth-clients/:clientId/rotate-secret')
+  async rotateClientSecret(@Param('clientId') clientId: string) {
+    return this.adminService.rotateClientSecret(clientId);
+  }
+
   @Delete('oauth-clients/:clientId')
   async deleteOAuthClient(@Param('clientId') clientId: string) {
     return this.adminService.deleteOAuthClient(clientId);

@@ -25,12 +25,19 @@ export class AuthController {
   @Post('password/register')
   async registerWithPassword(
     @Body() body: { email: string; password: string; name?: string },
+    @Request() req: any,
   ) {
     const result = await this.authService.registerWithPassword(
       body.email,
       body.password,
       body.name,
     );
+    
+    // Set userId in session for SSO
+    if (req.session) {
+      req.session.userId = result.user.id;
+    }
+    
     return {
       access_token: result.accessToken,
       user: {
@@ -43,11 +50,20 @@ export class AuthController {
   }
 
   @Post('password/login')
-  async loginWithPassword(@Body() body: { email: string; password: string }) {
+  async loginWithPassword(
+    @Body() body: { email: string; password: string },
+    @Request() req: any,
+  ) {
     const result = await this.authService.loginWithPassword(
       body.email,
       body.password,
     );
+    
+    // Set userId in session for SSO
+    if (req.session) {
+      req.session.userId = result.user.id;
+    }
+    
     return {
       access_token: result.accessToken,
       user: {
@@ -73,9 +89,15 @@ export class AuthController {
   @Get('email/verify')
   async verifyMagicLink(
     @Query('token') token: string,
+    @Request() req: any,
     @Response() res: ExpressResponse,
   ) {
     const result = await this.authService.verifyMagicLink(token);
+
+    // Set userId in session for SSO
+    if (req.session) {
+      req.session.userId = result.user.id;
+    }
 
     // In production, redirect to frontend with token in URL
     // For now, return JSON
@@ -127,6 +149,7 @@ export class AuthController {
   @Post('passkey/authentication/verify')
   async verifyAuthentication(
     @Body() body: { response: any; challenge: string },
+    @Request() req: any,
   ) {
     const result = await this.passkeyService.verifyAuthenticationResponse(
       body.response,
@@ -137,6 +160,11 @@ export class AuthController {
     const accessToken = await this.authService['generateAccessToken'](
       result.user,
     );
+
+    // Set userId in session for SSO
+    if (req.session) {
+      req.session.userId = result.user.id;
+    }
 
     return {
       verified: result.verified,

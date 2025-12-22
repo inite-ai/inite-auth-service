@@ -37,6 +37,67 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
 
     setLoading(true)
     try {
+      // For OAuth flow, we need to go through backend directly to set session cookie
+      // Can't use Next.js proxy because it won't set third-party cookies
+      if (oauthParams.clientId && oauthParams.redirectUri) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://auth-api.inite.ai'
+        const endpoint = mode === 'login' 
+          ? `${apiUrl}/auth/password/login` 
+          : `${apiUrl}/auth/password/register`
+        
+        const payload = mode === 'login'
+          ? { email, password }
+          : { email, password, name: name || email.split('@')[0] }
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // CRITICAL for cookies
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.message || 'Authentication failed')
+        }
+
+        const data = await response.json()
+        toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
+
+        // Session is now set, create OAuth code
+        const codeResponse = await fetch(`${apiUrl}/oauth/create-code`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${data.access_token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            clientId: oauthParams.clientId,
+            redirectUri: oauthParams.redirectUri,
+            scope: oauthParams.scope,
+            state: oauthParams.state,
+            codeChallenge: oauthParams.codeChallenge,
+            codeChallengeMethod: oauthParams.codeChallengeMethod,
+          }),
+        })
+
+        if (!codeResponse.ok) {
+          throw new Error('Failed to create authorization code')
+        }
+
+        const codeData = await codeResponse.json()
+
+        // Redirect with code
+        const url = new URL(oauthParams.redirectUri)
+        url.searchParams.set('code', codeData.code)
+        if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
+        
+        window.location.href = url.toString()
+        return
+      }
+
+      // Direct login (no OAuth)
       const endpoint = mode === 'login' 
         ? '/auth/password/login' 
         : '/auth/password/register'
@@ -48,47 +109,10 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
       const { data } = await api.post(endpoint, payload)
 
       toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
-
-      // If OAuth flow, generate auth code and redirect directly
-      if (oauthParams.clientId && oauthParams.redirectUri) {
-        try {
-          console.log('🔐 [PasswordAuth] Creating OAuth code with token:', data.access_token?.substring(0, 20))
-          
-          // Create authorization code using the access token
-          const { data: codeData } = await api.post(
-            '/oauth/create-code',
-            {
-              clientId: oauthParams.clientId,
-              redirectUri: oauthParams.redirectUri,
-              scope: oauthParams.scope,
-              state: oauthParams.state,
-              codeChallenge: oauthParams.codeChallenge,
-              codeChallengeMethod: oauthParams.codeChallengeMethod,
-            },
-            {
-              headers: { Authorization: `Bearer ${data.access_token}` },
-            }
-          )
-
-          console.log('✅ [PasswordAuth] Code created:', codeData.code?.substring(0, 20))
-
-          // Redirect with code
-          const url = new URL(oauthParams.redirectUri)
-          url.searchParams.set('code', codeData.code)
-          if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
-          
-          window.location.href = url.toString()
-        } catch (error) {
-          console.error('❌ [PasswordAuth] OAuth redirect error:', error)
-          toast.error('Failed to complete authentication')
-        }
-      } else {
-        // Direct login
-        router.push('/account')
-      }
+      router.push('/account')
     } catch (error: any) {
       console.error('Password auth error:', error)
-      toast.error(error.response?.data?.message || 'Authentication failed')
+      toast.error(error.response?.data?.message || error.message || 'Authentication failed')
     } finally {
       setLoading(false)
     }

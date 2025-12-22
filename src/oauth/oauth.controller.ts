@@ -63,7 +63,7 @@ export class OAuthController {
     }
 
     // Check if user is already authenticated (session check)
-    const userId = (req as any).session?.userId;
+    const userId = req.session?.userId;
 
     // Silent SSO: prompt=none
     if (prompt === 'none') {
@@ -95,16 +95,16 @@ export class OAuthController {
     // If user not authenticated, redirect to login page
     if (!userId) {
       // Store OAuth params in session for after login
-      (req as any).session = {
-        ...(req as any).session,
-        oauthParams: {
-          clientId,
-          redirectUri,
-          scope,
-          state,
-          codeChallenge,
-          codeChallengeMethod,
-        },
+      if (!req.session) {
+        req.session = {} as any;
+      }
+      req.session.oauthParams = {
+        clientId,
+        redirectUri,
+        scope,
+        state,
+        codeChallenge,
+        codeChallengeMethod,
       };
 
       // Redirect to frontend login page
@@ -253,8 +253,14 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    // Clear session
-    (req as any).session = null;
+    // Clear session using destroy method
+    if (req.session) {
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destroy error:', err);
+        }
+      });
+    }
 
     // Redirect to post_logout_redirect_uri if provided
     if (postLogoutRedirectUri) {

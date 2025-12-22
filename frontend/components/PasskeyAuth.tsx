@@ -45,17 +45,12 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
 
       toast.success('Authenticated successfully!')
 
-      // If OAuth flow, redirect through API to set session cookie
+      // If OAuth flow, generate auth code and redirect
       if (oauthParams.clientId && oauthParams.redirectUri) {
         await handleOAuthRedirect(data.access_token)
       } else {
-        // Direct login - still set session via redirect
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
-        const sessionUrl = new URL(`${apiUrl}/oauth/session`)
-        sessionUrl.searchParams.set('token', data.access_token)
-        sessionUrl.searchParams.set('redirect', `${window.location.origin}/account`)
-        
-        window.location.href = sessionUrl.toString()
+        // Direct login
+        router.push('/account')
       }
     } catch (error: any) {
       console.error('Passkey auth error:', error)
@@ -117,23 +112,33 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
   }
 
   const handleOAuthRedirect = async (accessToken: string) => {
-    // Build the OAuth authorize URL to redirect back to after session is set
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
-    const authorizeUrl = new URL(`${apiUrl}/oauth/authorize`)
-    authorizeUrl.searchParams.set('response_type', 'code')
-    authorizeUrl.searchParams.set('client_id', oauthParams.clientId!)
-    authorizeUrl.searchParams.set('redirect_uri', oauthParams.redirectUri!)
-    if (oauthParams.scope) authorizeUrl.searchParams.set('scope', oauthParams.scope)
-    if (oauthParams.state) authorizeUrl.searchParams.set('state', oauthParams.state)
-    if (oauthParams.codeChallenge) authorizeUrl.searchParams.set('code_challenge', oauthParams.codeChallenge)
-    if (oauthParams.codeChallengeMethod) authorizeUrl.searchParams.set('code_challenge_method', oauthParams.codeChallengeMethod)
-    
-    // Redirect to session endpoint which will set cookie and redirect to authorize
-    const sessionUrl = new URL(`${apiUrl}/oauth/session`)
-    sessionUrl.searchParams.set('token', accessToken)
-    sessionUrl.searchParams.set('redirect', authorizeUrl.toString())
-    
-    window.location.href = sessionUrl.toString()
+    try {
+      // Create authorization code using the access token
+      const { data } = await api.post(
+        '/oauth/create-code',
+        {
+          clientId: oauthParams.clientId,
+          redirectUri: oauthParams.redirectUri,
+          scope: oauthParams.scope,
+          state: oauthParams.state,
+          codeChallenge: oauthParams.codeChallenge,
+          codeChallengeMethod: oauthParams.codeChallengeMethod,
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      )
+
+      // Redirect with code
+      const url = new URL(oauthParams.redirectUri!)
+      url.searchParams.set('code', data.code)
+      if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
+      
+      window.location.href = url.toString()
+    } catch (error) {
+      console.error('OAuth redirect error:', error)
+      toast.error('Failed to complete authentication')
+    }
   }
 
   return (

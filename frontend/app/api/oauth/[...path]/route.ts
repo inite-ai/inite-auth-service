@@ -45,6 +45,7 @@ async function proxyRequest(
   // Forward cookies using Next.js cookies API
   const cookieStore = await cookies()
   const allCookies = cookieStore.getAll()
+  console.log('🍪 [OAuth Proxy] Forwarding cookies:', allCookies.map(c => `${c.name}=${c.value.substring(0, 10)}...`))
   if (allCookies.length > 0) {
     headers['Cookie'] = allCookies.map(c => `${c.name}=${c.value}`).join('; ')
   }

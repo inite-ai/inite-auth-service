@@ -3,17 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
 
 type RouteContext = {
-  params: Promise<{ path: string[] }>
+  params: { path: string[] }
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  const { path } = await context.params
-  return proxyRequest(request, path, 'GET')
+  return proxyRequest(request, context.params.path, 'GET')
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const { path } = await context.params
-  return proxyRequest(request, path, 'POST')
+  return proxyRequest(request, context.params.path, 'POST')
 }
 
 async function proxyRequest(

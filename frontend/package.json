@@ -4,13 +4,13 @@
   "description": "INITE Identity Provider - Frontend",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3003",
+    "dev": "next dev -p 3003 --turbopack",
     "build": "next build",
     "start": "next start -p 3003",
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.1.0",
+    "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@simplewebauthn/browser": "^10.0.0",
@@ -29,7 +29,7 @@
     "postcss": "^8.4.0",
     "autoprefixer": "^10.4.0",
     "eslint": "^9.18.0",
-    "eslint-config-next": "^15.1.0"
+    "eslint-config-next": "^16.0.0"
   }
 }
 

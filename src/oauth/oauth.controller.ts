@@ -14,6 +14,7 @@ import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { CreateCodeInput } from './dto/create-code.input';
 
 @Controller('oauth')
@@ -286,9 +287,10 @@ export class OAuthController {
   /**
    * Create authorization code (for API registration flows)
    * POST /oauth/create-code
+   * Accepts JWT token OR session userId
    */
   @Post('create-code')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrSessionGuard)
   async createCode(@Req() req: any, @Body() input: CreateCodeInput) {
     // Validate client
     const client = await this.oauthService.validateClient(input.clientId);

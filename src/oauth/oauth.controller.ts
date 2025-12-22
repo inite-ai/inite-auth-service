@@ -63,6 +63,13 @@ export class OAuthController {
     }
 
     // Check if user is already authenticated (session check)
+    console.log('🔐 [OAuth Authorize] Session check:', {
+      hasSession: !!req.session,
+      sessionId: req.session?.id,
+      userId: req.session?.userId,
+      cookies: req.headers.cookie,
+    });
+    
     const userId = req.session?.userId;
 
     // Silent SSO: prompt=none

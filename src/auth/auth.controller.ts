@@ -62,6 +62,12 @@ export class AuthController {
     // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
+      console.log('🔐 [Password Login] Session set:', {
+        sessionId: req.session.id,
+        userId: req.session.userId,
+      });
+    } else {
+      console.error('❌ [Password Login] No session object available!');
     }
     
     return {

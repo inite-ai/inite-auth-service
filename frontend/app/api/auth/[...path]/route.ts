@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
 
@@ -52,10 +53,11 @@ async function proxyRequest(
     headers['Authorization'] = authHeader
   }
   
-  // Forward cookies
-  const cookies = request.headers.get('cookie')
-  if (cookies) {
-    headers['Cookie'] = cookies
+  // Forward cookies using Next.js cookies API
+  const cookieStore = await cookies()
+  const allCookies = cookieStore.getAll()
+  if (allCookies.length > 0) {
+    headers['Cookie'] = allCookies.map(c => `${c.name}=${c.value}`).join('; ')
   }
 
   let body: string | undefined

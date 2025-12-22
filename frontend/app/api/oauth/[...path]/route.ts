@@ -32,14 +32,19 @@ async function proxyRequest(
     url.searchParams.set(key, value)
   })
   
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
+  const headers: Record<string, string> = {}
   
-  // Forward authorization header
+  // Forward authorization header (MOST IMPORTANT for JWT auth!)
   const authHeader = request.headers.get('authorization')
   if (authHeader) {
     headers['Authorization'] = authHeader
+    console.log('🔐 [OAuth Proxy] Forwarding Authorization header:', authHeader.substring(0, 20) + '...')
+  }
+  
+  // Forward Content-Type
+  const contentType = request.headers.get('content-type')
+  if (contentType) {
+    headers['Content-Type'] = contentType
   }
   
   // Forward cookies using Next.js cookies API
@@ -53,11 +58,17 @@ async function proxyRequest(
   let body: string | undefined
   if (method !== 'GET' && method !== 'HEAD') {
     try {
-      body = JSON.stringify(await request.json())
+      const text = await request.text()
+      if (text) {
+        body = text
+        console.log('📦 [OAuth Proxy] Request body:', body.substring(0, 100))
+      }
     } catch {
       // No body
     }
   }
+
+  console.log('🔄 [OAuth Proxy] Proxying to:', url.toString())
 
   const response = await fetch(url.toString(), {
     method,
@@ -65,6 +76,8 @@ async function proxyRequest(
     body,
     redirect: 'manual', // Don't follow redirects, return them to client
   })
+
+  console.log('✅ [OAuth Proxy] Response status:', response.status)
 
   // Handle redirects
   if (response.status >= 300 && response.status < 400) {

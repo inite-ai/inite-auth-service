@@ -92,15 +92,14 @@ export class PasskeyService {
       throw new BadRequestException('Passkey registration verification failed');
     }
 
-    const { credentialPublicKey, credentialID, counter } =
-      verification.registrationInfo;
+    const { credential } = verification.registrationInfo;
 
     // Save passkey
     const passkey = this.passkeyRepository.create({
       userId,
-      credentialId: Buffer.from(credentialID).toString('base64'),
-      publicKey: Buffer.from(credentialPublicKey).toString('base64'),
-      counter,
+      credentialId: Buffer.from(credential.id).toString('base64'),
+      publicKey: Buffer.from(credential.publicKey).toString('base64'),
+      counter: credential.counter,
       transports: response.response.transports || [],
     });
 
@@ -166,9 +165,9 @@ export class PasskeyService {
       expectedChallenge,
       expectedOrigin: this.origin,
       expectedRPID: this.rpID,
-      authenticator: {
-        credentialID: passkey.credentialId,
-        credentialPublicKey: isoBase64URL.toBuffer(passkey.publicKey),
+      credential: {
+        id: passkey.credentialId,
+        publicKey: isoBase64URL.toBuffer(passkey.publicKey),
         counter: Number(passkey.counter),
       },
     });

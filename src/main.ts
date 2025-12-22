@@ -33,15 +33,17 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
-  // Redis client for sessions
+  // Redis client for sessions (using socket config to avoid URL encoding issues)
   const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
   const redisPassword = configService.get<string>('REDIS_PASSWORD');
 
   const redisClient = createClient({
-    url: redisPassword
-      ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
-      : `redis://${redisHost}:${redisPort}`,
+    socket: {
+      host: redisHost,
+      port: redisPort,
+    },
+    password: redisPassword || undefined,
   });
   
   redisClient.on('error', (err) => console.error('Redis Session Error:', err));

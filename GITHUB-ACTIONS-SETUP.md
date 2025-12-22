@@ -340,3 +340,4 @@ docker-compose up -d auth-service
 **Status**: ✅ Ready to use
 
 
+

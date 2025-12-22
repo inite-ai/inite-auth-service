@@ -577,3 +577,4 @@ async function linkWallet(accessToken: string) {
 - Документация: См. INITE-AUTH-SERVICE-SETUP.md
 
 
+

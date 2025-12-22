@@ -38,13 +38,20 @@ async function bootstrap() {
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
   const redisPassword = configService.get<string>('REDIS_PASSWORD');
 
-  const redisClient = createClient({
+  // Build Redis config - only include password if it's actually set
+  const redisConfig: any = {
     socket: {
       host: redisHost,
       port: redisPort,
     },
-    password: redisPassword || undefined,
-  });
+  };
+  
+  // Only add password if it's a non-empty string
+  if (redisPassword && redisPassword.trim().length > 0) {
+    redisConfig.password = redisPassword;
+  }
+
+  const redisClient = createClient(redisConfig);
   
   redisClient.on('error', (err) => console.error('Redis Session Error:', err));
   await redisClient.connect();

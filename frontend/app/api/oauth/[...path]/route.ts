@@ -27,6 +27,12 @@ async function proxyRequest(
   const path = pathSegments.join('/')
   const url = new URL(`${API_URL}/oauth/${path}`)
   
+  console.log('🔄 [OAuth Proxy] Incoming request headers:', {
+    authorization: request.headers.get('authorization')?.substring(0, 30),
+    contentType: request.headers.get('content-type'),
+    cookie: request.headers.get('cookie')?.substring(0, 50),
+  })
+  
   // Forward query params
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.set(key, value)
@@ -39,6 +45,8 @@ async function proxyRequest(
   if (authHeader) {
     headers['Authorization'] = authHeader
     console.log('🔐 [OAuth Proxy] Forwarding Authorization header:', authHeader.substring(0, 20) + '...')
+  } else {
+    console.log('⚠️ [OAuth Proxy] NO Authorization header found!')
   }
   
   // Forward Content-Type

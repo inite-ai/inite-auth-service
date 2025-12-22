@@ -52,6 +52,8 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
       // If OAuth flow, generate auth code and redirect directly
       if (oauthParams.clientId && oauthParams.redirectUri) {
         try {
+          console.log('🔐 [PasswordAuth] Creating OAuth code with token:', data.access_token?.substring(0, 20))
+          
           // Create authorization code using the access token
           const { data: codeData } = await api.post(
             '/oauth/create-code',
@@ -68,6 +70,8 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
             }
           )
 
+          console.log('✅ [PasswordAuth] Code created:', codeData.code?.substring(0, 20))
+
           // Redirect with code
           const url = new URL(oauthParams.redirectUri)
           url.searchParams.set('code', codeData.code)
@@ -75,7 +79,7 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
           
           window.location.href = url.toString()
         } catch (error) {
-          console.error('OAuth redirect error:', error)
+          console.error('❌ [PasswordAuth] OAuth redirect error:', error)
           toast.error('Failed to complete authentication')
         }
       } else {

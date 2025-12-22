@@ -12,12 +12,16 @@ import {
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
+import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateCodeInput } from './dto/create-code.input';
 
 @Controller('oauth')
 export class OAuthController {
-  constructor(private readonly oauthService: OAuthService) {}
+  constructor(
+    private readonly oauthService: OAuthService,
+    private readonly authService: AuthService,
+  ) {}
 
   /**
    * Authorization endpoint
@@ -310,6 +314,46 @@ export class OAuthController {
     );
 
     return { code };
+  }
+
+  /**
+   * Set session from JWT token (for SSO after frontend login)
+   * GET /oauth/session?token=...&redirect=...
+   */
+  @Get('session')
+  async setSession(
+    @Query('token') token: string,
+    @Query('redirect') redirect: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    if (!token) {
+      throw new BadRequestException('token is required');
+    }
+
+    try {
+      // Verify and decode the token
+      const payload = await this.authService.verifyToken(token);
+      
+      // Set userId in session
+      if (req.session) {
+        req.session.userId = payload.userId;
+        console.log('🔐 [Session Set] userId set in session:', {
+          sessionId: req.session.id,
+          userId: payload.userId,
+        });
+      }
+
+      // Redirect to the original OAuth flow or provided redirect
+      if (redirect) {
+        return res.redirect(redirect);
+      }
+
+      return res.json({ success: true, message: 'Session established' });
+    } catch (error) {
+      console.error('❌ [Session Set] Token verification failed:', error);
+      throw new UnauthorizedException('Invalid token');
+    }
   }
 
   /**

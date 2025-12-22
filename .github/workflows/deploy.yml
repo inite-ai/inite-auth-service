@@ -143,6 +143,8 @@ jobs:
               - ADMIN_EMAIL=\${ADMIN_EMAIL}
               - ADMIN_PASSWORD=\${ADMIN_PASSWORD}
               - ADMIN_NAME=\${ADMIN_NAME}
+              - COOKIE_DOMAIN=.inite.ai
+              - SESSION_SECRET=\${JWT_SECRET}
             ports:
               - "3002:3002"
             depends_on:

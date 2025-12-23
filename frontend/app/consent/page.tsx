@@ -5,12 +5,29 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
-import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode } from '@/lib/oauthHelpers'
+import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, OAuthParams } from '@/lib/oauthHelpers'
+import { Button, Card } from '@/components/ui'
 
 interface UserInfo {
   id: string
   email: string
   name?: string
+}
+
+// Client display names
+const CLIENT_NAMES: Record<string, string> = {
+  'smart-chat': 'Break3',
+  'smart-chat-admin': 'Break3 Admin Panel',
+  'inite-club': 'INITE Club',
+}
+
+// Scope descriptions
+const SCOPE_INFO: Record<string, { icon: typeof Key; label: string }> = {
+  'openid': { icon: Key, label: 'Verify your identity' },
+  'profile': { icon: User, label: 'Access your profile information' },
+  'email': { icon: Mail, label: 'View your email address' },
+  'admin': { icon: Shield, label: 'Administrative access' },
+  'offline_access': { icon: Key, label: 'Stay signed in' },
 }
 
 function ConsentContent() {
@@ -19,20 +36,21 @@ function ConsentContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<UserInfo | null>(null)
+  const [oauthParams, setOauthParams] = useState<OAuthParams | null>(null)
 
-  const oauthParams = extractOAuthParams(searchParams)
-
-  // Get user info from localStorage
   useEffect(() => {
+    const params = extractOAuthParams(searchParams)
+    setOauthParams(params)
+
     const userId = authStorage.getUserId()
     const token = authStorage.getToken()
     
     if (!userId || !token) {
-      router.push(buildLoginUrl(oauthParams))
+      router.push(buildLoginUrl(params))
       return
     }
 
-    // Try to get user email from token
+    // Parse user info from token
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
       setUser({
@@ -43,33 +61,17 @@ function ConsentContent() {
     } catch {
       setUser({ id: userId, email: 'Unknown' })
     }
-  }, [clientId, redirectUri, scope, state, codeChallenge, codeChallengeMethod, router])
+  }, [searchParams, router])
 
-  const getClientDisplayName = (clientId: string | null) => {
-    const names: Record<string, string> = {
-      'smart-chat': 'Break3',
-      'smart-chat-admin': 'Break3 Admin Panel',
-      'inite-club': 'INITE Club',
-    }
-    return names[clientId || ''] || clientId || 'Unknown App'
-  }
+  const getClientName = () => CLIENT_NAMES[oauthParams?.clientId || ''] || oauthParams?.clientId || 'Unknown App'
 
-  const getScopeDescriptions = (scope: string | null) => {
-    const scopes = (scope || 'openid profile email').split(' ')
-    const descriptions: Record<string, { icon: any; label: string }> = {
-      'openid': { icon: Key, label: 'Verify your identity' },
-      'profile': { icon: User, label: 'Access your profile information' },
-      'email': { icon: Mail, label: 'View your email address' },
-      'admin': { icon: Shield, label: 'Administrative access' },
-      'offline_access': { icon: Key, label: 'Stay signed in' },
-    }
-    return scopes
-      .filter(s => descriptions[s])
-      .map(s => ({ scope: s, ...descriptions[s] }))
+  const getScopes = () => {
+    const scopes = (oauthParams?.scope || 'openid profile email').split(' ')
+    return scopes.filter(s => SCOPE_INFO[s]).map(s => ({ scope: s, ...SCOPE_INFO[s] }))
   }
 
   const handleApprove = async () => {
-    if (!oauthParams.clientId || !oauthParams.redirectUri) {
+    if (!oauthParams?.clientId || !oauthParams?.redirectUri) {
       setError('Missing required parameters')
       return
     }
@@ -93,7 +95,7 @@ function ConsentContent() {
   }
 
   const handleDeny = () => {
-    if (oauthParams.redirectUri) {
+    if (oauthParams?.redirectUri) {
       const url = new URL(oauthParams.redirectUri)
       url.searchParams.set('error', 'access_denied')
       url.searchParams.set('error_description', 'User denied the request')
@@ -104,7 +106,8 @@ function ConsentContent() {
     }
   }
 
-  if (!user) {
+  // Loading state
+  if (!user || !oauthParams) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
@@ -112,16 +115,15 @@ function ConsentContent() {
     )
   }
 
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full">
-          <div className="text-center">
-            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-red-600 mb-2">Authorization Error</h1>
-            <p className="text-gray-600 dark:text-gray-400">{error}</p>
-          </div>
-        </div>
+        <Card className="max-w-md w-full text-center">
+          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-red-600 mb-2">Authorization Error</h1>
+          <p className="text-gray-600 dark:text-gray-400">{error}</p>
+        </Card>
       </div>
     )
   }
@@ -131,83 +133,79 @@ function ConsentContent() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full"
       >
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Shield className="w-10 h-10 text-white" />
+        <Card className="max-w-md w-full">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <Shield className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Confirm Sign In
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              <span className="font-semibold text-blue-600">{getClientName()}</span>
+              {' '}wants to access your account
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Confirm Sign In
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            <span className="font-semibold text-blue-600">{getClientDisplayName(oauthParams.clientId)}</span>
-            {' '}wants to access your account
+
+          {/* User info */}
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-full flex items-center justify-center">
+                <User className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {user.name || 'User'}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Permissions */}
+          <div className="mb-8">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              This will allow the app to:
+            </h3>
+            <ul className="space-y-2">
+              {getScopes().map(({ scope, icon: Icon, label }) => (
+                <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+                  <Icon className="w-5 h-5 text-green-500" />
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={handleDeny}
+              disabled={loading}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApprove}
+              loading={loading}
+              icon={!loading && <CheckCircle className="w-5 h-5" />}
+              className="flex-1 from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+            >
+              {loading ? 'Authorizing...' : 'Allow'}
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-6">
+            By clicking Allow, you authorize this app to use your information in accordance with their terms of service and privacy policy.
           </p>
-        </div>
-
-        {/* User info */}
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-full flex items-center justify-center">
-              <User className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {user.name || 'User'}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {user.email}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Permissions */}
-        <div className="mb-8">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            This will allow the app to:
-          </h3>
-          <ul className="space-y-2">
-            {getScopeDescriptions(oauthParams.scope).map(({ scope, icon: Icon, label }) => (
-              <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                <Icon className="w-5 h-5 text-green-500" />
-                <span>{label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={handleDeny}
-            disabled={loading}
-            className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={loading}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                Allow
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Footer */}
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-6">
-          By clicking Allow, you authorize this app to use your information in accordance with their terms of service and privacy policy.
-        </p>
+        </Card>
       </motion.div>
     </div>
   )
@@ -224,4 +222,3 @@ export default function ConsentPage() {
     </Suspense>
   )
 }
-

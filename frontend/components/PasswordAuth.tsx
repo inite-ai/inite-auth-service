@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Lock, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
 import { OAuthParams, isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
+import { Input, Button, Card, CardHeader } from '@/components/ui'
 
 interface PasswordAuthProps {
   oauthParams: OAuthParams
@@ -68,93 +69,63 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-200 dark:border-gray-700">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-gray-600 to-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Lock className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          {mode === 'login' ? 'Sign in with Password' : 'Create Account'}
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          {mode === 'login' ? 'Use your email and password' : 'Register with email and password'}
-        </p>
-      </div>
+    <Card>
+      <CardHeader
+        icon={<Lock className="w-8 h-8 text-white" />}
+        iconClassName="from-gray-600 to-gray-800"
+        title={mode === 'login' ? 'Sign in with Password' : 'Create Account'}
+        description={mode === 'login' ? 'Use your email and password' : 'Register with email and password'}
+      />
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
         {mode === 'register' && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="mb-4"
           >
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Name
-            </label>
-            <input
+            <Input
               type="text"
+              label="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition"
             />
           </motion.div>
         )}
 
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition"
-            required
-          />
-        </div>
+        <Input
+          type="email"
+          label="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          required
+        />
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Password
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition pr-12"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
+        <Input
+          type={showPassword ? 'text' : 'password'}
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          showPasswordToggle
+          isPasswordVisible={showPassword}
+          onPasswordToggle={() => setShowPassword(!showPassword)}
+        />
 
-        <button
+        <Button
           type="submit"
-          disabled={loading || !email || !password}
-          className="w-full bg-gradient-to-r from-gray-600 to-gray-800 text-white py-4 rounded-xl font-semibold hover:from-gray-700 hover:to-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          loading={loading}
+          disabled={!email || !password}
+          icon={<Lock className="w-5 h-5" />}
+          className="from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900 mt-6"
         >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-            </>
-          ) : (
-            <>
-              <Lock className="w-5 h-5" />
-              {mode === 'login' ? 'Sign In' : 'Create Account'}
-            </>
-          )}
-        </button>
+          {loading 
+            ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
+            : (mode === 'login' ? 'Sign In' : 'Create Account')
+          }
+        </Button>
       </form>
 
       <div className="mt-6 text-center">
@@ -166,13 +137,13 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         </button>
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
+      <Card variant="warning" className="mt-8 p-4">
         <p className="text-xs text-yellow-800 dark:text-yellow-200">
           ⚠️ Password authentication is provided for backward compatibility. 
           We recommend using Passkey for better security.
         </p>
-      </div>
-    </div>
+      </Card>
+    </Card>
   )
 }
 

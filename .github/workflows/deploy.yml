@@ -110,7 +110,7 @@ jobs:
               - "traefik.http.routers.auth-api.service=auth-api-service"
               - "traefik.http.services.auth-api-service.loadbalancer.server.port=3002"
               # Backend API через path routing на основном домене (для SSO)
-              - "traefik.http.routers.auth-api-path.rule=Host(\`auth.inite.ai\`) && (PathPrefix(\`/oauth\`) || PathPrefix(\`/auth\`) || PathPrefix(\`/.well-known\`) || PathPrefix(\`/admin\`) || PathPrefix(\`/health\`))"
+              - "traefik.http.routers.auth-api-path.rule=Host(\`auth.inite.ai\`) && (PathPrefix(\`/oauth\`) || PathPrefix(\`/auth\`) || PathPrefix(\`/.well-known\`) || PathPrefix(\`/admin\`) || PathPrefix(\`/health\`) || PathPrefix(\`/identity\`) || PathPrefix(\`/session\`))"
               - "traefik.http.routers.auth-api-path.entrypoints=websecure"
               - "traefik.http.routers.auth-api-path.tls=true"
               - "traefik.http.routers.auth-api-path.tls.certresolver=letsencrypt"
@@ -180,6 +180,7 @@ jobs:
               - "traefik.http.routers.auth-frontend.entrypoints=websecure"
               - "traefik.http.routers.auth-frontend.tls=true"
               - "traefik.http.routers.auth-frontend.tls.certresolver=letsencrypt"
+              - "traefik.http.routers.auth-frontend.priority=10"
               - "traefik.http.services.auth-frontend.loadbalancer.server.port=3003"
               # HTTP to HTTPS redirect для frontend
               - "traefik.http.routers.auth-frontend-http.rule=Host(\`auth.inite.ai\`)"

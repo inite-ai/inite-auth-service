@@ -5,7 +5,11 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
+import * as signature from 'cookie-signature';
 import { AppModule } from './app.module';
+
+// Export for use in controllers
+export let sessionSecret: string;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -63,10 +67,26 @@ async function bootstrap() {
   app.use(cookieParser());
   console.log('✅ Cookie parser initialized');
 
+  // Debug middleware - log all Set-Cookie headers
+  app.use((req: any, res: any, next: any) => {
+    const originalEnd = res.end;
+    res.end = function(...args: any[]) {
+      const setCookie = res.getHeader('Set-Cookie');
+      if (setCookie) {
+        console.log('🍪 [Response] Set-Cookie header:', setCookie);
+      }
+      if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
+        console.log(`📤 [Response] ${req.method} ${req.path} - Status: ${res.statusCode}, Set-Cookie: ${setCookie ? 'YES' : 'NO'}`);
+      }
+      return originalEnd.apply(this, args);
+    };
+    next();
+  });
+
   // Session configuration
-  const sessionSecret = configService.get<string>('SESSION_SECRET') || 
-                        configService.get<string>('JWT_SECRET') || 
-                        'change-this-secret';
+  sessionSecret = configService.get<string>('SESSION_SECRET') || 
+                  configService.get<string>('JWT_SECRET') || 
+                  'change-this-secret';
   
   app.use(
     session({

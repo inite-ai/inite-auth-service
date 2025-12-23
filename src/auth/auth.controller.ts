@@ -10,9 +10,11 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
+import * as signature from 'cookie-signature';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { sessionSecret } from '../main';
 
 @Controller('auth')
 export class AuthController {
@@ -104,6 +106,18 @@ export class AuthController {
                 sessionId: req.session.id,
                 userId: req.session.userId,
               });
+              
+              // Manually set the session cookie - express-session signs it with 's:' prefix
+              const signedSessionId = 's:' + signature.sign(req.session.id, sessionSecret);
+              res.cookie('inite.sid', signedSessionId, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/',
+              });
+              console.log('🍪 [Password Login] Cookie manually set:', signedSessionId.substring(0, 20) + '...');
+              
               resolve();
             }
           });

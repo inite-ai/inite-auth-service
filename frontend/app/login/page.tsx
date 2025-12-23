@@ -1,18 +1,22 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Fingerprint, Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react'
 import PasskeyAuth from '@/components/PasskeyAuth'
 import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
+import { authStorage } from '@/lib/authStorage'
+import { isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
 
 type AuthMethod = 'passkey' | 'magic-link' | 'password'
 
 function LoginContent() {
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const searchParams = useSearchParams()
+  const router = useRouter()
   
   const clientId = searchParams.get('client_id')
   const redirectUri = searchParams.get('redirect_uri')
@@ -30,6 +34,33 @@ function LoginContent() {
     codeChallenge,
     codeChallengeMethod,
     prompt,
+  }
+
+  // Check if already authenticated
+  useEffect(() => {
+    const token = authStorage.getToken()
+    
+    if (token) {
+      // User already has a token
+      if (isOAuthFlow(oauthParams)) {
+        // OAuth flow - redirect to consent
+        router.push(buildConsentUrl(oauthParams))
+      } else {
+        // Direct access - redirect to account
+        router.push('/account')
+      }
+    } else {
+      setCheckingAuth(false)
+    }
+  }, [router, oauthParams])
+
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+      </div>
+    )
   }
 
   const authMethods = [

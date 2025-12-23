@@ -56,6 +56,43 @@ export class EmailService {
       `,
     });
   }
+
+  async sendEmailVerification(email: string, verificationLink: string): Promise<void> {
+    const from = this.configService.get<string>('SMTP_FROM');
+
+    await this.transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Verify your INITE email address',
+      html: `
+        <h1>Verify Your Email</h1>
+        <p>Click the link below to verify your email address:</p>
+        <p><a href="${verificationLink}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; text-decoration: none; border-radius: 8px;">Verify Email</a></p>
+        <p>Or copy this link: <a href="${verificationLink}">${verificationLink}</a></p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request this, you can safely ignore this email.</p>
+      `,
+    });
+  }
+
+  async sendEmailChangeVerification(newEmail: string, oldEmail: string, verificationLink: string): Promise<void> {
+    const from = this.configService.get<string>('SMTP_FROM');
+
+    await this.transporter.sendMail({
+      from,
+      to: newEmail,
+      subject: 'Confirm your new INITE email address',
+      html: `
+        <h1>Confirm Email Change</h1>
+        <p>You requested to change your INITE email from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p>
+        <p>Click the link below to confirm this change:</p>
+        <p><a href="${verificationLink}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; text-decoration: none; border-radius: 8px;">Confirm Email Change</a></p>
+        <p>Or copy this link: <a href="${verificationLink}">${verificationLink}</a></p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request this change, please secure your account immediately.</p>
+      `,
+    });
+  }
 }
 
 

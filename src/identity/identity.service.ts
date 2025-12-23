@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { User, Wallet, Passkey } from '../database/entities';
 import { DidService } from './did.service';
+import { EmailService } from '../email/email.service';
 import { ethers } from 'ethers';
 import * as bcrypt from 'bcryptjs';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class IdentityService {
@@ -16,6 +19,8 @@ export class IdentityService {
     @InjectRepository(Wallet)
     private readonly walletRepository: Repository<Wallet>,
     private readonly didService: DidService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -464,6 +469,206 @@ Issued At: ${issuedAt}`;
     }
 
     throw new BadRequestException('Invalid verification code');
+  }
+
+  // ==================== Data Export & Account Deletion ====================
+
+  /**
+   * Export all user data
+   */
+  async exportUserData(userId: string): Promise<any> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['wallets', 'passkeys'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      identity: {
+        id: user.id,
+        did: user.did,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        location: user.location,
+        profession: user.profession,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+      security: {
+        twoFactorEnabled: user.twoFactorEnabled,
+        passkeysCount: user.passkeys?.length || 0,
+      },
+      wallets: user.wallets?.map(w => ({
+        address: w.address,
+        chain: w.chain,
+        linkedAt: w.linkedAt,
+      })) || [],
+      passkeys: user.passkeys?.map(p => ({
+        id: p.id,
+        deviceName: p.deviceName,
+        deviceType: p.deviceType,
+        createdAt: p.createdAt,
+        lastUsedAt: p.lastUsedAt,
+      })) || [],
+    };
+  }
+
+  /**
+   * Delete user account and all related data
+   */
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'passwordHash'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Verify password if set
+    if (user.passwordHash) {
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    }
+
+    // Delete user (cascade will delete wallets, passkeys, etc.)
+    await this.userRepository.delete(userId);
+  }
+
+  // ==================== Email Verification ====================
+
+  /**
+   * Request email change
+   */
+  async requestEmailChange(userId: string, newEmail: string, password: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'email', 'passwordHash'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Verify password if set
+    if (user.passwordHash) {
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    }
+
+    // Check if new email is already in use
+    const existingUser = await this.userRepository.findOne({ where: { email: newEmail } });
+    if (existingUser) {
+      throw new BadRequestException('Email is already in use');
+    }
+
+    // Generate verification token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 24);
+
+    // Store pending email change in metadata
+    const fullUser = await this.getIdentityById(userId);
+    fullUser.metadata = {
+      ...fullUser.metadata,
+      pendingEmailChange: {
+        newEmail,
+        token,
+        expires: expires.toISOString(),
+      },
+    };
+    await this.userRepository.save(fullUser);
+
+    // Send verification email
+    const rpOrigin = this.configService.get('RP_ORIGIN') || 'https://auth.inite.ai';
+    const verificationLink = `${rpOrigin}/verify-email?token=${token}&type=change`;
+    await this.emailService.sendEmailChangeVerification(newEmail, user.email, verificationLink);
+  }
+
+  /**
+   * Resend email verification
+   */
+  async resendEmailVerification(userId: string): Promise<void> {
+    const user = await this.getIdentityById(userId);
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Generate verification token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 24);
+
+    // Store verification token
+    await this.userRepository.update(userId, {
+      emailVerificationToken: token,
+      emailVerificationExpires: expires,
+    });
+
+    // Send verification email
+    const rpOrigin = this.configService.get('RP_ORIGIN') || 'https://auth.inite.ai';
+    const verificationLink = `${rpOrigin}/verify-email?token=${token}`;
+    await this.emailService.sendEmailVerification(user.email, verificationLink);
+  }
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
+    // First check for regular email verification
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+
+    if (user) {
+      if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
+        throw new BadRequestException('Verification link has expired');
+      }
+
+      await this.userRepository.update(user.id, {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      });
+
+      return { success: true, message: 'Email verified successfully' };
+    }
+
+    // Check for email change verification
+    const users = await this.userRepository.find();
+    for (const u of users) {
+      const pending = u.metadata?.pendingEmailChange;
+      if (pending && pending.token === token) {
+        if (new Date(pending.expires) < new Date()) {
+          throw new BadRequestException('Verification link has expired');
+        }
+
+        u.email = pending.newEmail;
+        u.emailVerified = true;
+        u.metadata = {
+          ...u.metadata,
+          pendingEmailChange: null,
+        };
+        await this.userRepository.save(u);
+
+        return { success: true, message: 'Email changed successfully' };
+      }
+    }
+
+    throw new BadRequestException('Invalid verification token');
   }
 }
 

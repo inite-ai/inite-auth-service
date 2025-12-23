@@ -117,6 +117,28 @@ export class IdentityController {
     return await this.identityService.updateProfile(req.user.userId, body);
   }
 
+  @Post('email/change')
+  @UseGuards(JwtAuthGuard)
+  async changeEmail(
+    @Request() req: any,
+    @Body() body: { newEmail: string; password: string },
+  ) {
+    await this.identityService.requestEmailChange(req.user.userId, body.newEmail, body.password);
+    return { success: true, message: 'Verification email sent to new address' };
+  }
+
+  @Post('email/resend-verification')
+  @UseGuards(JwtAuthGuard)
+  async resendEmailVerification(@Request() req: any) {
+    await this.identityService.resendEmailVerification(req.user.userId);
+    return { success: true, message: 'Verification email sent' };
+  }
+
+  @Post('email/verify')
+  async verifyEmail(@Body() body: { token: string }) {
+    return await this.identityService.verifyEmail(body.token);
+  }
+
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   async changePassword(

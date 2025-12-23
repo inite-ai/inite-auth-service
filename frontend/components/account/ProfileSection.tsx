@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { User, Edit2, Check, X, Camera } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { User, Edit2, Check, X, Camera, Mail, AlertCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 
@@ -15,6 +15,10 @@ interface ProfileSectionProps {
 export default function ProfileSection({ user, accessToken, onUpdate }: ProfileSectionProps) {
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showEmailChange, setShowEmailChange] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailPassword, setEmailPassword] = useState('')
   const [formData, setFormData] = useState({
     name: user?.name || '',
     bio: user?.bio || '',
@@ -46,6 +50,42 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
       profession: user?.profession || '',
     })
     setEditing(false)
+  }
+
+  const handleChangeEmail = async () => {
+    if (!newEmail || !emailPassword) {
+      toast.error('Please fill in all fields')
+      return
+    }
+
+    setEmailLoading(true)
+    try {
+      await api.post('/identity/email/change', {
+        newEmail,
+        password: emailPassword,
+      }, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      toast.success('Verification email sent to your new address')
+      setShowEmailChange(false)
+      setNewEmail('')
+      setEmailPassword('')
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to change email')
+    } finally {
+      setEmailLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    try {
+      await api.post('/identity/email/resend-verification', {}, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      toast.success('Verification email sent')
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to send verification')
+    }
   }
 
   return (
@@ -158,7 +198,27 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
             <>
               <div>
                 <h3 className="text-2xl font-bold text-white">{user?.name || 'Anonymous User'}</h3>
-                <p className="text-slate-400">{user?.email}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-slate-400">{user?.email}</p>
+                  {user?.emailVerified ? (
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleResendVerification}
+                      className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full flex items-center gap-1 hover:bg-amber-500/30 transition"
+                    >
+                      <AlertCircle className="w-3 h-3" /> Verify
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowEmailChange(true)}
+                    className="text-xs text-violet-400 hover:text-violet-300 transition"
+                  >
+                    Change
+                  </button>
+                </div>
               </div>
               {user?.bio && <p className="text-slate-300">{user.bio}</p>}
               <div className="flex gap-4 text-sm">
@@ -178,6 +238,79 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
           )}
         </div>
       </div>
+
+      {/* Email Change Modal */}
+      <AnimatePresence>
+        {showEmailChange && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowEmailChange(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-900 rounded-2xl p-8 max-w-md w-full border border-slate-700"
+            >
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Mail className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Change Email Address</h3>
+                <p className="text-slate-400">A verification link will be sent to your new email</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">New Email Address</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="new@email.com"
+                    className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Confirm with Password</label>
+                  <input
+                    type="password"
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    placeholder="Your password"
+                    className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowEmailChange(false)}
+                    className="flex-1 px-4 py-3 bg-slate-700/50 text-slate-300 rounded-xl hover:bg-slate-600/50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleChangeEmail}
+                    disabled={emailLoading}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl hover:from-violet-600 hover:to-fuchsia-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {emailLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Verification'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

@@ -4,9 +4,10 @@ import { IdentityService } from './identity.service';
 import { DidService } from './did.service';
 import { IdentityController } from './identity.controller';
 import { User, Wallet } from '../database/entities';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Wallet])],
+  imports: [TypeOrmModule.forFeature([User, Wallet]), EmailModule],
   providers: [IdentityService, DidService],
   controllers: [IdentityController],
   exports: [IdentityService, DidService],

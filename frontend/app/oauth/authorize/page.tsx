@@ -10,7 +10,7 @@ function OAuthAuthorizeContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const checkSessionAndAuthorize = async () => {
+    const checkAndRedirect = () => {
       const clientId = searchParams.get('client_id')
       const redirectUri = searchParams.get('redirect_uri')
       const scope = searchParams.get('scope')
@@ -29,75 +29,39 @@ function OAuthAuthorizeContent() {
         return
       }
 
-      // Check if we have a saved token in localStorage (SSO fallback)
+      // Check if we have a saved token in localStorage (SSO)
       const savedToken = localStorage.getItem('inite_access_token')
-      console.log('🔐 [OAuth Authorize] Checking for saved token:', savedToken ? 'FOUND' : 'NOT FOUND')
-      
-      // Build headers - include JWT if available
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
+      console.log('🔐 [OAuth Authorize] Checking auth:', savedToken ? 'Token found' : 'No token')
+
+      // Build consent URL with all OAuth params
+      const consentUrl = new URL('/oauth/consent', window.location.origin)
+      consentUrl.searchParams.set('client_id', clientId)
+      consentUrl.searchParams.set('redirect_uri', redirectUri)
+      if (scope) consentUrl.searchParams.set('scope', scope)
+      if (state) consentUrl.searchParams.set('state', state)
+      if (codeChallenge) consentUrl.searchParams.set('code_challenge', codeChallenge)
+      if (codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
+
       if (savedToken) {
-        headers['Authorization'] = `Bearer ${savedToken}`
-        console.log('🔐 [OAuth Authorize] Using saved token for SSO')
-      }
-
-      try {
-        console.log('🔐 [OAuth Authorize] Calling /oauth/create-code...')
-        const response = await fetch('/oauth/create-code', {
-          method: 'POST',
-          headers,
-          credentials: 'include',
-          body: JSON.stringify({
-            clientId,
-            redirectUri,
-            scope,
-            state,
-            codeChallenge,
-            codeChallengeMethod,
-          }),
-        })
-
-        console.log('🔐 [OAuth Authorize] Response status:', response.status)
+        // User has token, redirect to consent page to confirm
+        console.log('🔐 [OAuth Authorize] User authenticated, redirecting to consent')
+        router.push(consentUrl.pathname + consentUrl.search)
+      } else {
+        // No token, redirect to login first
+        console.log('🔐 [OAuth Authorize] User not authenticated, redirecting to login')
+        const loginUrl = new URL('/login', window.location.origin)
+        loginUrl.searchParams.set('client_id', clientId)
+        loginUrl.searchParams.set('redirect_uri', redirectUri)
+        if (scope) loginUrl.searchParams.set('scope', scope)
+        if (state) loginUrl.searchParams.set('state', state)
+        if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge)
+        if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
         
-        if (response.ok) {
-          // User is authenticated, we got a code
-          const data = await response.json()
-          console.log('✅ [OAuth Authorize] Got code, redirecting to:', redirectUri)
-          const url = new URL(redirectUri)
-          url.searchParams.set('code', data.code)
-          if (state) url.searchParams.set('state', state)
-          window.location.href = url.toString()
-          return
-        }
-
-        if (response.status === 401) {
-          // User not authenticated, clear any stale token and redirect to login
-          console.log('❌ [OAuth Authorize] 401 - Token invalid or expired, clearing and redirecting to login')
-          localStorage.removeItem('inite_access_token')
-          localStorage.removeItem('inite_user_id')
-          
-          const loginUrl = new URL('/login', window.location.origin)
-          loginUrl.searchParams.set('client_id', clientId)
-          loginUrl.searchParams.set('redirect_uri', redirectUri)
-          if (scope) loginUrl.searchParams.set('scope', scope)
-          if (state) loginUrl.searchParams.set('state', state)
-          if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge)
-          if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
-          
-          router.push(loginUrl.pathname + loginUrl.search)
-          return
-        }
-
-        const errorData = await response.json().catch(() => ({}))
-        setError(errorData.message || 'Authorization failed')
-      } catch (err) {
-        console.error('Authorization error:', err)
-        setError('Failed to process authorization request')
+        router.push(loginUrl.pathname + loginUrl.search)
       }
     }
 
-    checkSessionAndAuthorize()
+    checkAndRedirect()
   }, [searchParams, router])
 
   if (error) {

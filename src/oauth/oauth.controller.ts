@@ -131,21 +131,16 @@ export class OAuthController {
       return res.redirect(loginUrl.toString());
     }
 
-    // User is authenticated, show consent screen (or auto-approve for trusted clients)
-    // For now, we'll auto-approve
-    const code = await this.oauthService.createAuthorizationCode(
-      userId,
-      clientId,
-      redirectUri,
-      scope || 'openid profile email',
-      codeChallenge,
-      codeChallengeMethod || 'S256',
-    );
-
-    const successUrl = new URL(redirectUri);
-    successUrl.searchParams.set('code', code);
-    if (state) successUrl.searchParams.set('state', state);
-    return res.redirect(successUrl.toString());
+    // User is authenticated, redirect to consent screen
+    const consentUrl = new URL('/oauth/consent', process.env.FRONTEND_URL || `https://${req.headers.host}`);
+    consentUrl.searchParams.set('client_id', clientId);
+    consentUrl.searchParams.set('redirect_uri', redirectUri);
+    if (scope) consentUrl.searchParams.set('scope', scope);
+    if (state) consentUrl.searchParams.set('state', state);
+    if (codeChallenge) consentUrl.searchParams.set('code_challenge', codeChallenge);
+    if (codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
+    
+    return res.redirect(consentUrl.toString());
   }
 
   /**

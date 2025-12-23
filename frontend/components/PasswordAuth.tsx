@@ -62,40 +62,20 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         const data = await response.json()
         toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
 
-        // Save token for SSO (fallback since cookies don't work with Cloudflare)
+        // Save token for SSO
         localStorage.setItem('inite_access_token', data.access_token)
         localStorage.setItem('inite_user_id', data.user.id)
 
-        // Create OAuth code using JWT token
-        const codeResponse = await fetch('/oauth/create-code', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.access_token}`,
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            clientId: oauthParams.clientId,
-            redirectUri: oauthParams.redirectUri,
-            scope: oauthParams.scope,
-            state: oauthParams.state,
-            codeChallenge: oauthParams.codeChallenge,
-            codeChallengeMethod: oauthParams.codeChallengeMethod,
-          }),
-        })
-
-        if (!codeResponse.ok) {
-          throw new Error('Failed to create authorization code')
-        }
-
-        const codeData = await codeResponse.json()
-
-        // Redirect with code
-        const url = new URL(oauthParams.redirectUri)
-        url.searchParams.set('code', codeData.code)
-        if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
+        // Redirect to consent page
+        const consentUrl = new URL('/oauth/consent', window.location.origin)
+        consentUrl.searchParams.set('client_id', oauthParams.clientId!)
+        consentUrl.searchParams.set('redirect_uri', oauthParams.redirectUri!)
+        if (oauthParams.scope) consentUrl.searchParams.set('scope', oauthParams.scope)
+        if (oauthParams.state) consentUrl.searchParams.set('state', oauthParams.state)
+        if (oauthParams.codeChallenge) consentUrl.searchParams.set('code_challenge', oauthParams.codeChallenge)
+        if (oauthParams.codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', oauthParams.codeChallengeMethod)
         
-        window.location.href = url.toString()
+        router.push(consentUrl.pathname + consentUrl.search)
         return
       }
 

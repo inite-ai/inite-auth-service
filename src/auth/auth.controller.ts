@@ -71,6 +71,7 @@ export class AuthController {
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Request() req: any,
+    @Res({ passthrough: true }) res: ExpressResponse,
   ) {
     const result = await this.authService.loginWithPassword(
       body.email,
@@ -81,26 +82,37 @@ export class AuthController {
     if (req.session) {
       req.session.userId = result.user.id;
       
-      // Explicitly save session and wait for it
+      // Regenerate session to ensure new cookie is sent
       await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => {
+        const userId = result.user.id;
+        req.session.regenerate((err: any) => {
           if (err) {
-            console.error('❌ [Password Login] Session save error:', err);
+            console.error('❌ [Password Login] Session regenerate error:', err);
             reject(err);
-          } else {
-            console.log('🔐 [Password Login] Session saved:', {
-              sessionId: req.session.id,
-              userId: req.session.userId,
-            });
-            resolve();
+            return;
           }
+          
+          // Set userId again after regeneration
+          req.session.userId = userId;
+          
+          req.session.save((saveErr: any) => {
+            if (saveErr) {
+              console.error('❌ [Password Login] Session save error:', saveErr);
+              reject(saveErr);
+            } else {
+              console.log('🔐 [Password Login] Session regenerated and saved:', {
+                sessionId: req.session.id,
+                userId: req.session.userId,
+              });
+              resolve();
+            }
+          });
         });
       });
     } else {
       console.error('❌ [Password Login] No session object available!');
     }
     
-    // Return object directly - NestJS will handle response and session middleware will add Set-Cookie
     return {
       access_token: result.accessToken,
       user: {

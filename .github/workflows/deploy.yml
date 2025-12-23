@@ -47,7 +47,7 @@ jobs:
         file: ./frontend/Dockerfile
         push: true
         build-args: |
-          NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
+          NEXT_PUBLIC_API_URL=
         tags: |
           ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:${{ github.sha }}
@@ -102,12 +102,20 @@ jobs:
             labels:
               - "traefik.enable=true"
               - "traefik.docker.network=traefik-global"
-              # Backend API на отдельном домене - все запросы идут на backend
+              # Backend API на отдельном домене (для обратной совместимости)
               - "traefik.http.routers.auth-api.rule=Host(\`auth-api.inite.ai\`)"
               - "traefik.http.routers.auth-api.entrypoints=websecure"
               - "traefik.http.routers.auth-api.tls=true"
               - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
-              - "traefik.http.services.auth-api.loadbalancer.server.port=3002"
+              - "traefik.http.routers.auth-api.service=auth-api-service"
+              - "traefik.http.services.auth-api-service.loadbalancer.server.port=3002"
+              # Backend API через path routing на основном домене (для SSO)
+              - "traefik.http.routers.auth-api-path.rule=Host(\`auth.inite.ai\`) && (PathPrefix(\`/oauth\`) || PathPrefix(\`/auth\`) || PathPrefix(\`/.well-known\`) || PathPrefix(\`/admin\`) || PathPrefix(\`/health\`))"
+              - "traefik.http.routers.auth-api-path.entrypoints=websecure"
+              - "traefik.http.routers.auth-api-path.tls=true"
+              - "traefik.http.routers.auth-api-path.tls.certresolver=letsencrypt"
+              - "traefik.http.routers.auth-api-path.priority=100"
+              - "traefik.http.routers.auth-api-path.service=auth-api-service"
               # HTTP to HTTPS redirect для API
               - "traefik.http.routers.auth-api-http.rule=Host(\`auth-api.inite.ai\`)"
               - "traefik.http.routers.auth-api-http.entrypoints=web"
@@ -143,7 +151,7 @@ jobs:
               - ADMIN_EMAIL=\${ADMIN_EMAIL}
               - ADMIN_PASSWORD=\${ADMIN_PASSWORD}
               - ADMIN_NAME=\${ADMIN_NAME}
-              - COOKIE_DOMAIN=.inite.ai
+              - COOKIE_DOMAIN=auth.inite.ai
               - SESSION_SECRET=\${JWT_SECRET}
             ports:
               - "3002:3002"
@@ -181,7 +189,7 @@ jobs:
               - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
             environment:
               - NODE_ENV=production
-              - NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
+              - NEXT_PUBLIC_API_URL=
             networks:
               - traefik-global
               - inite-network

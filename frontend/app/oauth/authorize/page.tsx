@@ -31,7 +31,7 @@ function OAuthAuthorizeContent() {
 
       // Check if we have a session by trying to create a code
       try {
-        const response = await fetch('/api/oauth/create-code', {
+        const response = await fetch('/oauth/create-code', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

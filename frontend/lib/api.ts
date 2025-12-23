@@ -1,11 +1,8 @@
 import axios from 'axios'
 
-// Use local API proxy for SSO (cookies will be first-party)
-// In browser, use relative path to go through Next.js API routes
-// On server, use direct API URL
-const API_URL = typeof window !== 'undefined' 
-  ? '/api'  // Browser: use Next.js API proxy
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002')
+// Use relative paths - Traefik routes /auth/* and /oauth/* to backend
+// This ensures cookies are first-party (same domain)
+const API_URL = ''
 
 const api = axios.create({
   baseURL: API_URL,

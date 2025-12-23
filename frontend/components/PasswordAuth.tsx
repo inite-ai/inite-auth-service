@@ -37,13 +37,11 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
 
     setLoading(true)
     try {
-      // For OAuth flow, we need to go through backend directly to set session cookie
-      // Can't use Next.js proxy because it won't set third-party cookies
+      // For OAuth flow, use direct API calls (Traefik routes /auth/* to backend)
       if (oauthParams.clientId && oauthParams.redirectUri) {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://auth-api.inite.ai'
         const endpoint = mode === 'login' 
-          ? `${apiUrl}/auth/password/login` 
-          : `${apiUrl}/auth/password/register`
+          ? '/auth/password/login' 
+          : '/auth/password/register'
         
         const payload = mode === 'login'
           ? { email, password }
@@ -65,7 +63,7 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
 
         // Session is now set, create OAuth code
-        const codeResponse = await fetch(`${apiUrl}/oauth/create-code`, {
+        const codeResponse = await fetch('/oauth/create-code', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -7,6 +7,7 @@ import {
   UseGuards,
   Request,
   Response,
+  Res,
 } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
@@ -26,7 +27,6 @@ export class AuthController {
   async registerWithPassword(
     @Body() body: { email: string; password: string; name?: string },
     @Request() req: any,
-    @Response() res: ExpressResponse,
   ) {
     const result = await this.authService.registerWithPassword(
       body.email,
@@ -55,7 +55,8 @@ export class AuthController {
       });
     }
     
-    return res.json({
+    // Return object directly - NestJS will handle response and session middleware will add Set-Cookie
+    return {
       access_token: result.accessToken,
       user: {
         id: result.user.id,
@@ -63,14 +64,13 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
-    });
+    };
   }
 
   @Post('password/login')
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Request() req: any,
-    @Response() res: ExpressResponse,
   ) {
     const result = await this.authService.loginWithPassword(
       body.email,
@@ -91,10 +91,7 @@ export class AuthController {
             console.log('🔐 [Password Login] Session saved:', {
               sessionId: req.session.id,
               userId: req.session.userId,
-              cookie: req.session.cookie,
             });
-            // Log Set-Cookie header that will be sent
-            console.log('🍪 [Password Login] Response headers:', res.getHeaders());
             resolve();
           }
         });
@@ -103,7 +100,8 @@ export class AuthController {
       console.error('❌ [Password Login] No session object available!');
     }
     
-    return res.json({
+    // Return object directly - NestJS will handle response and session middleware will add Set-Cookie
+    return {
       access_token: result.accessToken,
       user: {
         id: result.user.id,
@@ -111,7 +109,7 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
-    });
+    };
   }
 
   // ==================== Magic Link Auth ====================

@@ -34,7 +34,7 @@ function OAuthAuthorizeContent() {
       console.log('🔐 [OAuth Authorize] Checking auth:', savedToken ? 'Token found' : 'No token')
 
       // Build consent URL with all OAuth params
-      const consentUrl = new URL('/oauth/consent', window.location.origin)
+      const consentUrl = new URL('/consent', window.location.origin)
       consentUrl.searchParams.set('client_id', clientId)
       consentUrl.searchParams.set('redirect_uri', redirectUri)
       if (scope) consentUrl.searchParams.set('scope', scope)

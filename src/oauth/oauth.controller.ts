@@ -132,7 +132,7 @@ export class OAuthController {
     }
 
     // User is authenticated, redirect to consent screen
-    const consentUrl = new URL('/oauth/consent', process.env.FRONTEND_URL || `https://${req.headers.host}`);
+    const consentUrl = new URL('/consent', process.env.FRONTEND_URL || `https://${req.headers.host}`);
     consentUrl.searchParams.set('client_id', clientId);
     consentUrl.searchParams.set('redirect_uri', redirectUri);
     if (scope) consentUrl.searchParams.set('scope', scope);

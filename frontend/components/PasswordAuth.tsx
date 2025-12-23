@@ -67,7 +67,7 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         localStorage.setItem('inite_user_id', data.user.id)
 
         // Redirect to consent page
-        const consentUrl = new URL('/oauth/consent', window.location.origin)
+        const consentUrl = new URL('/consent', window.location.origin)
         consentUrl.searchParams.set('client_id', oauthParams.clientId!)
         consentUrl.searchParams.set('redirect_uri', oauthParams.redirectUri!)
         if (oauthParams.scope) consentUrl.searchParams.set('scope', oauthParams.scope)

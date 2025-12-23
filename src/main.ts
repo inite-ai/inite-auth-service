@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
@@ -57,6 +58,10 @@ async function bootstrap() {
   redisClient.on('error', (err) => console.error('Redis Session Error:', err));
   await redisClient.connect();
   console.log('✅ Redis session store connected');
+
+  // Cookie parser - MUST be before session middleware
+  app.use(cookieParser());
+  console.log('✅ Cookie parser initialized');
 
   // Session configuration
   const sessionSecret = configService.get<string>('SESSION_SECRET') || 

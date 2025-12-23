@@ -31,6 +31,7 @@ async function bootstrap() {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'],
   });
 
   // Redis client for sessions (using socket config to avoid URL encoding issues)
@@ -73,7 +74,7 @@ async function bootstrap() {
         secure: configService.get<string>('NODE_ENV') === 'production', // HTTPS only in production
         httpOnly: true, // Prevents JavaScript access
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax', // Allows redirect flows
+        sameSite: configService.get<string>('NODE_ENV') === 'production' ? 'none' : 'lax', // 'none' for cross-site in prod
         domain: configService.get<string>('COOKIE_DOMAIN') || undefined, // e.g., '.inite.ai' for SSO
       },
     }),

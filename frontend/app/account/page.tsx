@@ -27,7 +27,28 @@ export default function AccountPage() {
 
   const loadUserData = useCallback(async () => {
     try {
-      const token = authStorage.getToken()
+      let token = authStorage.getToken()
+      
+      // If no token in localStorage, try to get from session (SSO)
+      if (!token) {
+        try {
+          const sessionRes = await api.get('/auth/session/me', {
+            withCredentials: true,
+          })
+          
+          if (sessionRes.data.authenticated && sessionRes.data.access_token) {
+            token = sessionRes.data.access_token
+            // Save to localStorage for future requests
+            authStorage.save({
+              accessToken: token,
+              userId: sessionRes.data.user.id,
+            })
+          }
+        } catch (e) {
+          // Session check failed, continue to login redirect
+        }
+      }
+
       if (!token) {
         router.push('/login')
         return
@@ -50,6 +71,7 @@ export default function AccountPage() {
     } catch (error) {
       console.error('Load user data error:', error)
       toast.error('Failed to load account data')
+      authStorage.clear()
       router.push('/login')
     } finally {
       setLoading(false)
@@ -62,10 +84,14 @@ export default function AccountPage() {
 
   const handleLogout = async () => {
     try {
-      // Optionally revoke all sessions
-      await api.delete('/session', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }).catch(() => {})
+      // Revoke session on server
+      await api.get('/oauth/logout', { withCredentials: true }).catch(() => {})
+      // Optionally revoke tokens
+      if (accessToken) {
+        await api.delete('/session', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).catch(() => {})
+      }
     } finally {
       authStorage.clear()
       router.push('/login')

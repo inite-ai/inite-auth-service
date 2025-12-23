@@ -115,15 +115,23 @@ export class AuthService {
   }
 
   /**
-   * Generate JWT access token
+   * Generate JWT access token (internal)
    */
   private generateAccessToken(user: User): string {
+    return this.generateTokenForUser(user);
+  }
+
+  /**
+   * Generate JWT access token for user (public - for session-based auth)
+   */
+  generateTokenForUser(user: User): string {
     const payload = {
       sub: user.did,
       userId: user.id,
       email: user.email,
       email_verified: user.emailVerified,
-      metadata: user.metadata, // Include metadata for admin check
+      name: user.name,
+      metadata: user.metadata,
     };
 
     return this.jwtService.sign(payload, {

@@ -266,4 +266,41 @@ export class AuthController {
       avatarUrl: user.avatarUrl,
     };
   }
+
+  /**
+   * Get current user from session (SSO)
+   * Returns user data and access token if session is valid
+   */
+  @Get('session/me')
+  async getSessionUser(@Request() req: any) {
+    const userId = req.session?.userId;
+    
+    if (!userId) {
+      this.logger.session('No session found for /session/me');
+      return { authenticated: false };
+    }
+
+    try {
+      const user = await this.authService.validateUser(userId);
+      const accessToken = await this.authService.generateTokenForUser(user);
+      
+      this.logger.session('User retrieved from session', { userId });
+      
+      return {
+        authenticated: true,
+        access_token: accessToken,
+        user: {
+          id: user.id,
+          did: user.did,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error('Session user fetch failed', error.message);
+      return { authenticated: false };
+    }
+  }
 }

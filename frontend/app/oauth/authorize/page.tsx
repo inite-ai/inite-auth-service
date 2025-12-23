@@ -29,13 +29,21 @@ function OAuthAuthorizeContent() {
         return
       }
 
-      // Check if we have a session by trying to create a code
+      // Check if we have a saved token in localStorage (SSO fallback)
+      const savedToken = localStorage.getItem('inite_access_token')
+      
+      // Build headers - include JWT if available
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (savedToken) {
+        headers['Authorization'] = `Bearer ${savedToken}`
+      }
+
       try {
         const response = await fetch('/oauth/create-code', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           credentials: 'include',
           body: JSON.stringify({
             clientId,
@@ -58,7 +66,10 @@ function OAuthAuthorizeContent() {
         }
 
         if (response.status === 401) {
-          // User not authenticated, redirect to login
+          // User not authenticated, clear any stale token and redirect to login
+          localStorage.removeItem('inite_access_token')
+          localStorage.removeItem('inite_user_id')
+          
           const loginUrl = new URL('/login', window.location.origin)
           loginUrl.searchParams.set('client_id', clientId)
           loginUrl.searchParams.set('redirect_uri', redirectUri)

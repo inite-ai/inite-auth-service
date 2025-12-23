@@ -62,7 +62,11 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         const data = await response.json()
         toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
 
-        // Session is now set, create OAuth code
+        // Save token for SSO (fallback since cookies don't work with Cloudflare)
+        localStorage.setItem('inite_access_token', data.access_token)
+        localStorage.setItem('inite_user_id', data.user.id)
+
+        // Create OAuth code using JWT token
         const codeResponse = await fetch('/oauth/create-code', {
           method: 'POST',
           headers: {

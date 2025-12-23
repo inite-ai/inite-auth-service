@@ -67,15 +67,15 @@ async function bootstrap() {
     session({
       store: new RedisStore({ client: redisClient }),
       secret: sessionSecret,
-      resave: false,
-      saveUninitialized: false,
+      resave: true, // Force save session
+      saveUninitialized: true, // Create session even if not modified
       name: 'inite.sid', // Custom cookie name
       cookie: {
-        secure: configService.get<string>('NODE_ENV') === 'production', // HTTPS only in production
+        secure: true, // HTTPS only
         httpOnly: true, // Prevents JavaScript access
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         sameSite: 'lax', // 'lax' allows cookie on top-level navigation (OAuth redirects)
-        // No domain = cookie is for auth.inite.ai only (first-party)
+        path: '/', // Ensure cookie is sent for all paths
       },
     }),
   );

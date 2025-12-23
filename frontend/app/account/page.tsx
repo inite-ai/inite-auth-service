@@ -2,38 +2,50 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { User, Wallet, Fingerprint, LogOut, Shield, Link as LinkIcon } from 'lucide-react'
+import { LogOut, ArrowLeft, Shield, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
-import { ethers } from 'ethers'
+import {
+  ProfileSection,
+  SecuritySection,
+  PasskeysSection,
+  WalletsSection,
+  SessionsSection,
+  DangerZoneSection,
+} from '@/components/account'
 
 export default function AccountPage() {
   const [user, setUser] = useState<any>(null)
   const [wallets, setWallets] = useState<any[]>([])
   const [passkeys, setPasskeys] = useState<any[]>([])
+  const [securityStatus, setSecurityStatus] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [accessToken, setAccessToken] = useState<string>('')
   const router = useRouter()
 
   const loadUserData = useCallback(async () => {
     try {
-      const accessToken = localStorage.getItem('access_token')
-      if (!accessToken) {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
         router.push('/login')
         return
       }
 
-      const config = { headers: { Authorization: `Bearer ${accessToken}` } }
+      setAccessToken(token)
+      const config = { headers: { Authorization: `Bearer ${token}` } }
 
-      const [userRes, walletsRes, passkeysRes] = await Promise.all([
+      const [userRes, walletsRes, passkeysRes, securityRes] = await Promise.all([
         api.get('/identity/me', config),
         api.get('/identity/wallets', config),
         api.get('/auth/passkey/list', config),
+        api.get('/identity/security-status', config),
       ])
 
       setUser(userRes.data)
       setWallets(walletsRes.data)
       setPasskeys(passkeysRes.data)
+      setSecurityStatus(securityRes.data)
     } catch (error) {
       console.error('Load user data error:', error)
       toast.error('Failed to load account data')
@@ -47,183 +59,131 @@ export default function AccountPage() {
     loadUserData()
   }, [loadUserData])
 
-  const handleLinkWallet = async () => {
+  const handleLogout = async () => {
     try {
-      if (!window.ethereum) {
-        toast.error('MetaMask not found')
-        return
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      const signer = await provider.getSigner()
-      const address = await signer.getAddress()
-
-      // Get SIWE message
-      const accessToken = localStorage.getItem('access_token')
-      const { data } = await api.post(
-        '/identity/wallet/siwe-message',
-        { address, nonce: crypto.randomUUID() },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-
-      // Sign message
-      const signature = await signer.signMessage(data.message)
-
-      // Link wallet
-      await api.post(
-        '/identity/wallet/link',
-        {
-          address,
-          chain: 'ethereum',
-          message: data.message,
-          signature,
-        },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-
-      toast.success('Wallet linked successfully!')
-      loadUserData()
-    } catch (error: any) {
-      console.error('Link wallet error:', error)
-      toast.error(error.response?.data?.message || 'Failed to link wallet')
+      // Optionally revoke all sessions
+      await api.delete('/session', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).catch(() => {})
+    } finally {
+      localStorage.removeItem('access_token')
+      router.push('/login')
+      toast.success('Logged out successfully')
     }
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('access_token')
-    router.push('/login')
-    toast.success('Logged out successfully')
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Shield className="w-6 h-6 text-violet-400" />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <div className="max-w-4xl mx-auto py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Animated background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-violet-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-fuchsia-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500" />
+      </div>
+
+      <div className="relative max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-6 border border-gray-200 dark:border-gray-700"
+          className="flex items-center justify-between mb-8"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {user?.name || 'User'}
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  DID: {user?.did?.substring(0, 20)}...
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-4">
             <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center gap-2"
+              onClick={() => router.back()}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition"
             >
-              <LogOut className="w-4 h-4" />
-              Logout
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <div>
+              <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                Account Settings
+                <Sparkles className="w-6 h-6 text-violet-400" />
+              </h1>
+              <p className="text-slate-400 mt-1">Manage your identity and security</p>
+            </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition flex items-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
         </motion.div>
 
-        {/* Passkeys */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-6 border border-gray-200 dark:border-gray-700"
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <Fingerprint className="w-6 h-6 text-blue-500" />
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Passkeys</h2>
-          </div>
-          {passkeys.length > 0 ? (
-            <div className="space-y-2">
-              {passkeys.map((passkey) => (
-                <div
-                  key={passkey.id}
-                  className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg flex items-center justify-between"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {passkey.deviceName || 'Unnamed Device'}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Added {new Date(passkey.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Shield className="w-5 h-5 text-green-500" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600 dark:text-gray-400">No passkeys registered</p>
-          )}
-        </motion.div>
+        {/* Main Content */}
+        <div className="space-y-6">
+          {/* Profile Section */}
+          <ProfileSection
+            user={user}
+            accessToken={accessToken}
+            onUpdate={loadUserData}
+          />
 
-        {/* Wallets */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Wallet className="w-6 h-6 text-purple-500" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Linked Wallets
-              </h2>
-            </div>
-            <button
-              onClick={handleLinkWallet}
-              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition flex items-center gap-2"
-            >
-              <LinkIcon className="w-4 h-4" />
-              Link Wallet
-            </button>
-          </div>
-          {wallets.length > 0 ? (
-            <div className="space-y-2">
-              {wallets.map((wallet) => (
-                <div
-                  key={wallet.id}
-                  className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-mono text-sm text-gray-900 dark:text-white">
-                        {wallet.address}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {wallet.chain.toUpperCase()} • Linked{' '}
-                        {new Date(wallet.linkedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Shield className="w-5 h-5 text-green-500" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600 dark:text-gray-400">
-              No wallets linked. Link a wallet to enable Web3 features.
-            </p>
+          {/* Security Section */}
+          {securityStatus && (
+            <SecuritySection
+              securityStatus={securityStatus}
+              accessToken={accessToken}
+              onUpdate={loadUserData}
+            />
           )}
+
+          {/* Passkeys Section */}
+          <PasskeysSection
+            passkeys={passkeys}
+            accessToken={accessToken}
+            onUpdate={loadUserData}
+          />
+
+          {/* Wallets Section */}
+          <WalletsSection
+            wallets={wallets}
+            userDid={user?.did}
+            accessToken={accessToken}
+            onUpdate={loadUserData}
+          />
+
+          {/* Sessions Section */}
+          <SessionsSection accessToken={accessToken} />
+
+          {/* Danger Zone */}
+          <DangerZoneSection
+            user={user}
+            accessToken={accessToken}
+            onDeleteAccount={handleLogout}
+          />
+        </div>
+
+        {/* Footer */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-12 text-center"
+        >
+          <p className="text-sm text-slate-500">
+            INITE Identity Provider • Secure Decentralized Authentication
+          </p>
+          <p className="text-xs text-slate-600 mt-2">
+            Your identity, your control
+          </p>
         </motion.div>
       </div>
     </div>
   )
 }
-

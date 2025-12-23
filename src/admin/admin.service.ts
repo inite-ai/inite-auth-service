@@ -156,17 +156,30 @@ export class AdminService {
   async createOAuthClient(data: {
     name: string;
     clientId: string;
-    clientSecret: string;
     redirectUris: string[];
     allowedScopes?: string[];
   }) {
+    // Generate a secure client secret
+    const clientSecret = crypto.randomBytes(32).toString('base64url');
+    const clientSecretHash = await bcrypt.hash(clientSecret, 10);
+
     const client = this.oauthClientRepository.create({
-      ...data,
+      clientId: data.clientId,
+      name: data.name,
+      redirectUris: data.redirectUris,
+      clientSecretHash,
       allowedScopes: data.allowedScopes || ['openid', 'profile', 'email'],
     });
 
     await this.oauthClientRepository.save(client);
-    return { ...client, clientSecret: undefined };
+    
+    // Return the secret only once during creation
+    return { 
+      ...client, 
+      clientSecret,
+      clientSecretHash: undefined,
+      message: 'Save this client secret - it will not be shown again!',
+    };
   }
 
   async updateOAuthClient(

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
@@ -103,6 +104,88 @@ export class IdentityController {
       body.nonce,
     );
     return { message };
+  }
+
+  // ==================== Profile Management ====================
+
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @Request() req: any,
+    @Body() body: { name?: string; avatarUrl?: string; bio?: string; location?: string; profession?: string },
+  ) {
+    return await this.identityService.updateProfile(req.user.userId, body);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Request() req: any,
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    await this.identityService.changePassword(
+      req.user.userId,
+      body.currentPassword,
+      body.newPassword,
+    );
+    return { success: true, message: 'Password changed successfully' };
+  }
+
+  @Get('security-status')
+  @UseGuards(JwtAuthGuard)
+  async getSecurityStatus(@Request() req: any) {
+    return await this.identityService.getSecurityStatus(req.user.userId);
+  }
+
+  // ==================== 2FA Management ====================
+
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  async setup2FA(@Request() req: any) {
+    return await this.identityService.setup2FA(req.user.userId);
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  async enable2FA(
+    @Request() req: any,
+    @Body() body: { code: string },
+  ) {
+    return await this.identityService.enable2FA(req.user.userId, body.code);
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  async disable2FA(
+    @Request() req: any,
+    @Body() body: { code: string; password: string },
+  ) {
+    return await this.identityService.disable2FA(req.user.userId, body.code, body.password);
+  }
+
+  @Post('2fa/verify')
+  async verify2FA(
+    @Body() body: { userId: string; code: string },
+  ) {
+    return await this.identityService.verify2FA(body.userId, body.code);
+  }
+
+  // ==================== Data Export & Account Deletion ====================
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard)
+  async exportData(@Request() req: any) {
+    return await this.identityService.exportUserData(req.user.userId);
+  }
+
+  @Delete('account')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(
+    @Request() req: any,
+    @Body() body: { password: string },
+  ) {
+    await this.identityService.deleteAccount(req.user.userId, body.password);
+    return { success: true, message: 'Account deleted successfully' };
   }
 }
 

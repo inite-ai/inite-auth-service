@@ -45,9 +45,21 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
 
       toast.success('Authenticated successfully!')
 
-      // If OAuth flow, generate auth code and redirect
+      // Save token for SSO and account access
+      localStorage.setItem('inite_access_token', data.access_token)
+      localStorage.setItem('inite_user_id', data.user?.id || '')
+
+      // If OAuth flow, redirect to consent page
       if (oauthParams.clientId && oauthParams.redirectUri) {
-        await handleOAuthRedirect(data.access_token)
+        const consentUrl = new URL('/consent', window.location.origin)
+        consentUrl.searchParams.set('client_id', oauthParams.clientId)
+        consentUrl.searchParams.set('redirect_uri', oauthParams.redirectUri)
+        if (oauthParams.scope) consentUrl.searchParams.set('scope', oauthParams.scope)
+        if (oauthParams.state) consentUrl.searchParams.set('state', oauthParams.state)
+        if (oauthParams.codeChallenge) consentUrl.searchParams.set('code_challenge', oauthParams.codeChallenge)
+        if (oauthParams.codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', oauthParams.codeChallengeMethod)
+        
+        router.push(consentUrl.pathname + consentUrl.search)
       } else {
         // Direct login
         router.push('/account')

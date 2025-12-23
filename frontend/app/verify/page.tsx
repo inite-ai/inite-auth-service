@@ -18,7 +18,8 @@ function VerifyContent() {
       const { data } = await api.get(`/auth/email/verify?token=${token}`)
       
       // Store access token
-      localStorage.setItem('access_token', data.access_token)
+      localStorage.setItem('inite_access_token', data.access_token)
+        localStorage.setItem('inite_user_id', data.user?.id || '')
       
       setStatus('success')
       setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')

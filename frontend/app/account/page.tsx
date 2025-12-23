@@ -26,7 +26,8 @@ export default function AccountPage() {
 
   const loadUserData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('access_token')
+      // Check both keys for backward compatibility
+      const token = localStorage.getItem('inite_access_token') || localStorage.getItem('access_token')
       if (!token) {
         router.push('/login')
         return
@@ -66,7 +67,9 @@ export default function AccountPage() {
         headers: { Authorization: `Bearer ${accessToken}` },
       }).catch(() => {})
     } finally {
-      localStorage.removeItem('access_token')
+      localStorage.removeItem('inite_access_token')
+      localStorage.removeItem('inite_user_id')
+      localStorage.removeItem('access_token') // legacy
       router.push('/login')
       toast.success('Logged out successfully')
     }

@@ -90,6 +90,10 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
 
       const { data } = await api.post(endpoint, payload)
 
+      // Save token for account access
+      localStorage.setItem('inite_access_token', data.access_token)
+      localStorage.setItem('inite_user_id', data.user?.id || '')
+
       toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
       router.push('/account')
     } catch (error: any) {

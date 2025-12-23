@@ -74,8 +74,8 @@ async function bootstrap() {
         secure: configService.get<string>('NODE_ENV') === 'production', // HTTPS only in production
         httpOnly: true, // Prevents JavaScript access
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: configService.get<string>('NODE_ENV') === 'production' ? 'none' : 'lax', // 'none' for cross-site in prod
-        domain: configService.get<string>('COOKIE_DOMAIN') || undefined, // e.g., '.inite.ai' for SSO
+        sameSite: 'lax', // 'lax' allows cookie on top-level navigation (OAuth redirects)
+        // No domain = cookie is for auth.inite.ai only (first-party)
       },
     }),
   );

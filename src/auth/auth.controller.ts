@@ -14,14 +14,19 @@ import * as signature from 'cookie-signature';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoggerService } from '../common/logger.service';
 import { sessionSecret } from '../main';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new LoggerService();
+
   constructor(
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
-  ) {}
+  ) {
+    this.logger.setContext('AuthController');
+  }
 
   // ==================== Password Auth (Legacy) ====================
 
@@ -40,14 +45,13 @@ export class AuthController {
     if (req.session) {
       req.session.userId = result.user.id;
       
-      // Explicitly save session
       await new Promise<void>((resolve, reject) => {
         req.session.save((err: any) => {
           if (err) {
-            console.error('❌ [Password Register] Session save error:', err);
+            this.logger.error('Session save error', err.message, { action: 'register' });
             reject(err);
           } else {
-            console.log('🔐 [Password Register] Session saved:', {
+            this.logger.session('Saved after register', {
               sessionId: req.session.id,
               userId: req.session.userId,
             });
@@ -57,7 +61,6 @@ export class AuthController {
       });
     }
     
-    // Return object directly - NestJS will handle response and session middleware will add Set-Cookie
     return {
       access_token: result.accessToken,
       user: {
@@ -80,34 +83,30 @@ export class AuthController {
       body.password,
     );
     
-    // Set userId in session for SSO
     if (req.session) {
-      req.session.userId = result.user.id;
+      const userId = result.user.id;
       
-      // Regenerate session to ensure new cookie is sent
       await new Promise<void>((resolve, reject) => {
-        const userId = result.user.id;
         req.session.regenerate((err: any) => {
           if (err) {
-            console.error('❌ [Password Login] Session regenerate error:', err);
+            this.logger.error('Session regenerate error', err.message, { action: 'login' });
             reject(err);
             return;
           }
           
-          // Set userId again after regeneration
           req.session.userId = userId;
           
           req.session.save((saveErr: any) => {
             if (saveErr) {
-              console.error('❌ [Password Login] Session save error:', saveErr);
+              this.logger.error('Session save error', saveErr.message, { action: 'login' });
               reject(saveErr);
             } else {
-              console.log('🔐 [Password Login] Session regenerated and saved:', {
+              this.logger.session('Regenerated and saved', {
                 sessionId: req.session.id,
                 userId: req.session.userId,
               });
               
-              // Manually set the session cookie - express-session signs it with 's:' prefix
+              // Manually set signed session cookie
               const signedSessionId = 's:' + signature.sign(req.session.id, sessionSecret);
               res.cookie('inite.sid', signedSessionId, {
                 httpOnly: true,
@@ -116,15 +115,17 @@ export class AuthController {
                 maxAge: 7 * 24 * 60 * 60 * 1000,
                 path: '/',
               });
-              console.log('🍪 [Password Login] Cookie manually set:', signedSessionId.substring(0, 20) + '...');
               
+              this.logger.session('Cookie set', { 
+                cookiePrefix: signedSessionId.substring(0, 20) 
+              });
               resolve();
             }
           });
         });
       });
     } else {
-      console.error('❌ [Password Login] No session object available!');
+      this.logger.error('No session object available', undefined, { action: 'login' });
     }
     
     return {
@@ -143,6 +144,7 @@ export class AuthController {
   @Post('email/send-magic-link')
   async sendMagicLink(@Body() body: { email: string }) {
     await this.authService.sendMagicLink(body.email);
+    this.logger.auth('Magic link sent', { email: body.email });
     return {
       success: true,
       message: 'Magic link sent to your email',
@@ -157,13 +159,11 @@ export class AuthController {
   ) {
     const result = await this.authService.verifyMagicLink(token);
 
-    // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
+      this.logger.session('Set after magic link verify', { userId: result.user.id });
     }
 
-    // In production, redirect to frontend with token in URL
-    // For now, return JSON
     return res.json({
       access_token: result.accessToken,
       user: {
@@ -181,10 +181,8 @@ export class AuthController {
   @Post('passkey/registration/options')
   @UseGuards(JwtAuthGuard)
   async generateRegistrationOptions(@Request() req: any) {
-    const options = await this.passkeyService.generateRegistrationOptions(
-      req.user.userId,
-    );
-    return options;
+    this.logger.auth('Passkey registration options requested', { userId: req.user.userId });
+    return await this.passkeyService.generateRegistrationOptions(req.user.userId);
   }
 
   @Post('passkey/registration/verify')
@@ -198,15 +196,14 @@ export class AuthController {
       body.response,
       body.challenge,
     );
+    this.logger.auth('Passkey registered', { userId: req.user.userId, verified: result.verified });
     return result;
   }
 
   @Post('passkey/authentication/options')
   async generateAuthenticationOptions(@Body() body: { email?: string }) {
-    const options = await this.passkeyService.generateAuthenticationOptions(
-      body.email,
-    );
-    return options;
+    this.logger.auth('Passkey auth options requested', { email: body.email });
+    return await this.passkeyService.generateAuthenticationOptions(body.email);
   }
 
   @Post('passkey/authentication/verify')
@@ -219,15 +216,14 @@ export class AuthController {
       body.challenge,
     );
 
-    // Generate access token
-    const accessToken = await this.authService['generateAccessToken'](
-      result.user,
-    );
+    const accessToken = await this.authService['generateAccessToken'](result.user);
 
-    // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
+      this.logger.session('Set after passkey auth', { userId: result.user.id });
     }
+
+    this.logger.auth('Passkey authentication success', { userId: result.user.id });
 
     return {
       verified: result.verified,
@@ -251,6 +247,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async deletePasskey(@Request() req: any, @Body() body: { passkeyId: string }) {
     await this.passkeyService.deletePasskey(req.user.userId, body.passkeyId);
+    this.logger.auth('Passkey deleted', { userId: req.user.userId, passkeyId: body.passkeyId });
     return { success: true };
   }
 
@@ -270,6 +267,3 @@ export class AuthController {
     };
   }
 }
-
-
-

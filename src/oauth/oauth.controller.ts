@@ -15,14 +15,19 @@ import { OAuthService } from './oauth.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
+import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 
 @Controller('oauth')
 export class OAuthController {
+  private readonly logger = new LoggerService();
+
   constructor(
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
-  ) {}
+  ) {
+    this.logger.setContext('OAuthController');
+  }
 
   /**
    * Authorization endpoint
@@ -67,20 +72,18 @@ export class OAuthController {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
-    // Check if user is already authenticated (session check)
-    console.log('🔐 [OAuth Authorize] Session check:', {
-      hasSession: !!req.session,
-      sessionId: req.session?.id,
-      userId: req.session?.userId,
-      cookies: req.headers.cookie,
-    });
-    
+    // Check session
     const userId = req.session?.userId;
+    this.logger.oauth('Authorize request', {
+      clientId,
+      hasSession: !!req.session,
+      userId: userId || 'none',
+      prompt,
+    });
 
     // Silent SSO: prompt=none
     if (prompt === 'none') {
       if (!userId) {
-        // User not authenticated, return error to redirect_uri
         const errorUrl = new URL(redirectUri);
         errorUrl.searchParams.set('error', 'login_required');
         errorUrl.searchParams.set('error_description', 'User is not authenticated');
@@ -88,7 +91,6 @@ export class OAuthController {
         return res.redirect(errorUrl.toString());
       }
 
-      // User authenticated, generate code and redirect immediately
       const code = await this.oauthService.createAuthorizationCode(
         userId,
         clientId,
@@ -98,15 +100,15 @@ export class OAuthController {
         codeChallengeMethod || 'S256',
       );
 
+      this.logger.oauth('Silent SSO success', { clientId, userId });
       const successUrl = new URL(redirectUri);
       successUrl.searchParams.set('code', code);
       if (state) successUrl.searchParams.set('state', state);
       return res.redirect(successUrl.toString());
     }
 
-    // If user not authenticated, redirect to login page
+    // If user not authenticated, redirect to login
     if (!userId) {
-      // Store OAuth params in session for after login
       if (!req.session) {
         req.session = {} as any;
       }
@@ -119,7 +121,7 @@ export class OAuthController {
         codeChallengeMethod,
       };
 
-      // Redirect to frontend login page
+      this.logger.oauth('Redirecting to login', { clientId });
       const loginUrl = new URL('/login', process.env.FRONTEND_URL || `https://${req.headers.host}`);
       loginUrl.searchParams.set('client_id', clientId);
       loginUrl.searchParams.set('redirect_uri', redirectUri);
@@ -131,7 +133,8 @@ export class OAuthController {
       return res.redirect(loginUrl.toString());
     }
 
-    // User is authenticated, redirect to consent screen
+    // User authenticated, redirect to consent
+    this.logger.oauth('Redirecting to consent', { clientId, userId });
     const consentUrl = new URL('/consent', process.env.FRONTEND_URL || `https://${req.headers.host}`);
     consentUrl.searchParams.set('client_id', clientId);
     consentUrl.searchParams.set('redirect_uri', redirectUri);
@@ -161,28 +164,18 @@ export class OAuthController {
       throw new BadRequestException('grant_type is required');
     }
 
-    // Validate client
     await this.oauthService.validateClient(clientId, clientSecret);
 
     if (grantType === 'authorization_code') {
-      if (!code) {
-        throw new BadRequestException('code is required');
-      }
-
-      if (!redirectUri) {
-        throw new BadRequestException('redirect_uri is required');
-      }
-
-      if (!codeVerifier) {
-        throw new BadRequestException('code_verifier is required (PKCE)');
-      }
+      if (!code) throw new BadRequestException('code is required');
+      if (!redirectUri) throw new BadRequestException('redirect_uri is required');
+      if (!codeVerifier) throw new BadRequestException('code_verifier is required (PKCE)');
 
       const tokens = await this.oauthService.exchangeAuthorizationCode(
-        code,
-        clientId,
-        redirectUri,
-        codeVerifier,
+        code, clientId, redirectUri, codeVerifier,
       );
+
+      this.logger.oauth('Token issued', { clientId, grantType });
 
       return {
         access_token: tokens.accessToken,
@@ -195,14 +188,11 @@ export class OAuthController {
     }
 
     if (grantType === 'refresh_token') {
-      if (!refreshToken) {
-        throw new BadRequestException('refresh_token is required');
-      }
+      if (!refreshToken) throw new BadRequestException('refresh_token is required');
 
-      const tokens = await this.oauthService.refreshAccessToken(
-        refreshToken,
-        clientId,
-      );
+      const tokens = await this.oauthService.refreshAccessToken(refreshToken, clientId);
+
+      this.logger.oauth('Token refreshed', { clientId });
 
       return {
         access_token: tokens.accessToken,
@@ -219,7 +209,6 @@ export class OAuthController {
 
   /**
    * User info endpoint (OIDC)
-   * GET /oauth/userinfo
    */
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
@@ -229,7 +218,6 @@ export class OAuthController {
 
   /**
    * Token revocation endpoint
-   * POST /oauth/revoke
    */
   @Post('revoke')
   async revoke(
@@ -237,21 +225,17 @@ export class OAuthController {
     @Body('client_id') clientId: string,
     @Body('client_secret') clientSecret: string,
   ) {
-    if (!token) {
-      throw new BadRequestException('token is required');
-    }
+    if (!token) throw new BadRequestException('token is required');
 
-    // Validate client
     await this.oauthService.validateClient(clientId, clientSecret);
-
     await this.oauthService.revokeToken(token, clientId);
 
+    this.logger.oauth('Token revoked', { clientId });
     return { success: true };
   }
 
   /**
    * Logout endpoint
-   * GET /oauth/logout
    */
   @Get('logout')
   async logout(
@@ -260,16 +244,16 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    // Clear session using destroy method
     if (req.session) {
       req.session.destroy((err) => {
         if (err) {
-          console.error('Session destroy error:', err);
+          this.logger.error('Session destroy error', err.message);
+        } else {
+          this.logger.session('Destroyed on logout');
         }
       });
     }
 
-    // Redirect to post_logout_redirect_uri if provided
     if (postLogoutRedirectUri) {
       const url = new URL(postLogoutRedirectUri);
       if (state) url.searchParams.set('state', state);
@@ -280,27 +264,21 @@ export class OAuthController {
   }
 
   /**
-   * Create authorization code (for API registration flows)
-   * POST /oauth/create-code
-   * Accepts JWT token OR session userId
+   * Create authorization code (for frontend flows)
    */
   @Post('create-code')
   @UseGuards(JwtOrSessionGuard)
   async createCode(@Req() req: any, @Body() input: CreateCodeInput) {
-    // Validate client
     const client = await this.oauthService.validateClient(input.clientId);
 
-    // Validate redirect URI
     if (!this.oauthService.validateRedirectUri(client, input.redirectUri)) {
       throw new BadRequestException('Invalid redirect_uri');
     }
 
-    // PKCE is required
     if (!input.codeChallenge) {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
-    // Create authorization code for authenticated user
     const code = await this.oauthService.createAuthorizationCode(
       req.user.userId,
       input.clientId,
@@ -310,12 +288,12 @@ export class OAuthController {
       input.codeChallengeMethod || 'S256',
     );
 
+    this.logger.oauth('Code created', { clientId: input.clientId, userId: req.user.userId });
     return { code };
   }
 
   /**
-   * Set session from JWT token (for SSO after frontend login)
-   * GET /oauth/session?token=...&redirect=...
+   * Set session from JWT token (SSO helper)
    */
   @Get('session')
   async setSession(
@@ -324,46 +302,29 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    if (!token) {
-      throw new BadRequestException('token is required');
-    }
+    if (!token) throw new BadRequestException('token is required');
 
     try {
-      // Verify and decode the token
       const payload = await this.authService.verifyToken(token);
       
-      // Set userId in session
       if (req.session) {
         req.session.userId = payload.userId;
-        console.log('🔐 [Session Set] userId set in session:', {
-          sessionId: req.session.id,
-          userId: payload.userId,
-        });
+        this.logger.session('Set from token', { sessionId: req.session.id, userId: payload.userId });
       }
 
-      // Redirect to the original OAuth flow or provided redirect
-      if (redirect) {
-        return res.redirect(redirect);
-      }
-
+      if (redirect) return res.redirect(redirect);
       return res.json({ success: true, message: 'Session established' });
-    } catch (error) {
-      console.error('❌ [Session Set] Token verification failed:', error);
+    } catch (error: any) {
+      this.logger.error('Token verification failed', error.message);
       throw new UnauthorizedException('Invalid token');
     }
   }
 
   /**
-   * JWKS endpoint (JSON Web Key Set)
-   * GET /.well-known/jwks.json
+   * JWKS endpoint
    */
   @Get('../.well-known/jwks.json')
   async jwks() {
-    // In production, this should return the public keys used to sign JWTs
-    // For now, we'll return an empty set
-    return {
-      keys: [],
-    };
+    return { keys: [] };
   }
 }
-

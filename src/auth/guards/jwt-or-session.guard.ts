@@ -1,38 +1,39 @@
 import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { createLogger } from '../../common/logger.service';
+
+const logger = createLogger('JwtOrSessionGuard');
 
 /**
  * Guard that accepts either JWT token OR session userId
- * Used for endpoints that need to work with both frontend (session) and backend (JWT)
+ * Used for endpoints that work with both frontend (session) and backend (JWT)
  */
 @Injectable()
 export class JwtOrSessionGuard extends AuthGuard('jwt') {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     
-    console.log('🔐 [JwtOrSessionGuard] Checking auth:', {
+    logger.debug('Checking auth', {
       hasSession: !!request.session,
       sessionId: request.session?.id,
       userId: request.session?.userId,
       hasAuthHeader: !!request.headers.authorization,
-      cookies: request.headers.cookie?.substring(0, 100),
     });
     
-    // Check if there's a session with userId
+    // Check session first
     if (request.session?.userId) {
-      // User authenticated via session
-      console.log('✅ [JwtOrSessionGuard] Auth via session:', request.session.userId);
+      logger.verbose(`Auth via session: ${request.session.userId}`);
       request.user = { userId: request.session.userId };
       return true;
     }
     
-    // Try JWT authentication
+    // Try JWT
     try {
       const result = await super.canActivate(context);
-      console.log('✅ [JwtOrSessionGuard] Auth via JWT');
+      logger.verbose('Auth via JWT');
       return result as boolean;
-    } catch (error) {
-      console.log('❌ [JwtOrSessionGuard] Auth failed - no session and no valid JWT');
+    } catch {
+      logger.debug('Auth failed - no session and no valid JWT');
       throw new UnauthorizedException('Authentication required');
     }
   }
@@ -44,4 +45,3 @@ export class JwtOrSessionGuard extends AuthGuard('jwt') {
     return user;
   }
 }
-

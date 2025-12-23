@@ -5,15 +5,16 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
-import * as signature from 'cookie-signature';
 import { AppModule } from './app.module';
+import { createLogger } from './common/logger.service';
 
 // Export for use in controllers
 export let sessionSecret: string;
 
+const logger = createLogger('Bootstrap');
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
   const configService = app.get(ConfigService);
 
   // Global validation pipe
@@ -25,7 +26,7 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration for multiple origins
+  // CORS configuration
   const corsOrigins = configService
     .get<string>('CORS_ORIGINS', '')
     .split(',')
@@ -39,44 +40,37 @@ async function bootstrap() {
     exposedHeaders: ['Set-Cookie'],
   });
 
-  // Redis client for sessions (using socket config to avoid URL encoding issues)
+  // Redis client for sessions
   const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
   const redisPassword = configService.get<string>('REDIS_PASSWORD');
 
-  // Build Redis config - only include password if it's actually set
   const redisConfig: any = {
-    socket: {
-      host: redisHost,
-      port: redisPort,
-    },
+    socket: { host: redisHost, port: redisPort },
   };
   
-  // Only add password if it's a non-empty string
   if (redisPassword && redisPassword.trim().length > 0) {
     redisConfig.password = redisPassword;
   }
 
   const redisClient = createClient(redisConfig);
-  
-  redisClient.on('error', (err) => console.error('Redis Session Error:', err));
+  redisClient.on('error', (err) => logger.error('Redis error', err.message));
   await redisClient.connect();
-  console.log('✅ Redis session store connected');
+  logger.log('Redis session store connected');
 
-  // Cookie parser - MUST be before session middleware
+  // Cookie parser
   app.use(cookieParser());
-  console.log('✅ Cookie parser initialized');
 
-  // Debug middleware - log all Set-Cookie headers
+  // Request logging middleware
   app.use((req: any, res: any, next: any) => {
     const originalEnd = res.end;
     res.end = function(...args: any[]) {
       const setCookie = res.getHeader('Set-Cookie');
-      if (setCookie) {
-        console.log('🍪 [Response] Set-Cookie header:', setCookie);
-      }
+      // Only log auth/oauth requests
       if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
-        console.log(`📤 [Response] ${req.method} ${req.path} - Status: ${res.statusCode}, Set-Cookie: ${setCookie ? 'YES' : 'NO'}`);
+        logger.request(req.method, req.path, res.statusCode, {
+          hasCookie: !!setCookie,
+        });
       }
       return originalEnd.apply(this, args);
     };
@@ -92,15 +86,15 @@ async function bootstrap() {
     session({
       store: new RedisStore({ client: redisClient }),
       secret: sessionSecret,
-      resave: true, // Force save session
-      saveUninitialized: true, // Create session even if not modified
-      name: 'inite.sid', // Custom cookie name
+      resave: true,
+      saveUninitialized: true,
+      name: 'inite.sid',
       cookie: {
-        secure: true, // HTTPS only
-        httpOnly: true, // Prevents JavaScript access
+        secure: true,
+        httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax', // 'lax' allows cookie on top-level navigation (OAuth redirects)
-        path: '/', // Ensure cookie is sent for all paths
+        sameSite: 'lax',
+        path: '/',
       },
     }),
   );
@@ -108,12 +102,9 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3002);
   await app.listen(port);
 
-  console.log(`🚀 INITE Identity Provider running on port ${port}`);
-  console.log(`🔐 Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
-  console.log(`🌍 CORS Origins: ${corsOrigins.join(', ')}`);
-  console.log(`🍪 Session cookie domain: ${configService.get<string>('COOKIE_DOMAIN') || 'default'}`);
+  logger.log(`INITE Identity Provider running on port ${port}`);
+  logger.log(`Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
+  logger.log(`CORS Origins: ${corsOrigins.join(', ')}`);
 }
 
 bootstrap();
-
-

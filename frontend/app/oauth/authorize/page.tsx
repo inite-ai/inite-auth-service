@@ -31,6 +31,7 @@ function OAuthAuthorizeContent() {
 
       // Check if we have a saved token in localStorage (SSO fallback)
       const savedToken = localStorage.getItem('inite_access_token')
+      console.log('🔐 [OAuth Authorize] Checking for saved token:', savedToken ? 'FOUND' : 'NOT FOUND')
       
       // Build headers - include JWT if available
       const headers: Record<string, string> = {
@@ -38,9 +39,11 @@ function OAuthAuthorizeContent() {
       }
       if (savedToken) {
         headers['Authorization'] = `Bearer ${savedToken}`
+        console.log('🔐 [OAuth Authorize] Using saved token for SSO')
       }
 
       try {
+        console.log('🔐 [OAuth Authorize] Calling /oauth/create-code...')
         const response = await fetch('/oauth/create-code', {
           method: 'POST',
           headers,
@@ -55,9 +58,12 @@ function OAuthAuthorizeContent() {
           }),
         })
 
+        console.log('🔐 [OAuth Authorize] Response status:', response.status)
+        
         if (response.ok) {
           // User is authenticated, we got a code
           const data = await response.json()
+          console.log('✅ [OAuth Authorize] Got code, redirecting to:', redirectUri)
           const url = new URL(redirectUri)
           url.searchParams.set('code', data.code)
           if (state) url.searchParams.set('state', state)
@@ -67,6 +73,7 @@ function OAuthAuthorizeContent() {
 
         if (response.status === 401) {
           // User not authenticated, clear any stale token and redirect to login
+          console.log('❌ [OAuth Authorize] 401 - Token invalid or expired, clearing and redirecting to login')
           localStorage.removeItem('inite_access_token')
           localStorage.removeItem('inite_user_id')
           

@@ -6,6 +6,7 @@ import { LogOut, ArrowLeft, Shield, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { authStorage } from '@/lib/authStorage'
 import {
   ProfileSection,
   SecuritySection,
@@ -26,8 +27,7 @@ export default function AccountPage() {
 
   const loadUserData = useCallback(async () => {
     try {
-      // Check both keys for backward compatibility
-      const token = localStorage.getItem('inite_access_token') || localStorage.getItem('access_token')
+      const token = authStorage.getToken()
       if (!token) {
         router.push('/login')
         return
@@ -67,9 +67,7 @@ export default function AccountPage() {
         headers: { Authorization: `Bearer ${accessToken}` },
       }).catch(() => {})
     } finally {
-      localStorage.removeItem('inite_access_token')
-      localStorage.removeItem('inite_user_id')
-      localStorage.removeItem('access_token') // legacy
+      authStorage.clear()
       router.push('/login')
       toast.success('Logged out successfully')
     }

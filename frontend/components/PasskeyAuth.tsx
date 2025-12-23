@@ -2,22 +2,16 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Fingerprint, Loader2 } from 'lucide-react'
+import { Fingerprint, Loader2, CheckCircle } from 'lucide-react'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { authStorage } from '@/lib/authStorage'
+import { OAuthParams, isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
 
 interface PasskeyAuthProps {
-  oauthParams: {
-    clientId?: string | null
-    redirectUri?: string | null
-    scope?: string | null
-    state?: string | null
-    codeChallenge?: string | null
-    codeChallengeMethod?: string | null
-    prompt?: string | null
-  }
+  oauthParams: OAuthParams
 }
 
 export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
@@ -45,23 +39,16 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
 
       toast.success('Authenticated successfully!')
 
-      // Save token for SSO and account access
-      localStorage.setItem('inite_access_token', data.access_token)
-      localStorage.setItem('inite_user_id', data.user?.id || '')
+      // Save auth data
+      authStorage.save({
+        accessToken: data.access_token,
+        userId: data.user?.id,
+      })
 
-      // If OAuth flow, redirect to consent page
-      if (oauthParams.clientId && oauthParams.redirectUri) {
-        const consentUrl = new URL('/consent', window.location.origin)
-        consentUrl.searchParams.set('client_id', oauthParams.clientId)
-        consentUrl.searchParams.set('redirect_uri', oauthParams.redirectUri)
-        if (oauthParams.scope) consentUrl.searchParams.set('scope', oauthParams.scope)
-        if (oauthParams.state) consentUrl.searchParams.set('state', oauthParams.state)
-        if (oauthParams.codeChallenge) consentUrl.searchParams.set('code_challenge', oauthParams.codeChallenge)
-        if (oauthParams.codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', oauthParams.codeChallengeMethod)
-        
-        router.push(consentUrl.pathname + consentUrl.search)
+      // Redirect based on flow
+      if (isOAuthFlow(oauthParams)) {
+        router.push(buildConsentUrl(oauthParams))
       } else {
-        // Direct login
         router.push('/account')
       }
     } catch (error: any) {
@@ -80,20 +67,17 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
 
     setLoading(true)
     try {
-      // First register with email/password to get account
-      const { data: authData } = await api.post('/auth/password/register', {
+      // First, create user account
+      const { data: authData } = await api.post('/auth/magic-link/request', {
         email,
-        password: Math.random().toString(36),
-        name: email.split('@')[0],
+        skipEmail: true,
       })
 
       // Get registration options
       const { data: options } = await api.post(
         '/auth/passkey/registration/options',
         {},
-        {
-          headers: { Authorization: `Bearer ${authData.access_token}` },
-        }
+        { headers: { Authorization: `Bearer ${authData.access_token}` } }
       )
 
       // Start WebAuthn registration
@@ -102,18 +86,13 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
       // Verify registration
       await api.post(
         '/auth/passkey/registration/verify',
-        {
-          response,
-          challenge: options.challenge,
-        },
-        {
-          headers: { Authorization: `Bearer ${authData.access_token}` },
-        }
+        { response, challenge: options.challenge },
+        { headers: { Authorization: `Bearer ${authData.access_token}` } }
       )
 
       toast.success('Passkey registered successfully!')
       
-      // Now try login
+      // Auto-login after registration
       setTimeout(() => handlePasskeyLogin(), 1000)
     } catch (error: any) {
       console.error('Passkey registration error:', error)
@@ -123,58 +102,24 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
     }
   }
 
-  const handleOAuthRedirect = async (accessToken: string) => {
-    try {
-      // Create authorization code using the access token
-      const { data } = await api.post(
-        '/oauth/create-code',
-        {
-          clientId: oauthParams.clientId,
-          redirectUri: oauthParams.redirectUri,
-          scope: oauthParams.scope,
-          state: oauthParams.state,
-          codeChallenge: oauthParams.codeChallenge,
-          codeChallengeMethod: oauthParams.codeChallengeMethod,
-        },
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      )
-
-      // Redirect with code
-      const url = new URL(oauthParams.redirectUri!)
-      url.searchParams.set('code', data.code)
-      if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
-      
-      window.location.href = url.toString()
-    } catch (error) {
-      console.error('OAuth redirect error:', error)
-      toast.error('Failed to complete authentication')
-    }
-  }
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-200 dark:border-gray-700">
       <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <Fingerprint className="w-8 h-8 text-white" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          {mode === 'login' ? 'Sign in with Passkey' : 'Create Passkey Account'}
+          {mode === 'login' ? 'Sign in with Passkey' : 'Register Passkey'}
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          {mode === 'login'
-            ? 'Use your biometric or security key'
-            : 'Register a new passkey for secure authentication'}
+          {mode === 'login' 
+            ? 'Use your fingerprint, face, or security key' 
+            : 'Create a new passkey for passwordless login'}
         </p>
       </div>
 
       {mode === 'register' && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mb-6"
-        >
+        <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Email
           </label>
@@ -183,25 +128,40 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
           />
-        </motion.div>
+        </div>
+      )}
+
+      {mode === 'login' && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Email (optional)
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Filter by email..."
+            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+          />
+        </div>
       )}
 
       <button
         onClick={mode === 'login' ? handlePasskeyLogin : handlePasskeyRegister}
         disabled={loading || (mode === 'register' && !email)}
-        className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+        className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white py-4 rounded-xl font-semibold hover:from-violet-600 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
       >
         {loading ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            {mode === 'login' ? 'Authenticating...' : 'Creating...'}
+            {mode === 'login' ? 'Authenticating...' : 'Registering...'}
           </>
         ) : (
           <>
             <Fingerprint className="w-5 h-5" />
-            {mode === 'login' ? 'Authenticate' : 'Create Passkey'}
+            {mode === 'login' ? 'Authenticate' : 'Register Passkey'}
           </>
         )}
       </button>
@@ -209,24 +169,29 @@ export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
       <div className="mt-6 text-center">
         <button
           onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
         >
-          {mode === 'login' ? "Don't have a passkey? Register" : 'Already have a passkey? Sign in'}
+          {mode === 'login' ? "Don't have a passkey? Register one" : 'Already have a passkey? Sign in'}
         </button>
       </div>
 
-      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-          Why Passkeys?
-        </h4>
-        <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-          <li>✓ No passwords to remember</li>
-          <li>✓ Biometric authentication</li>
-          <li>✓ Phishing-resistant</li>
-          <li>✓ Works across devices</li>
-        </ul>
-      </div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="mt-8 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl"
+      >
+        <div className="flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+              Most Secure Option
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+              Passkeys are phishing-resistant and don't require passwords.
+            </p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   )
 }
-

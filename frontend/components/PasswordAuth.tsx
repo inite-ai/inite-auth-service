@@ -6,16 +6,11 @@ import { Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { authStorage } from '@/lib/authStorage'
+import { OAuthParams, isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
 
 interface PasswordAuthProps {
-  oauthParams: {
-    clientId?: string | null
-    redirectUri?: string | null
-    scope?: string | null
-    state?: string | null
-    codeChallenge?: string | null
-    codeChallengeMethod?: string | null
-  }
+  oauthParams: OAuthParams
 }
 
 export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
@@ -37,49 +32,6 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
 
     setLoading(true)
     try {
-      // For OAuth flow, use direct API calls (Traefik routes /auth/* to backend)
-      if (oauthParams.clientId && oauthParams.redirectUri) {
-        const endpoint = mode === 'login' 
-          ? '/auth/password/login' 
-          : '/auth/password/register'
-        
-        const payload = mode === 'login'
-          ? { email, password }
-          : { email, password, name: name || email.split('@')[0] }
-
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include', // CRITICAL for cookies
-          body: JSON.stringify(payload),
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.message || 'Authentication failed')
-        }
-
-        const data = await response.json()
-        toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
-
-        // Save token for SSO
-        localStorage.setItem('inite_access_token', data.access_token)
-        localStorage.setItem('inite_user_id', data.user.id)
-
-        // Redirect to consent page
-        const consentUrl = new URL('/consent', window.location.origin)
-        consentUrl.searchParams.set('client_id', oauthParams.clientId!)
-        consentUrl.searchParams.set('redirect_uri', oauthParams.redirectUri!)
-        if (oauthParams.scope) consentUrl.searchParams.set('scope', oauthParams.scope)
-        if (oauthParams.state) consentUrl.searchParams.set('state', oauthParams.state)
-        if (oauthParams.codeChallenge) consentUrl.searchParams.set('code_challenge', oauthParams.codeChallenge)
-        if (oauthParams.codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', oauthParams.codeChallengeMethod)
-        
-        router.push(consentUrl.pathname + consentUrl.search)
-        return
-      }
-
-      // Direct login (no OAuth)
       const endpoint = mode === 'login' 
         ? '/auth/password/login' 
         : '/auth/password/register'
@@ -88,17 +40,28 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
         ? { email, password }
         : { email, password, name: name || email.split('@')[0] }
 
-      const { data } = await api.post(endpoint, payload)
-
-      // Save token for account access
-      localStorage.setItem('inite_access_token', data.access_token)
-      localStorage.setItem('inite_user_id', data.user?.id || '')
+      // Use fetch for OAuth flow (needs credentials), axios for direct
+      const data = isOAuthFlow(oauthParams)
+        ? await fetchWithCredentials(endpoint, payload)
+        : (await api.post(endpoint, payload)).data
 
       toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
-      router.push('/account')
+
+      // Save auth data
+      authStorage.save({
+        accessToken: data.access_token,
+        userId: data.user?.id,
+      })
+
+      // Redirect based on flow
+      if (isOAuthFlow(oauthParams)) {
+        router.push(buildConsentUrl(oauthParams))
+      } else {
+        router.push('/account')
+      }
     } catch (error: any) {
       console.error('Password auth error:', error)
-      toast.error(error.response?.data?.message || error.message || 'Authentication failed')
+      toast.error(error.message || 'Authentication failed')
     } finally {
       setLoading(false)
     }
@@ -213,3 +176,19 @@ export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
   )
 }
 
+// Helper for fetch with credentials (needed for cookies in OAuth flow)
+async function fetchWithCredentials(endpoint: string, payload: object) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.message || 'Request failed')
+  }
+
+  return response.json()
+}

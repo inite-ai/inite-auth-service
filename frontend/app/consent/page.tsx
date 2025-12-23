@@ -4,6 +4,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { authStorage } from '@/lib/authStorage'
+import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode } from '@/lib/oauthHelpers'
 
 interface UserInfo {
   id: string
@@ -18,28 +20,15 @@ function ConsentContent() {
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<UserInfo | null>(null)
 
-  const clientId = searchParams.get('client_id')
-  const redirectUri = searchParams.get('redirect_uri')
-  const scope = searchParams.get('scope')
-  const state = searchParams.get('state')
-  const codeChallenge = searchParams.get('code_challenge')
-  const codeChallengeMethod = searchParams.get('code_challenge_method')
+  const oauthParams = extractOAuthParams(searchParams)
 
   // Get user info from localStorage
   useEffect(() => {
-    const userId = localStorage.getItem('inite_user_id')
-    const token = localStorage.getItem('inite_access_token')
+    const userId = authStorage.getUserId()
+    const token = authStorage.getToken()
     
     if (!userId || !token) {
-      // Not logged in, redirect to login
-      const loginUrl = new URL('/login', window.location.origin)
-      if (clientId) loginUrl.searchParams.set('client_id', clientId)
-      if (redirectUri) loginUrl.searchParams.set('redirect_uri', redirectUri)
-      if (scope) loginUrl.searchParams.set('scope', scope)
-      if (state) loginUrl.searchParams.set('state', state)
-      if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge)
-      if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
-      router.push(loginUrl.pathname + loginUrl.search)
+      router.push(buildLoginUrl(oauthParams))
       return
     }
 
@@ -80,56 +69,35 @@ function ConsentContent() {
   }
 
   const handleApprove = async () => {
-    if (!clientId || !redirectUri) {
+    if (!oauthParams.clientId || !oauthParams.redirectUri) {
       setError('Missing required parameters')
       return
     }
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('inite_access_token')
-      
-      const response = await fetch('/oauth/create-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          clientId,
-          redirectUri,
-          scope,
-          state,
-          codeChallenge,
-          codeChallengeMethod,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const url = new URL(redirectUri)
-        url.searchParams.set('code', data.code)
-        if (state) url.searchParams.set('state', state)
-        window.location.href = url.toString()
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        setError(errorData.message || 'Failed to authorize')
+      const token = authStorage.getToken()
+      if (!token) {
+        router.push(buildLoginUrl(oauthParams))
+        return
       }
-    } catch (err) {
+
+      const code = await createAuthorizationCode(token, oauthParams)
+      window.location.href = buildRedirectWithCode(oauthParams.redirectUri, code, oauthParams.state)
+    } catch (err: any) {
       console.error('Authorization error:', err)
-      setError('Failed to process authorization')
+      setError(err.message || 'Failed to process authorization')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeny = () => {
-    if (redirectUri) {
-      const url = new URL(redirectUri)
+    if (oauthParams.redirectUri) {
+      const url = new URL(oauthParams.redirectUri)
       url.searchParams.set('error', 'access_denied')
       url.searchParams.set('error_description', 'User denied the request')
-      if (state) url.searchParams.set('state', state)
+      if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
       window.location.href = url.toString()
     } else {
       router.push('/')
@@ -174,7 +142,7 @@ function ConsentContent() {
             Confirm Sign In
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            <span className="font-semibold text-blue-600">{getClientDisplayName(clientId)}</span>
+            <span className="font-semibold text-blue-600">{getClientDisplayName(oauthParams.clientId)}</span>
             {' '}wants to access your account
           </p>
         </div>
@@ -202,7 +170,7 @@ function ConsentContent() {
             This will allow the app to:
           </h3>
           <ul className="space-y-2">
-            {getScopeDescriptions(scope).map(({ scope, icon: Icon, label }) => (
+            {getScopeDescriptions(oauthParams.scope).map(({ scope, icon: Icon, label }) => (
               <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
                 <Icon className="w-5 h-5 text-green-500" />
                 <span>{label}</span>

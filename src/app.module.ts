@@ -8,6 +8,7 @@ import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
+import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
 
 @Module({
@@ -48,6 +49,9 @@ import { HealthController } from './common/health.controller';
         },
       }),
     }),
+
+    // Common Module (global)
+    CommonModule,
 
     // Feature Modules
     AuthModule,

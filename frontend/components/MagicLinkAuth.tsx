@@ -2,19 +2,14 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Mail, Loader2, CheckCircle } from 'lucide-react'
+import { Mail, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { OAuthParams } from '@/lib/oauthHelpers'
+import { Input, Button, Card, CardHeader } from '@/components/ui'
 
 interface MagicLinkAuthProps {
-  oauthParams: {
-    clientId?: string | null
-    redirectUri?: string | null
-    scope?: string | null
-    state?: string | null
-    codeChallenge?: string | null
-    codeChallengeMethod?: string | null
-  }
+  oauthParams: OAuthParams
 }
 
 export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
@@ -32,7 +27,11 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
 
     setLoading(true)
     try {
-      await api.post('/auth/email/send-magic-link', { email })
+      // Include OAuth params so magic link can continue the flow
+      await api.post('/auth/email/send-magic-link', { 
+        email,
+        oauthParams: oauthParams.clientId ? oauthParams : undefined,
+      })
       setSent(true)
       toast.success('Magic link sent! Check your email')
     } catch (error: any) {
@@ -45,7 +44,7 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
 
   if (sent) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-200 dark:border-gray-700">
+      <Card>
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -64,11 +63,11 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
           <p className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
             {email}
           </p>
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl mb-6">
+          <Card variant="warning" className="p-4 mb-6">
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
               The link will expire in 15 minutes. Make sure to check your spam folder.
             </p>
-          </div>
+          </Card>
           <button
             onClick={() => {
               setSent(false)
@@ -79,59 +78,41 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
             Use a different email
           </button>
         </motion.div>
-      </div>
+      </Card>
     )
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-200 dark:border-gray-700">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Mail className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Sign in with Email
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          We&apos;ll send you a magic link to sign in
-        </p>
-      </div>
+    <Card>
+      <CardHeader
+        icon={<Mail className="w-8 h-8 text-white" />}
+        iconClassName="from-purple-500 to-pink-500"
+        title="Sign in with Email"
+        description="We'll send you a magic link to sign in"
+      />
 
-      <form onSubmit={handleSendMagicLink}>
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email Address
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-            required
-          />
-        </div>
+      <form onSubmit={handleSendMagicLink} className="space-y-6">
+        <Input
+          type="email"
+          label="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          required
+        />
 
-        <button
+        <Button
           type="submit"
-          disabled={loading || !email}
-          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          loading={loading}
+          disabled={!email}
+          icon={<Mail className="w-5 h-5" />}
+          className="from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
         >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>
-              <Mail className="w-5 h-5" />
-              Send Magic Link
-            </>
-          )}
-        </button>
+          {loading ? 'Sending...' : 'Send Magic Link'}
+        </Button>
       </form>
 
-      <div className="mt-8 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
+      <Card variant="info" className="mt-8 p-4">
         <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-2">
           How it works
         </h4>
@@ -141,8 +122,7 @@ export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
           <li>Click the link to sign in instantly</li>
           <li>No password required!</li>
         </ol>
-      </div>
-    </div>
+      </Card>
+    </Card>
   )
 }
-

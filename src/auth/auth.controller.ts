@@ -26,6 +26,7 @@ export class AuthController {
   async registerWithPassword(
     @Body() body: { email: string; password: string; name?: string },
     @Request() req: any,
+    @Response() res: ExpressResponse,
   ) {
     const result = await this.authService.registerWithPassword(
       body.email,
@@ -36,9 +37,25 @@ export class AuthController {
     // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
+      
+      // Explicitly save session
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) {
+            console.error('❌ [Password Register] Session save error:', err);
+            reject(err);
+          } else {
+            console.log('🔐 [Password Register] Session saved:', {
+              sessionId: req.session.id,
+              userId: req.session.userId,
+            });
+            resolve();
+          }
+        });
+      });
     }
     
-    return {
+    return res.json({
       access_token: result.accessToken,
       user: {
         id: result.user.id,
@@ -46,13 +63,14 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
-    };
+    });
   }
 
   @Post('password/login')
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Request() req: any,
+    @Response() res: ExpressResponse,
   ) {
     const result = await this.authService.loginWithPassword(
       body.email,
@@ -62,15 +80,28 @@ export class AuthController {
     // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
-      console.log('🔐 [Password Login] Session set:', {
-        sessionId: req.session.id,
-        userId: req.session.userId,
+      
+      // Explicitly save session and wait for it
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) {
+            console.error('❌ [Password Login] Session save error:', err);
+            reject(err);
+          } else {
+            console.log('🔐 [Password Login] Session saved:', {
+              sessionId: req.session.id,
+              userId: req.session.userId,
+              cookie: req.session.cookie,
+            });
+            resolve();
+          }
+        });
       });
     } else {
       console.error('❌ [Password Login] No session object available!');
     }
     
-    return {
+    return res.json({
       access_token: result.accessToken,
       user: {
         id: result.user.id,
@@ -78,7 +109,7 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
-    };
+    });
   }
 
   // ==================== Magic Link Auth ====================

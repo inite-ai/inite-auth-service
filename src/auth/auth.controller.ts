@@ -93,6 +93,8 @@ export class AuthController {
               userId: req.session.userId,
               cookie: req.session.cookie,
             });
+            // Log Set-Cookie header that will be sent
+            console.log('🍪 [Password Login] Response headers:', res.getHeaders());
             resolve();
           }
         });

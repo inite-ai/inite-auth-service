@@ -37,14 +37,14 @@ export default function AccountPage() {
           })
           
           if (sessionRes.data.authenticated && sessionRes.data.access_token) {
-            token = sessionRes.data.access_token
+            token = sessionRes.data.access_token as string
             // Save to localStorage for future requests
             authStorage.save({
-              accessToken: token,
+              accessToken: sessionRes.data.access_token,
               userId: sessionRes.data.user.id,
             })
           }
-        } catch (e) {
+        } catch {
           // Session check failed, continue to login redirect
         }
       }

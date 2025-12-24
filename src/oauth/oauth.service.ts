@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -273,12 +273,12 @@ export class OAuthService {
     idToken: string;
     expiresIn: number;
   }> {
-    // Find all non-revoked refresh tokens for this client
+    // Find all non-revoked, non-expired refresh tokens for this client
     const existingTokens = await this.refreshTokenRepository.find({
       where: {
         clientId,
         revoked: false,
-        expiresAt: LessThan(new Date()),
+        expiresAt: MoreThan(new Date()),
       },
       relations: ['user'],
     });

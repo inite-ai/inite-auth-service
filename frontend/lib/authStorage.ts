@@ -12,6 +12,35 @@ export interface AuthData {
   userId?: string
 }
 
+/**
+ * Parse JWT payload without verification
+ */
+function parseJwtPayload(token: string): { exp?: number; [key: string]: unknown } | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1]))
+    return payload
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if JWT token is expired (with 60 second buffer)
+ */
+function isTokenExpired(token: string): boolean {
+  const payload = parseJwtPayload(token)
+  if (!payload?.exp) return true
+  
+  // Add 60 second buffer before expiration
+  const expiresAt = payload.exp * 1000
+  const now = Date.now()
+  const buffer = 60 * 1000 // 1 minute
+  
+  return now >= (expiresAt - buffer)
+}
+
 export const authStorage = {
   /**
    * Save authentication data to localStorage
@@ -31,6 +60,23 @@ export const authStorage = {
   },
 
   /**
+   * Get valid (non-expired) access token
+   * Returns null if token is expired or doesn't exist
+   */
+  getValidToken(): string | null {
+    const token = this.getToken()
+    if (!token) return null
+    
+    if (isTokenExpired(token)) {
+      // Token is expired, clear it
+      this.clear()
+      return null
+    }
+    
+    return token
+  },
+
+  /**
    * Get user ID
    */
   getUserId(): string | null {
@@ -38,10 +84,19 @@ export const authStorage = {
   },
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (has valid non-expired token)
    */
   isAuthenticated(): boolean {
-    return !!this.getToken()
+    return !!this.getValidToken()
+  },
+
+  /**
+   * Check if token exists but is expired
+   */
+  hasExpiredToken(): boolean {
+    const token = this.getToken()
+    if (!token) return false
+    return isTokenExpired(token)
   },
 
   /**

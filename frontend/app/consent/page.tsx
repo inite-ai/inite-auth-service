@@ -42,25 +42,51 @@ function ConsentContent() {
     const params = extractOAuthParams(searchParams)
     setOauthParams(params)
 
-    const userId = authStorage.getUserId()
-    const token = authStorage.getToken()
-    
-    if (!userId || !token) {
-      router.push(buildLoginUrl(params))
-      return
+    const checkAuthAndLoadUser = async () => {
+      let userId = authStorage.getUserId()
+      let token = authStorage.getValidToken()
+      
+      // If no valid token, try to refresh from session (SSO)
+      if (!token) {
+        try {
+          const response = await fetch('/auth/session/me', {
+            credentials: 'include',
+          })
+          const data = await response.json()
+          
+          if (data.authenticated && data.access_token) {
+            // Save new token from session
+            authStorage.save({
+              accessToken: data.access_token,
+              userId: data.user?.id,
+            })
+            token = data.access_token
+            userId = data.user?.id
+          }
+        } catch {
+          // Session refresh failed
+        }
+      }
+      
+      if (!userId || !token) {
+        router.push(buildLoginUrl(params))
+        return
+      }
+
+      // Parse user info from token
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        setUser({
+          id: userId,
+          email: payload.email || 'Unknown',
+          name: payload.name,
+        })
+      } catch {
+        setUser({ id: userId, email: 'Unknown' })
+      }
     }
 
-    // Parse user info from token
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      setUser({
-        id: userId,
-        email: payload.email || 'Unknown',
-        name: payload.name,
-      })
-    } catch {
-      setUser({ id: userId, email: 'Unknown' })
-    }
+    checkAuthAndLoadUser()
   }, [searchParams, router])
 
   const getClientName = () => CLIENT_NAMES[oauthParams?.clientId || ''] || oauthParams?.clientId || 'Unknown App'
@@ -78,7 +104,28 @@ function ConsentContent() {
 
     setLoading(true)
     try {
-      const token = authStorage.getToken()
+      let token = authStorage.getValidToken()
+      
+      // If token expired, try to refresh from session
+      if (!token) {
+        try {
+          const response = await fetch('/auth/session/me', {
+            credentials: 'include',
+          })
+          const data = await response.json()
+          
+          if (data.authenticated && data.access_token) {
+            authStorage.save({
+              accessToken: data.access_token,
+              userId: data.user?.id,
+            })
+            token = data.access_token
+          }
+        } catch {
+          // Session refresh failed
+        }
+      }
+      
       if (!token) {
         router.push(buildLoginUrl(oauthParams))
         return

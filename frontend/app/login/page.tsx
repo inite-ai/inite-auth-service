@@ -38,20 +38,46 @@ function LoginContent() {
 
   // Check if already authenticated
   useEffect(() => {
-    const token = authStorage.getToken()
-    
-    if (token) {
-      // User already has a token
-      if (isOAuthFlow(oauthParams)) {
-        // OAuth flow - redirect to consent
-        router.push(buildConsentUrl(oauthParams))
-      } else {
-        // Direct access - redirect to account
-        router.push('/account')
+    const checkAuth = async () => {
+      // First check for valid (non-expired) token
+      let token = authStorage.getValidToken()
+      
+      // If no valid token, try to refresh from session (SSO)
+      if (!token) {
+        try {
+          const response = await fetch('/auth/session/me', {
+            credentials: 'include',
+          })
+          const data = await response.json()
+          
+          if (data.authenticated && data.access_token) {
+            // Save new token from session
+            authStorage.save({
+              accessToken: data.access_token,
+              userId: data.user?.id,
+            })
+            token = data.access_token
+          }
+        } catch {
+          // Session refresh failed, continue without token
+        }
       }
-    } else {
-      setCheckingAuth(false)
+      
+      if (token) {
+        // User is authenticated
+        if (isOAuthFlow(oauthParams)) {
+          // OAuth flow - redirect to consent
+          router.push(buildConsentUrl(oauthParams))
+        } else {
+          // Direct access - redirect to account
+          router.push('/account')
+        }
+      } else {
+        setCheckingAuth(false)
+      }
     }
+    
+    checkAuth()
   }, [router, oauthParams])
 
   // Show loading while checking auth

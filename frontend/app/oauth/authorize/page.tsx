@@ -12,28 +12,54 @@ function OAuthAuthorizeContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const oauthParams = extractOAuthParams(searchParams)
-    const responseType = searchParams.get('response_type')
+    const checkAuthAndRedirect = async () => {
+      const oauthParams = extractOAuthParams(searchParams)
+      const responseType = searchParams.get('response_type')
 
-    if (!oauthParams.clientId || !oauthParams.redirectUri) {
-      setError('Missing required parameters')
-      return
+      if (!oauthParams.clientId || !oauthParams.redirectUri) {
+        setError('Missing required parameters')
+        return
+      }
+
+      if (responseType !== 'code') {
+        setError('Invalid response_type. Only "code" is supported.')
+        return
+      }
+
+      // Check if user has valid token
+      let isAuthenticated = authStorage.isAuthenticated()
+      
+      // If no valid token, try to refresh from session (SSO)
+      if (!isAuthenticated) {
+        try {
+          const response = await fetch('/auth/session/me', {
+            credentials: 'include',
+          })
+          const data = await response.json()
+          
+          if (data.authenticated && data.access_token) {
+            // Save new token from session
+            authStorage.save({
+              accessToken: data.access_token,
+              userId: data.user?.id,
+            })
+            isAuthenticated = true
+          }
+        } catch {
+          // Session refresh failed
+        }
+      }
+      
+      console.log('🔐 [OAuth Authorize] Auth check:', isAuthenticated ? 'Authenticated' : 'Not authenticated')
+
+      if (isAuthenticated) {
+        router.push(buildConsentUrl(oauthParams))
+      } else {
+        router.push(buildLoginUrl(oauthParams))
+      }
     }
-
-    if (responseType !== 'code') {
-      setError('Invalid response_type. Only "code" is supported.')
-      return
-    }
-
-    // Check if user is authenticated
-    const isAuthenticated = authStorage.isAuthenticated()
-    console.log('🔐 [OAuth Authorize] Auth check:', isAuthenticated ? 'Authenticated' : 'Not authenticated')
-
-    if (isAuthenticated) {
-      router.push(buildConsentUrl(oauthParams))
-    } else {
-      router.push(buildLoginUrl(oauthParams))
-    }
+    
+    checkAuthAndRedirect()
   }, [searchParams, router])
 
   if (error) {

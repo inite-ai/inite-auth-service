@@ -27,9 +27,10 @@ export default function AccountPage() {
 
   const loadUserData = useCallback(async () => {
     try {
-      let token = authStorage.getToken()
+      // Get valid (non-expired) token
+      let token = authStorage.getValidToken()
       
-      // If no token in localStorage, try to get from session (SSO)
+      // If no valid token, try to get fresh one from session (SSO)
       if (!token) {
         try {
           const sessionRes = await api.get('/auth/session/me', {

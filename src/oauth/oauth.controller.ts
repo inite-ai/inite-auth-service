@@ -213,7 +213,24 @@ export class OAuthController {
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
   async userinfo(@Req() req: any) {
-    return await this.oauthService.getUserInfo(req.user.userId);
+    // Log the userId from token to debug why wrong user is returned
+    this.logger.oauth('Userinfo request', {
+      userId: req.user?.userId,
+      email: req.user?.email,
+      did: req.user?.did,
+      hasUser: !!req.user,
+    });
+    
+    const userInfo = await this.oauthService.getUserInfo(req.user.userId);
+    
+    this.logger.oauth('Userinfo response', {
+      userId: req.user?.userId,
+      returnedEmail: userInfo?.email,
+      returnedName: userInfo?.name,
+      returnedSub: userInfo?.sub,
+    });
+    
+    return userInfo;
   }
 
   /**

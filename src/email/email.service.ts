@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as Handlebars from 'handlebars';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { EMAIL_TEMPLATES, EmailTemplateContext } from './email.config';
 
@@ -71,12 +71,17 @@ export class EmailService {
 
     templateNames.forEach((templateName) => {
       try {
-        const templatePath = join(
-          __dirname,
-          'templates',
-          'email',
-          `${templateName}.hbs`,
-        );
+        // Try dist first (production), then src (development)
+        let templatePath = join(__dirname, 'templates', 'email', `${templateName}.hbs`);
+        
+        // If not found in dist, try src (for development)
+        if (!existsSync(templatePath)) {
+          const srcPath = join(process.cwd(), 'src', 'email', 'templates', 'email', `${templateName}.hbs`);
+          if (existsSync(srcPath)) {
+            templatePath = srcPath;
+          }
+        }
+        
         this.logger.log(`Loading template: ${templateName} from ${templatePath}`);
         const templateSource = readFileSync(templatePath, 'utf8');
         const template = Handlebars.compile(templateSource);
@@ -87,6 +92,7 @@ export class EmailService {
           `❌ Failed to precompile template ${templateName}:`,
           error.message,
         );
+        this.logger.error(`Template path attempted: ${join(__dirname, 'templates', 'email', `${templateName}.hbs`)}`);
       }
     });
 
@@ -117,20 +123,19 @@ export class EmailService {
     }
 
     try {
-      const headerPath = join(
-        __dirname,
-        'templates',
-        'email',
-        'partials',
-        'header.hbs',
-      );
-      const footerPath = join(
-        __dirname,
-        'templates',
-        'email',
-        'partials',
-        'footer.hbs',
-      );
+      // Try dist first (production), then src (development)
+      let headerPath = join(__dirname, 'templates', 'email', 'partials', 'header.hbs');
+      let footerPath = join(__dirname, 'templates', 'email', 'partials', 'footer.hbs');
+      
+      // If not found in dist, try src (for development)
+      if (!existsSync(headerPath)) {
+        const srcHeaderPath = join(process.cwd(), 'src', 'email', 'templates', 'email', 'partials', 'header.hbs');
+        const srcFooterPath = join(process.cwd(), 'src', 'email', 'templates', 'email', 'partials', 'footer.hbs');
+        if (existsSync(srcHeaderPath)) {
+          headerPath = srcHeaderPath;
+          footerPath = srcFooterPath;
+        }
+      }
 
       const headerSource = readFileSync(headerPath, 'utf8');
       const footerSource = readFileSync(footerPath, 'utf8');

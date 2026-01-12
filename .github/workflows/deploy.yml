@@ -79,13 +79,11 @@ jobs:
         mkdir -p /opt/projects/${{ env.PROJECT_NAME }}
         cd /opt/projects/${{ env.PROJECT_NAME }}
         
-        # Create .env file
+        # Create .env file (только секретные данные)
         cat > .env << EOF
         POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
         REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
-        SMTP_USER=${{ secrets.SMTP_USER }}
-        SMTP_PASS=${{ secrets.SMTP_PASS }}
         ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
         ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
         ADMIN_NAME=${{ secrets.ADMIN_NAME }}
@@ -124,6 +122,7 @@ jobs:
               - NODE_ENV=production
               - PORT=3002
               - FRONTEND_URL=https://auth.inite.ai
+              - SUPPORT_EMAIL=support@inite.ai
               - API_URL=https://auth-api.inite.ai
               - DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/inite_auth
               - DB_HOST=postgres
@@ -141,8 +140,8 @@ jobs:
               - SMTP_HOST=smtp.mailgun.org
               - SMTP_PORT=587
               - SMTP_SECURE=false
-              - SMTP_USER=\${SMTP_USER}
-              - SMTP_PASS=\${SMTP_PASS}
+              - SMTP_USER=${{ secrets.SMTP_USER }}
+              - SMTP_PASS=${{ secrets.SMTP_PASS }}
               - SMTP_FROM=auth@inite.ai
               - RP_NAME=INITE Identity
               - RP_ID=inite.ai

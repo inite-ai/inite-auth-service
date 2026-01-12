@@ -34,7 +34,7 @@ Value: <your-secure-jwt-secret>
 openssl rand -base64 64
 ```
 
-### 4. SMTP (Mailgun)
+### 4. SMTP (Mailgun) - только секретные данные
 ```
 Name: SMTP_USER
 Value: postmaster@your-mailgun-domain.com
@@ -43,6 +43,8 @@ Name: SMTP_PASS
 Value: <your-mailgun-smtp-password>
 ```
 **Get from:** Mailgun Dashboard → Sending → Domain Settings → SMTP Credentials
+
+**Примечание:** Остальные настройки SMTP (SMTP_HOST, SMTP_PORT, SMTP_FROM, FRONTEND_URL, SUPPORT_EMAIL) не являются секретами и задаются в docker-compose.yml или переменных окружения.
 
 ### 5. DockerHub (Already set)
 ```
@@ -76,8 +78,13 @@ REDIS_PASSWORD=local_dev_redis_password
 JWT_SECRET=local_dev_jwt_secret_at_least_32_chars_long
 
 # Email (optional for local dev)
+SMTP_HOST=smtp.mailgun.org
+SMTP_PORT=2525
 SMTP_USER=your_mailgun_user
 SMTP_PASS=your_mailgun_pass
+SMTP_FROM=noreply@inite.ai
+FRONTEND_URL=http://localhost:3000
+SUPPORT_EMAIL=support@inite.ai
 ```
 
 **⚠️ Never commit `.env` file to git!** (Already in `.gitignore`)

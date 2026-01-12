@@ -69,10 +69,9 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
 
     setLoading(true)
     try {
-      // First, create user account
-      const { data: authData } = await api.post('/auth/magic-link/request', {
+      // First, create user account (or get existing)
+      const { data: authData } = await api.post('/auth/passkey/prepare-registration', {
         email,
-        skipEmail: true,
       })
 
       // Get registration options

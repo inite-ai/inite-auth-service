@@ -1,0 +1,42 @@
+{{#> layout
+    translations=translations
+    app=app 
+    headerGradient="linear-gradient(135deg, #38a169 0%, #2f855a 100%)"
+    headerIcon="🎉"
+}}
+<div class="content">
+    <div class="greeting">
+        {{{translations.greeting}}}
+    </div>
+    
+    <div class="message">
+        <p>{{{translations.message}}}</p>
+        <p>{{translations.features.intro}}</p>
+    </div>
+    
+    <div class="features">
+        <div class="feature">
+            <div class="feature-icon">🔐</div>
+            <h3>{{translations.features.securityTitle}}</h3>
+            <p>{{translations.features.securityDesc}}</p>
+        </div>
+        
+        <div class="feature">
+            <div class="feature-icon">🌐</div>
+            <h3>{{translations.features.ecosystemTitle}}</h3>
+            <p>{{translations.features.ecosystemDesc}}</p>
+        </div>
+        
+        <div class="feature">
+            <div class="feature-icon">🔑</div>
+            <h3>{{translations.features.passkeyTitle}}</h3>
+            <p>{{translations.features.passkeyDesc}}</p>
+        </div>
+    </div>
+    
+    <div class="cta">
+        <a href="{{app.url}}" class="cta-button">{{translations.cta.button}}</a>
+        <p class="support-text">{{translations.cta.text}}</p>
+    </div>
+</div>
+{{/layout}}

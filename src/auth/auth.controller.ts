@@ -176,7 +176,83 @@ export class AuthController {
     });
   }
 
+  // ==================== Password Reset ====================
+
+  @Post('password/reset-request')
+  async requestPasswordReset(@Body() body: { email: string }) {
+    await this.authService.requestPasswordReset(body.email);
+    this.logger.auth('Password reset requested', { email: body.email });
+    return {
+      success: true,
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    };
+  }
+
+  @Post('password/reset')
+  async resetPassword(
+    @Body() body: { token: string; password: string },
+    @Request() req: any,
+  ) {
+    const result = await this.authService.resetPassword(body.token, body.password);
+
+    if (req.session) {
+      req.session.userId = result.user.id;
+      this.logger.session('Set after password reset', { userId: result.user.id });
+    }
+
+    this.logger.auth('Password reset successful', { userId: result.user.id });
+    
+    return {
+      access_token: result.accessToken,
+      user: {
+        id: result.user.id,
+        did: result.user.did,
+        email: result.user.email,
+        name: result.user.name,
+      },
+    };
+  }
+
   // ==================== Passkey Auth (WebAuthn) ====================
+
+  @Post('passkey/prepare-registration')
+  async preparePasskeyRegistration(
+    @Body() body: { email: string; name?: string },
+    @Request() req: any,
+  ) {
+    const result = await this.authService.createUserForPasskey(body.email, body.name);
+    
+    // Set userId in session for SSO
+    if (req.session) {
+      req.session.userId = result.user.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) {
+            this.logger.error('Session save error', err.message, { action: 'passkey-prepare' });
+            reject(err);
+          } else {
+            this.logger.session('Saved after passkey prepare', {
+              sessionId: req.session.id,
+              userId: req.session.userId,
+            });
+            resolve();
+          }
+        });
+      });
+    }
+    
+    this.logger.auth('Passkey registration prepared', { email: body.email, userId: result.user.id });
+    
+    return {
+      access_token: result.accessToken,
+      user: {
+        id: result.user.id,
+        did: result.user.did,
+        email: result.user.email,
+        name: result.user.name,
+      },
+    };
+  }
 
   @Post('passkey/registration/options')
   @UseGuards(JwtAuthGuard)

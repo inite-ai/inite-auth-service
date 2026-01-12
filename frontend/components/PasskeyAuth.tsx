@@ -13,12 +13,13 @@ import { Input, Button, Card, CardHeader } from '@/components/ui'
 
 interface PasskeyAuthProps {
   oauthParams: OAuthParams
+  initialMode?: 'login' | 'register'
 }
 
-export default function PasskeyAuth({ oauthParams }: PasskeyAuthProps) {
+export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: PasskeyAuthProps) {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const router = useRouter()
 
   const handlePasskeyLogin = async () => {

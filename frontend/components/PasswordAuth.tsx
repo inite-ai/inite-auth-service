@@ -12,14 +12,15 @@ import { Input, Button, Card, CardHeader } from '@/components/ui'
 
 interface PasswordAuthProps {
   oauthParams: OAuthParams
+  initialMode?: 'login' | 'register'
 }
 
-export default function PasswordAuth({ oauthParams }: PasswordAuthProps) {
+export default function PasswordAuth({ oauthParams, initialMode = 'login' }: PasswordAuthProps) {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const [name, setName] = useState('')
   const router = useRouter()
 

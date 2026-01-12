@@ -10,9 +10,12 @@ import { IdentityService } from '../identity/identity.service';
 import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
 import { EmailService } from '../email/email.service';
+import { LoggerService } from '../common/logger.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new LoggerService();
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -22,7 +25,9 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.logger.setContext('AuthService');
+  }
 
   /**
    * Create user account for passkey registration (no password)
@@ -57,10 +62,15 @@ export class AuthService {
 
     // Send welcome email
     try {
-      await this.emailService.sendWelcome({ email: user.email, name: user.name });
-    } catch (error) {
+      const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+      if (emailSent) {
+        this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
+      } else {
+        this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
+      }
+    } catch (error: any) {
       // Log but don't fail registration if email fails
-      console.error('Failed to send welcome email:', error);
+      this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
     // Generate access token
@@ -93,10 +103,15 @@ export class AuthService {
 
     // Send welcome email
     try {
-      await this.emailService.sendWelcome({ email: user.email, name: user.name });
-    } catch (error) {
+      const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+      if (emailSent) {
+        this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
+      } else {
+        this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
+      }
+    } catch (error: any) {
       // Log but don't fail registration if email fails
-      console.error('Failed to send welcome email:', error);
+      this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
     // Generate access token
@@ -165,10 +180,15 @@ export class AuthService {
     // Send welcome email if new user
     if (isNewUser) {
       try {
-        await this.emailService.sendWelcome({ email: user.email, name: user.name });
-      } catch (error) {
+        const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+        if (emailSent) {
+          this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
+        } else {
+          this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
+        }
+      } catch (error: any) {
         // Log but don't fail authentication if email fails
-        console.error('Failed to send welcome email:', error);
+        this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
       }
     }
     

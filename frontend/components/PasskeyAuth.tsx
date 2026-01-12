@@ -48,8 +48,9 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       })
 
       // Redirect based on flow
+      // Use window.location.href for OAuth to ensure full page reload and session check
       if (isOAuthFlow(oauthParams)) {
-        router.push(buildConsentUrl(oauthParams))
+        window.location.href = buildConsentUrl(oauthParams)
       } else {
         router.push('/account')
       }
@@ -99,9 +100,13 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         userId: authData.user?.id,
       })
 
-      // Redirect based on flow (no need to login again, we already have token)
+      // Redirect based on flow
+      // Use window.location.href for OAuth to ensure full page reload and session check
       if (isOAuthFlow(oauthParams)) {
-        router.push(buildConsentUrl(oauthParams))
+        // Small delay to ensure session is saved on server
+        setTimeout(() => {
+          window.location.href = buildConsentUrl(oauthParams)
+        }, 100)
       } else {
         router.push('/account')
       }

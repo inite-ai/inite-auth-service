@@ -56,8 +56,12 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
       })
 
       // Redirect based on flow
+      // Use window.location.href for OAuth to ensure full page reload and session check
       if (isOAuthFlow(oauthParams)) {
-        router.push(buildConsentUrl(oauthParams))
+        // Small delay to ensure session is saved on server
+        setTimeout(() => {
+          window.location.href = buildConsentUrl(oauthParams)
+        }, 100)
       } else {
         router.push('/account')
       }

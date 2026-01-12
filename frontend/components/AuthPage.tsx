@@ -100,7 +100,11 @@ function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
         if (variant === 'register') {
           const token = authStorage.getToken()
           if (token) {
-            router.push(isOAuthFlow(oauthParams) ? buildConsentUrl(oauthParams) : '/account')
+            if (isOAuthFlow(oauthParams)) {
+              window.location.href = buildConsentUrl(oauthParams)
+            } else {
+              router.push('/account')
+            }
             return
           }
           if (!cancelled) setCheckingAuth(false)
@@ -126,7 +130,11 @@ function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
         }
 
         if (token) {
-          router.push(isOAuthFlow(oauthParams) ? buildConsentUrl(oauthParams) : '/account')
+          if (isOAuthFlow(oauthParams)) {
+            window.location.href = buildConsentUrl(oauthParams)
+          } else {
+            router.push('/account')
+          }
         } else if (!cancelled) {
           setCheckingAuth(false)
         }

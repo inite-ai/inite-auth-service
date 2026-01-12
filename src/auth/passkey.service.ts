@@ -55,12 +55,14 @@ export class PasskeyService {
       userDisplayName: user.name || user.email || 'User',
       attestationType: 'none',
       excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => {
-        // Convert base64 to base64url string
+        // Convert base64 to base64url string for excludeCredentials
         const base64Url = passkey.credentialId.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
         return {
           id: base64Url,
           type: 'public-key' as const,
-          transports: passkey.transports as any,
+          transports: Array.isArray(passkey.transports) && passkey.transports.length > 0 
+            ? (passkey.transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[])
+            : undefined,
         };
       }) : undefined,
       authenticatorSelection: {
@@ -129,11 +131,17 @@ export class PasskeyService {
           where: { userId: user.id },
         });
 
-        allowCredentials = passkeys.map((passkey) => ({
-          id: Buffer.from(passkey.credentialId, 'base64'),
-          type: 'public-key' as const,
-          transports: passkey.transports as any,
-        }));
+        allowCredentials = passkeys.map((passkey) => {
+          // Convert base64 to Buffer for allowCredentials (needs Uint8Array)
+          const credentialIdBuffer = Buffer.from(passkey.credentialId, 'base64');
+          return {
+            id: credentialIdBuffer,
+            type: 'public-key' as const,
+            transports: Array.isArray(passkey.transports) && passkey.transports.length > 0
+              ? (passkey.transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[])
+              : undefined,
+          };
+        });
       }
     }
 

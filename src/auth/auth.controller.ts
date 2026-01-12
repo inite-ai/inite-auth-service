@@ -217,10 +217,15 @@ export class AuthController {
 
   @Post('passkey/prepare-registration')
   async preparePasskeyRegistration(
-    @Body() body: { email: string; name?: string },
+    @Body() body: { email: string; name?: string; allowExisting?: boolean },
     @Request() req: any,
   ) {
-    const result = await this.authService.createUserForPasskey(body.email, body.name);
+    // allowExisting defaults to false for registration flow (will throw error if user exists)
+    const result = await this.authService.createUserForPasskey(
+      body.email,
+      body.name,
+      body.allowExisting ?? false,
+    );
     
     // Set userId in session for SSO
     if (req.session) {

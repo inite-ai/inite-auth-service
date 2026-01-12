@@ -69,7 +69,7 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
 
     setLoading(true)
     try {
-      // First, create user account (or get existing)
+      // First, create user account (will throw error if user already exists)
       const { data: authData } = await api.post('/auth/passkey/prepare-registration', {
         email,
       })

@@ -54,11 +54,11 @@ export class PasskeyService {
       userName: user.email || user.did,
       userDisplayName: user.name || user.email || 'User',
       attestationType: 'none',
-      excludeCredentials: existingPasskeys.map((passkey) => ({
-        id: passkey.credentialId,
+      excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => ({
+        id: Buffer.from(passkey.credentialId, 'base64'),
         type: 'public-key' as const,
         transports: passkey.transports as any,
-      })),
+      })) : undefined,
       authenticatorSelection: {
         residentKey: 'preferred',
         userVerification: 'preferred',

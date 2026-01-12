@@ -92,9 +92,19 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       )
 
       toast.success('Passkey registered successfully!')
-      
-      // Auto-login after registration
-      setTimeout(() => handlePasskeyLogin(), 1000)
+
+      // Save auth data (we already have token from prepare-registration)
+      authStorage.save({
+        accessToken: authData.access_token,
+        userId: authData.user?.id,
+      })
+
+      // Redirect based on flow (no need to login again, we already have token)
+      if (isOAuthFlow(oauthParams)) {
+        router.push(buildConsentUrl(oauthParams))
+      } else {
+        router.push('/account')
+      }
     } catch (error: any) {
       console.error('Passkey registration error:', error)
       toast.error(error.response?.data?.message || 'Registration failed')

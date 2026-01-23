@@ -260,7 +260,11 @@ export class AuthController {
       });
     }
     
-    this.logger.auth('Passkey registration prepared', { email: body.email, userId: result.user.id });
+    this.logger.auth('Passkey registration prepared', { 
+      email: body.email, 
+      userId: result.user.id,
+      isExistingUser: result.isExistingUser,
+    });
     
     return {
       access_token: result.accessToken,
@@ -270,6 +274,7 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
+      isExistingUser: result.isExistingUser,
     };
   }
 

@@ -153,14 +153,44 @@ export class PasskeyService {
     expectedChallenge: string,
   ) {
     // Find passkey by credential ID
-    const credentialId = Buffer.from(response.id, 'base64url').toString('base64');
-    const passkey = await this.passkeyRepository.findOne({
-      where: { credentialId },
+    // Try multiple formats since different browsers/versions may encode differently
+    const credentialIdBase64 = Buffer.from(response.id, 'base64url').toString('base64');
+    const credentialIdBase64Url = response.id;
+    
+    // Also try rawId if available
+    const rawIdBase64 = response.rawId 
+      ? Buffer.from(response.rawId, 'base64url').toString('base64')
+      : null;
+    
+    // Try finding with different formats
+    let passkey = await this.passkeyRepository.findOne({
+      where: { credentialId: credentialIdBase64 },
       relations: ['user'],
     });
+    
+    if (!passkey) {
+      passkey = await this.passkeyRepository.findOne({
+        where: { credentialId: credentialIdBase64Url },
+        relations: ['user'],
+      });
+    }
+    
+    if (!passkey && rawIdBase64) {
+      passkey = await this.passkeyRepository.findOne({
+        where: { credentialId: rawIdBase64 },
+        relations: ['user'],
+      });
+    }
 
     if (!passkey) {
-      throw new BadRequestException('Passkey not found');
+      // Log for debugging
+      console.error('Passkey not found. Tried formats:', {
+        credentialIdBase64,
+        credentialIdBase64Url,
+        rawIdBase64,
+        responseId: response.id,
+      });
+      throw new BadRequestException('Passkey not found. You may need to register a new passkey for this account.');
     }
 
     const verification = await verifyAuthenticationResponse({

@@ -33,20 +33,21 @@ export class AuthService {
    * Create user account for passkey registration (no password)
    * @param email - User email
    * @param name - User name (optional)
-   * @param allowExisting - If true, return existing user; if false, throw error if user exists
+   * @param allowExisting - If true, return existing user info; if false, throw error if user exists
    */
   async createUserForPasskey(
     email: string,
     name?: string,
     allowExisting: boolean = false,
-  ): Promise<{ user: User; accessToken: string }> {
+  ): Promise<{ user: User; accessToken: string; isExistingUser: boolean }> {
     // Check if user exists
     const existingUser = await this.userRepository.findOne({ where: { email } });
     if (existingUser) {
       if (allowExisting) {
-        // If user exists and we allow it, just return token (for login flow)
+        // If user exists and we allow it, return info but mark as existing
+        // Frontend should require verification before allowing passkey registration
         const accessToken = this.generateAccessToken(existingUser);
-        return { user: existingUser, accessToken };
+        return { user: existingUser, accessToken, isExistingUser: true };
       } else {
         // If user exists and we don't allow it, throw error (for registration flow)
         throw new BadRequestException('User with this email already exists. Please sign in instead.');
@@ -76,7 +77,7 @@ export class AuthService {
     // Generate access token
     const accessToken = this.generateAccessToken(user);
 
-    return { user, accessToken };
+    return { user, accessToken, isExistingUser: false };
   }
 
   /**

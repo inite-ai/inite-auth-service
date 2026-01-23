@@ -56,7 +56,15 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       }
     } catch (error: any) {
       console.error('Passkey auth error:', error)
-      toast.error(error.response?.data?.message || 'Authentication failed')
+      const message = error.response?.data?.message || 'Authentication failed'
+      
+      // If passkey not found, suggest registering
+      if (message.includes('not found')) {
+        toast.error('Passkey not found. Try registering a new passkey for your account.')
+        setMode('register')
+      } else {
+        toast.error(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -70,16 +78,33 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
 
     setLoading(true)
     try {
-      // First, create user account (will throw error if user already exists)
-      const { data: authData } = await api.post('/auth/passkey/prepare-registration', {
+      // Check if user exists
+      const { data: checkData } = await api.post('/auth/passkey/prepare-registration', {
         email,
+        allowExisting: true,
       })
 
+      // If this is an existing user, they need to verify ownership first via magic link
+      // New users can register passkey directly since they're creating the account
+      if (checkData.isExistingUser) {
+        // Send magic link for verification, include flag to add passkey after
+        await api.post('/auth/email/send-magic-link', { 
+          email,
+          addPasskeyAfterVerify: true,
+          oauthParams: oauthParams.clientId ? oauthParams : undefined,
+        })
+        
+        toast.success('Check your email! After verification, you can add a passkey.')
+        setLoading(false)
+        return
+      }
+
+      // New user - proceed with passkey registration
       // Get registration options (always uses platform authenticator)
       const { data: options } = await api.post(
         '/auth/passkey/registration/options',
         {},
-        { headers: { Authorization: `Bearer ${authData.access_token}` } }
+        { headers: { Authorization: `Bearer ${checkData.access_token}` } }
       )
 
       // Start WebAuthn registration
@@ -89,21 +114,19 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       await api.post(
         '/auth/passkey/registration/verify',
         { response, challenge: options.challenge },
-        { headers: { Authorization: `Bearer ${authData.access_token}` } }
+        { headers: { Authorization: `Bearer ${checkData.access_token}` } }
       )
 
       toast.success('Passkey registered successfully!')
 
-      // Save auth data (we already have token from prepare-registration)
+      // Save auth data
       authStorage.save({
-        accessToken: authData.access_token,
-        userId: authData.user?.id,
+        accessToken: checkData.access_token,
+        userId: checkData.user?.id,
       })
 
       // Redirect based on flow
-      // Use window.location.href for OAuth to ensure full page reload and session check
       if (isOAuthFlow(oauthParams)) {
-        // Small delay to ensure session is saved on server
         setTimeout(() => {
           window.location.href = buildConsentUrl(oauthParams)
         }, 100)

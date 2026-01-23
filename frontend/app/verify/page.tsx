@@ -92,7 +92,10 @@ function VerifyContent() {
                 {message}
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Redirecting to your account...
+                Redirecting...
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                You can add a passkey for faster login in your account settings.
               </p>
             </>
           )}

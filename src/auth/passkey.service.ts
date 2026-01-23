@@ -73,6 +73,10 @@ export class PasskeyService {
       },
     });
 
+    // Add hints for browsers that support them (guides UI to show preferred authenticator type first)
+    // 'client-device' = platform authenticators like Touch ID, Face ID, Windows Hello
+    (options as any).hints = ['client-device'];
+
     return options;
   }
 
@@ -156,6 +160,10 @@ export class PasskeyService {
       userVerification: 'preferred',
       allowCredentials,
     });
+
+    // Add hints for browsers that support them (guides UI to show preferred authenticator type first)
+    // 'client-device' = platform authenticators like Touch ID, Face ID, Windows Hello
+    (options as any).hints = ['client-device'];
 
     return options;
   }

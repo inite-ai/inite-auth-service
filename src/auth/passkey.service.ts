@@ -123,38 +123,23 @@ export class PasskeyService {
 
   /**
    * Generate authentication options for WebAuthn
-   * Always uses platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
+   * Uses discoverable credentials (passkeys) - browser finds them automatically
+   * This avoids QR code / security key options in Safari
    */
   async generateAuthenticationOptions(email?: string) {
-    let allowCredentials = undefined;
-
-    // If email is provided, only allow passkeys for that user
-    if (email) {
-      const user = await this.userRepository.findOne({ where: { email } });
-      if (user) {
-        const passkeys = await this.passkeyRepository.find({
-          where: { userId: user.id },
-        });
-
-        allowCredentials = passkeys.map((passkey) => {
-          // Convert base64 to Buffer for allowCredentials (needs Uint8Array)
-          const credentialIdBuffer = Buffer.from(passkey.credentialId, 'base64');
-          
-          return {
-            id: credentialIdBuffer,
-            type: 'public-key' as const,
-            // Only use internal transport (platform authenticator)
-            // This prevents showing QR code / security key options
-            transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
-          };
-        });
-      }
-    }
-
+    // Don't specify allowCredentials - let browser discover passkeys automatically
+    // This is the recommended approach for passkeys and works better across browsers
+    // Safari shows QR code options when allowCredentials is specified
+    
+    // Note: email parameter is kept for API compatibility but not used
+    // Discoverable credentials are matched by rpID, not by credential list
+    
     const options = await generateAuthenticationOptions({
       rpID: this.rpID,
       userVerification: 'preferred',
-      allowCredentials,
+      // Empty allowCredentials = discoverable credentials mode
+      // Browser will show only passkeys stored for this rpID
+      allowCredentials: [],
     });
 
     return options;

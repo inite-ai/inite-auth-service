@@ -56,10 +56,9 @@ export class PasskeyService {
       userDisplayName: user.name || user.email || 'User',
       attestationType: 'none',
       excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => {
-        // Convert base64 to base64url string for excludeCredentials
-        const base64Url = passkey.credentialId.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        // credentialId is already stored as base64url
         return {
-          id: base64Url,
+          id: passkey.credentialId,
           type: 'public-key' as const,
           // Only internal transport for platform authenticators
           transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
@@ -107,10 +106,20 @@ export class PasskeyService {
     const { credential } = verification.registrationInfo;
 
     // Save passkey
+    // credential.id is already a base64url string in simplewebauthn v10+
+    // Store as base64url (same format browser sends during authentication)
+    const credentialIdToStore = typeof credential.id === 'string'
+      ? credential.id
+      : isoBase64URL.fromBuffer(credential.id);
+    
+    const publicKeyBase64 = Buffer.from(credential.publicKey).toString('base64');
+
+    console.log('💾 Saving passkey with credentialId:', credentialIdToStore);
+
     const passkey = this.passkeyRepository.create({
       userId,
-      credentialId: Buffer.from(credential.id).toString('base64'),
-      publicKey: Buffer.from(credential.publicKey).toString('base64'),
+      credentialId: credentialIdToStore,
+      publicKey: publicKeyBase64,
       counter: credential.counter,
       transports: response.response.transports || [],
     });
@@ -141,18 +150,14 @@ export class PasskeyService {
 
         if (passkeys.length > 0) {
           allowCredentials = passkeys.map((passkey) => {
-            const base64Url = passkey.credentialId
-              .replace(/\+/g, '-')
-              .replace(/\//g, '_')
-              .replace(/=/g, '');
-            
+            // credentialId is already stored as base64url
             // Use saved transports or default to 'internal' for platform authenticators
             const transports = passkey.transports?.length > 0 
               ? passkey.transports 
               : ['internal'];
             
             return {
-              id: base64Url,
+              id: passkey.credentialId,
               type: 'public-key' as const,
               transports: transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
             };
@@ -182,46 +187,40 @@ export class PasskeyService {
     expectedChallenge: string,
   ) {
     // Find passkey by credential ID
-    // Try multiple formats since different browsers/versions may encode differently
-    const credentialIdBase64 = Buffer.from(response.id, 'base64url').toString('base64');
+    // We now store as base64url (same format browser sends)
     const credentialIdBase64Url = response.id;
     
-    // Also try rawId if available
-    const rawIdBase64 = response.rawId 
-      ? Buffer.from(response.rawId, 'base64url').toString('base64')
-      : null;
+    console.log('🔍 Looking for passkey with credentialId:', credentialIdBase64Url);
     
-    // Try finding with different formats
+    // Primary lookup - direct match with stored base64url
     let passkey = await this.passkeyRepository.findOne({
-      where: { credentialId: credentialIdBase64 },
+      where: { credentialId: credentialIdBase64Url },
       relations: ['user'],
     });
     
+    // Fallback: try base64 format (for old passkeys stored before fix)
     if (!passkey) {
+      const credentialIdBase64 = credentialIdBase64Url
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        + '='.repeat((4 - credentialIdBase64Url.length % 4) % 4);
+      
       passkey = await this.passkeyRepository.findOne({
-        where: { credentialId: credentialIdBase64Url },
-        relations: ['user'],
-      });
-    }
-    
-    if (!passkey && rawIdBase64) {
-      passkey = await this.passkeyRepository.findOne({
-        where: { credentialId: rawIdBase64 },
+        where: { credentialId: credentialIdBase64 },
         relations: ['user'],
       });
     }
 
     if (!passkey) {
       // Log for debugging
-      console.error('Passkey not found. Tried formats:', {
-        credentialIdBase64,
-        credentialIdBase64Url,
-        rawIdBase64,
-        responseId: response.id,
-      });
+      console.error('Passkey not found. Searched for:', credentialIdBase64Url);
       throw new BadRequestException('Passkey not found. You may need to register a new passkey for this account.');
     }
 
+    // Convert publicKey from base64 to buffer
+    // publicKey is stored as base64, need to convert properly
+    const publicKeyBuffer = Buffer.from(passkey.publicKey, 'base64');
+    
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
@@ -229,7 +228,7 @@ export class PasskeyService {
       expectedRPID: this.rpID,
       credential: {
         id: passkey.credentialId,
-        publicKey: isoBase64URL.toBuffer(passkey.publicKey),
+        publicKey: new Uint8Array(publicKeyBuffer),
         counter: Number(passkey.counter),
       },
     });

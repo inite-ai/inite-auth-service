@@ -146,9 +146,15 @@ export class PasskeyService {
               .replace(/\//g, '_')
               .replace(/=/g, '');
             
+            // Use saved transports or default to 'internal' for platform authenticators
+            const transports = passkey.transports?.length > 0 
+              ? passkey.transports 
+              : ['internal'];
+            
             return {
               id: base64Url,
               type: 'public-key' as const,
+              transports: transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
             };
           });
         }

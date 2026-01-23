@@ -10,6 +10,8 @@ import * as bcrypt from 'bcryptjs';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import * as crypto from 'crypto';
+import * as nacl from 'tweetnacl';
+import * as naclUtil from 'tweetnacl-util';
 
 @Injectable()
 export class IdentityService {
@@ -77,7 +79,8 @@ export class IdentityService {
   }
 
   /**
-   * Link wallet to identity using SIWE (Sign-In With Ethereum)
+   * Link wallet to identity
+   * Supports EVM chains (SIWE) and TON
    */
   async linkWallet(
     userId: string,
@@ -85,18 +88,32 @@ export class IdentityService {
     chain: string,
     message: string,
     signature: string,
+    publicKey?: string, // Required for TON
   ): Promise<Wallet> {
     const user = await this.getIdentityById(userId);
 
-    // Verify SIWE signature
-    const isValid = await this.verifySiweSignature(message, signature, address);
+    // Verify signature based on chain type
+    let isValid = false;
+    if (chain === 'ton') {
+      if (!publicKey) {
+        throw new BadRequestException('Public key is required for TON wallet verification');
+      }
+      isValid = await this.verifyTonSignature(message, signature, publicKey);
+    } else {
+      // EVM chains (ethereum, polygon, etc.)
+      isValid = await this.verifySiweSignature(message, signature, address);
+    }
+
     if (!isValid) {
       throw new BadRequestException('Invalid wallet signature');
     }
 
+    // Normalize address (lowercase for EVM, keep as-is for TON)
+    const normalizedAddress = chain === 'ton' ? address : address.toLowerCase();
+
     // Check if wallet is already linked
     const existingWallet = await this.walletRepository.findOne({
-      where: { address: address.toLowerCase() },
+      where: { address: normalizedAddress },
     });
 
     if (existingWallet) {
@@ -109,7 +126,7 @@ export class IdentityService {
     // Create wallet link
     const wallet = this.walletRepository.create({
       userId,
-      address: address.toLowerCase(),
+      address: normalizedAddress,
       chain,
       signature,
       message,
@@ -218,6 +235,54 @@ DID: ${did}
 URI: ${uri}
 Nonce: ${nonce}
 Issued At: ${issuedAt}`;
+  }
+
+  /**
+   * Generate TON proof message for wallet linking
+   */
+  generateTonMessage(
+    address: string,
+    did: string,
+    nonce: string,
+  ): { message: string; payload: string } {
+    const domain = 'auth.inite.ai';
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    // TON Connect proof payload
+    const payload = JSON.stringify({
+      type: 'ton_proof',
+      domain,
+      address,
+      did,
+      nonce,
+      timestamp,
+    });
+
+    const message = `Link this TON wallet to your INITE identity.\n\nAddress: ${address}\nDID: ${did}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
+
+    return { message, payload };
+  }
+
+  /**
+   * Verify TON signature using ed25519
+   */
+  private async verifyTonSignature(
+    message: string,
+    signature: string,
+    publicKey: string,
+  ): Promise<boolean> {
+    try {
+      // Decode signature and public key from base64
+      const signatureBytes = naclUtil.decodeBase64(signature);
+      const publicKeyBytes = naclUtil.decodeBase64(publicKey);
+      const messageBytes = naclUtil.decodeUTF8(message);
+
+      // Verify ed25519 signature
+      return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+    } catch (error) {
+      console.error('TON signature verification error:', error);
+      return false;
+    }
   }
 
   // ==================== Profile Management ====================

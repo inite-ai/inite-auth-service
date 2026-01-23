@@ -12,7 +12,7 @@ import {
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller('identity')
+@Controller('auth/identity')
 export class IdentityController {
   constructor(private readonly identityService: IdentityService) {}
 
@@ -60,6 +60,7 @@ export class IdentityController {
       chain: string;
       message: string;
       signature: string;
+      publicKey?: string; // Required for TON
     },
   ) {
     return await this.identityService.linkWallet(
@@ -68,6 +69,7 @@ export class IdentityController {
       body.chain,
       body.message,
       body.signature,
+      body.publicKey,
     );
   }
 
@@ -104,6 +106,21 @@ export class IdentityController {
       body.nonce,
     );
     return { message };
+  }
+
+  @Post('wallet/ton-message')
+  @UseGuards(JwtAuthGuard)
+  async generateTonMessage(
+    @Request() req: any,
+    @Body() body: { address: string; nonce: string },
+  ) {
+    const user = await this.identityService.getIdentityById(req.user.userId);
+    const { message, payload } = this.identityService.generateTonMessage(
+      body.address,
+      user.did,
+      body.nonce,
+    );
+    return { message, payload };
   }
 
   // ==================== Profile Management ====================

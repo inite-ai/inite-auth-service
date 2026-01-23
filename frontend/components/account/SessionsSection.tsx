@@ -25,7 +25,7 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
 
   const loadSessions = async () => {
     try {
-      const { data } = await api.get('/session/active', {
+      const { data } = await api.get('/auth/session/active', {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       setSessions(data)

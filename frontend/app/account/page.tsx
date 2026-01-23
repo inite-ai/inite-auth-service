@@ -59,10 +59,10 @@ export default function AccountPage() {
       const config = { headers: { Authorization: `Bearer ${token}` } }
 
       const [userRes, walletsRes, passkeysRes, securityRes] = await Promise.all([
-        api.get('/identity/me', config),
-        api.get('/identity/wallets', config),
+        api.get('/auth/identity/me', config),
+        api.get('/auth/identity/wallets', config),
         api.get('/auth/passkey/list', config),
-        api.get('/identity/security-status', config),
+        api.get('/auth/identity/security-status', config),
       ])
 
       setUser(userRes.data)

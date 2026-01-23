@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Controller()
@@ -12,6 +12,20 @@ export class HealthController {
       service: 'inite-auth-service',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
+    };
+  }
+
+  /**
+   * Apple App Site Association for Passkeys/WebAuthn
+   * Required for Safari to show "This Device" option for platform authenticators
+   */
+  @Get('.well-known/apple-app-site-association')
+  @Header('Content-Type', 'application/json')
+  appleAppSiteAssociation() {
+    return {
+      webcredentials: {
+        apps: [],
+      },
     };
   }
 

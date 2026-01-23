@@ -61,14 +61,12 @@ export class PasskeyService {
         return {
           id: base64Url,
           type: 'public-key' as const,
-          transports: Array.isArray(passkey.transports) && passkey.transports.length > 0 
-            ? (passkey.transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[])
-            : undefined,
+          // Only internal transport for platform authenticators
+          transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
         };
       }) : undefined,
       authenticatorSelection: {
-        // Always use platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
-        // This prevents showing QR code / security key options
+        // Platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
         authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'preferred',
@@ -123,23 +121,40 @@ export class PasskeyService {
 
   /**
    * Generate authentication options for WebAuthn
-   * Uses discoverable credentials (passkeys) - browser finds them automatically
-   * This avoids QR code / security key options in Safari
    */
   async generateAuthenticationOptions(email?: string) {
-    // Don't specify allowCredentials - let browser discover passkeys automatically
-    // This is the recommended approach for passkeys and works better across browsers
-    // Safari shows QR code options when allowCredentials is specified
-    
-    // Note: email parameter is kept for API compatibility but not used
-    // Discoverable credentials are matched by rpID, not by credential list
-    
+    // If no passkey registered yet, allowCredentials stays undefined
+    // This triggers discoverable credentials mode
+    let allowCredentials = undefined;
+
+    // If email provided, try to get user's passkeys
+    if (email) {
+      const user = await this.userRepository.findOne({ where: { email } });
+      if (user) {
+        const passkeys = await this.passkeyRepository.find({
+          where: { userId: user.id },
+        });
+
+        if (passkeys.length > 0) {
+          allowCredentials = passkeys.map((passkey) => {
+            const base64Url = passkey.credentialId
+              .replace(/\+/g, '-')
+              .replace(/\//g, '_')
+              .replace(/=/g, '');
+            
+            return {
+              id: base64Url,
+              type: 'public-key' as const,
+            };
+          });
+        }
+      }
+    }
+
     const options = await generateAuthenticationOptions({
       rpID: this.rpID,
       userVerification: 'preferred',
-      // Empty allowCredentials = discoverable credentials mode
-      // Browser will show only passkeys stored for this rpID
-      allowCredentials: [],
+      allowCredentials,
     });
 
     return options;

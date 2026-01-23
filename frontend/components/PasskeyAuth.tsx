@@ -182,10 +182,11 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        className="space-y-4"
       >
         <Card variant="success" className="mt-8 p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-green-800 dark:text-green-200">
                 Most Secure Option
@@ -196,6 +197,10 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
             </div>
           </div>
         </Card>
+        
+        <p className="text-xs text-center text-gray-500 dark:text-gray-500">
+          On Safari/iOS: Select "This Device" to use Touch ID or Face ID
+        </p>
       </motion.div>
     </Card>
   )

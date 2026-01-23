@@ -17,6 +17,8 @@ const CLIENT_NAMES: Record<string, string> = {
   'smart-chat': 'Smart Chat',
   'inite-club': 'INITE Club',
   'smar-chat-admin': 'Admin Panel',
+  'smart-chat-admin': 'Admin Panel',
+  'content-generator': 'Content Generator',
 }
 
 function VerifyContent() {
@@ -67,9 +69,12 @@ function VerifyContent() {
     const redirectUrl = new URL(oauthParams.redirectUri)
     const baseUrl = redirectUrl.origin
     
-    // Redirect to app's main page - app will detect no auth and start OAuth again
-    // This time user is authenticated so it will be seamless
-    window.location.href = baseUrl
+    // Add auth=required param to trigger immediate OAuth flow on the client
+    // Client apps should check this param and start OAuth immediately
+    const targetUrl = new URL(baseUrl)
+    targetUrl.searchParams.set('auth', 'required')
+    
+    window.location.href = targetUrl.toString()
   }
 
   useEffect(() => {

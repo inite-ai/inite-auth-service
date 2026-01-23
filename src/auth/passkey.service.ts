@@ -35,6 +35,7 @@ export class PasskeyService {
 
   /**
    * Generate registration options for WebAuthn
+   * Always uses platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
    */
   async generateRegistrationOptions(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -66,6 +67,9 @@ export class PasskeyService {
         };
       }) : undefined,
       authenticatorSelection: {
+        // Always use platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
+        // This prevents showing QR code / security key options
+        authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'preferred',
       },
@@ -119,6 +123,7 @@ export class PasskeyService {
 
   /**
    * Generate authentication options for WebAuthn
+   * Always uses platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
    */
   async generateAuthenticationOptions(email?: string) {
     let allowCredentials = undefined;
@@ -134,12 +139,13 @@ export class PasskeyService {
         allowCredentials = passkeys.map((passkey) => {
           // Convert base64 to Buffer for allowCredentials (needs Uint8Array)
           const credentialIdBuffer = Buffer.from(passkey.credentialId, 'base64');
+          
           return {
             id: credentialIdBuffer,
             type: 'public-key' as const,
-            transports: Array.isArray(passkey.transports) && passkey.transports.length > 0
-              ? (passkey.transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[])
-              : undefined,
+            // Only use internal transport (platform authenticator)
+            // This prevents showing QR code / security key options
+            transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
           };
         });
       }

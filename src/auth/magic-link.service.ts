@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
-import { MagicLink, User } from '../database/entities';
+import { MagicLink, User, OAuthParamsDto } from '../database/entities';
 import { IdentityService } from '../identity/identity.service';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class MagicLinkService {
   async generateMagicLink(
     email: string,
     purpose: 'login' | 'register' | 'verify-email',
+    oauthParams?: OAuthParamsDto,
   ): Promise<string> {
     // Generate secure token
     const token = crypto.randomBytes(32).toString('base64url');
@@ -32,7 +33,7 @@ export class MagicLinkService {
     // Check if user exists
     const existingUser = await this.userRepository.findOne({ where: { email } });
 
-    // Save magic link
+    // Save magic link with OAuth params if provided
     const magicLink = this.magicLinkRepository.create({
       token,
       email,
@@ -40,6 +41,7 @@ export class MagicLinkService {
       purpose,
       expiresAt,
       used: false,
+      oauthParams: oauthParams?.clientId ? oauthParams : null,
     });
 
     await this.magicLinkRepository.save(magicLink);
@@ -53,6 +55,7 @@ export class MagicLinkService {
   async verifyMagicLink(token: string): Promise<{
     user: User;
     isNewUser: boolean;
+    oauthParams: OAuthParamsDto | null;
   }> {
     const magicLink = await this.magicLinkRepository.findOne({
       where: { token, used: false },
@@ -95,7 +98,7 @@ export class MagicLinkService {
       await this.userRepository.save(user);
     }
 
-    return { user, isNewUser };
+    return { user, isNewUser, oauthParams: magicLink.oauthParams };
   }
 
   /**

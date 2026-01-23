@@ -25,7 +25,7 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
   const handlePasskeyLogin = async () => {
     setLoading(true)
     try {
-      // Get authentication options
+      // Get authentication options (always uses platform authenticator)
       const { data: options } = await api.post('/auth/passkey/authentication/options', {
         email: email || undefined,
       })
@@ -75,7 +75,7 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         email,
       })
 
-      // Get registration options
+      // Get registration options (always uses platform authenticator)
       const { data: options } = await api.post(
         '/auth/passkey/registration/options',
         {},

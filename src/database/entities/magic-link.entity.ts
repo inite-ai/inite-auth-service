@@ -5,6 +5,15 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 
+export interface OAuthParamsDto {
+  clientId?: string;
+  redirectUri?: string;
+  scope?: string;
+  state?: string;
+  codeChallenge?: string;
+  codeChallengeMethod?: string;
+}
+
 @Entity('magic_links')
 export class MagicLink {
   @PrimaryGeneratedColumn('uuid')
@@ -30,6 +39,9 @@ export class MagicLink {
 
   @Column({ type: 'timestamp', nullable: true })
   usedAt: Date;
+
+  @Column({ type: 'jsonb', nullable: true })
+  oauthParams: OAuthParamsDto | null;
 
   @CreateDateColumn()
   createdAt: Date;

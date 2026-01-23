@@ -142,9 +142,22 @@ export class AuthController {
   // ==================== Magic Link Auth ====================
 
   @Post('email/send-magic-link')
-  async sendMagicLink(@Body() body: { email: string }) {
-    await this.authService.sendMagicLink(body.email);
-    this.logger.auth('Magic link sent', { email: body.email });
+  async sendMagicLink(@Body() body: { 
+    email: string;
+    oauthParams?: {
+      clientId?: string;
+      redirectUri?: string;
+      scope?: string;
+      state?: string;
+      codeChallenge?: string;
+      codeChallengeMethod?: string;
+    };
+  }) {
+    await this.authService.sendMagicLink(body.email, body.oauthParams);
+    this.logger.auth('Magic link sent', { 
+      email: body.email, 
+      hasOAuthFlow: !!body.oauthParams?.clientId,
+    });
     return {
       success: true,
       message: 'Magic link sent to your email',
@@ -173,6 +186,7 @@ export class AuthController {
         name: result.user.name,
       },
       is_new_user: result.isNewUser,
+      oauth_params: result.oauthParams,
     });
   }
 

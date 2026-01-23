@@ -15,9 +15,16 @@ export class AddMagicLinkMissingFields1737592800000 implements MigrationInterfac
       ALTER TABLE "magic_links" 
       ADD COLUMN IF NOT EXISTS "usedAt" TIMESTAMP
     `);
+
+    // Add oauthParams column to preserve OAuth flow context
+    await queryRunner.query(`
+      ALTER TABLE "magic_links" 
+      ADD COLUMN IF NOT EXISTS "oauthParams" jsonb
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "magic_links" DROP COLUMN IF EXISTS "oauthParams"`);
     await queryRunner.query(`ALTER TABLE "magic_links" DROP COLUMN IF EXISTS "usedAt"`);
     await queryRunner.query(`ALTER TABLE "magic_links" DROP COLUMN IF EXISTS "purpose"`);
   }

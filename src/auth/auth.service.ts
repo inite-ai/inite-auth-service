@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { User } from '../database/entities';
+import { User, OAuthParamsDto } from '../database/entities';
 import { IdentityService } from '../identity/identity.service';
 import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
@@ -150,18 +150,20 @@ export class AuthService {
 
   /**
    * Send magic link to email
+   * @param email - User email
+   * @param oauthParams - OAuth parameters to preserve for redirect after verification
    */
-  async sendMagicLink(email: string): Promise<void> {
+  async sendMagicLink(email: string, oauthParams?: OAuthParamsDto): Promise<void> {
     // Check if user exists
     const existingUser = await this.userRepository.findOne({ where: { email } });
     const purpose = existingUser ? 'login' : 'register';
 
-    // Generate magic link
-    const token = await this.magicLinkService.generateMagicLink(email, purpose);
+    // Generate magic link with OAuth params preserved
+    const token = await this.magicLinkService.generateMagicLink(email, purpose, oauthParams);
 
-    // Build magic link URL
+    // Build magic link URL - points to frontend /verify page, not API endpoint
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
-    const magicLinkUrl = `${frontendUrl}/auth/email/verify?token=${token}`;
+    const magicLinkUrl = `${frontendUrl}/verify?token=${token}`;
 
     // Send email with magic link
     await this.emailService.sendMagicLink(email, magicLinkUrl, existingUser?.name);
@@ -174,8 +176,9 @@ export class AuthService {
     user: User;
     accessToken: string;
     isNewUser: boolean;
+    oauthParams: OAuthParamsDto | null;
   }> {
-    const { user, isNewUser } = await this.magicLinkService.verifyMagicLink(token);
+    const { user, isNewUser, oauthParams } = await this.magicLinkService.verifyMagicLink(token);
     
     // Send welcome email if new user
     if (isNewUser) {
@@ -194,7 +197,7 @@ export class AuthService {
     
     const accessToken = this.generateAccessToken(user);
 
-    return { user, accessToken, isNewUser };
+    return { user, accessToken, isNewUser, oauthParams };
   }
 
   /**

@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
+import { buildConsentUrl, OAuthParams } from '@/lib/oauthHelpers'
 import toast from 'react-hot-toast'
 import { Card, Button } from '@/components/ui'
 
@@ -30,8 +31,17 @@ function VerifyContent() {
       setStatus('success')
       setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')
       
-      // Redirect to account page after 2 seconds
-      setTimeout(() => router.push('/account'), 2000)
+      // Check if this was an OAuth flow - redirect to consent page instead of account
+      const oauthParams: OAuthParams | null = data.oauth_params
+      if (oauthParams?.clientId && oauthParams?.redirectUri) {
+        // OAuth flow - redirect to consent page
+        setTimeout(() => {
+          window.location.href = buildConsentUrl(oauthParams)
+        }, 1500)
+      } else {
+        // Direct auth - redirect to account page
+        setTimeout(() => router.push('/account'), 2000)
+      }
     } catch (error: any) {
       console.error('Verify magic link error:', error)
       setStatus('error')

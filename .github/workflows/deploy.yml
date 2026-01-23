@@ -138,7 +138,7 @@ jobs:
               - OIDC_ISSUER=https://auth-api.inite.ai
               - CORS_ORIGINS=https://break3.inite.health,https://admin.break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://auth.inite.ai
               - SMTP_HOST=smtp.mailgun.org
-              - SMTP_PORT=587
+              - SMTP_PORT=2525
               - SMTP_SECURE=false
               - SMTP_USER=${{ secrets.SMTP_USER }}
               - SMTP_PASS=${{ secrets.SMTP_PASS }}

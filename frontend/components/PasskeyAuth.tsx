@@ -84,17 +84,11 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         allowExisting: true,
       })
 
-      // If this is an existing user, they need to verify ownership first via magic link
-      // New users can register passkey directly since they're creating the account
+      // If this is an existing user, they need to sign in first
+      // Then they can add a passkey in their account settings
       if (checkData.isExistingUser) {
-        // Send magic link for verification, include flag to add passkey after
-        await api.post('/auth/email/send-magic-link', { 
-          email,
-          addPasskeyAfterVerify: true,
-          oauthParams: oauthParams.clientId ? oauthParams : undefined,
-        })
-        
-        toast.success('Check your email! After verification, you can add a passkey.')
+        toast.error('This email already has an account. Sign in first using Magic Link or Password, then add a passkey in account settings.')
+        setMode('login')
         setLoading(false)
         return
       }

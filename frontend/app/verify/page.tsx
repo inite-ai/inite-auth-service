@@ -3,20 +3,28 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { CheckCircle, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle, Loader2, XCircle, ExternalLink } from 'lucide-react'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
-import { buildConsentUrl, OAuthParams } from '@/lib/oauthHelpers'
+import { OAuthParams } from '@/lib/oauthHelpers'
 import toast from 'react-hot-toast'
 import { Card, Button } from '@/components/ui'
 
-type VerifyStatus = 'loading' | 'success' | 'error'
+type VerifyStatus = 'loading' | 'success' | 'success-oauth' | 'error'
+
+// Client name mapping for better UX
+const CLIENT_NAMES: Record<string, string> = {
+  'smart-chat': 'Smart Chat',
+  'inite-club': 'INITE Club',
+  'smar-chat-admin': 'Admin Panel',
+}
 
 function VerifyContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [status, setStatus] = useState<VerifyStatus>('loading')
   const [message, setMessage] = useState('')
+  const [oauthParams, setOauthParams] = useState<OAuthParams | null>(null)
 
   const verifyMagicLink = useCallback(async (token: string) => {
     try {
@@ -28,18 +36,18 @@ function VerifyContent() {
         userId: data.user?.id,
       })
       
-      setStatus('success')
       setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')
       
-      // Check if this was an OAuth flow - redirect to consent page instead of account
-      const oauthParams: OAuthParams | null = data.oauth_params
-      if (oauthParams?.clientId && oauthParams?.redirectUri) {
-        // OAuth flow - redirect to consent page
-        setTimeout(() => {
-          window.location.href = buildConsentUrl(oauthParams)
-        }, 1500)
+      // Check if this was an OAuth flow
+      const params: OAuthParams | null = data.oauth_params
+      if (params?.clientId && params?.redirectUri) {
+        // OAuth flow - show "Continue" button instead of auto-redirect
+        // This is needed because magic link opens in new tab, losing OAuth state
+        setOauthParams(params)
+        setStatus('success-oauth')
       } else {
         // Direct auth - redirect to account page
+        setStatus('success')
         setTimeout(() => router.push('/account'), 2000)
       }
     } catch (error: any) {
@@ -49,6 +57,20 @@ function VerifyContent() {
       toast.error('Magic link verification failed')
     }
   }, [router])
+
+  // Continue OAuth flow - redirect back to the app which will start a new OAuth flow
+  // Since user is now authenticated, the new flow will auto-approve
+  const handleContinueToApp = () => {
+    if (!oauthParams?.redirectUri) return
+    
+    // Extract base URL from redirectUri (remove /callback or /oauth/callback)
+    const redirectUrl = new URL(oauthParams.redirectUri)
+    const baseUrl = redirectUrl.origin
+    
+    // Redirect to app's main page - app will detect no auth and start OAuth again
+    // This time user is authenticated so it will be seamless
+    window.location.href = baseUrl
+  }
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -92,10 +114,38 @@ function VerifyContent() {
                 {message}
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Redirecting...
+                Redirecting to your account...
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                 You can add a passkey for faster login in your account settings.
+              </p>
+            </>
+          )}
+
+          {status === 'success-oauth' && (
+            <>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', duration: 0.5 }}
+              >
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              </motion.div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                {message}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Click below to continue to {CLIENT_NAMES[oauthParams?.clientId || ''] || 'the app'}
+              </p>
+              <Button 
+                onClick={handleContinueToApp}
+                className="w-full"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Continue to {CLIENT_NAMES[oauthParams?.clientId || ''] || 'App'}
+              </Button>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-4">
+                You'll be signed in automatically
               </p>
             </>
           )}

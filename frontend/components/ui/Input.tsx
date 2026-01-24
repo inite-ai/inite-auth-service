@@ -28,6 +28,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               bg-gray-50 dark:bg-gray-900 
               border border-gray-300 dark:border-gray-600 
               rounded-xl 
+              text-gray-900 dark:text-gray-100 
+              placeholder-gray-500 dark:placeholder-gray-400 
               focus:ring-2 focus:ring-violet-500 focus:border-transparent 
               transition
               ${showPasswordToggle ? 'pr-12' : ''}

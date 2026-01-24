@@ -5,6 +5,13 @@
   --foreground: #f1f5f9;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+  }
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -30,10 +37,31 @@ body {
   background: rgba(148, 163, 184, 0.5);
 }
 
+@media (prefers-color-scheme: light) {
+  ::-webkit-scrollbar-track {
+    background: rgba(226, 232, 240, 0.8);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.6);
+  }
+}
+
 /* Selection */
 ::selection {
   background: rgba(139, 92, 246, 0.3);
   color: white;
+}
+
+@media (prefers-color-scheme: light) {
+  ::selection {
+    background: rgba(139, 92, 246, 0.25);
+    color: #0f172a;
+  }
 }
 
 /* Focus outline */
@@ -42,13 +70,26 @@ body {
   outline-offset: 2px;
 }
 
-/* Input autofill */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px rgb(30, 41, 59) inset !important;
-  -webkit-text-fill-color: white !important;
-  caret-color: white;
+/* Input autofill – light theme */
+@media (prefers-color-scheme: light) {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px rgb(241, 245, 249) inset !important;
+    -webkit-text-fill-color: rgb(15, 23, 42) !important;
+    caret-color: rgb(15, 23, 42);
+  }
+}
+
+/* Input autofill – dark theme */
+@media (prefers-color-scheme: dark) {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px rgb(30, 41, 59) inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #f1f5f9;
+  }
 }
 
 /* Animations */

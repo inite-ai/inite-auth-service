@@ -336,12 +336,4 @@ export class OAuthController {
       throw new UnauthorizedException('Invalid token');
     }
   }
-
-  /**
-   * JWKS endpoint
-   */
-  @Get('../.well-known/jwks.json')
-  async jwks() {
-    return { keys: [] };
-  }
 }

@@ -80,10 +80,13 @@ jobs:
         cd /opt/projects/${{ env.PROJECT_NAME }}
         
         # Create .env file (только секретные данные)
+        # RS256: JWT_PRIVATE_KEY + JWT_PUBLIC_KEY (опционально). Иначе HS256 с JWT_SECRET
         cat > .env << EOF
         POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
         REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
+        JWT_PRIVATE_KEY=${{ secrets.JWT_PRIVATE_KEY }}
+        JWT_PUBLIC_KEY=${{ secrets.JWT_PUBLIC_KEY }}
         ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
         ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
         ADMIN_NAME=${{ secrets.ADMIN_NAME }}
@@ -134,6 +137,8 @@ jobs:
               - REDIS_PORT=6379
               - REDIS_PASSWORD=\${REDIS_PASSWORD}
               - JWT_SECRET=\${JWT_SECRET}
+              - JWT_PRIVATE_KEY=\${JWT_PRIVATE_KEY}
+              - JWT_PUBLIC_KEY=\${JWT_PUBLIC_KEY}
               - JWT_ISSUER=https://auth-api.inite.ai
               - OIDC_ISSUER=https://auth-api.inite.ai
               - CORS_ORIGINS=https://break3.inite.health,https://admin.break3.inite.health,https://inite.club,https://inite.health,https://inite.events,https://inite.estate,https://inite.education,https://auth.inite.ai

@@ -24,15 +24,30 @@ Value: <your-secure-redis-password>
 openssl rand -base64 32
 ```
 
-### 3. JWT Secret
+### 3. JWT (choose one mode)
+
+**Option A: RS256 + JWKS (recommended for inter-service auth)** — add both secrets:
+```
+Name: JWT_PRIVATE_KEY
+Value: <PEM private key - full content of private.pem>
+
+Name: JWT_PUBLIC_KEY
+Value: <PEM public key - full content of public.pem>
+```
+**Generate with:**
+```bash
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+# Paste full contents (including -----BEGIN/END-----) into GitHub Secrets
+```
+For deploy: add these to GitHub Secrets. JWKS will be served at `/.well-known/jwks.json`.
+
+**Option B: HS256 (legacy, single service)**
 ```
 Name: JWT_SECRET
 Value: <your-secure-jwt-secret>
 ```
-**Generate with:**
-```bash
-openssl rand -base64 64
-```
+**Generate with:** `openssl rand -base64 64`
 
 ### 4. SMTP (Mailgun) - только секретные данные
 ```
@@ -74,7 +89,10 @@ POSTGRES_PASSWORD=local_dev_password
 # Redis
 REDIS_PASSWORD=local_dev_redis_password
 
-# JWT
+# JWT: RS256 (JWKS) or HS256
+# For RS256 - generate: openssl genrsa -out private.pem 2048 && openssl rsa -in private.pem -pubout -out public.pem
+# JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+# JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 JWT_SECRET=local_dev_jwt_secret_at_least_32_chars_long
 
 # Email (optional for local dev)

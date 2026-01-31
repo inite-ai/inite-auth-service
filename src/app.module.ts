@@ -38,16 +38,28 @@ import { HealthController } from './common/health.controller';
       }),
     }),
 
-    // JWT Global Configuration
+    // JWT: RS256 (JWKS) when JWT_PRIVATE_KEY set, else HS256 (JWT_SECRET)
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          issuer: configService.get<string>('JWT_ISSUER', 'auth.inite.ai'),
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const privateKey = configService.get<string>('JWT_PRIVATE_KEY');
+        const issuer = configService.get<string>('JWT_ISSUER', 'auth.inite.ai');
+        if (privateKey) {
+          return {
+            secretOrPrivateKey: privateKey,
+            signOptions: {
+              algorithm: 'RS256',
+              issuer,
+              keyid: 'auth-rs256-key-1',
+            },
+          };
+        }
+        return {
+          secret: configService.get<string>('JWT_SECRET'),
+          signOptions: { issuer },
+        };
+      },
     }),
 
     // Common Module (global)

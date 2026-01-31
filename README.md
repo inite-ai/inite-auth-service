@@ -183,7 +183,7 @@ Issued At: ${issuedAt}`;
 
 ### OAuth2/OIDC
 - `GET /.well-known/openid-configuration` - OIDC discovery
-- `GET /.well-known/jwks.json` - Public keys
+- `GET /.well-known/jwks.json` - Public keys (RS256 JWKS for inter-service auth)
 - `GET /oauth/authorize` - Authorization endpoint
 - `POST /oauth/token` - Token endpoint
 - `GET /oauth/userinfo` - User info endpoint

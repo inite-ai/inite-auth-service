@@ -1,9 +1,13 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwksService } from './jwks.service';
 
 @Controller()
 export class HealthController {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly jwksService: JwksService,
+  ) {}
 
   @Get('health')
   health() {
@@ -27,6 +31,12 @@ export class HealthController {
         apps: [],
       },
     };
+  }
+
+  @Get('.well-known/jwks.json')
+  @Header('Content-Type', 'application/json')
+  jwks() {
+    return this.jwksService.getJwks();
   }
 
   @Get('.well-known/openid-configuration')

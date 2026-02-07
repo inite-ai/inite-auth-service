@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key } from 'lucide-react'
+import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
 import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, OAuthParams } from '@/lib/oauthHelpers'
@@ -153,6 +153,14 @@ function ConsentContent() {
     }
   }
 
+  const handleSwitchAccount = () => {
+    if (!oauthParams) return
+    authStorage.clear()
+    const loginPath = buildLoginUrl(oauthParams)
+    const fullLoginUrl = new URL(loginPath, window.location.origin).toString()
+    window.location.href = `/oauth/logout?post_logout_redirect_uri=${encodeURIComponent(fullLoginUrl)}`
+  }
+
   // Loading state
   if (!user || !oauthParams) {
     return (
@@ -199,18 +207,27 @@ function ConsentContent() {
           {/* User info */}
           <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-full flex items-center justify-center shrink-0">
                 <User className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-gray-900 dark:text-white truncate">
                   {user.name || 'User'}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                   {user.email}
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleSwitchAccount}
+              disabled={loading}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              Use another account
+            </button>
           </div>
 
           {/* Permissions */}

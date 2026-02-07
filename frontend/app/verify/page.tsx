@@ -3,55 +3,47 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { CheckCircle, Loader2, XCircle, ExternalLink } from 'lucide-react'
+import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
 import { OAuthParams } from '@/lib/oauthHelpers'
 import toast from 'react-hot-toast'
 import { Card, Button } from '@/components/ui'
 
-type VerifyStatus = 'loading' | 'success' | 'success-oauth' | 'error'
-
-// Client name mapping for better UX
-const CLIENT_NAMES: Record<string, string> = {
-  'smart-chat': 'Smart Chat',
-  'inite-club': 'INITE Club',
-  'smar-chat-admin': 'Admin Panel',
-  'smart-chat-admin': 'Admin Panel',
-  'content-generator': 'Content Generator',
-}
+type VerifyStatus = 'loading' | 'success' | 'error'
 
 function VerifyContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [status, setStatus] = useState<VerifyStatus>('loading')
   const [message, setMessage] = useState('')
-  const [oauthParams, setOauthParams] = useState<OAuthParams | null>(null)
 
   const verifyMagicLink = useCallback(async (token: string) => {
     try {
       const { data } = await api.get(`/auth/email/verify?token=${token}`)
       
-      // Store auth data
       authStorage.save({
         accessToken: data.access_token,
         userId: data.user?.id,
       })
       
-      setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')
-      
-      // Check if this was an OAuth flow
       const params: OAuthParams | null = data.oauth_params
-      if (params?.clientId && params?.redirectUri) {
-        // OAuth flow - show "Continue" button instead of auto-redirect
-        // This is needed because magic link opens in new tab, losing OAuth state
-        setOauthParams(params)
-        setStatus('success-oauth')
-      } else {
-        // Direct auth - redirect to account page
-        setStatus('success')
-        setTimeout(() => router.push('/account'), 2000)
+      if (params?.clientId && params?.redirectUri && params?.state && params?.codeChallenge) {
+        // OAuth flow: сессия уже поднята (verify), сразу редирект на authorize → callback приложения с code → сессия в приложении
+        const authorizeUrl = new URL('/oauth/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('response_type', 'code')
+        authorizeUrl.searchParams.set('client_id', params.clientId)
+        authorizeUrl.searchParams.set('redirect_uri', params.redirectUri)
+        authorizeUrl.searchParams.set('scope', params.scope || 'openid profile email offline_access')
+        authorizeUrl.searchParams.set('state', params.state)
+        authorizeUrl.searchParams.set('code_challenge', params.codeChallenge)
+        authorizeUrl.searchParams.set('code_challenge_method', params.codeChallengeMethod || 'S256')
+        window.location.href = authorizeUrl.toString()
+        return
       }
+      setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')
+      setStatus('success')
+      setTimeout(() => router.push('/account'), 2000)
     } catch (error: any) {
       console.error('Verify magic link error:', error)
       setStatus('error')
@@ -59,23 +51,6 @@ function VerifyContent() {
       toast.error('Magic link verification failed')
     }
   }, [router])
-
-  // Continue OAuth flow - redirect back to the app which will start a new OAuth flow
-  // Since user is now authenticated, the new flow will auto-approve
-  const handleContinueToApp = () => {
-    if (!oauthParams?.redirectUri) return
-    
-    // Extract base URL from redirectUri (remove /callback or /oauth/callback)
-    const redirectUrl = new URL(oauthParams.redirectUri)
-    const baseUrl = redirectUrl.origin
-    
-    // Add auth=required param to trigger immediate OAuth flow on the client
-    // Client apps should check this param and start OAuth immediately
-    const targetUrl = new URL(baseUrl)
-    targetUrl.searchParams.set('auth', 'required')
-    
-    window.location.href = targetUrl.toString()
-  }
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -123,34 +98,6 @@ function VerifyContent() {
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                 You can add a passkey for faster login in your account settings.
-              </p>
-            </>
-          )}
-
-          {status === 'success-oauth' && (
-            <>
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', duration: 0.5 }}
-              >
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              </motion.div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                {message}
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Click below to continue to {CLIENT_NAMES[oauthParams?.clientId || ''] || 'the app'}
-              </p>
-              <Button 
-                onClick={handleContinueToApp}
-                className="w-full"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Continue to {CLIENT_NAMES[oauthParams?.clientId || ''] || 'App'}
-              </Button>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-4">
-                You'll be signed in automatically
               </p>
             </>
           )}

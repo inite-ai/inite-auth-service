@@ -172,9 +172,36 @@ export class AuthController {
   ) {
     const result = await this.authService.verifyMagicLink(token);
 
+    // Новая сессия при входе по ссылке (не возврат в старую), как при password login
     if (req.session) {
-      req.session.userId = result.user.id;
-      this.logger.session('Set after magic link verify', { userId: result.user.id });
+      const userId = result.user.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err: any) => {
+          if (err) {
+            this.logger.error('Session regenerate error', err.message, { action: 'magic-link-verify' });
+            reject(err);
+            return;
+          }
+          req.session.userId = userId;
+          req.session.save((saveErr: any) => {
+            if (saveErr) {
+              this.logger.error('Session save error', saveErr.message, { action: 'magic-link-verify' });
+              reject(saveErr);
+            } else {
+              this.logger.session('New session after magic link verify', { sessionId: req.session.id, userId });
+              const signedSessionId = 's:' + signature.sign(req.session.id, sessionSecret);
+              res.cookie('inite.sid', signedSessionId, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/',
+              });
+              resolve();
+            }
+          });
+        });
+      });
     }
 
     return res.json({

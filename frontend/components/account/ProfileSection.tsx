@@ -29,7 +29,7 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
   const handleSave = async () => {
     setLoading(true)
     try {
-      await api.put('/identity/profile', formData, {
+      await api.put('/auth/identity/profile', formData, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       toast.success('Profile updated successfully')
@@ -60,7 +60,7 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
 
     setEmailLoading(true)
     try {
-      await api.post('/identity/email/change', {
+      await api.post('/auth/identity/email/change', {
         newEmail,
         password: emailPassword,
       }, {
@@ -79,7 +79,7 @@ export default function ProfileSection({ user, accessToken, onUpdate }: ProfileS
 
   const handleResendVerification = async () => {
     try {
-      await api.post('/identity/email/resend-verification', {}, {
+      await api.post('/auth/identity/email/resend-verification', {}, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       toast.success('Verification email sent')

@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { User, OAuthParamsDto } from '../database/entities';
+import { User, OAuthParamsDto, UserKnownDevice } from '../database/entities';
 import { IdentityService } from '../identity/identity.service';
 import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
@@ -19,6 +19,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserKnownDevice)
+    private readonly userKnownDeviceRepository: Repository<UserKnownDevice>,
     private readonly identityService: IdentityService,
     private readonly passkeyService: PasskeyService,
     private readonly magicLinkService: MagicLinkService,
@@ -305,6 +307,52 @@ export class AuthService {
       return this.jwtService.verify(token);
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
+    }
+  }
+
+  /**
+   * If login is from a new device, record it and send "new device" email.
+   * Call after successful login (password, magic link, passkey).
+   */
+  async notifyNewDeviceIfNeeded(
+    userId: string,
+    opts: { userAgent?: string; ip?: string },
+  ): Promise<void> {
+    const raw = [opts.userAgent || '', opts.ip || ''].join('|');
+    if (!raw.trim()) return;
+
+    const fingerprint = crypto.createHash('sha256').update(raw).digest('hex');
+
+    const existing = await this.userKnownDeviceRepository.findOne({
+      where: { userId, fingerprint },
+    });
+    if (existing) return;
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'email', 'name'],
+    });
+    if (!user?.email) return;
+
+    await this.userKnownDeviceRepository.save({
+      userId,
+      fingerprint,
+    });
+
+    const deviceInfo = opts.userAgent
+      ? opts.userAgent.replace(/\s+/g, ' ').slice(0, 120)
+      : undefined;
+
+    try {
+      const sent = await this.emailService.sendNewDeviceLogin(
+        { email: user.email, name: user.name },
+        deviceInfo,
+      );
+      if (sent) {
+        this.logger.auth('New device login email sent', { userId, email: user.email });
+      }
+    } catch (error: any) {
+      this.logger.error('Failed to send new device email', error?.message, { userId });
     }
   }
 }

@@ -22,7 +22,7 @@ export default function DangerZoneSection({ user, accessToken, onDeleteAccount }
   const handleExportData = async () => {
     setExporting(true)
     try {
-      const { data } = await api.get('/identity/export', {
+      const { data } = await api.get('/auth/identity/export', {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       
@@ -53,7 +53,7 @@ export default function DangerZoneSection({ user, accessToken, onDeleteAccount }
 
     setLoading(true)
     try {
-      await api.delete('/identity/account', {
+      await api.delete('/auth/identity/account', {
         headers: { Authorization: `Bearer ${accessToken}` },
         data: { password },
       })

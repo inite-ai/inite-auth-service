@@ -7,13 +7,13 @@ import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { User, Passkey, MagicLink } from '../database/entities';
+import { User, Passkey, MagicLink, UserKnownDevice } from '../database/entities';
 import { IdentityModule } from '../identity/identity.module';
 import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Passkey, MagicLink]),
+    TypeOrmModule.forFeature([User, Passkey, MagicLink, UserKnownDevice]),
     PassportModule,
     IdentityModule,
     EmailModule,

@@ -23,7 +23,7 @@ function VerifyEmailContent() {
 
     const verifyEmail = async () => {
       try {
-        const { data } = await api.post('/identity/email/verify', { token })
+        const { data } = await api.post('/auth/identity/email/verify', { token })
         setStatus('success')
         setMessage(data.message || 'Email verified successfully!')
         

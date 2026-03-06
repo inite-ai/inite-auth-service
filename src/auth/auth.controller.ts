@@ -127,7 +127,12 @@ export class AuthController {
     } else {
       this.logger.error('No session object available', undefined, { action: 'login' });
     }
-    
+
+    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
+      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
+      ip: req.ip || (req as any).connection?.remoteAddress,
+    }).catch(() => {});
+
     return {
       access_token: result.accessToken,
       user: {
@@ -203,6 +208,11 @@ export class AuthController {
         });
       });
     }
+
+    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
+      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
+      ip: req.ip || (req as any).connection?.remoteAddress,
+    }).catch(() => {});
 
     return res.json({
       access_token: result.accessToken,
@@ -349,6 +359,11 @@ export class AuthController {
       req.session.userId = result.user.id;
       this.logger.session('Set after passkey auth', { userId: result.user.id });
     }
+
+    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
+      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
+      ip: req.ip || (req as any).connection?.remoteAddress,
+    }).catch(() => {});
 
     this.logger.auth('Passkey authentication success', { userId: result.user.id });
 

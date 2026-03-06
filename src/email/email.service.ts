@@ -67,6 +67,7 @@ export class EmailService {
       'welcome-layout',
       'password-reset-layout',
       'magic-link-layout',
+      'new-device-layout',
     ];
 
     templateNames.forEach((templateName) => {
@@ -221,7 +222,7 @@ export class EmailService {
     return await this.sendTemplatedEmail(
       'welcome-layout',
       user.email,
-      'Welcome to INITE',
+      '[INITE] Welcome — your account has been created',
       context,
     );
   }
@@ -241,7 +242,26 @@ export class EmailService {
     return await this.sendTemplatedEmail(
       'magic-link-layout',
       email,
-      'Your INITE Sign-In Link',
+      '[INITE] Your sign-in link',
+      context,
+    );
+  }
+
+  async sendNewDeviceLogin(
+    user: { email: string; name?: string },
+    deviceInfo?: string,
+  ): Promise<boolean> {
+    const app = {
+      name: 'INITE',
+      url: this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai'),
+      supportEmail: this.configService.get<string>('SUPPORT_EMAIL', 'support@inite.ai'),
+    };
+
+    const context = EMAIL_TEMPLATES.newDeviceLogin.getContext({ user, app, deviceInfo });
+    return await this.sendTemplatedEmail(
+      'new-device-layout',
+      user.email,
+      '[INITE] Sign-in from new device',
       context,
     );
   }
@@ -264,7 +284,7 @@ export class EmailService {
     return await this.sendTemplatedEmail(
       'password-reset-layout',
       user.email,
-      'Reset Your INITE Password',
+      '[INITE] Reset your password',
       context,
     );
   }
@@ -275,7 +295,7 @@ export class EmailService {
     await this.transporter.sendMail({
       from,
       to: email,
-      subject: 'Verify your INITE email address',
+      subject: '[INITE] Verify your email',
       html: `
         <h1>Verify Your Email</h1>
         <p>Click the link below to verify your email address:</p>
@@ -297,7 +317,7 @@ export class EmailService {
     await this.transporter.sendMail({
       from,
       to: newEmail,
-      subject: 'Confirm your new INITE email address',
+      subject: '[INITE] Confirm your new email',
       html: `
         <h1>Confirm Email Change</h1>
         <p>You requested to change your INITE email from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p>

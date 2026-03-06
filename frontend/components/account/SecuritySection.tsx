@@ -50,7 +50,7 @@ export default function SecuritySection({ securityStatus, accessToken, onUpdate 
 
     setLoading(true)
     try {
-      await api.post('/identity/change-password', {
+      await api.post('/auth/identity/change-password', {
         currentPassword,
         newPassword,
       }, {
@@ -72,7 +72,7 @@ export default function SecuritySection({ securityStatus, accessToken, onUpdate 
   const handleSetup2FA = async () => {
     setLoading(true)
     try {
-      const { data } = await api.post('/identity/2fa/setup', {}, {
+      const { data } = await api.post('/auth/identity/2fa/setup', {}, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       setQrCode(data.qrCode)
@@ -93,7 +93,7 @@ export default function SecuritySection({ securityStatus, accessToken, onUpdate 
 
     setLoading(true)
     try {
-      const { data } = await api.post('/identity/2fa/enable', {
+      const { data } = await api.post('/auth/identity/2fa/enable', {
         code: verificationCode,
       }, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -115,7 +115,7 @@ export default function SecuritySection({ securityStatus, accessToken, onUpdate 
 
     setLoading(true)
     try {
-      await api.post('/identity/2fa/disable', {
+      await api.post('/auth/identity/2fa/disable', {
         code: disableCode,
         password: disablePassword,
       }, {

@@ -113,4 +113,26 @@ export const EMAIL_TEMPLATES = {
       headerIcon: '🔗',
     }),
   },
+  newDeviceLogin: {
+    templateName: 'new-device-layout',
+    getContext: (params: { user: any; app: any; deviceInfo?: string }) => ({
+      user: params.user,
+      app: params.app,
+      deviceInfo: params.deviceInfo || 'new device or browser',
+      translations: {
+        title: 'Sign-in from new device',
+        message: `Hello, ${params.user.name || params.user.email}!`,
+        description: 'We detected a sign-in to your INITE account from a device or browser you haven\'t used before.',
+        deviceLabel: 'Device:',
+        warning: 'If this wasn\'t you, we recommend changing your password in security settings.',
+        footer: {
+          copyright: '© 2024 INITE. All rights reserved.',
+          questions: 'Questions? Contact us at ',
+          automated: 'This is an automated message, please do not reply.',
+        },
+      },
+      headerGradient: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+      headerIcon: '📱',
+    }),
+  },
 };

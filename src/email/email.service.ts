@@ -48,6 +48,8 @@ export class EmailService {
 
     this.transporter = nodemailer.createTransport(emailConfig);
 
+    this.logger.log(`Sender: ${this.getFromAddress()}`);
+
     // Verify connection
     if (this.transporter) {
       this.transporter.verify((error) => {
@@ -150,6 +152,13 @@ export class EmailService {
     }
   }
 
+  /** From header: "INITE Auth" <email> so inbox shows "INITE Auth" as sender name */
+  private getFromAddress(): string {
+    const raw = this.configService.get<string>('SMTP_FROM', 'noreply@inite.ai');
+    const email = raw.includes('@') ? raw : 'noreply@inite.ai';
+    return `"INITE Auth" <${email}>`;
+  }
+
   private async sendEmail(data: {
     to: string;
     subject: string;
@@ -163,7 +172,7 @@ export class EmailService {
 
     try {
       const mailOptions = {
-        from: data.from || this.configService.get<string>('SMTP_FROM', 'noreply@inite.ai'),
+        from: data.from || this.getFromAddress(),
         to: data.to,
         subject: data.subject,
         html: data.html,
@@ -290,10 +299,8 @@ export class EmailService {
   }
 
   async sendEmailVerification(email: string, verificationLink: string): Promise<void> {
-    const from = this.configService.get<string>('SMTP_FROM');
-
     await this.transporter.sendMail({
-      from,
+      from: this.getFromAddress(),
       to: email,
       subject: '[INITE] Verify your email',
       html: `
@@ -312,10 +319,8 @@ export class EmailService {
     oldEmail: string,
     verificationLink: string,
   ): Promise<void> {
-    const from = this.configService.get<string>('SMTP_FROM');
-
     await this.transporter.sendMail({
-      from,
+      from: this.getFromAddress(),
       to: newEmail,
       subject: '[INITE] Confirm your new email',
       html: `

@@ -285,32 +285,36 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    // Destroy session
     if (req.session) {
-      req.session.destroy((err) => {
-        if (err) {
-          this.logger.error('Session destroy error', err.message);
-        } else {
-          this.logger.session('Destroyed on logout');
-        }
+      await new Promise<void>((resolve) => {
+        req.session.destroy((err) => {
+          if (err) this.logger.error('Session destroy error', err.message);
+          else this.logger.session('Destroyed on logout');
+          resolve();
+        });
       });
     }
+
+    // Clear session cookie
+    res.clearCookie('inite.sid');
+
+    const frontendUrl = this.oauthService.getFrontendUrl();
 
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
         const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
-        if (!isAllowed) {
-          this.logger.warn('Blocked open redirect attempt on logout', { uri: postLogoutRedirectUri });
-          return res.json({ success: true, message: 'Logged out successfully' });
+        if (isAllowed) {
+          if (state) url.searchParams.set('state', state);
+          return res.redirect(url.toString());
         }
-        if (state) url.searchParams.set('state', state);
-        return res.redirect(url.toString());
-      } catch {
-        return res.json({ success: true, message: 'Logged out successfully' });
-      }
+        this.logger.warn('Blocked redirect on logout', { uri: postLogoutRedirectUri });
+      } catch { /* invalid URL */ }
     }
 
-    return res.json({ success: true, message: 'Logged out successfully' });
+    // Fallback: redirect to frontend home
+    return res.redirect(frontendUrl || '/');
   }
 
   /**

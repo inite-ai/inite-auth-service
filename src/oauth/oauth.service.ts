@@ -463,8 +463,12 @@ export class OAuthService {
     return await this.clientRepository.save(client);
   }
 
+  getFrontendUrl(): string {
+    return this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
+  }
+
   /**
-   * Check if an origin is allowed (from client redirect URIs)
+   * Check if an origin is allowed (from client redirect URIs + FRONTEND_URL)
    */
   async isAllowedOrigin(origin: string): Promise<boolean> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', '');
@@ -474,17 +478,28 @@ export class OAuthService {
       } catch {}
     }
 
-    const clients = await this.clientRepository.find({
-      where: { active: true },
-      select: ['redirectUris'],
-    });
+    try {
+      const clients = await this.clientRepository.find({
+        where: { active: true },
+      });
 
-    for (const client of clients) {
-      const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
-      for (const uri of uris) {
-        try {
-          if (new URL(uri).origin === origin) return true;
-        } catch {}
+      for (const client of clients) {
+        const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+        for (const uri of uris) {
+          try {
+            if (new URL(uri).origin === origin) return true;
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // Fallback: also check CORS_ORIGINS env
+    const extra = this.configService.get<string>('CORS_ORIGINS', '');
+    for (const o of extra.split(',').filter(Boolean)) {
+      try {
+        if (new URL(o).origin === origin) return true;
+      } catch {
+        if (o === origin) return true;
       }
     }
 

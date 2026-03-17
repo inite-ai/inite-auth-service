@@ -2,11 +2,12 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut } from 'lucide-react'
+import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut, ExternalLink, AppWindow } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
 import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
+import api from '@/lib/api'
 
 interface UserInfo {
   id: string
@@ -14,20 +15,22 @@ interface UserInfo {
   name?: string
 }
 
-// Client display names
-const CLIENT_NAMES: Record<string, string> = {
-  'smart-chat': 'Break3',
-  'smart-chat-admin': 'Break3 Admin Panel',
-  'inite-club': 'INITE Club',
+interface ClientInfo {
+  clientId: string
+  name: string
+  logoUrl?: string
+  privacyPolicyUrl?: string
+  termsOfServiceUrl?: string
+  allowedScopes: string[]
 }
 
 // Scope descriptions
-const SCOPE_INFO: Record<string, { icon: typeof Key; label: string }> = {
-  'openid': { icon: Key, label: 'Verify your identity' },
-  'profile': { icon: User, label: 'Access your profile information' },
-  'email': { icon: Mail, label: 'View your email address' },
-  'admin': { icon: Shield, label: 'Administrative access' },
-  'offline_access': { icon: Key, label: 'Stay signed in' },
+const SCOPE_INFO: Record<string, { icon: typeof Key; label: string; description: string }> = {
+  'openid': { icon: Key, label: 'Identity', description: 'Verify your identity' },
+  'profile': { icon: User, label: 'Profile', description: 'Access your name and avatar' },
+  'email': { icon: Mail, label: 'Email', description: 'View your email address' },
+  'admin': { icon: Shield, label: 'Admin', description: 'Administrative access' },
+  'offline_access': { icon: Key, label: 'Offline', description: 'Stay signed in with refresh tokens' },
 }
 
 function ConsentContent() {
@@ -36,64 +39,67 @@ function ConsentContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<UserInfo | null>(null)
+  const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null)
   const [oauthParams, setOauthParams] = useState<OAuthParams | null>(null)
 
   useEffect(() => {
     const params = extractOAuthParams(searchParams)
     setOauthParams(params)
 
-    const checkAuthAndLoadUser = async () => {
+    const init = async () => {
+      // Load client info from API
+      if (params.clientId) {
+        try {
+          const res = await api.get(`/oauth/client-info?client_id=${encodeURIComponent(params.clientId)}`)
+          setClientInfo(res.data)
+        } catch {
+          setClientInfo({
+            clientId: params.clientId,
+            name: params.clientId,
+            allowedScopes: [],
+          })
+        }
+      }
+
+      // Load user
       let userId = authStorage.getUserId()
       let token = authStorage.getValidToken()
-      
-      // If no valid token, try to refresh from session (SSO)
+
       if (!token) {
         try {
-          const response = await fetch('/auth/session/me', {
-            credentials: 'include',
-          })
+          const response = await fetch('/auth/session/me', { credentials: 'include' })
           const data = await response.json()
-          
           if (data.authenticated && data.access_token) {
-            // Save new token from session
-            authStorage.save({
-              accessToken: data.access_token,
-              userId: data.user?.id,
-            })
+            authStorage.save({ accessToken: data.access_token, userId: data.user?.id })
             token = data.access_token
             userId = data.user?.id
           }
-        } catch {
-          // Session refresh failed
-        }
+        } catch { /* session refresh failed */ }
       }
-      
+
       if (!userId || !token) {
         router.push(buildLoginUrl(params))
         return
       }
 
-      // Parse user info from token
       try {
         const payload = JSON.parse(atob(token.split('.')[1]))
-        setUser({
-          id: userId,
-          email: payload.email || 'Unknown',
-          name: payload.name,
-        })
+        setUser({ id: userId, email: payload.email || 'Unknown', name: payload.name })
       } catch {
         setUser({ id: userId, email: 'Unknown' })
       }
     }
 
-    checkAuthAndLoadUser()
+    init()
   }, [searchParams, router])
 
-  const getClientName = () => CLIENT_NAMES[oauthParams?.clientId || ''] || oauthParams?.clientId || 'Unknown App'
-
   const getScopes = () => {
-    const scopes = (oauthParams?.scope || 'openid profile email').split(' ')
-    return scopes.filter(s => SCOPE_INFO[s]).map(s => ({ scope: s, ...SCOPE_INFO[s] }))
+    const requested = (oauthParams?.scope || 'openid profile email').split(' ')
+    // Only show scopes that the client is actually allowed to use
+    const allowed = new Set(clientInfo?.allowedScopes || [])
+    return requested
+      .filter(s => SCOPE_INFO[s] && (allowed.size === 0 || allowed.has(s)))
+      .map(s => ({ scope: s, ...SCOPE_INFO[s] }))
   }
 
   const handleApprove = async () => {
@@ -105,27 +111,18 @@ function ConsentContent() {
     setLoading(true)
     try {
       let token = authStorage.getValidToken()
-      
-      // If token expired, try to refresh from session
+
       if (!token) {
         try {
-          const response = await fetch('/auth/session/me', {
-            credentials: 'include',
-          })
+          const response = await fetch('/auth/session/me', { credentials: 'include' })
           const data = await response.json()
-          
           if (data.authenticated && data.access_token) {
-            authStorage.save({
-              accessToken: data.access_token,
-              userId: data.user?.id,
-            })
+            authStorage.save({ accessToken: data.access_token, userId: data.user?.id })
             token = data.access_token
           }
-        } catch {
-          // Session refresh failed
-        }
+        } catch { /* session refresh failed */ }
       }
-      
+
       if (!token) {
         router.push(buildLoginUrl(oauthParams))
         return
@@ -134,7 +131,6 @@ function ConsentContent() {
       const code = await createAuthorizationCode(token, oauthParams)
       window.location.href = buildRedirectWithCode(oauthParams.redirectUri, code, oauthParams.state)
     } catch (err: any) {
-      console.error('Authorization error:', err)
       setError(err.message || 'Failed to process authorization')
     } finally {
       setLoading(false)
@@ -192,14 +188,18 @@ function ConsentContent() {
         <Card className="max-w-md w-full">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <Shield className="w-10 h-10 text-white" />
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg overflow-hidden">
+              {clientInfo?.logoUrl ? (
+                <img src={clientInfo.logoUrl} alt={clientInfo.name} className="w-full h-full object-cover" />
+              ) : (
+                <AppWindow className="w-10 h-10 text-white" />
+              )}
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
               Confirm Sign In
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-semibold text-blue-600">{getClientName()}</span>
+              <span className="font-semibold text-blue-600">{clientInfo?.name || oauthParams?.clientId}</span>
               {' '}wants to access your account
             </p>
           </div>
@@ -236,10 +236,12 @@ function ConsentContent() {
               This will allow the app to:
             </h3>
             <ul className="space-y-2">
-              {getScopes().map(({ scope, icon: Icon, label }) => (
+              {getScopes().map(({ scope, icon: Icon, label, description }) => (
                 <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                  <Icon className="w-5 h-5 text-green-500" />
-                  <span>{label}</span>
+                  <Icon className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <div>
+                    <span className="text-sm">{description}</span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -265,9 +267,35 @@ function ConsentContent() {
             </Button>
           </div>
 
+          {/* Privacy / Terms links */}
+          {(clientInfo?.privacyPolicyUrl || clientInfo?.termsOfServiceUrl) && (
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
+              {clientInfo.privacyPolicyUrl && (
+                <a
+                  href={clientInfo.privacyPolicyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-blue-400 transition"
+                >
+                  Privacy Policy <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {clientInfo.termsOfServiceUrl && (
+                <a
+                  href={clientInfo.termsOfServiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-blue-400 transition"
+                >
+                  Terms of Service <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Footer */}
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-6">
-            By clicking Allow, you authorize this app to use your information in accordance with their terms of service and privacy policy.
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
+            By clicking Allow, you authorize this app to use your information in accordance with their terms.
           </p>
         </Card>
       </motion.div>

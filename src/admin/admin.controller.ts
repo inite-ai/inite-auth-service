@@ -100,7 +100,11 @@ export class AdminController {
       name: string;
       redirectUris: string[];
       allowedScopes: string[];
-      isActive: boolean;
+      allowedGrants: string[];
+      active: boolean;
+      logoUrl: string;
+      privacyPolicyUrl: string;
+      termsOfServiceUrl: string;
     }>,
   ) {
     return this.adminService.updateOAuthClient(clientId, body);

@@ -74,6 +74,12 @@ export class OAuthController {
       throw new BadRequestException('Invalid redirect_uri');
     }
 
+    // Validate grant type
+    this.oauthService.validateGrantType(client, 'authorization_code');
+
+    // Validate scopes against client's allowed scopes
+    const grantedScope = this.oauthService.validateScopes(client, scope || '');
+
     // PKCE is required
     if (!codeChallenge) {
       throw new BadRequestException('code_challenge is required (PKCE)');
@@ -102,7 +108,7 @@ export class OAuthController {
         userId,
         clientId,
         redirectUri,
-        scope || 'openid profile email',
+        grantedScope,
         codeChallenge,
         codeChallengeMethod || 'S256',
       );
@@ -172,7 +178,11 @@ export class OAuthController {
       throw new BadRequestException('grant_type is required');
     }
 
-    await this.oauthService.validateClient(clientId, clientSecret);
+    // Token endpoint requires client authentication
+    const client = await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+
+    // Validate grant type
+    this.oauthService.validateGrantType(client, grantType);
 
     if (grantType === 'authorization_code') {
       if (!code) throw new BadRequestException('code is required');
@@ -191,7 +201,7 @@ export class OAuthController {
         expires_in: tokens.expiresIn,
         refresh_token: tokens.refreshToken,
         id_token: tokens.idToken,
-        scope: 'openid profile email',
+        scope: tokens.scope,
       };
     }
 
@@ -208,7 +218,7 @@ export class OAuthController {
         expires_in: tokens.expiresIn,
         refresh_token: tokens.refreshToken,
         id_token: tokens.idToken,
-        scope: 'openid profile email',
+        scope: tokens.scope,
       };
     }
 
@@ -235,11 +245,41 @@ export class OAuthController {
   ) {
     if (!token) throw new BadRequestException('token is required');
 
-    await this.oauthService.validateClient(clientId, clientSecret);
+    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
     await this.oauthService.revokeToken(token, clientId);
 
     this.logger.oauth('Token revoked', { clientId });
     return { success: true };
+  }
+
+  /**
+   * Token introspection endpoint (RFC 7662)
+   */
+  @Post('introspect')
+  async introspect(
+    @Body('token') token: string,
+    @Body('client_id') clientId: string,
+    @Body('client_secret') clientSecret: string,
+  ) {
+    if (!token) throw new BadRequestException('token is required');
+
+    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+
+    try {
+      const payload = await this.authService.verifyToken(token);
+      return {
+        active: true,
+        sub: payload.sub,
+        client_id: payload.aud,
+        scope: payload.scope || '',
+        exp: payload.exp,
+        iat: payload.iat,
+        iss: payload.iss,
+        token_type: 'Bearer',
+      };
+    } catch {
+      return { active: false };
+    }
   }
 
   /**
@@ -285,6 +325,15 @@ export class OAuthController {
   /**
    * Create authorization code (for frontend flows)
    */
+  /**
+   * Get public client info (for consent page)
+   */
+  @Get('client-info')
+  async clientInfo(@Query('client_id') clientId: string) {
+    if (!clientId) throw new BadRequestException('client_id is required');
+    return await this.oauthService.getClientInfo(clientId);
+  }
+
   @Post('create-code')
   @UseGuards(JwtOrSessionGuard)
   async createCode(@Req() req: any, @Body() input: CreateCodeInput) {
@@ -298,11 +347,17 @@ export class OAuthController {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
+    // Validate scopes
+    const grantedScope = this.oauthService.validateScopes(
+      client,
+      input.scope || '',
+    );
+
     const code = await this.oauthService.createAuthorizationCode(
       req.user.userId,
       input.clientId,
       input.redirectUri,
-      input.scope || 'openid profile email',
+      grantedScope,
       input.codeChallenge,
       input.codeChallengeMethod || 'S256',
     );

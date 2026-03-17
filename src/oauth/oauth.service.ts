@@ -37,22 +37,31 @@ export class OAuthService {
   ) {}
 
   /**
-   * Validate OAuth client
+   * Validate OAuth client (no secret required — for authorize endpoint)
    */
+  async validateClient(clientId: string): Promise<OAuthClient>;
+  /**
+   * Validate OAuth client with secret (required — for token endpoint)
+   */
+  async validateClient(clientId: string, clientSecret: string): Promise<OAuthClient>;
   async validateClient(
     clientId: string,
     clientSecret?: string,
   ): Promise<OAuthClient> {
     const client = await this.clientRepository.findOne({
       where: { clientId, active: true },
-      select: ['id', 'clientId', 'clientSecretHash', 'name', 'redirectUris', 'allowedScopes', 'allowedGrants'],
+      select: [
+        'id', 'clientId', 'clientSecretHash', 'name',
+        'redirectUris', 'allowedScopes', 'allowedGrants',
+        'logoUrl', 'privacyPolicyUrl', 'termsOfServiceUrl',
+      ],
     });
 
     if (!client) {
       throw new UnauthorizedException('Invalid client');
     }
 
-    // If client secret is provided, verify it
+    // Verify client secret when provided
     if (clientSecret) {
       const isValid = await bcrypt.compare(clientSecret, client.clientSecretHash);
       if (!isValid) {
@@ -61,6 +70,72 @@ export class OAuthService {
     }
 
     return client;
+  }
+
+  /**
+   * Validate OAuth client with mandatory secret (for token/revoke endpoints)
+   */
+  async validateClientWithSecret(
+    clientId: string,
+    clientSecret: string,
+  ): Promise<OAuthClient> {
+    if (!clientSecret) {
+      throw new UnauthorizedException('client_secret is required');
+    }
+    return this.validateClient(clientId, clientSecret);
+  }
+
+  /**
+   * Validate requested scopes against client's allowedScopes.
+   * Returns the intersection (only allowed scopes).
+   */
+  validateScopes(client: OAuthClient, requestedScope: string): string {
+    const requested = this.parseScope(requestedScope);
+    if (requested.length === 0) {
+      // Default to client's allowed scopes
+      return client.allowedScopes.join(' ');
+    }
+    const allowed = new Set(client.allowedScopes);
+    const granted = requested.filter((s) => allowed.has(s));
+    if (granted.length === 0) {
+      throw new BadRequestException(
+        `None of the requested scopes are allowed for this client. Allowed: ${client.allowedScopes.join(', ')}`,
+      );
+    }
+    return granted.join(' ');
+  }
+
+  /**
+   * Validate that the client supports the requested grant type
+   */
+  validateGrantType(client: OAuthClient, grantType: string): void {
+    if (!client.allowedGrants || !client.allowedGrants.includes(grantType)) {
+      throw new BadRequestException(
+        `Grant type "${grantType}" is not allowed for this client`,
+      );
+    }
+  }
+
+  /**
+   * Get public client info (for consent page)
+   */
+  async getClientInfo(clientId: string): Promise<{
+    clientId: string;
+    name: string;
+    logoUrl?: string;
+    privacyPolicyUrl?: string;
+    termsOfServiceUrl?: string;
+    allowedScopes: string[];
+  }> {
+    const client = await this.validateClient(clientId);
+    return {
+      clientId: client.clientId,
+      name: client.name,
+      logoUrl: client.logoUrl,
+      privacyPolicyUrl: client.privacyPolicyUrl,
+      termsOfServiceUrl: client.termsOfServiceUrl,
+      allowedScopes: client.allowedScopes,
+    };
   }
 
   /**
@@ -119,6 +194,7 @@ export class OAuthService {
     refreshToken: string;
     idToken: string;
     expiresIn: number;
+    scope: string;
   }> {
     // Find authorization code
     const authCode = await this.authCodeRepository.findOne({
@@ -183,11 +259,10 @@ export class OAuthService {
     refreshToken: string;
     idToken: string;
     expiresIn: number;
+    scope: string;
   }> {
     const issuer = this.configService.get<string>('JWT_ISSUER', 'auth.inite.ai');
-
-    // Get user's wallets
-    const wallets = await this.identityService.getWallets(user.id);
+    const scopes = this.parseScope(scope);
 
     // Access Token (short-lived: 10 minutes)
     const accessTokenExpiry = this.configService.get<string>(
@@ -195,42 +270,50 @@ export class OAuthService {
       '10m',
     );
 
-    const accessToken = this.jwtService.sign(
-      {
-        sub: user.did,
-        userId: user.id, // CRITICAL: Add userId so JWT strategy can extract it
-        email: user.email,
-        email_verified: user.emailVerified,
-        name: user.name,
-        picture: user.avatarUrl,
-        wallets: wallets.map((w) => w.address),
-        roles: user.metadata?.roles || ['user'],
-        entitlements: this.parseScope(scope),
-      },
-      {
-        expiresIn: accessTokenExpiry as any,
-        audience: clientId,
-        issuer,
-      },
-    );
+    // Build access token claims based on granted scopes
+    const accessTokenPayload: Record<string, any> = {
+      sub: user.did,
+      userId: user.id,
+      scope,
+    };
 
-    // ID Token (OIDC)
-    const idToken = this.jwtService.sign(
-      {
-        sub: user.did,
-        email: user.email,
-        email_verified: user.emailVerified,
-        name: user.name,
-        picture: user.avatarUrl,
-        roles: user.metadata?.roles || ['user'],
-        iat: Math.floor(Date.now() / 1000),
-      },
-      {
-        expiresIn: accessTokenExpiry as any,
-        audience: clientId,
-        issuer,
-      },
-    );
+    if (scopes.includes('email')) {
+      accessTokenPayload.email = user.email;
+      accessTokenPayload.email_verified = user.emailVerified;
+    }
+    if (scopes.includes('profile')) {
+      accessTokenPayload.name = user.name;
+      accessTokenPayload.picture = user.avatarUrl;
+      accessTokenPayload.roles = user.metadata?.roles || ['user'];
+    }
+
+    const accessToken = this.jwtService.sign(accessTokenPayload, {
+      expiresIn: accessTokenExpiry as any,
+      audience: clientId,
+      issuer,
+    });
+
+    // ID Token (OIDC) — claims based on scopes
+    const idTokenPayload: Record<string, any> = {
+      sub: user.did,
+      iat: Math.floor(Date.now() / 1000),
+    };
+
+    if (scopes.includes('email')) {
+      idTokenPayload.email = user.email;
+      idTokenPayload.email_verified = user.emailVerified;
+    }
+    if (scopes.includes('profile')) {
+      idTokenPayload.name = user.name;
+      idTokenPayload.picture = user.avatarUrl;
+      idTokenPayload.roles = user.metadata?.roles || ['user'];
+    }
+
+    const idToken = this.jwtService.sign(idTokenPayload, {
+      expiresIn: accessTokenExpiry as any,
+      audience: clientId,
+      issuer,
+    });
 
     // Refresh Token (long-lived: 7 days)
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
@@ -259,6 +342,7 @@ export class OAuthService {
       refreshToken: refreshTokenValue,
       idToken,
       expiresIn: 600, // 10 minutes in seconds
+      scope,
     };
   }
 
@@ -273,6 +357,7 @@ export class OAuthService {
     refreshToken: string;
     idToken: string;
     expiresIn: number;
+    scope: string;
   }> {
     // Find all non-revoked, non-expired refresh tokens for this client
     const existingTokens = await this.refreshTokenRepository.find({

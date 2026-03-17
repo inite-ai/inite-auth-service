@@ -43,11 +43,15 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     allowedScopes: 'openid, profile, email',
   })
 
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<any>({
     name: '',
     redirectUris: '',
     allowedScopes: '',
-    isActive: true,
+    allowedGrants: '',
+    active: true,
+    logoUrl: '',
+    privacyPolicyUrl: '',
+    termsOfServiceUrl: '',
   })
 
   const config = { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -109,7 +113,11 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       name: client.name || '',
       redirectUris: (client.redirectUris || []).join('\n'),
       allowedScopes: (client.allowedScopes || []).join(', '),
-      isActive: client.active !== false,
+      allowedGrants: (client.allowedGrants || []).join(', '),
+      active: client.active !== false,
+      logoUrl: client.logoUrl || '',
+      privacyPolicyUrl: client.privacyPolicyUrl || '',
+      termsOfServiceUrl: client.termsOfServiceUrl || '',
     })
   }
 
@@ -119,9 +127,13 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     try {
       await api.put(`/admin/oauth-clients/${editingClient.clientId}`, {
         name: editForm.name,
-        redirectUris: editForm.redirectUris.split('\n').map((u) => u.trim()).filter(Boolean),
-        allowedScopes: editForm.allowedScopes.split(',').map((s) => s.trim()).filter(Boolean),
-        isActive: editForm.isActive,
+        redirectUris: editForm.redirectUris.split('\n').map((u: string) => u.trim()).filter(Boolean),
+        allowedScopes: editForm.allowedScopes.split(',').map((s: string) => s.trim()).filter(Boolean),
+        allowedGrants: editForm.allowedGrants.split(',').map((s: string) => s.trim()).filter(Boolean),
+        active: editForm.active,
+        logoUrl: editForm.logoUrl || null,
+        privacyPolicyUrl: editForm.privacyPolicyUrl || null,
+        termsOfServiceUrl: editForm.termsOfServiceUrl || null,
       }, config)
 
       toast.success('Client updated')
@@ -505,23 +517,69 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                     type="text"
                     value={editForm.allowedScopes}
                     onChange={(e) => setEditForm({ ...editForm, allowedScopes: e.target.value })}
+                    placeholder="openid, profile, email"
                     className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                   />
                 </div>
 
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Allowed Grant Types (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={editForm.allowedGrants}
+                    onChange={(e) => setEditForm({ ...editForm, allowedGrants: e.target.value })}
+                    placeholder="authorization_code, refresh_token"
+                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Logo URL</label>
+                  <input
+                    type="url"
+                    value={editForm.logoUrl}
+                    onChange={(e) => setEditForm({ ...editForm, logoUrl: e.target.value })}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">Privacy Policy URL</label>
+                    <input
+                      type="url"
+                      value={editForm.privacyPolicyUrl}
+                      onChange={(e) => setEditForm({ ...editForm, privacyPolicyUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">Terms of Service URL</label>
+                    <input
+                      type="url"
+                      value={editForm.termsOfServiceUrl}
+                      onChange={(e) => setEditForm({ ...editForm, termsOfServiceUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                  </div>
+                </div>
+
                 <label className="flex items-center gap-3 cursor-pointer">
                   <button
-                    onClick={() => setEditForm({ ...editForm, isActive: !editForm.isActive })}
+                    onClick={() => setEditForm({ ...editForm, active: !editForm.active })}
                     className="text-slate-300"
                   >
-                    {editForm.isActive ? (
+                    {editForm.active ? (
                       <ToggleRight className="w-8 h-8 text-emerald-400" />
                     ) : (
                       <ToggleLeft className="w-8 h-8 text-slate-500" />
                     )}
                   </button>
                   <span className="text-sm text-slate-300">
-                    {editForm.isActive ? 'Active' : 'Inactive'}
+                    {editForm.active ? 'Active' : 'Inactive'}
                   </span>
                 </label>
 

@@ -227,14 +227,18 @@ export class AdminService {
       name: string;
       redirectUris: string[];
       allowedScopes: string[];
-      isActive: boolean;
+      allowedGrants: string[];
+      active: boolean;
+      logoUrl: string;
+      privacyPolicyUrl: string;
+      termsOfServiceUrl: string;
     }>,
   ) {
     await this.oauthClientRepository.update({ clientId }, data);
     const client = await this.oauthClientRepository.findOne({
       where: { clientId },
     });
-    return client ? { ...client, clientSecret: undefined } : null;
+    return client ? { ...client, clientSecretHash: undefined } : null;
   }
 
   async rotateClientSecret(clientId: string) {

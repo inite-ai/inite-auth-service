@@ -86,7 +86,8 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://auth-api.inite.ai
+      - NEXT_PUBLIC_API_URL=
+      - BACKEND_URL=http://auth-service:3002
     networks:
       - traefik-global
       - inite-network

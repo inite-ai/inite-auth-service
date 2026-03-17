@@ -71,8 +71,7 @@ export class OAuthController {
     // Validate grant type
     this.oauthService.validateGrantType(client, 'authorization_code');
 
-    // Validate scopes against client's allowed scopes
-    const grantedScope = this.oauthService.validateScopes(client, scope || '');
+    const grantedScope = this.oauthService.normalizeScope(scope || '');
 
     // PKCE is required
     if (!codeChallenge) {
@@ -339,11 +338,7 @@ export class OAuthController {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
-    // Validate scopes
-    const grantedScope = this.oauthService.validateScopes(
-      client,
-      input.scope || '',
-    );
+    const grantedScope = this.oauthService.normalizeScope(input.scope || '');
 
     const code = await this.oauthService.createAuthorizationCode(
       req.user.userId,

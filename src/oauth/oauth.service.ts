@@ -88,24 +88,12 @@ export class OAuthService {
   }
 
   /**
-   * Validate requested scopes against client's allowedScopes.
-   * Returns the intersection (only allowed scopes).
+   * Normalize scope — default to standard OIDC scopes if empty.
+   * Auth service doesn't restrict scopes — apps handle their own permissions.
    */
-  validateScopes(client: OAuthClient, requestedScope: string): string {
-    const clientScopes = Array.isArray(client.allowedScopes) && client.allowedScopes.length > 0
-      ? client.allowedScopes
-      : ['openid', 'profile', 'email']; // sensible default
-
-    const requested = this.parseScope(requestedScope);
-    if (requested.length === 0) {
-      return clientScopes.join(' ');
-    }
-    const allowed = new Set(clientScopes);
-    const granted = requested.filter((s) => allowed.has(s));
-    if (granted.length === 0) {
-      return clientScopes.join(' ');
-    }
-    return granted.join(' ');
+  normalizeScope(requestedScope: string): string {
+    const scopes = this.parseScope(requestedScope);
+    return scopes.length > 0 ? scopes.join(' ') : 'openid profile email';
   }
 
   /**
@@ -128,19 +116,14 @@ export class OAuthService {
     logoUrl?: string;
     privacyPolicyUrl?: string;
     termsOfServiceUrl?: string;
-    allowedScopes: string[];
   }> {
     const client = await this.validateClient(clientId);
-    const scopes = Array.isArray(client.allowedScopes) && client.allowedScopes.length > 0
-      ? client.allowedScopes
-      : ['openid', 'profile', 'email'];
     return {
       clientId: client.clientId,
       name: client.name,
       logoUrl: client.logoUrl,
       privacyPolicyUrl: client.privacyPolicyUrl,
       termsOfServiceUrl: client.termsOfServiceUrl,
-      allowedScopes: scopes,
     };
   }
 
@@ -268,58 +251,47 @@ export class OAuthService {
     scope: string;
   }> {
     const issuer = this.configService.get<string>('JWT_ISSUER', 'auth.inite.ai');
-    const scopes = this.parseScope(scope);
 
-    // Access Token (short-lived: 10 minutes)
+    // Access Token (short-lived)
     const accessTokenExpiry = this.configService.get<string>(
       'JWT_ACCESS_TOKEN_EXPIRY',
       '10m',
     );
 
-    // Build access token claims based on granted scopes
-    const accessTokenPayload: Record<string, any> = {
-      sub: user.did,
-      userId: user.id,
-      scope,
-    };
+    const accessToken = this.jwtService.sign(
+      {
+        sub: user.did,
+        userId: user.id,
+        email: user.email,
+        email_verified: user.emailVerified,
+        name: user.name,
+        picture: user.avatarUrl,
+        roles: user.metadata?.roles || ['user'],
+        scope,
+      },
+      {
+        expiresIn: accessTokenExpiry as any,
+        audience: clientId,
+        issuer,
+      },
+    );
 
-    if (scopes.includes('email')) {
-      accessTokenPayload.email = user.email;
-      accessTokenPayload.email_verified = user.emailVerified;
-    }
-    if (scopes.includes('profile')) {
-      accessTokenPayload.name = user.name;
-      accessTokenPayload.picture = user.avatarUrl;
-      accessTokenPayload.roles = user.metadata?.roles || ['user'];
-    }
-
-    const accessToken = this.jwtService.sign(accessTokenPayload, {
-      expiresIn: accessTokenExpiry as any,
-      audience: clientId,
-      issuer,
-    });
-
-    // ID Token (OIDC) — claims based on scopes
-    const idTokenPayload: Record<string, any> = {
-      sub: user.did,
-      iat: Math.floor(Date.now() / 1000),
-    };
-
-    if (scopes.includes('email')) {
-      idTokenPayload.email = user.email;
-      idTokenPayload.email_verified = user.emailVerified;
-    }
-    if (scopes.includes('profile')) {
-      idTokenPayload.name = user.name;
-      idTokenPayload.picture = user.avatarUrl;
-      idTokenPayload.roles = user.metadata?.roles || ['user'];
-    }
-
-    const idToken = this.jwtService.sign(idTokenPayload, {
-      expiresIn: accessTokenExpiry as any,
-      audience: clientId,
-      issuer,
-    });
+    // ID Token (OIDC standard claims)
+    const idToken = this.jwtService.sign(
+      {
+        sub: user.did,
+        email: user.email,
+        email_verified: user.emailVerified,
+        name: user.name,
+        picture: user.avatarUrl,
+        roles: user.metadata?.roles || ['user'],
+      },
+      {
+        expiresIn: accessTokenExpiry as any,
+        audience: clientId,
+        issuer,
+      },
+    );
 
     // Refresh Token (long-lived: 7 days)
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');

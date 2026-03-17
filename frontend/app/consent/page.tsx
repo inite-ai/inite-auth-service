@@ -21,7 +21,6 @@ interface ClientInfo {
   logoUrl?: string
   privacyPolicyUrl?: string
   termsOfServiceUrl?: string
-  allowedScopes: string[]
 }
 
 // Scope descriptions
@@ -56,7 +55,6 @@ function ConsentContent() {
           setClientInfo({
             clientId: params.clientId,
             name: params.clientId,
-            allowedScopes: [],
           })
         }
       }
@@ -95,10 +93,8 @@ function ConsentContent() {
 
   const getScopes = () => {
     const requested = (oauthParams?.scope || 'openid profile email').split(' ')
-    // Only show scopes that the client is actually allowed to use
-    const allowed = new Set(clientInfo?.allowedScopes || [])
     return requested
-      .filter(s => SCOPE_INFO[s] && (allowed.size === 0 || allowed.has(s)))
+      .filter(s => SCOPE_INFO[s])
       .map(s => ({ scope: s, ...SCOPE_INFO[s] }))
   }
 

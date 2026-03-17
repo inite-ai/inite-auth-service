@@ -39,16 +39,13 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
   const [createForm, setCreateForm] = useState({
     name: '',
     clientId: '',
-    redirectUris: '',
+    redirectUris: [''] as string[],
   })
 
   const [editForm, setEditForm] = useState<any>({
     name: '',
-    redirectUris: '',
+    redirectUris: [] as string[],
     active: true,
-    logoUrl: '',
-    privacyPolicyUrl: '',
-    termsOfServiceUrl: '',
   })
 
   const config = { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -88,12 +85,12 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       const res = await api.post('/admin/oauth-clients', {
         name: createForm.name,
         clientId: createForm.clientId,
-        redirectUris: createForm.redirectUris.split('\n').map((u: string) => u.trim()).filter(Boolean),
+        redirectUris: createForm.redirectUris.filter(Boolean),
       }, config)
 
       setNewSecret(res.data.clientSecret)
       setShowCreate(false)
-      setCreateForm({ name: '', clientId: '', redirectUris: '' })
+      setCreateForm({ name: '', clientId: '', redirectUris: [''] })
       loadClients()
       toast.success('OAuth client created')
     } catch (error: any) {
@@ -107,11 +104,8 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     setEditingClient(client)
     setEditForm({
       name: client.name || '',
-      redirectUris: (client.redirectUris || []).join('\n'),
+      redirectUris: Array.isArray(client.redirectUris) ? [...client.redirectUris] : [],
       active: client.active !== false,
-      logoUrl: client.logoUrl || '',
-      privacyPolicyUrl: client.privacyPolicyUrl || '',
-      termsOfServiceUrl: client.termsOfServiceUrl || '',
     })
   }
 
@@ -121,11 +115,8 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     try {
       await api.put(`/admin/oauth-clients/${editingClient.clientId}`, {
         name: editForm.name,
-        redirectUris: editForm.redirectUris.split('\n').map((u: string) => u.trim()).filter(Boolean),
+        redirectUris: editForm.redirectUris.filter(Boolean),
         active: editForm.active,
-        logoUrl: editForm.logoUrl || null,
-        privacyPolicyUrl: editForm.privacyPolicyUrl || null,
-        termsOfServiceUrl: editForm.termsOfServiceUrl || null,
       }, config)
 
       toast.success('Client updated')
@@ -392,14 +383,44 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Redirect URIs (one per line)</label>
-                  <textarea
-                    value={createForm.redirectUris}
-                    onChange={(e) => setCreateForm({ ...createForm, redirectUris: e.target.value })}
-                    rows={3}
-                    placeholder={"https://myapp.com/callback\nhttp://localhost:3000/callback"}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition resize-none font-mono text-sm"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-slate-400">Redirect URIs</label>
+                    <button
+                      onClick={() => setCreateForm({ ...createForm, redirectUris: [...createForm.redirectUris, ''] })}
+                      className="text-xs text-violet-400 hover:text-violet-300 transition flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add URI
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {createForm.redirectUris.map((uri: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={uri}
+                          onChange={(e) => {
+                            const uris = [...createForm.redirectUris]
+                            uris[idx] = e.target.value
+                            setCreateForm({ ...createForm, redirectUris: uris })
+                          }}
+                          placeholder="https://app.example.com/callback"
+                          className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                        />
+                        {createForm.redirectUris.length > 1 && (
+                          <button
+                            onClick={() => {
+                              const uris = createForm.redirectUris.filter((_: string, i: number) => i !== idx)
+                              setCreateForm({ ...createForm, redirectUris: uris })
+                            }}
+                            className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -477,46 +498,44 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Redirect URIs (one per line)</label>
-                  <textarea
-                    value={editForm.redirectUris}
-                    onChange={(e) => setEditForm({ ...editForm, redirectUris: e.target.value })}
-                    rows={3}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition resize-none font-mono text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Logo URL</label>
-                  <input
-                    type="url"
-                    value={editForm.logoUrl}
-                    onChange={(e) => setEditForm({ ...editForm, logoUrl: e.target.value })}
-                    placeholder="https://example.com/logo.png"
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">Privacy Policy URL</label>
-                    <input
-                      type="url"
-                      value={editForm.privacyPolicyUrl}
-                      onChange={(e) => setEditForm({ ...editForm, privacyPolicyUrl: e.target.value })}
-                      placeholder="https://..."
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                    />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-slate-400">Redirect URIs</label>
+                    <button
+                      onClick={() => setEditForm({ ...editForm, redirectUris: [...(editForm.redirectUris || []), ''] })}
+                      className="text-xs text-violet-400 hover:text-violet-300 transition flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add URI
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">Terms of Service URL</label>
-                    <input
-                      type="url"
-                      value={editForm.termsOfServiceUrl}
-                      onChange={(e) => setEditForm({ ...editForm, termsOfServiceUrl: e.target.value })}
-                      placeholder="https://..."
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                    />
+                  <div className="space-y-2">
+                    {(editForm.redirectUris || []).map((uri: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={uri}
+                          onChange={(e) => {
+                            const uris = [...editForm.redirectUris]
+                            uris[idx] = e.target.value
+                            setEditForm({ ...editForm, redirectUris: uris })
+                          }}
+                          placeholder="https://app.example.com/callback"
+                          className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                        />
+                        <button
+                          onClick={() => {
+                            const uris = editForm.redirectUris.filter((_: string, i: number) => i !== idx)
+                            setEditForm({ ...editForm, redirectUris: uris })
+                          }}
+                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {(!editForm.redirectUris || editForm.redirectUris.length === 0) && (
+                      <p className="text-sm text-slate-500 text-center py-2">No redirect URIs configured</p>
+                    )}
                   </div>
                 </div>
 

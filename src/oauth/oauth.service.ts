@@ -92,17 +92,18 @@ export class OAuthService {
    * Returns the intersection (only allowed scopes).
    */
   validateScopes(client: OAuthClient, requestedScope: string): string {
+    const clientScopes = Array.isArray(client.allowedScopes) && client.allowedScopes.length > 0
+      ? client.allowedScopes
+      : ['openid', 'profile', 'email']; // sensible default
+
     const requested = this.parseScope(requestedScope);
     if (requested.length === 0) {
-      // Default to client's allowed scopes
-      return client.allowedScopes.join(' ');
+      return clientScopes.join(' ');
     }
-    const allowed = new Set(client.allowedScopes);
+    const allowed = new Set(clientScopes);
     const granted = requested.filter((s) => allowed.has(s));
     if (granted.length === 0) {
-      throw new BadRequestException(
-        `None of the requested scopes are allowed for this client. Allowed: ${client.allowedScopes.join(', ')}`,
-      );
+      return clientScopes.join(' ');
     }
     return granted.join(' ');
   }
@@ -130,13 +131,16 @@ export class OAuthService {
     allowedScopes: string[];
   }> {
     const client = await this.validateClient(clientId);
+    const scopes = Array.isArray(client.allowedScopes) && client.allowedScopes.length > 0
+      ? client.allowedScopes
+      : ['openid', 'profile', 'email'];
     return {
       clientId: client.clientId,
       name: client.name,
       logoUrl: client.logoUrl,
       privacyPolicyUrl: client.privacyPolicyUrl,
       termsOfServiceUrl: client.termsOfServiceUrl,
-      allowedScopes: client.allowedScopes,
+      allowedScopes: scopes,
     };
   }
 
@@ -485,6 +489,34 @@ export class OAuthService {
     });
 
     return await this.clientRepository.save(client);
+  }
+
+  /**
+   * Check if an origin is allowed (from client redirect URIs)
+   */
+  async isAllowedOrigin(origin: string): Promise<boolean> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', '');
+    if (frontendUrl) {
+      try {
+        if (new URL(frontendUrl).origin === origin) return true;
+      } catch {}
+    }
+
+    const clients = await this.clientRepository.find({
+      where: { active: true },
+      select: ['redirectUris'],
+    });
+
+    for (const client of clients) {
+      const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+      for (const uri of uris) {
+        try {
+          if (new URL(uri).origin === origin) return true;
+        } catch {}
+      }
+    }
+
+    return false;
   }
 
   /**

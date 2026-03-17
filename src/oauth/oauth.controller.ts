@@ -10,7 +10,6 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
@@ -23,17 +22,12 @@ import { CreateCodeInput } from './dto/create-code.input';
 @Controller('oauth')
 export class OAuthController {
   private readonly logger = new LoggerService();
-  private readonly allowedLogoutRedirects: string[];
 
   constructor(
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
-    private readonly configService: ConfigService,
   ) {
     this.logger.setContext('OAuthController');
-    const frontendUrl = configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
-    const extra = configService.get<string>('ALLOWED_LOGOUT_REDIRECTS', '').split(',').filter(Boolean);
-    this.allowedLogoutRedirects = [frontendUrl, ...extra];
   }
 
   /**
@@ -305,9 +299,7 @@ export class OAuthController {
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
-        const isAllowed = this.allowedLogoutRedirects.some(
-          (allowed) => url.origin === new URL(allowed).origin,
-        );
+        const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
         if (!isAllowed) {
           this.logger.warn('Blocked open redirect attempt on logout', { uri: postLogoutRedirectUri });
           return res.json({ success: true, message: 'Logged out successfully' });
@@ -389,9 +381,7 @@ export class OAuthController {
       if (redirect) {
         try {
           const url = new URL(redirect);
-          const isAllowed = this.allowedLogoutRedirects.some(
-            (allowed) => url.origin === new URL(allowed).origin,
-          );
+          const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
           if (isAllowed) return res.redirect(redirect);
         } catch { /* invalid URL, ignore redirect */ }
       }

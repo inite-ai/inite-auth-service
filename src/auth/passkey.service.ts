@@ -114,8 +114,6 @@ export class PasskeyService {
     
     const publicKeyBase64 = Buffer.from(credential.publicKey).toString('base64');
 
-    console.log('💾 Saving passkey with credentialId:', credentialIdToStore);
-
     const passkey = this.passkeyRepository.create({
       userId,
       credentialId: credentialIdToStore,
@@ -190,8 +188,6 @@ export class PasskeyService {
     // We now store as base64url (same format browser sends)
     const credentialIdBase64Url = response.id;
     
-    console.log('🔍 Looking for passkey with credentialId:', credentialIdBase64Url);
-    
     // Primary lookup - direct match with stored base64url
     let passkey = await this.passkeyRepository.findOne({
       where: { credentialId: credentialIdBase64Url },
@@ -212,8 +208,6 @@ export class PasskeyService {
     }
 
     if (!passkey) {
-      // Log for debugging
-      console.error('Passkey not found. Searched for:', credentialIdBase64Url);
       throw new BadRequestException('Passkey not found. You may need to register a new passkey for this account.');
     }
 
@@ -237,8 +231,14 @@ export class PasskeyService {
       throw new BadRequestException('Passkey authentication verification failed');
     }
 
-    // Update counter
-    passkey.counter = verification.authenticationInfo.newCounter;
+    // Enforce counter increment (detect cloned authenticators)
+    const newCounter = verification.authenticationInfo.newCounter;
+    if (newCounter > 0 && newCounter <= Number(passkey.counter)) {
+      throw new BadRequestException(
+        'Authenticator counter did not increase — possible cloned device detected',
+      );
+    }
+    passkey.counter = newCounter;
     passkey.lastUsedAt = new Date();
     await this.passkeyRepository.save(passkey);
 

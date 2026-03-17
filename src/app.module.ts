@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { IdentityModule } from './identity/identity.module';
 import { OAuthModule } from './oauth/oauth.module';
@@ -18,6 +20,12 @@ import { HealthController } from './common/health.controller';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+
+    // Rate limiting (global default: 60 req/min)
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 60,
+    }]),
 
     // Database
     TypeOrmModule.forRootAsync({
@@ -74,6 +82,12 @@ import { HealthController } from './common/health.controller';
     AdminModule,
   ],
   controllers: [HealthController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
 

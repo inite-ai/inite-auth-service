@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
@@ -17,6 +18,20 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'"],
+      },
+    },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  }));
+
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
@@ -32,8 +47,12 @@ async function bootstrap() {
     .split(',')
     .filter(Boolean);
 
+  if (corsOrigins.length === 0) {
+    logger.warn('CORS_ORIGINS not set — CORS will reject all cross-origin requests');
+  }
+
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : '*',
+    origin: corsOrigins.length > 0 ? corsOrigins : false,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -78,16 +97,19 @@ async function bootstrap() {
   });
 
   // Session configuration
-  sessionSecret = configService.get<string>('SESSION_SECRET') || 
-                  configService.get<string>('JWT_SECRET') || 
-                  'change-this-secret';
-  
+  const configuredSecret = configService.get<string>('SESSION_SECRET') ||
+                           configService.get<string>('JWT_SECRET');
+  if (!configuredSecret) {
+    throw new Error('SESSION_SECRET or JWT_SECRET must be set in environment');
+  }
+  sessionSecret = configuredSecret;
+
   app.use(
     session({
       store: new RedisStore({ client: redisClient }),
       secret: sessionSecret,
-      resave: true,
-      saveUninitialized: true,
+      resave: false,
+      saveUninitialized: false,
       name: 'inite.sid',
       cookie: {
         secure: true,

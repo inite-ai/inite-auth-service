@@ -32,9 +32,10 @@ export class AdminService {
   // ==================== Users ====================
 
   async getAllUsers(page = 1, limit = 50) {
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
     const [users, total] = await this.userRepository.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (page - 1) * safeLimit,
+      take: safeLimit,
       order: { createdAt: 'DESC' },
     });
 
@@ -125,10 +126,10 @@ export class AdminService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) return null;
 
+    user.isAdmin = roles.includes('admin');
     user.metadata = {
       ...user.metadata,
       roles,
-      isAdmin: roles.includes('admin'),
     };
 
     await this.userRepository.save(user);

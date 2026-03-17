@@ -214,17 +214,18 @@ export class AuthService {
       return;
     }
 
-    // Generate reset token
+    // Generate reset token — store hash, send plaintext in email
     const resetToken = crypto.randomBytes(32).toString('base64url');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetExpires = new Date();
     resetExpires.setHours(resetExpires.getHours() + 1); // 1 hour expiry
 
-    // Save reset token
-    user.passwordResetToken = resetToken;
+    // Save hashed token
+    user.passwordResetToken = resetTokenHash;
     user.passwordResetExpires = resetExpires;
     await this.userRepository.save(user);
 
-    // Build reset URL
+    // Build reset URL with plaintext token
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
@@ -242,8 +243,10 @@ export class AuthService {
     user: User;
     accessToken: string;
   }> {
+    // Hash the incoming token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await this.userRepository.findOne({
-      where: { passwordResetToken: token },
+      where: { passwordResetToken: tokenHash },
     });
 
     if (!user) {
@@ -291,7 +294,6 @@ export class AuthService {
       email: user.email,
       email_verified: user.emailVerified,
       name: user.name,
-      metadata: user.metadata,
     };
 
     return this.jwtService.sign(payload, {

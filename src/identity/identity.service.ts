@@ -194,7 +194,9 @@ export class IdentityService {
    */
   async updateMetadata(userId: string, metadata: Record<string, any>): Promise<User> {
     const user = await this.getIdentityById(userId);
-    user.metadata = { ...user.metadata, ...metadata };
+    // Prevent privilege escalation via metadata
+    const { isAdmin, roles, ...safeMetadata } = metadata;
+    user.metadata = { ...user.metadata, ...safeMetadata };
     return await this.userRepository.save(user);
   }
 
@@ -279,8 +281,7 @@ Issued At: ${issuedAt}`;
 
       // Verify ed25519 signature
       return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
-    } catch (error) {
-      console.error('TON signature verification error:', error);
+    } catch {
       return false;
     }
   }
@@ -333,6 +334,12 @@ Issued At: ${issuedAt}`;
     // Validate new password
     if (newPassword.length < 8) {
       throw new BadRequestException('Password must be at least 8 characters long');
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      throw new BadRequestException('Password must contain at least one uppercase letter');
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      throw new BadRequestException('Password must contain at least one number');
     }
 
     // Hash and save new password
@@ -432,9 +439,9 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('Invalid verification code');
     }
 
-    // Generate backup codes
+    // Generate backup codes (cryptographically secure)
     const backupCodes = Array.from({ length: 10 }, () =>
-      Math.random().toString(36).substring(2, 8).toUpperCase()
+      crypto.randomBytes(4).toString('hex').toUpperCase()
     );
 
     // Enable 2FA
@@ -712,25 +719,27 @@ Issued At: ${issuedAt}`;
       return { success: true, message: 'Email verified successfully' };
     }
 
-    // Check for email change verification
-    const users = await this.userRepository.find();
-    for (const u of users) {
-      const pending = u.metadata?.pendingEmailChange;
-      if (pending && pending.token === token) {
-        if (new Date(pending.expires) < new Date()) {
-          throw new BadRequestException('Verification link has expired');
-        }
+    // Check for email change verification via JSONB query (no full-table scan)
+    const emailChangeUser = await this.userRepository
+      .createQueryBuilder('user')
+      .where("user.metadata->'pendingEmailChange'->>'token' = :token", { token })
+      .getOne();
 
-        u.email = pending.newEmail;
-        u.emailVerified = true;
-        u.metadata = {
-          ...u.metadata,
-          pendingEmailChange: null,
-        };
-        await this.userRepository.save(u);
-
-        return { success: true, message: 'Email changed successfully' };
+    if (emailChangeUser) {
+      const pending = emailChangeUser.metadata?.pendingEmailChange;
+      if (pending && new Date(pending.expires) < new Date()) {
+        throw new BadRequestException('Verification link has expired');
       }
+
+      emailChangeUser.email = pending.newEmail;
+      emailChangeUser.emailVerified = true;
+      emailChangeUser.metadata = {
+        ...emailChangeUser.metadata,
+        pendingEmailChange: null,
+      };
+      await this.userRepository.save(emailChangeUser);
+
+      return { success: true, message: 'Email changed successfully' };
     }
 
     throw new BadRequestException('Invalid verification token');

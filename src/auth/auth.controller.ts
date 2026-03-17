@@ -9,28 +9,34 @@ import {
   Response,
   Res,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { Response as ExpressResponse } from 'express';
 import * as signature from 'cookie-signature';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoggerService } from '../common/logger.service';
-import { sessionSecret } from '../main';
 
 @Controller('auth')
 export class AuthController {
   private readonly logger = new LoggerService();
+  private readonly sessionSecret: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
+    private readonly configService: ConfigService,
   ) {
     this.logger.setContext('AuthController');
+    this.sessionSecret = configService.get<string>('SESSION_SECRET') ||
+                         configService.get<string>('JWT_SECRET') || '';
   }
 
   // ==================== Password Auth (Legacy) ====================
 
   @Post('password/register')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async registerWithPassword(
     @Body() body: { email: string; password: string; name?: string },
     @Request() req: any,
@@ -73,6 +79,7 @@ export class AuthController {
   }
 
   @Post('password/login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Request() req: any,
@@ -107,7 +114,7 @@ export class AuthController {
               });
               
               // Manually set signed session cookie
-              const signedSessionId = 's:' + signature.sign(req.session.id, sessionSecret);
+              const signedSessionId = 's:' + signature.sign(req.session.id, this.sessionSecret);
               res.cookie('inite.sid', signedSessionId, {
                 httpOnly: true,
                 secure: true,
@@ -147,6 +154,7 @@ export class AuthController {
   // ==================== Magic Link Auth ====================
 
   @Post('email/send-magic-link')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async sendMagicLink(@Body() body: { 
     email: string;
     oauthParams?: {
@@ -194,7 +202,7 @@ export class AuthController {
               reject(saveErr);
             } else {
               this.logger.session('New session after magic link verify', { sessionId: req.session.id, userId });
-              const signedSessionId = 's:' + signature.sign(req.session.id, sessionSecret);
+              const signedSessionId = 's:' + signature.sign(req.session.id, this.sessionSecret);
               res.cookie('inite.sid', signedSessionId, {
                 httpOnly: true,
                 secure: true,
@@ -230,6 +238,7 @@ export class AuthController {
   // ==================== Password Reset ====================
 
   @Post('password/reset-request')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async requestPasswordReset(@Body() body: { email: string }) {
     await this.authService.requestPasswordReset(body.email);
     this.logger.auth('Password reset requested', { email: body.email });
@@ -344,6 +353,7 @@ export class AuthController {
   }
 
   @Post('passkey/authentication/verify')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verifyAuthentication(
     @Body() body: { response: any; challenge: string },
     @Request() req: any,

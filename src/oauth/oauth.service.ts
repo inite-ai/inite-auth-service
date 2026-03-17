@@ -140,6 +140,10 @@ export class OAuthService {
       throw new BadRequestException('Redirect URI mismatch');
     }
 
+    // Mark code as used IMMEDIATELY to prevent race conditions
+    authCode.used = true;
+    await this.authCodeRepository.save(authCode);
+
     // Verify PKCE if code challenge was provided
     if (authCode.codeChallenge) {
       if (!codeVerifier) {
@@ -156,10 +160,6 @@ export class OAuthService {
         throw new BadRequestException('Invalid code verifier');
       }
     }
-
-    // Mark code as used
-    authCode.used = true;
-    await this.authCodeRepository.save(authCode);
 
     // Generate tokens
     const tokens = await this.generateTokens(
@@ -354,25 +354,14 @@ export class OAuthService {
    * Get user info (OIDC endpoint)
    */
   async getUserInfo(userId: string): Promise<any> {
-    // Log to debug why wrong user is returned
-    console.log('🔵 OAUTH SERVICE getUserInfo: Looking up user by userId:', userId);
-    
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      console.error('🔴 OAUTH SERVICE getUserInfo: User not found for userId:', userId);
       throw new NotFoundException('User not found');
     }
 
-    console.log('🔵 OAUTH SERVICE getUserInfo: Found user:', {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      did: user.did,
-    });
-
     const wallets = await this.identityService.getWallets(userId);
 
-    const userInfo = {
+    return {
       sub: user.did,
       email: user.email,
       email_verified: user.emailVerified,
@@ -384,14 +373,6 @@ export class OAuthService {
         chain: w.chain,
       })),
     };
-    
-    console.log('🔵 OAUTH SERVICE getUserInfo: Returning userInfo:', {
-      email: userInfo.email,
-      name: userInfo.name,
-      sub: userInfo.sub,
-    });
-
-    return userInfo;
   }
 
   /**

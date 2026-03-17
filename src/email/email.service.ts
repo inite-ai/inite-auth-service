@@ -38,7 +38,7 @@ export class EmailService {
         pass: this.configService.get<string>('SMTP_PASS'),
       },
       tls: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: this.configService.get<string>('NODE_ENV') === 'production',
       },
     };
 
@@ -298,9 +298,8 @@ export class EmailService {
     );
   }
 
-  async sendEmailVerification(email: string, verificationLink: string): Promise<void> {
-    await this.transporter.sendMail({
-      from: this.getFromAddress(),
+  async sendEmailVerification(email: string, verificationLink: string): Promise<boolean> {
+    return await this.sendEmail({
       to: email,
       subject: '[INITE] Verify your email',
       html: `
@@ -318,9 +317,8 @@ export class EmailService {
     newEmail: string,
     oldEmail: string,
     verificationLink: string,
-  ): Promise<void> {
-    await this.transporter.sendMail({
-      from: this.getFromAddress(),
+  ): Promise<boolean> {
+    return await this.sendEmail({
       to: newEmail,
       subject: '[INITE] Confirm your new email',
       html: `

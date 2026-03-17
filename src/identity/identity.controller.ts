@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -27,6 +28,8 @@ export class IdentityController {
       emailVerified: user.emailVerified,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      isAdmin: user.isAdmin,
+      metadata: user.metadata,
       createdAt: user.createdAt,
     };
   }
@@ -136,6 +139,7 @@ export class IdentityController {
 
   @Post('email/change')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async changeEmail(
     @Request() req: any,
     @Body() body: { newEmail: string; password: string },
@@ -146,6 +150,7 @@ export class IdentityController {
 
   @Post('email/resend-verification')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async resendEmailVerification(@Request() req: any) {
     await this.identityService.resendEmailVerification(req.user.userId);
     return { success: true, message: 'Verification email sent' };
@@ -203,10 +208,13 @@ export class IdentityController {
   }
 
   @Post('2fa/verify')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verify2FA(
-    @Body() body: { userId: string; code: string },
+    @Request() req: any,
+    @Body() body: { code: string },
   ) {
-    return await this.identityService.verify2FA(body.userId, body.code);
+    return await this.identityService.verify2FA(req.user.userId, body.code);
   }
 
   // ==================== Data Export & Account Deletion ====================

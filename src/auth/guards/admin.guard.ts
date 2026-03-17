@@ -19,9 +19,7 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    const isAdmin =
-      user?.metadata?.isAdmin === true ||
-      user?.metadata?.roles?.includes('admin');
+    const isAdmin = user?.isAdmin === true;
 
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');

@@ -10,6 +10,8 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
 import { AuthService } from '../auth/auth.service';
@@ -21,12 +23,17 @@ import { CreateCodeInput } from './dto/create-code.input';
 @Controller('oauth')
 export class OAuthController {
   private readonly logger = new LoggerService();
+  private readonly allowedLogoutRedirects: string[];
 
   constructor(
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
+    private readonly configService: ConfigService,
   ) {
     this.logger.setContext('OAuthController');
+    const frontendUrl = configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
+    const extra = configService.get<string>('ALLOWED_LOGOUT_REDIRECTS', '').split(',').filter(Boolean);
+    this.allowedLogoutRedirects = [frontendUrl, ...extra];
   }
 
   /**
@@ -151,6 +158,7 @@ export class OAuthController {
    * POST /oauth/token
    */
   @Post('token')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async token(
     @Body('grant_type') grantType: string,
     @Body('code') code: string,
@@ -213,24 +221,7 @@ export class OAuthController {
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
   async userinfo(@Req() req: any) {
-    // Log the userId from token to debug why wrong user is returned
-    this.logger.oauth('Userinfo request', {
-      userId: req.user?.userId,
-      email: req.user?.email,
-      did: req.user?.did,
-      hasUser: !!req.user,
-    });
-    
-    const userInfo = await this.oauthService.getUserInfo(req.user.userId);
-    
-    this.logger.oauth('Userinfo response', {
-      userId: req.user?.userId,
-      returnedEmail: userInfo?.email,
-      returnedName: userInfo?.name,
-      returnedSub: userInfo?.sub,
-    });
-    
-    return userInfo;
+    return await this.oauthService.getUserInfo(req.user.userId);
   }
 
   /**
@@ -272,9 +263,20 @@ export class OAuthController {
     }
 
     if (postLogoutRedirectUri) {
-      const url = new URL(postLogoutRedirectUri);
-      if (state) url.searchParams.set('state', state);
-      return res.redirect(url.toString());
+      try {
+        const url = new URL(postLogoutRedirectUri);
+        const isAllowed = this.allowedLogoutRedirects.some(
+          (allowed) => url.origin === new URL(allowed).origin,
+        );
+        if (!isAllowed) {
+          this.logger.warn('Blocked open redirect attempt on logout', { uri: postLogoutRedirectUri });
+          return res.json({ success: true, message: 'Logged out successfully' });
+        }
+        if (state) url.searchParams.set('state', state);
+        return res.redirect(url.toString());
+      } catch {
+        return res.json({ success: true, message: 'Logged out successfully' });
+      }
     }
 
     return res.json({ success: true, message: 'Logged out successfully' });
@@ -329,7 +331,15 @@ export class OAuthController {
         this.logger.session('Set from token', { sessionId: req.session.id, userId: payload.userId });
       }
 
-      if (redirect) return res.redirect(redirect);
+      if (redirect) {
+        try {
+          const url = new URL(redirect);
+          const isAllowed = this.allowedLogoutRedirects.some(
+            (allowed) => url.origin === new URL(allowed).origin,
+          );
+          if (isAllowed) return res.redirect(redirect);
+        } catch { /* invalid URL, ignore redirect */ }
+      }
       return res.json({ success: true, message: 'Session established' });
     } catch (error: any) {
       this.logger.error('Token verification failed', error.message);

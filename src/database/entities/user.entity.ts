@@ -64,6 +64,10 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   passwordResetExpires: Date;
 
+  // Admin flag (dedicated column, not in mutable metadata)
+  @Column({ default: false })
+  isAdmin: boolean;
+
   // Metadata
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;

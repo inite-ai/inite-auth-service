@@ -1,12 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
 import { AppModule } from './app.module';
+import { OAuthClient } from './database/entities';
 import { createLogger } from './common/logger.service';
 
 // Export for use in controllers
@@ -41,15 +44,36 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration
-  const corsOrigins = configService
+  // CORS configuration — build origins from OAuth client redirect URIs
+  const frontendUrl = configService.get<string>('FRONTEND_URL', '');
+  const extraOrigins = configService
     .get<string>('CORS_ORIGINS', '')
     .split(',')
     .filter(Boolean);
 
-  if (corsOrigins.length === 0) {
-    logger.warn('CORS_ORIGINS not set — CORS will reject all cross-origin requests');
+  // Collect origins from all registered OAuth clients
+  const clientOrigins = new Set<string>(extraOrigins);
+  if (frontendUrl) clientOrigins.add(frontendUrl);
+
+  try {
+    const clientRepo = app.get<Repository<OAuthClient>>(getRepositoryToken(OAuthClient));
+    const clients = await clientRepo.find({
+      where: { active: true },
+      select: ['redirectUris'],
+    });
+    for (const client of clients) {
+      const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+      for (const uri of uris) {
+        try {
+          clientOrigins.add(new URL(uri).origin);
+        } catch { /* skip invalid URIs */ }
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`Could not load OAuth clients for CORS: ${err.message}`);
   }
+
+  const corsOrigins = [...clientOrigins];
 
   app.enableCors({
     origin: corsOrigins.length > 0 ? corsOrigins : false,

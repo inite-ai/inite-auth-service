@@ -40,6 +40,7 @@ import { HealthController } from './common/health.controller';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        migrationsRun: true,
         logging: configService.get<string>('NODE_ENV') !== 'production',
         retryAttempts: 5,
         retryDelay: 3000,

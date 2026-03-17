@@ -36,6 +36,23 @@ export class AdminController {
     return this.adminService.getUserById(userId);
   }
 
+  @Put('users/:userId')
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body()
+    body: Partial<{
+      name: string;
+      email: string;
+      emailVerified: boolean;
+      bio: string;
+      location: string;
+      profession: string;
+      metadata: Record<string, any>;
+    }>,
+  ) {
+    return this.adminService.updateUser(userId, body);
+  }
+
   @Put('users/:userId/roles')
   async updateUserRoles(
     @Param('userId') userId: string,

@@ -83,6 +83,44 @@ export class AdminService {
     };
   }
 
+  async updateUser(
+    userId: string,
+    data: Partial<{
+      name: string;
+      email: string;
+      emailVerified: boolean;
+      bio: string;
+      location: string;
+      profession: string;
+      metadata: Record<string, any>;
+    }>,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) return null;
+
+    const allowedFields = [
+      'name',
+      'email',
+      'emailVerified',
+      'bio',
+      'location',
+      'profession',
+    ] as const;
+
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) {
+        (user as any)[field] = data[field];
+      }
+    }
+
+    if (data.metadata !== undefined) {
+      user.metadata = { ...user.metadata, ...data.metadata };
+    }
+
+    await this.userRepository.save(user);
+    return { ...user, passwordHash: undefined };
+  }
+
   async updateUserRoles(userId: string, roles: string[]) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) return null;

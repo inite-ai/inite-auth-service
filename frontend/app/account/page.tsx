@@ -144,13 +144,24 @@ export default function AccountPage() {
               <p className="text-slate-400 mt-1">Manage your identity and security</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            {user?.metadata?.isAdmin && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="px-4 py-2 bg-violet-500/20 text-violet-300 rounded-xl hover:bg-violet-500/30 border border-violet-500/30 transition flex items-center gap-2"
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </button>
+            )}
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
         </motion.div>
 
         {/* Main Content */}

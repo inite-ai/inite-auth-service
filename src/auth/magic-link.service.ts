@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import { MagicLink, User, OAuthParamsDto } from '../database/entities';
 import { IdentityService } from '../identity/identity.service';
@@ -101,14 +102,19 @@ export class MagicLinkService {
     return { user, isNewUser, oauthParams: magicLink.oauthParams };
   }
 
+  private readonly logger = new Logger(MagicLinkService.name);
+
   /**
-   * Cleanup expired magic links
+   * Cleanup expired magic links — runs every hour
    */
+  @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
-    const now = new Date();
-    await this.magicLinkRepository.delete({
-      expiresAt: LessThan(now),
+    const { affected } = await this.magicLinkRepository.delete({
+      expiresAt: LessThan(new Date()),
     });
+    if (affected) {
+      this.logger.log(`Deleted ${affected} expired magic links`);
+    }
   }
 }
 

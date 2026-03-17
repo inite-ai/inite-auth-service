@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { IdentityModule } from './identity/identity.module';
@@ -26,6 +27,9 @@ import { HealthController } from './common/health.controller';
       ttl: 60000,
       limit: 60,
     }]),
+
+    // Scheduled tasks
+    ScheduleModule.forRoot(),
 
     // Database
     TypeOrmModule.forRootAsync({

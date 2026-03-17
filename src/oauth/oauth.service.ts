@@ -3,11 +3,13 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import {
@@ -493,10 +495,14 @@ export class OAuthService {
     return scope.split(' ').filter(Boolean);
   }
 
+  private readonly logger = new Logger(OAuthService.name);
+
   /**
-   * Cleanup expired codes and tokens
+   * Cleanup expired codes and tokens — runs every hour
    */
+  @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
+    this.logger.log('Cleaning up expired tokens and codes...');
     const now = new Date();
 
     // Delete expired authorization codes
@@ -505,9 +511,12 @@ export class OAuthService {
     });
 
     // Delete expired refresh tokens
-    await this.refreshTokenRepository.delete({
+    const { affected } = await this.refreshTokenRepository.delete({
       expiresAt: LessThan(now),
     });
+    if (affected) {
+      this.logger.log(`Deleted ${affected} expired refresh tokens`);
+    }
   }
 }
 

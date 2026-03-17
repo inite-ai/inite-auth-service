@@ -9,7 +9,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-global"
-      # Backend API на auth-api.inite.ai - все запросы идут на backend
+      # Backend API на auth-api.inite.ai
       - "traefik.http.routers.auth-api.rule=Host(`auth-api.inite.ai`)"
       - "traefik.http.routers.auth-api.entrypoints=websecure"
       - "traefik.http.routers.auth-api.tls=true"

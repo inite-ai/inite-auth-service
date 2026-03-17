@@ -44,39 +44,53 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration — build origins from OAuth client redirect URIs
+  // Dynamic CORS — check origin against OAuth client redirect URIs on every request
   const frontendUrl = configService.get<string>('FRONTEND_URL', '');
-  const extraOrigins = configService
-    .get<string>('CORS_ORIGINS', '')
-    .split(',')
-    .filter(Boolean);
+  const extraOrigins = new Set(
+    configService.get<string>('CORS_ORIGINS', '').split(',').filter(Boolean),
+  );
+  if (frontendUrl) extraOrigins.add(frontendUrl);
 
-  // Collect origins from all registered OAuth clients
-  const clientOrigins = new Set<string>(extraOrigins);
-  if (frontendUrl) clientOrigins.add(frontendUrl);
+  const clientRepo = app.get<Repository<OAuthClient>>(getRepositoryToken(OAuthClient));
 
-  try {
-    const clientRepo = app.get<Repository<OAuthClient>>(getRepositoryToken(OAuthClient));
-    const clients = await clientRepo.find({
-      where: { active: true },
-      select: ['redirectUris'],
-    });
-    for (const client of clients) {
-      const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
-      for (const uri of uris) {
-        try {
-          clientOrigins.add(new URL(uri).origin);
-        } catch { /* skip invalid URIs */ }
+  // Cache allowed origins, refresh every 60s
+  let cachedOrigins = new Set<string>(extraOrigins);
+  let cacheTime = 0;
+
+  async function getAllowedOrigins(): Promise<Set<string>> {
+    const now = Date.now();
+    if (now - cacheTime < 60_000) return cachedOrigins;
+
+    const origins = new Set<string>(extraOrigins);
+    try {
+      const clients = await clientRepo.find({
+        where: { active: true },
+        select: ['redirectUris'],
+      });
+      for (const client of clients) {
+        const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+        for (const uri of uris) {
+          try { origins.add(new URL(uri).origin); } catch {}
+        }
       }
-    }
-  } catch (err: any) {
-    logger.warn(`Could not load OAuth clients for CORS: ${err.message}`);
+    } catch {}
+    cachedOrigins = origins;
+    cacheTime = now;
+    return origins;
   }
 
-  const corsOrigins = [...clientOrigins];
+  // Warm cache at startup
+  await getAllowedOrigins();
+  logger.log(`CORS Origins: ${[...cachedOrigins].join(', ')}`);
 
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : false,
+    origin: async (origin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, etc.)
+      if (!origin) return callback(null, true);
+      const allowed = await getAllowedOrigins();
+      if (allowed.has(origin)) return callback(null, true);
+      callback(new Error(`CORS: ${origin} not allowed`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -150,7 +164,6 @@ async function bootstrap() {
 
   logger.log(`INITE Identity Provider running on port ${port}`);
   logger.log(`Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
-  logger.log(`CORS Origins: ${corsOrigins.join(', ')}`);
 }
 
 bootstrap();

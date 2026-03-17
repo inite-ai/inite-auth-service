@@ -76,15 +76,17 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
     return <Monitor className="w-5 h-5" />
   }
 
-  const formatDate = (dateStr: string) => {
+  const formatRelative = (dateStr: string) => {
     const date = new Date(dateStr)
     const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days} days ago`
+    const diffMs = date.getTime() - now.getTime()
+    const days = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+    if (days === 0) return 'today'
+    if (days === 1) return 'tomorrow'
+    if (days === -1) return 'yesterday'
+    if (days > 1 && days < 7) return `in ${days} days`
+    if (days < -1 && days > -7) return `${Math.abs(days)} days ago`
     return date.toLocaleDateString()
   }
 
@@ -92,7 +94,7 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
     const expires = new Date(expiresAt)
     const now = new Date()
     const diff = expires.getTime() - now.getTime()
-    return diff < 24 * 60 * 60 * 1000 // Less than 24 hours
+    return diff > 0 && diff < 24 * 60 * 60 * 1000
   }
 
   return (
@@ -158,10 +160,10 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
                       <div className="flex items-center gap-3 text-sm text-slate-400">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          Created {formatDate(session.createdAt)}
+                          Created {formatRelative(session.createdAt)}
                         </span>
                         <span className="text-slate-500">
-                          Expires {formatDate(session.expiresAt)}
+                          Expires {formatRelative(session.expiresAt)}
                         </span>
                       </div>
                     </div>

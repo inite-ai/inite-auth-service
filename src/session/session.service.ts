@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { RefreshToken } from '../database/entities';
 
 @Injectable()
@@ -11,12 +11,17 @@ export class SessionService {
   ) {}
 
   /**
-   * Get active sessions for user
+   * Get active (non-expired, non-revoked) sessions for user
    */
   async getActiveSessions(userId: string): Promise<any[]> {
     const tokens = await this.refreshTokenRepository.find({
-      where: { userId, revoked: false },
+      where: {
+        userId,
+        revoked: false,
+        expiresAt: MoreThan(new Date()),
+      },
       relations: ['client'],
+      order: { createdAt: 'DESC' },
     });
 
     return tokens.map((token) => ({

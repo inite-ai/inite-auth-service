@@ -145,7 +145,7 @@ export default function AccountPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {user?.isAdmin && (
+            {user?.metadata?.isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
                 className="px-4 py-2 bg-violet-500/20 text-violet-300 rounded-xl hover:bg-violet-500/30 border border-violet-500/30 transition flex items-center gap-2"

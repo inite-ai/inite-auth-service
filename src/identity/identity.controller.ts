@@ -28,7 +28,6 @@ export class IdentityController {
       emailVerified: user.emailVerified,
       name: user.name,
       avatarUrl: user.avatarUrl,
-      isAdmin: user.isAdmin,
       metadata: user.metadata,
       createdAt: user.createdAt,
     };

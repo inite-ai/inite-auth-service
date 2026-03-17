@@ -126,10 +126,10 @@ export class AdminService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) return null;
 
-    user.isAdmin = roles.includes('admin');
     user.metadata = {
       ...user.metadata,
       roles,
+      isAdmin: roles.includes('admin'),
     };
 
     await this.userRepository.save(user);

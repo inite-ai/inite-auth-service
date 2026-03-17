@@ -36,18 +36,24 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  const AVAILABLE_SCOPES = [
+    { value: 'openid', label: 'OpenID', description: 'Basic identity verification' },
+    { value: 'profile', label: 'Profile', description: 'Name, avatar, roles' },
+    { value: 'email', label: 'Email', description: 'Email address and verification status' },
+    { value: 'offline_access', label: 'Offline Access', description: 'Refresh tokens for long-lived sessions' },
+  ]
+
   const [createForm, setCreateForm] = useState({
     name: '',
     clientId: '',
     redirectUris: '',
-    allowedScopes: 'openid, profile, email',
+    scopes: ['openid', 'profile', 'email'] as string[],
   })
 
   const [editForm, setEditForm] = useState<any>({
     name: '',
     redirectUris: '',
-    allowedScopes: '',
-    allowedGrants: '',
+    scopes: [] as string[],
     active: true,
     logoUrl: '',
     privacyPolicyUrl: '',
@@ -91,13 +97,13 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       const res = await api.post('/admin/oauth-clients', {
         name: createForm.name,
         clientId: createForm.clientId,
-        redirectUris: createForm.redirectUris.split('\n').map((u) => u.trim()).filter(Boolean),
-        allowedScopes: createForm.allowedScopes.split(',').map((s) => s.trim()).filter(Boolean),
+        redirectUris: createForm.redirectUris.split('\n').map((u: string) => u.trim()).filter(Boolean),
+        allowedScopes: createForm.scopes,
       }, config)
 
       setNewSecret(res.data.clientSecret)
       setShowCreate(false)
-      setCreateForm({ name: '', clientId: '', redirectUris: '', allowedScopes: 'openid, profile, email' })
+      setCreateForm({ name: '', clientId: '', redirectUris: '', scopes: ['openid', 'profile', 'email'] })
       loadClients()
       toast.success('OAuth client created')
     } catch (error: any) {
@@ -112,8 +118,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     setEditForm({
       name: client.name || '',
       redirectUris: (client.redirectUris || []).join('\n'),
-      allowedScopes: (client.allowedScopes || []).join(', '),
-      allowedGrants: (client.allowedGrants || []).join(', '),
+      scopes: Array.isArray(client.allowedScopes) ? [...client.allowedScopes] : ['openid', 'profile', 'email'],
       active: client.active !== false,
       logoUrl: client.logoUrl || '',
       privacyPolicyUrl: client.privacyPolicyUrl || '',
@@ -128,8 +133,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       await api.put(`/admin/oauth-clients/${editingClient.clientId}`, {
         name: editForm.name,
         redirectUris: editForm.redirectUris.split('\n').map((u: string) => u.trim()).filter(Boolean),
-        allowedScopes: editForm.allowedScopes.split(',').map((s: string) => s.trim()).filter(Boolean),
-        allowedGrants: editForm.allowedGrants.split(',').map((s: string) => s.trim()).filter(Boolean),
+        allowedScopes: editForm.scopes,
         active: editForm.active,
         logoUrl: editForm.logoUrl || null,
         privacyPolicyUrl: editForm.privacyPolicyUrl || null,
@@ -418,13 +422,28 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Allowed Scopes (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={createForm.allowedScopes}
-                    onChange={(e) => setCreateForm({ ...createForm, allowedScopes: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                  />
+                  <label className="block text-sm text-slate-400 mb-2">Permissions</label>
+                  <div className="space-y-2">
+                    {AVAILABLE_SCOPES.map((s) => (
+                      <label key={s.value} className="flex items-center gap-3 p-3 bg-slate-800/30 rounded-xl cursor-pointer hover:bg-slate-800/50 transition">
+                        <input
+                          type="checkbox"
+                          checked={createForm.scopes.includes(s.value)}
+                          onChange={(e) => {
+                            const scopes = e.target.checked
+                              ? [...createForm.scopes, s.value]
+                              : createForm.scopes.filter((v: string) => v !== s.value)
+                            setCreateForm({ ...createForm, scopes })
+                          }}
+                          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-violet-500 focus:ring-violet-500"
+                        />
+                        <div>
+                          <p className="text-sm text-white">{s.label}</p>
+                          <p className="text-xs text-slate-500">{s.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -512,25 +531,28 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Allowed Scopes (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={editForm.allowedScopes}
-                    onChange={(e) => setEditForm({ ...editForm, allowedScopes: e.target.value })}
-                    placeholder="openid, profile, email"
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Allowed Grant Types (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={editForm.allowedGrants}
-                    onChange={(e) => setEditForm({ ...editForm, allowedGrants: e.target.value })}
-                    placeholder="authorization_code, refresh_token"
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                  />
+                  <label className="block text-sm text-slate-400 mb-2">Permissions</label>
+                  <div className="space-y-2">
+                    {AVAILABLE_SCOPES.map((s) => (
+                      <label key={s.value} className="flex items-center gap-3 p-3 bg-slate-800/30 rounded-xl cursor-pointer hover:bg-slate-800/50 transition">
+                        <input
+                          type="checkbox"
+                          checked={(editForm.scopes || []).includes(s.value)}
+                          onChange={(e) => {
+                            const scopes = e.target.checked
+                              ? [...(editForm.scopes || []), s.value]
+                              : (editForm.scopes || []).filter((v: string) => v !== s.value)
+                            setEditForm({ ...editForm, scopes })
+                          }}
+                          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-violet-500 focus:ring-violet-500"
+                        />
+                        <div>
+                          <p className="text-sm text-white">{s.label}</p>
+                          <p className="text-xs text-slate-500">{s.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div>

@@ -280,11 +280,9 @@ export class AdminService {
   }
 
   async deleteOAuthClient(clientId: string) {
-    // Revoke all tokens for this client
-    await this.refreshTokenRepository.update(
-      { clientId },
-      { revoked: true, revokedAt: new Date() },
-    );
+    // Delete related data first (in case CASCADE not applied in DB)
+    await this.authCodeRepository.delete({ clientId });
+    await this.refreshTokenRepository.delete({ clientId });
 
     // Delete client
     await this.oauthClientRepository.delete({ clientId });

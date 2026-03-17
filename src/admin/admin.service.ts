@@ -157,7 +157,10 @@ export class AdminService {
 
     return clients.map((client) => ({
       ...client,
-      clientSecret: undefined, // Don't expose secrets
+      clientSecretHash: undefined,
+      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
+      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
+      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
     }));
   }
 
@@ -183,7 +186,10 @@ export class AdminService {
 
     return {
       ...client,
-      clientSecret: undefined,
+      clientSecretHash: undefined,
+      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
+      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
+      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
       stats: {
         totalAuthCodes: totalCodes,
         totalTokens,
@@ -238,7 +244,14 @@ export class AdminService {
     const client = await this.oauthClientRepository.findOne({
       where: { clientId },
     });
-    return client ? { ...client, clientSecretHash: undefined } : null;
+    if (!client) return null;
+    return {
+      ...client,
+      clientSecretHash: undefined,
+      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
+      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
+      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
+    };
   }
 
   async rotateClientSecret(clientId: string) {

@@ -11,28 +11,38 @@ async function main() {
   const client = new Client({ connectionString: url });
   await client.connect();
 
-  const columns = ['redirectUris', 'allowedScopes', 'allowedGrants'];
+  const columns = [
+    { name: 'redirectUris', defaultVal: null },
+    { name: 'allowedScopes', defaultVal: "'{}'::text[]" },
+    { name: 'allowedGrants', defaultVal: "'{authorization_code,refresh_token}'::text[]" },
+  ];
 
   for (const col of columns) {
-    // Check if column is already text[]
     const { rows } = await client.query(`
       SELECT data_type FROM information_schema.columns
       WHERE table_name = 'oauth_clients' AND column_name = $1
-    `, [col]);
+    `, [col.name]);
 
     if (rows.length === 0) {
-      console.log(`Column ${col} not found, skipping`);
+      console.log(`Column ${col.name} not found, skipping`);
       continue;
     }
 
     if (rows[0].data_type === 'ARRAY') {
-      console.log(`Column ${col} is already an array, skipping`);
+      console.log(`Column ${col.name} is already an array, skipping`);
       continue;
     }
 
-    console.log(`Converting ${col} from ${rows[0].data_type} to text[]...`);
-    await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col}" TYPE text[] USING "${col}"::text[]`);
-    console.log(`Converted ${col} to text[]`);
+    console.log(`Converting ${col.name} from ${rows[0].data_type} to text[]...`);
+
+    // Drop default first, then convert type, then set new default
+    await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" DROP DEFAULT`);
+    await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" TYPE text[] USING "${col.name}"::text[]`);
+    if (col.defaultVal) {
+      await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" SET DEFAULT ${col.defaultVal}`);
+    }
+
+    console.log(`Converted ${col.name} to text[]`);
   }
 
   await client.end();

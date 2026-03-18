@@ -127,13 +127,13 @@ describe('AdminService', () => {
   describe('getAllOAuthClients', () => {
     it('should normalize array fields', async () => {
       clientRepo.find.mockResolvedValue([
-        { clientId: 'app', allowedScopes: null, allowedGrants: undefined, redirectUris: 'not-array' },
+        { clientId: 'app', allowedScopes: null, allowedGrants: undefined, redirectUris: '{https://a.com,https://b.com}' },
       ]);
 
       const result = await service.getAllOAuthClients();
       expect(result[0].allowedScopes).toEqual([]);
       expect(result[0].allowedGrants).toEqual([]);
-      expect(result[0].redirectUris).toEqual([]);
+      expect(result[0].redirectUris).toEqual(['https://a.com', 'https://b.com']);
     });
   });
 

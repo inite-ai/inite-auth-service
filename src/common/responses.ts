@@ -33,6 +33,17 @@ export function successMessage(message: string): SuccessResponse<null> {
   };
 }
 
+/**
+ * Normalize a Postgres text[] value — handles both JS array and string format {a,b,c}
+ */
+export function parsePostgresArray(raw: any): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    return raw.replace(/^\{|\}$/g, '').split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 // Auth-specific response types
 export interface AuthResponse {
   access_token: string;

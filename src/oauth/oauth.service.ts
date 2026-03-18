@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { parsePostgresArray } from '../common/responses';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -495,7 +496,7 @@ export class OAuthService {
     // All active clients' redirect URI origins
     const clients = await this.clientRepository.find({ where: { active: true } });
     for (const client of clients) {
-      const uris = this.parseRedirectUris(client.redirectUris);
+      const uris = parsePostgresArray(client.redirectUris);
       for (const uri of uris) {
         try { origins.add(new URL(uri).origin); } catch {}
       }
@@ -506,16 +507,6 @@ export class OAuthService {
     return origins;
   }
 
-  /**
-   * Normalize redirectUris from DB — handles both array and Postgres string format
-   */
-  private parseRedirectUris(raw: any): string[] {
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === 'string') {
-      return raw.replace(/^\{|\}$/g, '').split(',').map(s => s.trim()).filter(Boolean);
-    }
-    return [];
-  }
 
   /**
    * Check if an origin is allowed

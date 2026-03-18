@@ -11,6 +11,7 @@ import {
   RefreshToken,
   AuthorizationCode,
 } from '../database/entities';
+import { parsePostgresArray } from '../common/responses';
 
 @Injectable()
 export class AdminService {
@@ -158,9 +159,9 @@ export class AdminService {
     return clients.map((client) => ({
       ...client,
       clientSecretHash: undefined,
-      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
-      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
-      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
+      allowedScopes: parsePostgresArray(client.allowedScopes),
+      allowedGrants: parsePostgresArray(client.allowedGrants),
+      redirectUris: parsePostgresArray(client.redirectUris),
     }));
   }
 
@@ -187,9 +188,9 @@ export class AdminService {
     return {
       ...client,
       clientSecretHash: undefined,
-      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
-      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
-      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
+      allowedScopes: parsePostgresArray(client.allowedScopes),
+      allowedGrants: parsePostgresArray(client.allowedGrants),
+      redirectUris: parsePostgresArray(client.redirectUris),
       stats: {
         totalAuthCodes: totalCodes,
         totalTokens,
@@ -248,9 +249,9 @@ export class AdminService {
     return {
       ...client,
       clientSecretHash: undefined,
-      allowedScopes: Array.isArray(client.allowedScopes) ? client.allowedScopes : [],
-      allowedGrants: Array.isArray(client.allowedGrants) ? client.allowedGrants : [],
-      redirectUris: Array.isArray(client.redirectUris) ? client.redirectUris : [],
+      allowedScopes: parsePostgresArray(client.allowedScopes),
+      allowedGrants: parsePostgresArray(client.allowedGrants),
+      redirectUris: parsePostgresArray(client.redirectUris),
     };
   }
 

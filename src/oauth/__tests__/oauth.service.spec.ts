@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthService } from '../oauth.service';
+import { parsePostgresArray } from '../../common/responses';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
 import {
@@ -141,20 +142,20 @@ describe('OAuthService', () => {
     });
   });
 
-  describe('parseRedirectUris', () => {
+  describe('parsePostgresArray', () => {
     it('should handle array input', () => {
-      const result = (service as any).parseRedirectUris(['https://a.com', 'https://b.com']);
+      const result = parsePostgresArray(['https://a.com', 'https://b.com']);
       expect(result).toEqual(['https://a.com', 'https://b.com']);
     });
 
     it('should handle Postgres string format', () => {
-      const result = (service as any).parseRedirectUris('{https://a.com,https://b.com}');
+      const result = parsePostgresArray('{https://a.com,https://b.com}');
       expect(result).toEqual(['https://a.com', 'https://b.com']);
     });
 
     it('should handle empty/null', () => {
-      expect((service as any).parseRedirectUris(null)).toEqual([]);
-      expect((service as any).parseRedirectUris(undefined)).toEqual([]);
+      expect(parsePostgresArray(null)).toEqual([]);
+      expect(parsePostgresArray(undefined)).toEqual([]);
     });
   });
 

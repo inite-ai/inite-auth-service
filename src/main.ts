@@ -65,12 +65,16 @@ async function bootstrap() {
     try {
       const clients = await clientRepo.find({
         where: { active: true },
-        select: ['redirectUris'],
       });
       for (const client of clients) {
-        const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+        let uris: string[] = [];
+        if (Array.isArray(client.redirectUris)) {
+          uris = client.redirectUris;
+        } else if (typeof client.redirectUris === 'string') {
+          uris = (client.redirectUris as string).replace(/^\{|\}$/g, '').split(',').filter(Boolean);
+        }
         for (const uri of uris) {
-          try { origins.add(new URL(uri).origin); } catch {}
+          try { origins.add(new URL(uri.trim()).origin); } catch {}
         }
       }
     } catch {}

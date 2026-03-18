@@ -484,10 +484,19 @@ export class OAuthService {
       });
 
       for (const client of clients) {
-        const uris = Array.isArray(client.redirectUris) ? client.redirectUris : [];
+        let uris: string[] = [];
+        if (Array.isArray(client.redirectUris)) {
+          uris = client.redirectUris;
+        } else if (typeof client.redirectUris === 'string') {
+          // Postgres text[] can come as "{url1,url2}" string
+          uris = (client.redirectUris as string)
+            .replace(/^\{|\}$/g, '')
+            .split(',')
+            .filter(Boolean);
+        }
         for (const uri of uris) {
           try {
-            if (new URL(uri).origin === origin) return true;
+            if (new URL(uri.trim()).origin === origin) return true;
           } catch {}
         }
       }

@@ -1,18 +1,15 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
-import { MagicLink, User, OAuthParamsDto } from '../database/entities';
+import { PrismaService } from '../prisma/prisma.service';
+import { OAuthParamsDto } from '../common/dto/oauth-params.dto';
 import { IdentityService } from '../identity/identity.service';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class MagicLinkService {
   constructor(
-    @InjectRepository(MagicLink)
-    private readonly magicLinkRepository: Repository<MagicLink>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly identityService: IdentityService,
   ) {}
 
@@ -24,28 +21,24 @@ export class MagicLinkService {
     purpose: 'login' | 'register' | 'verify-email',
     oauthParams?: OAuthParamsDto,
   ): Promise<string> {
-    // Generate secure token
     const token = crypto.randomBytes(32).toString('base64url');
 
-    // Set expiration (15 minutes)
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
-    // Check if user exists
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
 
-    // Save magic link with OAuth params if provided
-    const magicLink = this.magicLinkRepository.create({
-      token,
-      email,
-      userId: existingUser?.id,
-      purpose,
-      expiresAt,
-      used: false,
-      oauthParams: oauthParams?.clientId ? oauthParams : null,
+    await this.prisma.magicLink.create({
+      data: {
+        token,
+        email,
+        userId: existingUser?.id,
+        purpose,
+        expiresAt,
+        used: false,
+        oauthParams: oauthParams?.clientId ? (oauthParams as any) : null,
+      },
     });
-
-    await this.magicLinkRepository.save(magicLink);
 
     return token;
   }
@@ -58,7 +51,7 @@ export class MagicLinkService {
     isNewUser: boolean;
     oauthParams: OAuthParamsDto | null;
   }> {
-    const magicLink = await this.magicLinkRepository.findOne({
+    const magicLink = await this.prisma.magicLink.findFirst({
       where: { token, used: false },
     });
 
@@ -66,40 +59,39 @@ export class MagicLinkService {
       throw new BadRequestException('Invalid or expired magic link');
     }
 
-    // Check expiration
     if (magicLink.expiresAt < new Date()) {
       throw new BadRequestException('Magic link expired');
     }
 
-    // Mark as used
-    magicLink.used = true;
-    magicLink.usedAt = new Date();
-    await this.magicLinkRepository.save(magicLink);
+    await this.prisma.magicLink.update({
+      where: { id: magicLink.id },
+      data: { used: true, usedAt: new Date() },
+    });
 
     let user: User;
     let isNewUser = false;
 
-    // Check if user exists
     if (magicLink.userId) {
-      user = await this.userRepository.findOne({
+      const found = await this.prisma.user.findUnique({
         where: { id: magicLink.userId },
       });
-      if (!user) {
+      if (!found) {
         throw new BadRequestException('User not found');
       }
+      user = found;
     } else {
-      // Create new user
       user = await this.identityService.createIdentity(magicLink.email);
       isNewUser = true;
     }
 
-    // Mark email as verified
     if (!user.emailVerified) {
-      user.emailVerified = true;
-      await this.userRepository.save(user);
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: true },
+      });
     }
 
-    return { user, isNewUser, oauthParams: magicLink.oauthParams };
+    return { user, isNewUser, oauthParams: magicLink.oauthParams as OAuthParamsDto | null };
   }
 
   private readonly logger = new Logger(MagicLinkService.name);
@@ -109,16 +101,11 @@ export class MagicLinkService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
-    const { affected } = await this.magicLinkRepository.delete({
-      expiresAt: LessThan(new Date()),
+    const { count } = await this.prisma.magicLink.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
     });
-    if (affected) {
-      this.logger.log(`Deleted ${affected} expired magic links`);
+    if (count) {
+      this.logger.log(`Deleted ${count} expired magic links`);
     }
   }
 }
-
-
-
-
-

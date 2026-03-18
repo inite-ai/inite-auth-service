@@ -1,24 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { SessionService } from '../session.service';
-import { RefreshToken } from '../../database/entities';
+import { PrismaService } from '../../prisma/prisma.service';
 
 describe('SessionService', () => {
   let service: SessionService;
-  let repo: any;
+  let mockPrisma: any;
 
   beforeEach(async () => {
-    repo = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      save: jest.fn(),
-      update: jest.fn(),
+    mockPrisma = {
+      refreshToken: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
-        { provide: getRepositoryToken(RefreshToken), useValue: repo },
+        { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
 
@@ -30,7 +31,7 @@ describe('SessionService', () => {
       const future = new Date();
       future.setDate(future.getDate() + 7);
 
-      repo.find.mockResolvedValue([
+      mockPrisma.refreshToken.findMany.mockResolvedValue([
         { id: '1', client: { name: 'App' }, createdAt: new Date(), expiresAt: future },
       ]);
 
@@ -39,7 +40,7 @@ describe('SessionService', () => {
       expect(sessions[0].clientName).toBe('App');
 
       // Should filter by revoked=false and expiresAt > now
-      expect(repo.find).toHaveBeenCalledWith(
+      expect(mockPrisma.refreshToken.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             userId: 'user-1',
@@ -52,33 +53,30 @@ describe('SessionService', () => {
 
   describe('revokeSession', () => {
     it('should revoke specific session', async () => {
-      const token = { id: 's1', userId: 'user-1', revoked: false };
-      repo.findOne.mockResolvedValue(token);
-      repo.save.mockResolvedValue({});
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
 
       await service.revokeSession('user-1', 's1');
 
-      expect(repo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ revoked: true }),
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 's1', userId: 'user-1' },
+          data: expect.objectContaining({ revoked: true }),
+        }),
       );
-    });
-
-    it('should do nothing if session not found', async () => {
-      repo.findOne.mockResolvedValue(null);
-      await service.revokeSession('user-1', 'nonexistent');
-      expect(repo.save).not.toHaveBeenCalled();
     });
   });
 
   describe('revokeAllSessions', () => {
     it('should revoke all sessions for user', async () => {
-      repo.update.mockResolvedValue({});
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 3 });
 
       await service.revokeAllSessions('user-1');
 
-      expect(repo.update).toHaveBeenCalledWith(
-        { userId: 'user-1', revoked: false },
-        expect.objectContaining({ revoked: true }),
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', revoked: false },
+          data: expect.objectContaining({ revoked: true }),
+        }),
       );
     });
   });

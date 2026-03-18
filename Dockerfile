@@ -3,13 +3,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Install dependencies
 RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
 
 # Copy source
 COPY src ./src
@@ -23,17 +28,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema
 COPY package*.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
 
+# Generate Prisma client in production
+RUN npx prisma generate
+
 # Copy built app from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/scripts ./scripts
 
 # Create non-root user
@@ -47,6 +54,5 @@ USER nestjs
 
 EXPOSE 3002
 
-# Run migrations and then start the application
-CMD ["sh", "-c", "npm run migration:run && node dist/main"]
-
+# Start the application
+CMD ["node", "dist/main"]

@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
@@ -7,15 +6,15 @@ import { PasskeyService } from '../passkey.service';
 import { MagicLinkService } from '../magic-link.service';
 import { IdentityService } from '../../identity/identity.service';
 import { EmailService } from '../../email/email.service';
-import { User, UserKnownDevice } from '../../database/entities';
+import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let userRepo: any;
+  let mockPrisma: any;
   let jwtService: any;
 
-  const mockUser: Partial<User> = {
+  const mockUser = {
     id: 'user-1',
     did: 'did:key:z6Mk...',
     email: 'test@example.com',
@@ -25,10 +24,17 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
-    userRepo = {
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
+    mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
+      userKnownDevice: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
     };
     jwtService = {
       sign: jest.fn().mockReturnValue('jwt-token'),
@@ -38,8 +44,7 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(UserKnownDevice), useValue: { findOne: jest.fn(), save: jest.fn() } },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: IdentityService, useValue: { createIdentity: jest.fn(), getIdentityById: jest.fn() } },
         { provide: PasskeyService, useValue: {} },
         { provide: MagicLinkService, useValue: {} },
@@ -55,7 +60,7 @@ describe('AuthService', () => {
   describe('loginWithPassword', () => {
     it('should return user and token for valid credentials', async () => {
       const hash = await bcrypt.hash('password123', 10);
-      userRepo.findOne.mockResolvedValue({ ...mockUser, passwordHash: hash });
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: hash });
 
       const result = await service.loginWithPassword('test@example.com', 'password123');
       expect(result.user.email).toBe('test@example.com');
@@ -63,25 +68,25 @@ describe('AuthService', () => {
     });
 
     it('should throw for invalid email', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.loginWithPassword('wrong@example.com', 'pass')).rejects.toThrow('Invalid credentials');
     });
 
     it('should throw for wrong password', async () => {
       const hash = await bcrypt.hash('correct', 10);
-      userRepo.findOne.mockResolvedValue({ ...mockUser, passwordHash: hash });
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: hash });
       await expect(service.loginWithPassword('test@example.com', 'wrong')).rejects.toThrow('Invalid credentials');
     });
 
     it('should throw for user without password', async () => {
-      userRepo.findOne.mockResolvedValue({ ...mockUser, passwordHash: null });
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: null });
       await expect(service.loginWithPassword('test@example.com', 'pass')).rejects.toThrow('Invalid credentials');
     });
   });
 
   describe('generateTokenForUser', () => {
     it('should generate JWT with user claims', () => {
-      service.generateTokenForUser(mockUser as User);
+      service.generateTokenForUser(mockUser as any);
       expect(jwtService.sign).toHaveBeenCalledWith(
         expect.objectContaining({
           sub: mockUser.did,
@@ -93,7 +98,7 @@ describe('AuthService', () => {
     });
 
     it('should not include metadata in token', () => {
-      service.generateTokenForUser(mockUser as User);
+      service.generateTokenForUser(mockUser as any);
       const payload = jwtService.sign.mock.calls[0][0];
       expect(payload.metadata).toBeUndefined();
     });
@@ -114,32 +119,32 @@ describe('AuthService', () => {
 
   describe('requestPasswordReset', () => {
     it('should not throw for non-existent email', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.requestPasswordReset('nonexistent@example.com')).resolves.not.toThrow();
     });
 
     it('should hash the reset token before saving', async () => {
-      userRepo.findOne.mockResolvedValue({ ...mockUser });
-      userRepo.save.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser });
+      mockPrisma.user.update.mockResolvedValue({});
 
       await service.requestPasswordReset('test@example.com');
 
-      const savedUser = userRepo.save.mock.calls[0][0];
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
       // Token should be a hex string (SHA-256 hash), not base64url
-      expect(savedUser.passwordResetToken).toMatch(/^[a-f0-9]{64}$/);
+      expect(updateCall.data.passwordResetToken).toMatch(/^[a-f0-9]{64}$/);
     });
   });
 
   describe('resetPassword', () => {
     it('should throw for invalid token', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
       await expect(service.resetPassword('bad-token', 'newpass')).rejects.toThrow('Invalid reset token');
     });
 
     it('should throw for expired token', async () => {
       const expired = new Date();
       expired.setHours(expired.getHours() - 2);
-      userRepo.findOne.mockResolvedValue({
+      mockPrisma.user.findFirst.mockResolvedValue({
         ...mockUser,
         passwordResetToken: 'hash',
         passwordResetExpires: expired,

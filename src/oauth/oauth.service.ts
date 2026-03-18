@@ -5,34 +5,20 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { parsePostgresArray } from '../common/responses';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import {
-  OAuthClient,
-  AuthorizationCode,
-  RefreshToken,
-  User,
-} from '../database/entities';
+import { OAuthClient, User } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
 
 @Injectable()
 export class OAuthService {
   constructor(
-    @InjectRepository(OAuthClient)
-    private readonly clientRepository: Repository<OAuthClient>,
-    @InjectRepository(AuthorizationCode)
-    private readonly authCodeRepository: Repository<AuthorizationCode>,
-    @InjectRepository(RefreshToken)
-    private readonly refreshTokenRepository: Repository<RefreshToken>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly pkceService: PkceService,
@@ -51,20 +37,14 @@ export class OAuthService {
     clientId: string,
     clientSecret?: string,
   ): Promise<OAuthClient> {
-    const client = await this.clientRepository.findOne({
+    const client = await this.prisma.oAuthClient.findFirst({
       where: { clientId, active: true },
-      select: [
-        'id', 'clientId', 'clientSecretHash', 'name',
-        'redirectUris', 'allowedScopes', 'allowedGrants',
-        'logoUrl', 'privacyPolicyUrl', 'termsOfServiceUrl',
-      ],
     });
 
     if (!client) {
       throw new UnauthorizedException('Invalid client');
     }
 
-    // Verify client secret when provided
     if (clientSecret) {
       const isValid = await bcrypt.compare(clientSecret, client.clientSecretHash);
       if (!isValid) {
@@ -89,8 +69,7 @@ export class OAuthService {
   }
 
   /**
-   * Normalize scope — default to standard OIDC scopes if empty.
-   * Auth service doesn't restrict scopes — apps handle their own permissions.
+   * Normalize scope
    */
   normalizeScope(requestedScope: string): string {
     const scopes = this.parseScope(requestedScope);
@@ -146,27 +125,24 @@ export class OAuthService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
   ): Promise<string> {
-    // Generate authorization code
     const code = crypto.randomBytes(32).toString('base64url');
 
-    // Set expiration (10 minutes)
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
-    // Save authorization code
-    const authCode = this.authCodeRepository.create({
-      code,
-      userId,
-      clientId,
-      redirectUri,
-      scope,
-      codeChallenge,
-      codeChallengeMethod,
-      expiresAt,
-      used: false,
+    await this.prisma.authorizationCode.create({
+      data: {
+        code,
+        userId,
+        clientId,
+        redirectUri,
+        scope,
+        codeChallenge,
+        codeChallengeMethod,
+        expiresAt,
+        used: false,
+      },
     });
-
-    await this.authCodeRepository.save(authCode);
 
     return code;
   }
@@ -186,31 +162,29 @@ export class OAuthService {
     expiresIn: number;
     scope: string;
   }> {
-    // Find authorization code
-    const authCode = await this.authCodeRepository.findOne({
+    const authCode = await this.prisma.authorizationCode.findFirst({
       where: { code, clientId, used: false },
-      relations: ['user'],
+      include: { user: true },
     });
 
     if (!authCode) {
       throw new BadRequestException('Invalid or expired authorization code');
     }
 
-    // Check if code is expired
     if (authCode.expiresAt < new Date()) {
       throw new BadRequestException('Authorization code expired');
     }
 
-    // Verify redirect URI matches
     if (authCode.redirectUri !== redirectUri) {
       throw new BadRequestException('Redirect URI mismatch');
     }
 
     // Mark code as used IMMEDIATELY to prevent race conditions
-    authCode.used = true;
-    await this.authCodeRepository.save(authCode);
+    await this.prisma.authorizationCode.update({
+      where: { id: authCode.id },
+      data: { used: true },
+    });
 
-    // Verify PKCE if code challenge was provided
     if (authCode.codeChallenge) {
       if (!codeVerifier) {
         throw new BadRequestException('Code verifier required');
@@ -227,14 +201,11 @@ export class OAuthService {
       }
     }
 
-    // Generate tokens
-    const tokens = await this.generateTokens(
+    return await this.generateTokens(
       authCode.user,
       clientId,
       authCode.scope,
     );
-
-    return tokens;
   }
 
   /**
@@ -253,7 +224,6 @@ export class OAuthService {
   }> {
     const issuer = this.configService.get<string>('JWT_ISSUER', 'auth.inite.ai');
 
-    // Access Token (short-lived)
     const accessTokenExpiry = this.configService.get<string>(
       'JWT_ACCESS_TOKEN_EXPIRY',
       '10m',
@@ -267,7 +237,7 @@ export class OAuthService {
         email_verified: user.emailVerified,
         name: user.name,
         picture: user.avatarUrl,
-        roles: user.metadata?.roles || ['user'],
+        roles: (user.metadata as any)?.roles || ['user'],
         scope,
       },
       {
@@ -277,7 +247,6 @@ export class OAuthService {
       },
     );
 
-    // ID Token (OIDC standard claims)
     const idToken = this.jwtService.sign(
       {
         sub: user.did,
@@ -285,7 +254,7 @@ export class OAuthService {
         email_verified: user.emailVerified,
         name: user.name,
         picture: user.avatarUrl,
-        roles: user.metadata?.roles || ['user'],
+        roles: (user.metadata as any)?.roles || ['user'],
       },
       {
         expiresIn: accessTokenExpiry as any,
@@ -294,33 +263,28 @@ export class OAuthService {
       },
     );
 
-    // Refresh Token (long-lived: 7 days)
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
     const refreshTokenHash = await bcrypt.hash(refreshTokenValue, 10);
 
-    const refreshTokenExpiry = this.configService.get<string>(
-      'JWT_REFRESH_TOKEN_EXPIRY',
-      '7d',
-    );
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const refreshToken = this.refreshTokenRepository.create({
-      tokenHash: refreshTokenHash,
-      userId: user.id,
-      clientId,
-      scope,
-      expiresAt,
-      revoked: false,
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: refreshTokenHash,
+        userId: user.id,
+        clientId,
+        scope,
+        expiresAt,
+        revoked: false,
+      },
     });
-
-    await this.refreshTokenRepository.save(refreshToken);
 
     return {
       accessToken,
       refreshToken: refreshTokenValue,
       idToken,
-      expiresIn: 600, // 10 minutes in seconds
+      expiresIn: 600,
       scope,
     };
   }
@@ -338,18 +302,16 @@ export class OAuthService {
     expiresIn: number;
     scope: string;
   }> {
-    // Find all non-revoked, non-expired refresh tokens for this client
-    const existingTokens = await this.refreshTokenRepository.find({
+    const existingTokens = await this.prisma.refreshToken.findMany({
       where: {
         clientId,
         revoked: false,
-        expiresAt: MoreThan(new Date()),
+        expiresAt: { gt: new Date() },
       },
-      relations: ['user'],
+      include: { user: true },
     });
 
-    // Find matching token by comparing hashes
-    let matchedToken: RefreshToken | null = null;
+    let matchedToken: (typeof existingTokens)[0] | null = null;
     for (const token of existingTokens) {
       const isMatch = await bcrypt.compare(refreshTokenValue, token.tokenHash);
       if (isMatch) {
@@ -362,17 +324,15 @@ export class OAuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    // Check if token is expired
     if (matchedToken.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // Revoke old refresh token
-    matchedToken.revoked = true;
-    matchedToken.revokedAt = new Date();
-    await this.refreshTokenRepository.save(matchedToken);
+    await this.prisma.refreshToken.update({
+      where: { id: matchedToken.id },
+      data: { revoked: true, revokedAt: new Date() },
+    });
 
-    // Generate new tokens (including new refresh token - rotation)
     const tokens = await this.generateTokens(
       matchedToken.user,
       clientId,
@@ -381,14 +341,10 @@ export class OAuthService {
 
     // Update the new refresh token's rotatedFrom field
     const newRefreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
-    const newToken = await this.refreshTokenRepository.findOne({
+    await this.prisma.refreshToken.updateMany({
       where: { tokenHash: newRefreshTokenHash },
+      data: { rotatedFrom: matchedToken.id },
     });
-
-    if (newToken) {
-      newToken.rotatedFrom = matchedToken.id;
-      await this.refreshTokenRepository.save(newToken);
-    }
 
     return tokens;
   }
@@ -397,28 +353,27 @@ export class OAuthService {
    * Revoke refresh token
    */
   async revokeToken(token: string, clientId: string): Promise<void> {
-    const tokens = await this.refreshTokenRepository.find({
+    const tokens = await this.prisma.refreshToken.findMany({
       where: { clientId, revoked: false },
     });
 
     for (const dbToken of tokens) {
       const isMatch = await bcrypt.compare(token, dbToken.tokenHash);
       if (isMatch) {
-        dbToken.revoked = true;
-        dbToken.revokedAt = new Date();
-        await this.refreshTokenRepository.save(dbToken);
+        await this.prisma.refreshToken.update({
+          where: { id: dbToken.id },
+          data: { revoked: true, revokedAt: new Date() },
+        });
         return;
       }
     }
-
-    // Don't throw error if token not found (per OAuth2 spec)
   }
 
   /**
    * Get user info (OIDC endpoint)
    */
   async getUserInfo(userId: string): Promise<any> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -451,24 +406,24 @@ export class OAuthService {
   ): Promise<OAuthClient> {
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
 
-    const client = this.clientRepository.create({
-      clientId,
-      clientSecretHash,
-      name,
-      redirectUris,
-      allowedScopes,
-      allowedGrants: ['authorization_code', 'refresh_token'],
-      active: true,
+    return await this.prisma.oAuthClient.create({
+      data: {
+        clientId,
+        clientSecretHash,
+        name,
+        redirectUris,
+        allowedScopes,
+        allowedGrants: ['authorization_code', 'refresh_token'],
+        active: true,
+      },
     });
-
-    return await this.clientRepository.save(client);
   }
 
   getFrontendUrl(): string {
     return this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
   }
 
-  // Cache for allowed origins, shared with isAllowedOrigin
+  // Cache for allowed origins
   private allowedOriginsCache = new Set<string>();
   private allowedOriginsCacheTime = 0;
 
@@ -483,21 +438,17 @@ export class OAuthService {
 
     const origins = new Set<string>();
 
-    // FRONTEND_URL
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', '');
     if (frontendUrl) origins.add(frontendUrl.replace(/\/$/, ''));
 
-    // CORS_ORIGINS env
     const extra = this.configService.get<string>('CORS_ORIGINS', '');
     for (const o of extra.split(',').filter(Boolean)) {
       origins.add(o.replace(/\/$/, ''));
     }
 
-    // All active clients' redirect URI origins
-    const clients = await this.clientRepository.find({ where: { active: true } });
+    const clients = await this.prisma.oAuthClient.findMany({ where: { active: true } });
     for (const client of clients) {
-      const uris = parsePostgresArray(client.redirectUris);
-      for (const uri of uris) {
+      for (const uri of client.redirectUris) {
         try { origins.add(new URL(uri).origin); } catch {}
       }
     }
@@ -506,7 +457,6 @@ export class OAuthService {
     this.allowedOriginsCacheTime = now;
     return origins;
   }
-
 
   /**
    * Check if an origin is allowed
@@ -534,18 +484,15 @@ export class OAuthService {
     this.logger.log('Cleaning up expired tokens and codes...');
     const now = new Date();
 
-    // Delete expired authorization codes
-    await this.authCodeRepository.delete({
-      expiresAt: LessThan(now),
+    await this.prisma.authorizationCode.deleteMany({
+      where: { expiresAt: { lt: now } },
     });
 
-    // Delete expired refresh tokens
-    const { affected } = await this.refreshTokenRepository.delete({
-      expiresAt: LessThan(now),
+    const { count } = await this.prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: now } },
     });
-    if (affected) {
-      this.logger.log(`Deleted ${affected} expired refresh tokens`);
+    if (count) {
+      this.logger.log(`Deleted ${count} expired refresh tokens`);
     }
   }
 }
-

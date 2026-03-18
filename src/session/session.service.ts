@@ -1,27 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { RefreshToken } from '../database/entities';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SessionService {
-  constructor(
-    @InjectRepository(RefreshToken)
-    private readonly refreshTokenRepository: Repository<RefreshToken>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Get active (non-expired, non-revoked) sessions for user
    */
   async getActiveSessions(userId: string): Promise<any[]> {
-    const tokens = await this.refreshTokenRepository.find({
+    const tokens = await this.prisma.refreshToken.findMany({
       where: {
         userId,
         revoked: false,
-        expiresAt: MoreThan(new Date()),
+        expiresAt: { gt: new Date() },
       },
-      relations: ['client'],
-      order: { createdAt: 'DESC' },
+      include: { client: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return tokens.map((token) => ({
@@ -36,29 +31,19 @@ export class SessionService {
    * Revoke session
    */
   async revokeSession(userId: string, sessionId: string): Promise<void> {
-    const token = await this.refreshTokenRepository.findOne({
+    await this.prisma.refreshToken.updateMany({
       where: { id: sessionId, userId },
+      data: { revoked: true, revokedAt: new Date() },
     });
-
-    if (token) {
-      token.revoked = true;
-      token.revokedAt = new Date();
-      await this.refreshTokenRepository.save(token);
-    }
   }
 
   /**
    * Revoke all sessions for user
    */
   async revokeAllSessions(userId: string): Promise<void> {
-    await this.refreshTokenRepository.update(
-      { userId, revoked: false },
-      { revoked: true, revokedAt: new Date() },
-    );
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true, revokedAt: new Date() },
+    });
   }
 }
-
-
-
-
-

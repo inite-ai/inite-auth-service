@@ -1,32 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { IdentityService } from '../identity.service';
 import { DidService } from '../did.service';
 import { EmailService } from '../../email/email.service';
-import { User, Wallet } from '../../database/entities';
+import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
 describe('IdentityService', () => {
   let service: IdentityService;
-  let userRepo: any;
+  let mockPrisma: any;
 
   beforeEach(async () => {
-    userRepo = {
-      findOne: jest.fn(),
-      find: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      createQueryBuilder: jest.fn(),
+    mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      wallet: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        delete: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IdentityService,
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Wallet), useValue: { find: jest.fn(), findOne: jest.fn(), create: jest.fn(), save: jest.fn(), remove: jest.fn() } },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: DidService, useValue: { generateDid: jest.fn().mockResolvedValue({ did: 'did:key:test', publicKey: 'pk', privateKey: 'sk' }) } },
         { provide: EmailService, useValue: { sendEmailVerification: jest.fn(), sendEmailChangeVerification: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') } },
@@ -38,29 +44,29 @@ describe('IdentityService', () => {
 
   describe('changePassword', () => {
     it('should reject password shorter than 8 chars', async () => {
-      userRepo.findOne.mockResolvedValue({ id: '1', passwordHash: null });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
       await expect(service.changePassword('1', '', 'short')).rejects.toThrow('at least 8 characters');
     });
 
     it('should reject password without uppercase', async () => {
-      userRepo.findOne.mockResolvedValue({ id: '1', passwordHash: null });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
       await expect(service.changePassword('1', '', 'lowercase1')).rejects.toThrow('uppercase');
     });
 
     it('should reject password without number', async () => {
-      userRepo.findOne.mockResolvedValue({ id: '1', passwordHash: null });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
       await expect(service.changePassword('1', '', 'NoNumbers')).rejects.toThrow('number');
     });
 
     it('should accept valid password', async () => {
-      userRepo.findOne.mockResolvedValue({ id: '1', passwordHash: null });
-      userRepo.update.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
+      mockPrisma.user.update.mockResolvedValue({});
       await expect(service.changePassword('1', '', 'ValidPass1')).resolves.not.toThrow();
     });
 
     it('should verify current password if set', async () => {
       const hash = await bcrypt.hash('oldpass', 10);
-      userRepo.findOne.mockResolvedValue({ id: '1', passwordHash: hash });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: hash });
       await expect(service.changePassword('1', 'wrongold', 'NewPass1')).rejects.toThrow('incorrect');
     });
   });
@@ -68,8 +74,10 @@ describe('IdentityService', () => {
   describe('updateMetadata', () => {
     it('should strip isAdmin and roles from metadata update', async () => {
       const user = { id: '1', metadata: { existing: true }, wallets: [], passkeys: [] };
-      userRepo.findOne.mockResolvedValue(user);
-      userRepo.save.mockImplementation((u: any) => Promise.resolve(u));
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+        Promise.resolve({ ...user, metadata: data.metadata }),
+      );
 
       const result = await service.updateMetadata('1', {
         isAdmin: true,
@@ -77,10 +85,10 @@ describe('IdentityService', () => {
         customField: 'value',
       });
 
-      expect(result.metadata.isAdmin).toBeUndefined();
-      expect(result.metadata.roles).toBeUndefined();
-      expect(result.metadata.customField).toBe('value');
-      expect(result.metadata.existing).toBe(true);
+      expect((result.metadata as any).isAdmin).toBeUndefined();
+      expect((result.metadata as any).roles).toBeUndefined();
+      expect((result.metadata as any).customField).toBe('value');
+      expect((result.metadata as any).existing).toBe(true);
     });
   });
 
@@ -88,12 +96,12 @@ describe('IdentityService', () => {
     it('should verify email with valid token', async () => {
       const future = new Date();
       future.setHours(future.getHours() + 1);
-      userRepo.findOne.mockResolvedValue({
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
         id: '1',
         emailVerificationToken: 'valid-token',
         emailVerificationExpires: future,
       });
-      userRepo.update.mockResolvedValue({});
+      mockPrisma.user.update.mockResolvedValue({});
 
       const result = await service.verifyEmail('valid-token');
       expect(result.success).toBe(true);
@@ -102,7 +110,7 @@ describe('IdentityService', () => {
     it('should reject expired verification token', async () => {
       const past = new Date();
       past.setHours(past.getHours() - 1);
-      userRepo.findOne.mockResolvedValue({
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
         id: '1',
         emailVerificationToken: 'expired',
         emailVerificationExpires: past,

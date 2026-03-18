@@ -1,17 +1,7 @@
-import { DataSource } from 'typeorm';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { OAuthClient } from '../src/database/entities';
 
-const dataSource = new DataSource({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'inite_auth',
-  entities: [OAuthClient],
-  synchronize: false,
-});
+const prisma = new PrismaClient();
 
 // Smart Chat Admin OAuth Client Configuration
 const adminClient = {
@@ -32,13 +22,10 @@ const adminClient = {
 
 async function registerAdminClient() {
   try {
-    await dataSource.initialize();
-    const clientRepo = dataSource.getRepository(OAuthClient);
-
     console.log('🔐 Registering Smart Chat Admin OAuth2 Client...\n');
 
     // Check if client already exists
-    const existing = await clientRepo.findOne({
+    const existing = await prisma.oAuthClient.findUnique({
       where: { clientId: adminClient.clientId },
     });
 
@@ -48,28 +35,31 @@ async function registerAdminClient() {
 
       // Update existing client - but NEVER touch the secret!
       // Secret should only be changed via admin panel rotation
-      existing.name = adminClient.name;
-      existing.redirectUris = adminClient.redirectUris;
-      existing.allowedScopes = adminClient.allowedScopes;
-      existing.allowedGrants = adminClient.allowedGrants;
-      existing.active = true;
-
-      await clientRepo.save(existing);
+      await prisma.oAuthClient.update({
+        where: { clientId: adminClient.clientId },
+        data: {
+          name: adminClient.name,
+          redirectUris: adminClient.redirectUris,
+          allowedScopes: adminClient.allowedScopes,
+          allowedGrants: adminClient.allowedGrants,
+          active: true,
+        },
+      });
       console.log(`   ✅ Configuration updated! (secret unchanged)`);
     } else {
       const clientSecretHash = await bcrypt.hash(adminClient.clientSecret, 10);
 
-      const newClient = clientRepo.create({
-        clientId: adminClient.clientId,
-        clientSecretHash,
-        name: adminClient.name,
-        redirectUris: adminClient.redirectUris,
-        allowedScopes: adminClient.allowedScopes,
-        allowedGrants: adminClient.allowedGrants,
-        active: true,
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: adminClient.clientId,
+          clientSecretHash,
+          name: adminClient.name,
+          redirectUris: adminClient.redirectUris,
+          allowedScopes: adminClient.allowedScopes,
+          allowedGrants: adminClient.allowedGrants,
+          active: true,
+        },
       });
-
-      await clientRepo.save(newClient);
 
       console.log(`✅ Registered: ${adminClient.name}`);
       console.log(`   Client ID: ${adminClient.clientId}`);
@@ -89,7 +79,7 @@ async function registerAdminClient() {
     console.log('   2. Add to admin .env: REACT_APP_USE_OAUTH=true');
     console.log('   3. Auth Service URL: REACT_APP_AUTH_SERVICE_URL=https://auth.inite.ai');
 
-    await dataSource.destroy();
+    await prisma.$disconnect();
     console.log('\n✅ Done!');
   } catch (error) {
     console.error('❌ Error registering admin client:', error);
@@ -98,5 +88,3 @@ async function registerAdminClient() {
 }
 
 registerAdminClient();
-
-

@@ -1,17 +1,7 @@
-import { DataSource } from 'typeorm';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { OAuthClient } from '../src/database/entities';
 
-const dataSource = new DataSource({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'inite_auth',
-  entities: [OAuthClient],
-  synchronize: false,
-});
+const prisma = new PrismaClient();
 
 const clients = [
   {
@@ -83,14 +73,11 @@ const clients = [
 ];
 
 async function registerClients() {
-  await dataSource.initialize();
-  const clientRepo = dataSource.getRepository(OAuthClient);
-
   console.log('🔐 Registering OAuth2 clients...\n');
 
   for (const client of clients) {
     // Check if client already exists
-    const existing = await clientRepo.findOne({
+    const existing = await prisma.oAuthClient.findUnique({
       where: { clientId: client.clientId },
     });
 
@@ -103,17 +90,17 @@ async function registerClients() {
     const clientSecretHash = await bcrypt.hash(client.clientSecret, 10);
 
     // Create client
-    const newClient = clientRepo.create({
-      clientId: client.clientId,
-      clientSecretHash,
-      name: client.name,
-      redirectUris: client.redirectUris,
-      allowedScopes: client.allowedScopes,
-      allowedGrants: ['authorization_code', 'refresh_token'],
-      active: true,
+    await prisma.oAuthClient.create({
+      data: {
+        clientId: client.clientId,
+        clientSecretHash,
+        name: client.name,
+        redirectUris: client.redirectUris,
+        allowedScopes: client.allowedScopes,
+        allowedGrants: ['authorization_code', 'refresh_token'],
+        active: true,
+      },
     });
-
-    await clientRepo.save(newClient);
 
     console.log(`✅ Registered: ${client.name}`);
     console.log(`   Client ID: ${client.clientId}`);
@@ -125,15 +112,10 @@ async function registerClients() {
   console.log('🎉 All clients registered successfully!');
   console.log('\n⚠️  IMPORTANT: Store client secrets securely in your environment variables!');
 
-  await dataSource.destroy();
+  await prisma.$disconnect();
 }
 
 registerClients().catch((error) => {
   console.error('❌ Error registering clients:', error);
   process.exit(1);
 });
-
-
-
-
-

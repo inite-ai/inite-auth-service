@@ -1,11 +1,11 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { User, OAuthParamsDto, UserKnownDevice } from '../database/entities';
+import { User } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { OAuthParamsDto } from '../common/dto/oauth-params.dto';
 import { IdentityService } from '../identity/identity.service';
 import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
@@ -17,10 +17,7 @@ export class AuthService {
   private readonly logger = new LoggerService();
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(UserKnownDevice)
-    private readonly userKnownDeviceRepository: Repository<UserKnownDevice>,
+    private readonly prisma: PrismaService,
     private readonly identityService: IdentityService,
     private readonly passkeyService: PasskeyService,
     private readonly magicLinkService: MagicLinkService,
@@ -33,37 +30,29 @@ export class AuthService {
 
   /**
    * Create user account for passkey registration (no password)
-   * @param email - User email
-   * @param name - User name (optional)
-   * @param allowExisting - If true, return existing user info; if false, throw error if user exists
    */
   async createUserForPasskey(
     email: string,
     name?: string,
     allowExisting: boolean = false,
   ): Promise<{ user: User; accessToken: string; isExistingUser: boolean }> {
-    // Check if user exists
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       if (allowExisting) {
-        // If user exists and we allow it, return info but mark as existing
-        // Frontend should require verification before allowing passkey registration
         const accessToken = this.generateAccessToken(existingUser);
         return { user: existingUser, accessToken, isExistingUser: true };
       } else {
-        // If user exists and we don't allow it, throw error (for registration flow)
         throw new BadRequestException('User with this email already exists. Please sign in instead.');
       }
     }
 
-    // Create identity with DID
-    const user = await this.identityService.createIdentity(email, name);
-    
-    // Mark email as verified since they're registering with passkey
-    user.emailVerified = true;
-    await this.userRepository.save(user);
+    let user = await this.identityService.createIdentity(email, name);
 
-    // Send welcome email
+    user = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true },
+    });
+
     try {
       const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
       if (emailSent) {
@@ -72,13 +61,10 @@ export class AuthService {
         this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
       }
     } catch (error: any) {
-      // Log but don't fail registration if email fails
       this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
-    // Generate access token
     const accessToken = this.generateAccessToken(user);
-
     return { user, accessToken, isExistingUser: false };
   }
 
@@ -90,21 +76,19 @@ export class AuthService {
     password: string,
     name?: string,
   ): Promise<{ user: User; accessToken: string }> {
-    // Check if user exists
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       throw new BadRequestException('User with this email already exists');
     }
 
-    // Create identity with DID
-    const user = await this.identityService.createIdentity(email, name);
+    let user = await this.identityService.createIdentity(email, name);
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
-    user.passwordHash = passwordHash;
-    await this.userRepository.save(user);
+    user = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
 
-    // Send welcome email
     try {
       const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
       if (emailSent) {
@@ -113,13 +97,10 @@ export class AuthService {
         this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
       }
     } catch (error: any) {
-      // Log but don't fail registration if email fails
       this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
-    // Generate access token
     const accessToken = this.generateAccessToken(user);
-
     return { user, accessToken };
   }
 
@@ -130,45 +111,36 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ user: User; accessToken: string }> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { email },
-      select: ['id', 'did', 'email', 'emailVerified', 'name', 'avatarUrl', 'passwordHash', 'metadata'],
+      select: { id: true, did: true, email: true, emailVerified: true, name: true, avatarUrl: true, passwordHash: true, metadata: true },
     });
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Verify password
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate access token
-    const accessToken = this.generateAccessToken(user);
-
-    return { user, accessToken };
+    const accessToken = this.generateAccessToken(user as any);
+    return { user: user as any, accessToken };
   }
 
   /**
    * Send magic link to email
-   * @param email - User email
-   * @param oauthParams - OAuth parameters to preserve for redirect after verification
    */
   async sendMagicLink(email: string, oauthParams?: OAuthParamsDto): Promise<void> {
-    // Check if user exists
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     const purpose = existingUser ? 'login' : 'register';
 
-    // Generate magic link with OAuth params preserved
     const token = await this.magicLinkService.generateMagicLink(email, purpose, oauthParams);
 
-    // Build magic link URL - points to frontend /verify page, not API endpoint
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
     const magicLinkUrl = `${frontendUrl}/verify?token=${token}`;
 
-    // Send email with magic link
     await this.emailService.sendMagicLink(email, magicLinkUrl, existingUser?.name);
   }
 
@@ -182,8 +154,7 @@ export class AuthService {
     oauthParams: OAuthParamsDto | null;
   }> {
     const { user, isNewUser, oauthParams } = await this.magicLinkService.verifyMagicLink(token);
-    
-    // Send welcome email if new user
+
     if (isNewUser) {
       try {
         const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
@@ -193,13 +164,11 @@ export class AuthService {
           this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
         }
       } catch (error: any) {
-        // Log but don't fail authentication if email fails
         this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
       }
     }
-    
-    const accessToken = this.generateAccessToken(user);
 
+    const accessToken = this.generateAccessToken(user);
     return { user, accessToken, isNewUser, oauthParams };
   }
 
@@ -207,29 +176,26 @@ export class AuthService {
    * Request password reset
    */
   async requestPasswordReset(email: string): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { email } });
-    
-    if (!user) {
-      // Don't reveal if user exists for security
-      return;
-    }
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
-    // Generate reset token — store hash, send plaintext in email
+    if (!user) return;
+
     const resetToken = crypto.randomBytes(32).toString('base64url');
     const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetExpires = new Date();
-    resetExpires.setHours(resetExpires.getHours() + 1); // 1 hour expiry
+    resetExpires.setHours(resetExpires.getHours() + 1);
 
-    // Save hashed token
-    user.passwordResetToken = resetTokenHash;
-    user.passwordResetExpires = resetExpires;
-    await this.userRepository.save(user);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetTokenHash,
+        passwordResetExpires: resetExpires,
+      },
+    });
 
-    // Build reset URL with plaintext token
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-    // Send password reset email
     await this.emailService.sendPasswordReset(
       { email: user.email, name: user.name },
       resetUrl,
@@ -243,9 +209,8 @@ export class AuthService {
     user: User;
     accessToken: string;
   }> {
-    // Hash the incoming token to compare with stored hash
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findFirst({
       where: { passwordResetToken: tokenHash },
     });
 
@@ -257,17 +222,18 @@ export class AuthService {
       throw new BadRequestException('Reset token expired');
     }
 
-    // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    user.passwordHash = passwordHash;
-    user.passwordResetToken = null;
-    user.passwordResetExpires = null;
-    await this.userRepository.save(user);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
 
-    // Generate access token
-    const accessToken = this.generateAccessToken(user);
-
-    return { user, accessToken };
+    const accessToken = this.generateAccessToken(updated);
+    return { user: updated, accessToken };
   }
 
   /**
@@ -280,14 +246,14 @@ export class AuthService {
   /**
    * Generate JWT access token (internal)
    */
-  private generateAccessToken(user: User): string {
+  private generateAccessToken(user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>): string {
     return this.generateTokenForUser(user);
   }
 
   /**
    * Generate JWT access token for user (public - for session-based auth)
    */
-  generateTokenForUser(user: User): string {
+  generateTokenForUser(user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>): string {
     const payload = {
       sub: user.did,
       userId: user.id,
@@ -314,7 +280,6 @@ export class AuthService {
 
   /**
    * If login is from a new device, record it and send "new device" email.
-   * Call after successful login (password, magic link, passkey).
    */
   async notifyNewDeviceIfNeeded(
     userId: string,
@@ -325,20 +290,19 @@ export class AuthService {
 
     const fingerprint = crypto.createHash('sha256').update(raw).digest('hex');
 
-    const existing = await this.userKnownDeviceRepository.findOne({
-      where: { userId, fingerprint },
+    const existing = await this.prisma.userKnownDevice.findUnique({
+      where: { userId_fingerprint: { userId, fingerprint } },
     });
     if (existing) return;
 
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'email', 'name'],
+      select: { id: true, email: true, name: true },
     });
     if (!user?.email) return;
 
-    await this.userKnownDeviceRepository.save({
-      userId,
-      fingerprint,
+    await this.prisma.userKnownDevice.create({
+      data: { userId, fingerprint },
     });
 
     const deviceInfo = opts.userAgent
@@ -358,4 +322,3 @@ export class AuthService {
     }
   }
 }
-

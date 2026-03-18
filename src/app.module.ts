@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
+import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { IdentityModule } from './identity/identity.module';
 import { OAuthModule } from './oauth/oauth.module';
@@ -31,25 +31,8 @@ import { HealthController } from './common/health.controller';
     // Scheduled tasks
     ScheduleModule.forRoot(),
 
-    // Database
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get<string>('DB_USER', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME', 'inite_auth'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
-        migrationsRun: true,
-        logging: configService.get<string>('NODE_ENV') !== 'production',
-        retryAttempts: 5,
-        retryDelay: 3000,
-      }),
-    }),
+    // Database (Prisma - global module)
+    PrismaModule,
 
     // JWT: RS256 (JWKS) when JWT_PRIVATE_KEY set, else HS256 (JWT_SECRET)
     JwtModule.registerAsync({
@@ -95,4 +78,3 @@ import { HealthController } from './common/health.controller';
   ],
 })
 export class AppModule {}
-

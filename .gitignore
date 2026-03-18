@@ -46,3 +46,5 @@ frontend/node_modules/
 *.db-shm
 *.db-wal
 hardhat-state/
+
+/generated/prisma

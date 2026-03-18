@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                       String    @id @default(uuid()) @db.Uuid
+  did                      String    @unique
+  email                    String?   @unique
+  emailVerified            Boolean   @default(false) @map("emailVerified")
+  name                     String?
+  avatarUrl                String?   @map("avatarUrl")
+  bio                      String?
+  location                 String?
+  profession               String?
+  passwordHash             String?   @map("passwordHash")
+  twoFactorSecret          String?   @map("twoFactorSecret")
+  twoFactorEnabled         Boolean   @default(false) @map("twoFactorEnabled")
+  emailVerificationToken   String?   @map("emailVerificationToken")
+  emailVerificationExpires DateTime? @map("emailVerificationExpires")
+  passwordResetToken       String?   @map("passwordResetToken")
+  passwordResetExpires     DateTime? @map("passwordResetExpires")
+  metadata                 Json?
+  createdAt                DateTime  @default(now()) @map("createdAt")
+  updatedAt                DateTime  @updatedAt @map("updatedAt")
+
+  passkeys           Passkey[]
+  wallets            Wallet[]
+  refreshTokens      RefreshToken[]
+  authorizationCodes AuthorizationCode[]
+  magicLinks         MagicLink[]
+  knownDevices       UserKnownDevice[]
+
+  @@map("users")
+}
+
+model Passkey {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("userId") @db.Uuid
+  credentialId String   @unique @map("credentialId")
+  publicKey    String   @map("publicKey") @db.Text
+  counter      Int      @default(0)
+  deviceType   String?  @map("deviceType")
+  deviceName   String?  @map("deviceName")
+  transports   Json?
+  createdAt    DateTime @default(now()) @map("createdAt")
+  lastUsedAt   DateTime @updatedAt @map("lastUsedAt")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model Wallet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("userId") @db.Uuid
+  address   String   @unique
+  chain     String
+  signature String   @db.Text
+  message   String?  @db.Text
+  linkedAt  DateTime @default(now()) @map("linkedAt")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("wallets")
+}
+
+model OAuthClient {
+  id                String   @id @default(uuid()) @db.Uuid
+  clientId          String   @unique @map("clientId")
+  clientSecretHash  String   @map("clientSecretHash")
+  name              String
+  redirectUris      String[] @map("redirectUris")
+  allowedScopes     String[] @default([]) @map("allowedScopes")
+  allowedGrants     String[] @default(["authorization_code", "refresh_token"]) @map("allowedGrants")
+  active            Boolean  @default(true)
+  logoUrl           String?  @map("logoUrl")
+  privacyPolicyUrl  String?  @map("privacyPolicyUrl")
+  termsOfServiceUrl String?  @map("termsOfServiceUrl")
+  createdAt         DateTime @default(now()) @map("createdAt")
+  updatedAt         DateTime @updatedAt @map("updatedAt")
+
+  refreshTokens      RefreshToken[]
+  authorizationCodes AuthorizationCode[]
+
+  @@map("oauth_clients")
+}
+
+model AuthorizationCode {
+  id                  String   @id @default(uuid()) @db.Uuid
+  code                String   @unique
+  userId              String   @map("userId") @db.Uuid
+  clientId            String   @map("clientId")
+  redirectUri         String   @map("redirectUri")
+  scope               String?
+  codeChallenge       String?  @map("codeChallenge")
+  codeChallengeMethod String?  @map("codeChallengeMethod")
+  expiresAt           DateTime @map("expiresAt")
+  used                Boolean  @default(false)
+  createdAt           DateTime @default(now()) @map("createdAt")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("authorization_codes")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  tokenHash   String    @unique @map("tokenHash")
+  userId      String    @map("userId") @db.Uuid
+  clientId    String    @map("clientId")
+  scope       String?
+  expiresAt   DateTime  @map("expiresAt")
+  rotatedFrom String?   @map("rotatedFrom") @db.Uuid
+  revoked     Boolean   @default(false)
+  revokedAt   DateTime? @map("revokedAt")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model MagicLink {
+  id          String    @id @default(uuid()) @db.Uuid
+  token       String    @unique
+  email       String
+  userId      String?   @map("userId") @db.Uuid
+  purpose     String
+  expiresAt   DateTime  @map("expiresAt")
+  used        Boolean   @default(false)
+  usedAt      DateTime? @map("usedAt")
+  oauthParams Json?     @map("oauthParams")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@map("magic_links")
+}
+
+model UserKnownDevice {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("userId") @db.Uuid
+  fingerprint String
+  firstSeenAt DateTime @default(now()) @map("firstSeenAt")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@map("user_known_devices")
+}

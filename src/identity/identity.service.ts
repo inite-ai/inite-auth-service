@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
-import { User, Wallet, Passkey } from '../database/entities';
+import { User, Wallet } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { DidService } from './did.service';
 import { EmailService } from '../email/email.service';
 import { ethers } from 'ethers';
@@ -16,10 +15,7 @@ import * as naclUtil from 'tweetnacl-util';
 @Injectable()
 export class IdentityService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(Wallet)
-    private readonly walletRepository: Repository<Wallet>,
+    private readonly prisma: PrismaService,
     private readonly didService: DidService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -29,28 +25,27 @@ export class IdentityService {
    * Create a new identity with DID
    */
   async createIdentity(email?: string, name?: string): Promise<User> {
-    // Generate DID
     const { did, publicKey, privateKey } = await this.didService.generateDid();
 
-    const user = this.userRepository.create({
-      did,
-      email,
-      name,
-      emailVerified: false,
-      metadata: {
-        didPublicKey: publicKey,
-        didPrivateKey: privateKey, // In production, store this securely or let user manage it
+    return await this.prisma.user.create({
+      data: {
+        did,
+        email,
+        name,
+        emailVerified: false,
+        metadata: {
+          didPublicKey: publicKey,
+          didPrivateKey: privateKey,
+        },
       },
     });
-
-    return await this.userRepository.save(user);
   }
 
   /**
    * Get user identity by DID
    */
   async getIdentityByDid(did: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { did } });
+    const user = await this.prisma.user.findUnique({ where: { did } });
     if (!user) {
       throw new NotFoundException('Identity not found');
     }
@@ -61,16 +56,16 @@ export class IdentityService {
    * Get user identity by email
    */
   async getIdentityByEmail(email: string): Promise<User | null> {
-    return await this.userRepository.findOne({ where: { email } });
+    return await this.prisma.user.findUnique({ where: { email } });
   }
 
   /**
    * Get user identity by ID
    */
-  async getIdentityById(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({
+  async getIdentityById(id: string): Promise<User & { wallets?: Wallet[]; passkeys?: any[] }> {
+    const user = await this.prisma.user.findUnique({
       where: { id },
-      relations: ['wallets', 'passkeys'],
+      include: { wallets: true, passkeys: true },
     });
     if (!user) {
       throw new NotFoundException('Identity not found');
@@ -80,7 +75,6 @@ export class IdentityService {
 
   /**
    * Link wallet to identity
-   * Supports EVM chains (SIWE) and TON
    */
   async linkWallet(
     userId: string,
@@ -88,11 +82,10 @@ export class IdentityService {
     chain: string,
     message: string,
     signature: string,
-    publicKey?: string, // Required for TON
+    publicKey?: string,
   ): Promise<Wallet> {
-    const user = await this.getIdentityById(userId);
+    await this.getIdentityById(userId);
 
-    // Verify signature based on chain type
     let isValid = false;
     if (chain === 'ton') {
       if (!publicKey) {
@@ -100,7 +93,6 @@ export class IdentityService {
       }
       isValid = await this.verifyTonSignature(message, signature, publicKey);
     } else {
-      // EVM chains (ethereum, polygon, etc.)
       isValid = await this.verifySiweSignature(message, signature, address);
     }
 
@@ -108,11 +100,9 @@ export class IdentityService {
       throw new BadRequestException('Invalid wallet signature');
     }
 
-    // Normalize address (lowercase for EVM, keep as-is for TON)
     const normalizedAddress = chain === 'ton' ? address : address.toLowerCase();
 
-    // Check if wallet is already linked
-    const existingWallet = await this.walletRepository.findOne({
+    const existingWallet = await this.prisma.wallet.findUnique({
       where: { address: normalizedAddress },
     });
 
@@ -123,23 +113,22 @@ export class IdentityService {
       throw new BadRequestException('Wallet is already linked to another identity');
     }
 
-    // Create wallet link
-    const wallet = this.walletRepository.create({
-      userId,
-      address: normalizedAddress,
-      chain,
-      signature,
-      message,
+    return await this.prisma.wallet.create({
+      data: {
+        userId,
+        address: normalizedAddress,
+        chain,
+        signature,
+        message,
+      },
     });
-
-    return await this.walletRepository.save(wallet);
   }
 
   /**
    * Unlink wallet from identity
    */
   async unlinkWallet(userId: string, walletId: string): Promise<void> {
-    const wallet = await this.walletRepository.findOne({
+    const wallet = await this.prisma.wallet.findFirst({
       where: { id: walletId, userId },
     });
 
@@ -147,14 +136,14 @@ export class IdentityService {
       throw new NotFoundException('Wallet not found or not owned by user');
     }
 
-    await this.walletRepository.remove(wallet);
+    await this.prisma.wallet.delete({ where: { id: walletId } });
   }
 
   /**
    * Get all wallets for a user
    */
   async getWallets(userId: string): Promise<Wallet[]> {
-    return await this.walletRepository.find({ where: { userId } });
+    return await this.prisma.wallet.findMany({ where: { userId } });
   }
 
   /**
@@ -175,10 +164,8 @@ export class IdentityService {
   ): Promise<any> {
     const user = await this.getIdentityById(userId);
 
-    // Get issuer DID and private key (should be service's own DID)
-    // In production, this should be a dedicated issuer service
-    const issuerDid = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK'; // Example issuer DID
-    const issuerPrivateKey = process.env.ISSUER_PRIVATE_KEY || ''; // Should be securely stored
+    const issuerDid = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
+    const issuerPrivateKey = process.env.ISSUER_PRIVATE_KEY || '';
 
     return await this.didService.issueVerifiableCredential(
       issuerDid,
@@ -194,10 +181,11 @@ export class IdentityService {
    */
   async updateMetadata(userId: string, metadata: Record<string, any>): Promise<User> {
     const user = await this.getIdentityById(userId);
-    // Prevent privilege escalation via metadata
     const { isAdmin, roles, ...safeMetadata } = metadata;
-    user.metadata = { ...user.metadata, ...safeMetadata };
-    return await this.userRepository.save(user);
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: { metadata: { ...user.metadata as any, ...safeMetadata } },
+    });
   }
 
   /**
@@ -250,7 +238,6 @@ Issued At: ${issuedAt}`;
     const domain = 'auth.inite.ai';
     const timestamp = Math.floor(Date.now() / 1000);
 
-    // TON Connect proof payload
     const payload = JSON.stringify({
       type: 'ton_proof',
       domain,
@@ -274,12 +261,10 @@ Issued At: ${issuedAt}`;
     publicKey: string,
   ): Promise<boolean> {
     try {
-      // Decode signature and public key from base64
       const signatureBytes = naclUtil.decodeBase64(signature);
       const publicKeyBytes = naclUtil.decodeBase64(publicKey);
       const messageBytes = naclUtil.decodeUTF8(message);
 
-      // Verify ed25519 signature
       return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
     } catch {
       return false;
@@ -295,15 +280,19 @@ Issued At: ${issuedAt}`;
     userId: string,
     data: { name?: string; avatarUrl?: string; bio?: string; location?: string; profession?: string },
   ): Promise<User> {
-    const user = await this.getIdentityById(userId);
-    
-    if (data.name !== undefined) user.name = data.name;
-    if (data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
-    if (data.bio !== undefined) user.bio = data.bio;
-    if (data.location !== undefined) user.location = data.location;
-    if (data.profession !== undefined) user.profession = data.profession;
-    
-    return await this.userRepository.save(user);
+    await this.getIdentityById(userId);
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.profession !== undefined) updateData.profession = data.profession;
+
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
   }
 
   /**
@@ -314,16 +303,15 @@ Issued At: ${issuedAt}`;
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'passwordHash'],
+      select: { id: true, passwordHash: true },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // If user has a password, verify current password
     if (user.passwordHash) {
       const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!isValid) {
@@ -331,7 +319,6 @@ Issued At: ${issuedAt}`;
       }
     }
 
-    // Validate new password
     if (newPassword.length < 8) {
       throw new BadRequestException('Password must be at least 8 characters long');
     }
@@ -342,9 +329,11 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('Password must contain at least one number');
     }
 
-    // Hash and save new password
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-    await this.userRepository.update(userId, { passwordHash: newPasswordHash });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
   }
 
   /**
@@ -357,10 +346,16 @@ Issued At: ${issuedAt}`;
     walletsCount: number;
     emailVerified: boolean;
   }> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'passwordHash', 'twoFactorEnabled', 'emailVerified'],
-      relations: ['passkeys', 'wallets'],
+      select: {
+        id: true,
+        passwordHash: true,
+        twoFactorEnabled: true,
+        emailVerified: true,
+        passkeys: { select: { id: true } },
+        wallets: { select: { id: true } },
+      },
     });
 
     if (!user) {
@@ -370,8 +365,8 @@ Issued At: ${issuedAt}`;
     return {
       hasPassword: !!user.passwordHash,
       twoFactorEnabled: user.twoFactorEnabled,
-      passkeysCount: user.passkeys?.length || 0,
-      walletsCount: user.wallets?.length || 0,
+      passkeysCount: user.passkeys.length,
+      walletsCount: user.wallets.length,
       emailVerified: user.emailVerified,
     };
   }
@@ -388,19 +383,17 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('2FA is already enabled');
     }
 
-    // Generate secret
     const secret = speakeasy.generateSecret({
       name: `INITE (${user.email})`,
       issuer: 'INITE Identity',
       length: 20,
     });
 
-    // Save secret temporarily (not enabled yet)
-    await this.userRepository.update(userId, {
-      twoFactorSecret: secret.base32,
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: secret.base32 },
     });
 
-    // Generate QR code
     const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
 
     return {
@@ -414,9 +407,9 @@ Issued At: ${issuedAt}`;
    * Enable 2FA after verifying code
    */
   async enable2FA(userId: string, code: string): Promise<{ success: boolean; backupCodes?: string[] }> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'twoFactorSecret', 'twoFactorEnabled'],
+      select: { id: true, twoFactorSecret: true, twoFactorEnabled: true, metadata: true },
     });
 
     if (!user || !user.twoFactorSecret) {
@@ -427,7 +420,6 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('2FA is already enabled');
     }
 
-    // Verify the code
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorSecret,
       encoding: 'base32',
@@ -439,17 +431,18 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('Invalid verification code');
     }
 
-    // Generate backup codes (cryptographically secure)
     const backupCodes = Array.from({ length: 10 }, () =>
       crypto.randomBytes(4).toString('hex').toUpperCase()
     );
 
-    // Enable 2FA
-    await this.userRepository.update(userId, {
-      twoFactorEnabled: true,
-      metadata: {
-        ...(await this.getIdentityById(userId)).metadata,
-        backupCodes: backupCodes.map(c => bcrypt.hashSync(c, 10)),
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: true,
+        metadata: {
+          ...user.metadata as any,
+          backupCodes: backupCodes.map(c => bcrypt.hashSync(c, 10)),
+        },
       },
     });
 
@@ -460,9 +453,9 @@ Issued At: ${issuedAt}`;
    * Disable 2FA
    */
   async disable2FA(userId: string, code: string, password: string): Promise<{ success: boolean }> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'passwordHash', 'twoFactorSecret', 'twoFactorEnabled'],
+      select: { id: true, passwordHash: true, twoFactorSecret: true, twoFactorEnabled: true },
     });
 
     if (!user) {
@@ -473,7 +466,6 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('2FA is not enabled');
     }
 
-    // Verify password
     if (user.passwordHash) {
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
@@ -481,7 +473,6 @@ Issued At: ${issuedAt}`;
       }
     }
 
-    // Verify 2FA code
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorSecret!,
       encoding: 'base32',
@@ -493,10 +484,9 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('Invalid 2FA code');
     }
 
-    // Disable 2FA
-    await this.userRepository.update(userId, {
-      twoFactorEnabled: false,
-      twoFactorSecret: null,
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
     });
 
     return { success: true };
@@ -506,16 +496,15 @@ Issued At: ${issuedAt}`;
    * Verify 2FA code during login
    */
   async verify2FA(userId: string, code: string): Promise<{ verified: boolean }> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'twoFactorSecret', 'twoFactorEnabled', 'metadata'],
+      select: { id: true, twoFactorSecret: true, twoFactorEnabled: true, metadata: true },
     });
 
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       throw new BadRequestException('2FA is not enabled for this user');
     }
 
-    // First try TOTP
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorSecret,
       encoding: 'base32',
@@ -527,14 +516,13 @@ Issued At: ${issuedAt}`;
       return { verified: true };
     }
 
-    // Try backup codes
-    const backupCodes = user.metadata?.backupCodes || [];
+    const backupCodes = (user.metadata as any)?.backupCodes || [];
     for (let i = 0; i < backupCodes.length; i++) {
       if (bcrypt.compareSync(code.toUpperCase(), backupCodes[i])) {
-        // Remove used backup code
         backupCodes.splice(i, 1);
-        await this.userRepository.update(userId, {
-          metadata: { ...user.metadata, backupCodes },
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { metadata: { ...user.metadata as any, backupCodes } },
         });
         return { verified: true };
       }
@@ -549,9 +537,9 @@ Issued At: ${issuedAt}`;
    * Export all user data
    */
   async exportUserData(userId: string): Promise<any> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      relations: ['wallets', 'passkeys'],
+      include: { wallets: true, passkeys: true },
     });
 
     if (!user) {
@@ -596,16 +584,15 @@ Issued At: ${issuedAt}`;
    * Delete user account and all related data
    */
   async deleteAccount(userId: string, password: string): Promise<void> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'passwordHash'],
+      select: { id: true, passwordHash: true },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Verify password if set
     if (user.passwordHash) {
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
@@ -613,8 +600,8 @@ Issued At: ${issuedAt}`;
       }
     }
 
-    // Delete user (cascade will delete wallets, passkeys, etc.)
-    await this.userRepository.delete(userId);
+    // Cascade delete handles related records
+    await this.prisma.user.delete({ where: { id: userId } });
   }
 
   // ==================== Email Verification ====================
@@ -623,16 +610,15 @@ Issued At: ${issuedAt}`;
    * Request email change
    */
   async requestEmailChange(userId: string, newEmail: string, password: string): Promise<void> {
-    const user = await this.userRepository.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: ['id', 'email', 'passwordHash'],
+      select: { id: true, email: true, passwordHash: true },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Verify password if set
     if (user.passwordHash) {
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
@@ -640,30 +626,30 @@ Issued At: ${issuedAt}`;
       }
     }
 
-    // Check if new email is already in use
-    const existingUser = await this.userRepository.findOne({ where: { email: newEmail } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email: newEmail } });
     if (existingUser) {
       throw new BadRequestException('Email is already in use');
     }
 
-    // Generate verification token
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date();
     expires.setHours(expires.getHours() + 24);
 
-    // Store pending email change in metadata
     const fullUser = await this.getIdentityById(userId);
-    fullUser.metadata = {
-      ...fullUser.metadata,
-      pendingEmailChange: {
-        newEmail,
-        token,
-        expires: expires.toISOString(),
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        metadata: {
+          ...fullUser.metadata as any,
+          pendingEmailChange: {
+            newEmail,
+            token,
+            expires: expires.toISOString(),
+          },
+        },
       },
-    };
-    await this.userRepository.save(fullUser);
+    });
 
-    // Send verification email
     const rpOrigin = this.configService.get('RP_ORIGIN') || 'https://auth.inite.ai';
     const verificationLink = `${rpOrigin}/verify-email?token=${token}&type=change`;
     await this.emailService.sendEmailChangeVerification(newEmail, user.email, verificationLink);
@@ -679,18 +665,18 @@ Issued At: ${issuedAt}`;
       throw new BadRequestException('Email is already verified');
     }
 
-    // Generate verification token
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date();
     expires.setHours(expires.getHours() + 24);
 
-    // Store verification token
-    await this.userRepository.update(userId, {
-      emailVerificationToken: token,
-      emailVerificationExpires: expires,
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailVerificationToken: token,
+        emailVerificationExpires: expires,
+      },
     });
 
-    // Send verification email
     const rpOrigin = this.configService.get('RP_ORIGIN') || 'https://auth.inite.ai';
     const verificationLink = `${rpOrigin}/verify-email?token=${token}`;
     await this.emailService.sendEmailVerification(user.email, verificationLink);
@@ -700,8 +686,8 @@ Issued At: ${issuedAt}`;
    * Verify email with token
    */
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
-    // First check for regular email verification
-    const user = await this.userRepository.findOne({
+    // Regular email verification
+    const user = await this.prisma.user.findFirst({
       where: { emailVerificationToken: token },
     });
 
@@ -710,34 +696,45 @@ Issued At: ${issuedAt}`;
         throw new BadRequestException('Verification link has expired');
       }
 
-      await this.userRepository.update(user.id, {
-        emailVerified: true,
-        emailVerificationToken: null,
-        emailVerificationExpires: null,
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+        },
       });
 
       return { success: true, message: 'Email verified successfully' };
     }
 
-    // Check for email change verification via JSONB query (no full-table scan)
-    const emailChangeUser = await this.userRepository
-      .createQueryBuilder('user')
-      .where("user.metadata->'pendingEmailChange'->>'token' = :token", { token })
-      .getOne();
+    // Email change verification via JSONB query
+    const emailChangeUser = await this.prisma.user.findFirst({
+      where: {
+        metadata: {
+          path: ['pendingEmailChange', 'token'],
+          equals: token,
+        },
+      },
+    });
 
     if (emailChangeUser) {
-      const pending = emailChangeUser.metadata?.pendingEmailChange;
+      const pending = (emailChangeUser.metadata as any)?.pendingEmailChange;
       if (pending && new Date(pending.expires) < new Date()) {
         throw new BadRequestException('Verification link has expired');
       }
 
-      emailChangeUser.email = pending.newEmail;
-      emailChangeUser.emailVerified = true;
-      emailChangeUser.metadata = {
-        ...emailChangeUser.metadata,
-        pendingEmailChange: null,
-      };
-      await this.userRepository.save(emailChangeUser);
+      await this.prisma.user.update({
+        where: { id: emailChangeUser.id },
+        data: {
+          email: pending.newEmail,
+          emailVerified: true,
+          metadata: {
+            ...emailChangeUser.metadata as any,
+            pendingEmailChange: null,
+          },
+        },
+      });
 
       return { success: true, message: 'Email changed successfully' };
     }
@@ -745,6 +742,3 @@ Issued At: ${issuedAt}`;
     throw new BadRequestException('Invalid verification token');
   }
 }
-
-
-

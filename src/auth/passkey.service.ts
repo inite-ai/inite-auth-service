@@ -1,6 +1,4 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
   generateRegistrationOptions,
@@ -12,8 +10,8 @@ import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
 } from '@simplewebauthn/types';
-import { Passkey, User } from '../database/entities';
 import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PasskeyService {
@@ -22,10 +20,7 @@ export class PasskeyService {
   private origin: string;
 
   constructor(
-    @InjectRepository(Passkey)
-    private readonly passkeyRepository: Repository<Passkey>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
     this.rpName = this.configService.get<string>('RP_NAME', 'INITE Identity');
@@ -35,16 +30,14 @@ export class PasskeyService {
 
   /**
    * Generate registration options for WebAuthn
-   * Always uses platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
    */
   async generateRegistrationOptions(userId: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    // Get existing passkeys for this user
-    const existingPasskeys = await this.passkeyRepository.find({
+    const existingPasskeys = await this.prisma.passkey.findMany({
       where: { userId },
     });
 
@@ -55,25 +48,18 @@ export class PasskeyService {
       userName: user.email || user.did,
       userDisplayName: user.name || user.email || 'User',
       attestationType: 'none',
-      excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => {
-        // credentialId is already stored as base64url
-        return {
-          id: passkey.credentialId,
-          type: 'public-key' as const,
-          // Only internal transport for platform authenticators
-          transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
-        };
-      }) : undefined,
+      excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => ({
+        id: passkey.credentialId,
+        type: 'public-key' as const,
+        transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
+      })) : undefined,
       authenticatorSelection: {
-        // Platform authenticator (Touch ID, Face ID, Windows Hello, browser keystore)
         authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'preferred',
       },
     });
 
-    // Add hints for browsers that support them (guides UI to show preferred authenticator type first)
-    // 'client-device' = platform authenticators like Touch ID, Face ID, Windows Hello
     (options as any).hints = ['client-device'];
 
     return options;
@@ -87,7 +73,7 @@ export class PasskeyService {
     response: RegistrationResponseJSON,
     expectedChallenge: string,
   ) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
     }
@@ -105,24 +91,21 @@ export class PasskeyService {
 
     const { credential } = verification.registrationInfo;
 
-    // Save passkey
-    // credential.id is already a base64url string in simplewebauthn v10+
-    // Store as base64url (same format browser sends during authentication)
     const credentialIdToStore = typeof credential.id === 'string'
       ? credential.id
       : isoBase64URL.fromBuffer(credential.id);
-    
+
     const publicKeyBase64 = Buffer.from(credential.publicKey).toString('base64');
 
-    const passkey = this.passkeyRepository.create({
-      userId,
-      credentialId: credentialIdToStore,
-      publicKey: publicKeyBase64,
-      counter: credential.counter,
-      transports: response.response.transports || [],
+    const passkey = await this.prisma.passkey.create({
+      data: {
+        userId,
+        credentialId: credentialIdToStore,
+        publicKey: publicKeyBase64,
+        counter: credential.counter,
+        transports: response.response.transports || [],
+      },
     });
-
-    await this.passkeyRepository.save(passkey);
 
     return {
       verified: true,
@@ -134,26 +117,21 @@ export class PasskeyService {
    * Generate authentication options for WebAuthn
    */
   async generateAuthenticationOptions(email?: string) {
-    // If no passkey registered yet, allowCredentials stays undefined
-    // This triggers discoverable credentials mode
     let allowCredentials = undefined;
 
-    // If email provided, try to get user's passkeys
     if (email) {
-      const user = await this.userRepository.findOne({ where: { email } });
+      const user = await this.prisma.user.findUnique({ where: { email } });
       if (user) {
-        const passkeys = await this.passkeyRepository.find({
+        const passkeys = await this.prisma.passkey.findMany({
           where: { userId: user.id },
         });
 
         if (passkeys.length > 0) {
           allowCredentials = passkeys.map((passkey) => {
-            // credentialId is already stored as base64url
-            // Use saved transports or default to 'internal' for platform authenticators
-            const transports = passkey.transports?.length > 0 
-              ? passkey.transports 
+            const transports = (passkey.transports as string[])?.length > 0
+              ? passkey.transports as string[]
               : ['internal'];
-            
+
             return {
               id: passkey.credentialId,
               type: 'public-key' as const,
@@ -170,8 +148,6 @@ export class PasskeyService {
       allowCredentials,
     });
 
-    // Add hints for browsers that support them (guides UI to show preferred authenticator type first)
-    // 'client-device' = platform authenticators like Touch ID, Face ID, Windows Hello
     (options as any).hints = ['client-device'];
 
     return options;
@@ -184,26 +160,24 @@ export class PasskeyService {
     response: AuthenticationResponseJSON,
     expectedChallenge: string,
   ) {
-    // Find passkey by credential ID
-    // We now store as base64url (same format browser sends)
     const credentialIdBase64Url = response.id;
-    
+
     // Primary lookup - direct match with stored base64url
-    let passkey = await this.passkeyRepository.findOne({
+    let passkey = await this.prisma.passkey.findUnique({
       where: { credentialId: credentialIdBase64Url },
-      relations: ['user'],
+      include: { user: true },
     });
-    
+
     // Fallback: try base64 format (for old passkeys stored before fix)
     if (!passkey) {
       const credentialIdBase64 = credentialIdBase64Url
         .replace(/-/g, '+')
         .replace(/_/g, '/')
         + '='.repeat((4 - credentialIdBase64Url.length % 4) % 4);
-      
-      passkey = await this.passkeyRepository.findOne({
+
+      passkey = await this.prisma.passkey.findUnique({
         where: { credentialId: credentialIdBase64 },
-        relations: ['user'],
+        include: { user: true },
       });
     }
 
@@ -211,10 +185,8 @@ export class PasskeyService {
       throw new BadRequestException('Passkey not found. You may need to register a new passkey for this account.');
     }
 
-    // Convert publicKey from base64 to buffer
-    // publicKey is stored as base64, need to convert properly
     const publicKeyBuffer = Buffer.from(passkey.publicKey, 'base64');
-    
+
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
@@ -223,7 +195,7 @@ export class PasskeyService {
       credential: {
         id: passkey.credentialId,
         publicKey: new Uint8Array(publicKeyBuffer),
-        counter: Number(passkey.counter),
+        counter: passkey.counter,
       },
     });
 
@@ -231,16 +203,17 @@ export class PasskeyService {
       throw new BadRequestException('Passkey authentication verification failed');
     }
 
-    // Enforce counter increment (detect cloned authenticators)
     const newCounter = verification.authenticationInfo.newCounter;
-    if (newCounter > 0 && newCounter <= Number(passkey.counter)) {
+    if (newCounter > 0 && newCounter <= passkey.counter) {
       throw new BadRequestException(
         'Authenticator counter did not increase — possible cloned device detected',
       );
     }
-    passkey.counter = newCounter;
-    passkey.lastUsedAt = new Date();
-    await this.passkeyRepository.save(passkey);
+
+    await this.prisma.passkey.update({
+      where: { id: passkey.id },
+      data: { counter: newCounter, lastUsedAt: new Date() },
+    });
 
     return {
       verified: true,
@@ -252,9 +225,9 @@ export class PasskeyService {
    * Get user's passkeys
    */
   async getUserPasskeys(userId: string) {
-    return await this.passkeyRepository.find({
+    return await this.prisma.passkey.findMany({
       where: { userId },
-      select: ['id', 'deviceType', 'deviceName', 'createdAt', 'lastUsedAt'],
+      select: { id: true, deviceType: true, deviceName: true, createdAt: true, lastUsedAt: true },
     });
   }
 
@@ -262,7 +235,7 @@ export class PasskeyService {
    * Delete passkey
    */
   async deletePasskey(userId: string, passkeyId: string) {
-    const passkey = await this.passkeyRepository.findOne({
+    const passkey = await this.prisma.passkey.findFirst({
       where: { id: passkeyId, userId },
     });
 
@@ -270,7 +243,6 @@ export class PasskeyService {
       throw new BadRequestException('Passkey not found');
     }
 
-    await this.passkeyRepository.remove(passkey);
+    await this.prisma.passkey.delete({ where: { id: passkeyId } });
   }
 }
-

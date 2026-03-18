@@ -1,58 +1,53 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { AdminService } from '../admin.service';
-import {
-  User,
-  OAuthClient,
-  Passkey,
-  Wallet,
-  RefreshToken,
-  AuthorizationCode,
-} from '../../database/entities';
+import { PrismaService } from '../../prisma/prisma.service';
 
 describe('AdminService', () => {
   let service: AdminService;
-  let userRepo: any;
-  let clientRepo: any;
-  let refreshTokenRepo: any;
-  let authCodeRepo: any;
+  let mockPrisma: any;
 
   beforeEach(async () => {
-    userRepo = {
-      findAndCount: jest.fn(),
-      findOne: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      count: jest.fn(),
-    };
-    clientRepo = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      count: jest.fn(),
-    };
-    refreshTokenRepo = {
-      count: jest.fn(),
-      delete: jest.fn(),
-      update: jest.fn(),
-    };
-    authCodeRepo = {
-      count: jest.fn(),
-      delete: jest.fn(),
+    mockPrisma = {
+      user: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+      },
+      oAuthClient: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+      },
+      passkey: {
+        findMany: jest.fn(),
+        count: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      wallet: {
+        findMany: jest.fn(),
+        count: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      refreshToken: {
+        count: jest.fn(),
+        deleteMany: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      authorizationCode: {
+        count: jest.fn(),
+        deleteMany: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(OAuthClient), useValue: clientRepo },
-        { provide: getRepositoryToken(Passkey), useValue: { find: jest.fn(), delete: jest.fn() } },
-        { provide: getRepositoryToken(Wallet), useValue: { find: jest.fn(), delete: jest.fn() } },
-        { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
-        { provide: getRepositoryToken(AuthorizationCode), useValue: authCodeRepo },
+        { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
 
@@ -65,26 +60,29 @@ describe('AdminService', () => {
         { id: '1', email: 'a@b.com', passwordHash: 'secret' },
         { id: '2', email: 'c@d.com', passwordHash: 'secret2' },
       ];
-      userRepo.findAndCount.mockResolvedValue([users, 2]);
+      mockPrisma.user.findMany.mockResolvedValue(users);
+      mockPrisma.user.count.mockResolvedValue(2);
 
       const result = await service.getAllUsers(1, 20);
       expect(result.users).toHaveLength(2);
-      expect(result.users[0].passwordHash).toBeUndefined();
+      expect((result.users[0] as any).passwordHash).toBeUndefined();
       expect(result.pagination.total).toBe(2);
     });
 
     it('should cap limit to 100', async () => {
-      userRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockPrisma.user.findMany.mockResolvedValue([]);
+      mockPrisma.user.count.mockResolvedValue(0);
       await service.getAllUsers(1, 9999);
-      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 100 }),
       );
     });
 
     it('should enforce minimum limit of 1', async () => {
-      userRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockPrisma.user.findMany.mockResolvedValue([]);
+      mockPrisma.user.count.mockResolvedValue(0);
       await service.getAllUsers(1, -5);
-      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 1 }),
       );
     });
@@ -93,15 +91,20 @@ describe('AdminService', () => {
   describe('updateUserRoles', () => {
     it('should set isAdmin in metadata when admin role present', async () => {
       const user = { id: '1', metadata: {} };
-      userRepo.findOne.mockResolvedValue(user);
-      userRepo.save.mockResolvedValue(user);
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+        Promise.resolve({ ...user, ...data, passwordHash: undefined }),
+      );
 
       await service.updateUserRoles('1', ['admin', 'user']);
-      expect(userRepo.save).toHaveBeenCalledWith(
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: expect.objectContaining({
-            isAdmin: true,
-            roles: ['admin', 'user'],
+          where: { id: '1' },
+          data: expect.objectContaining({
+            metadata: expect.objectContaining({
+              isAdmin: true,
+              roles: ['admin', 'user'],
+            }),
           }),
         }),
       );
@@ -109,15 +112,20 @@ describe('AdminService', () => {
 
     it('should set isAdmin false when no admin role', async () => {
       const user = { id: '1', metadata: { isAdmin: true } };
-      userRepo.findOne.mockResolvedValue(user);
-      userRepo.save.mockResolvedValue(user);
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+        Promise.resolve({ ...user, ...data, passwordHash: undefined }),
+      );
 
       await service.updateUserRoles('1', ['user']);
-      expect(userRepo.save).toHaveBeenCalledWith(
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: expect.objectContaining({
-            isAdmin: false,
-            roles: ['user'],
+          where: { id: '1' },
+          data: expect.objectContaining({
+            metadata: expect.objectContaining({
+              isAdmin: false,
+              roles: ['user'],
+            }),
           }),
         }),
       );
@@ -125,29 +133,28 @@ describe('AdminService', () => {
   });
 
   describe('getAllOAuthClients', () => {
-    it('should normalize array fields', async () => {
-      clientRepo.find.mockResolvedValue([
-        { clientId: 'app', allowedScopes: null, allowedGrants: undefined, redirectUris: '{"https://a.com/callback","https://b.com/callback"}' },
+    it('should return clients without clientSecretHash', async () => {
+      mockPrisma.oAuthClient.findMany.mockResolvedValue([
+        { clientId: 'app', clientSecretHash: 'secret', allowedScopes: ['openid'], allowedGrants: ['authorization_code'], redirectUris: ['https://a.com/callback', 'https://b.com/callback'] },
       ]);
 
       const result = await service.getAllOAuthClients();
-      expect(result[0].allowedScopes).toEqual([]);
-      expect(result[0].allowedGrants).toEqual([]);
+      expect((result[0] as any).clientSecretHash).toBeUndefined();
       expect(result[0].redirectUris).toEqual(['https://a.com/callback', 'https://b.com/callback']);
     });
   });
 
   describe('deleteOAuthClient', () => {
     it('should delete related data before client', async () => {
-      authCodeRepo.delete.mockResolvedValue({});
-      refreshTokenRepo.delete.mockResolvedValue({});
-      clientRepo.delete.mockResolvedValue({});
+      mockPrisma.authorizationCode.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.oAuthClient.delete.mockResolvedValue({});
 
       await service.deleteOAuthClient('test-app');
 
-      expect(authCodeRepo.delete).toHaveBeenCalledWith({ clientId: 'test-app' });
-      expect(refreshTokenRepo.delete).toHaveBeenCalledWith({ clientId: 'test-app' });
-      expect(clientRepo.delete).toHaveBeenCalledWith({ clientId: 'test-app' });
+      expect(mockPrisma.authorizationCode.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
+      expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
+      expect(mockPrisma.oAuthClient.delete).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
     });
   });
 });

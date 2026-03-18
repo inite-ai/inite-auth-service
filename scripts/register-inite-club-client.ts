@@ -1,21 +1,10 @@
-import { DataSource } from 'typeorm';
+import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
-const dataSource = new DataSource({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'inite_auth',
-  entities: ['src/database/entities/*.entity.ts'],
-  synchronize: false,
-});
+const prisma = new PrismaClient();
 
 async function registerIniteClubClient() {
-  await dataSource.initialize();
-
   const clientId = 'inite-club';
   const clientSecret = crypto.randomBytes(32).toString('base64url');
   const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -30,61 +19,36 @@ async function registerIniteClubClient() {
   ];
 
   // Check if client already exists
-  const existing = await dataSource.query(
-    `SELECT client_id FROM oauth_clients WHERE client_id = $1`,
-    [clientId]
-  );
+  const existing = await prisma.oAuthClient.findUnique({
+    where: { clientId },
+  });
 
-  if (existing.length > 0) {
+  if (existing) {
     // Update only configuration, NOT the secret
-    await dataSource.query(
-      `
-      UPDATE oauth_clients SET
-        redirect_uris = $2,
-        updated_at = NOW()
-      WHERE client_id = $1
-    `,
-      [clientId, redirectUris],
-    );
+    await prisma.oAuthClient.update({
+      where: { clientId },
+      data: {
+        redirectUris,
+      },
+    });
     console.log('✅ INITE Club OAuth2 client configuration updated (secret unchanged)');
     console.log('');
     console.log('Client ID:', clientId);
     console.log('⚠️  Secret was NOT changed. Use admin panel to rotate secrets.');
-    await dataSource.destroy();
+    await prisma.$disconnect();
     return;
   }
 
   // Create new client only if it doesn't exist
-  await dataSource.query(
-    `
-    INSERT INTO oauth_clients (
-      id,
-      client_id,
-      client_secret_hash,
-      name,
-      redirect_uris,
-      allowed_grants,
-      created_at,
-      updated_at
-    ) VALUES (
-      gen_random_uuid(),
-      $1,
-      $2,
-      $3,
-      $4,
-      $5,
-      NOW(),
-      NOW()
-    )
-  `,
-    [
+  await prisma.oAuthClient.create({
+    data: {
       clientId,
       clientSecretHash,
-      'INITE Club',
+      name: 'INITE Club',
       redirectUris,
-      ['authorization_code', 'refresh_token'],
-    ],
-  );
+      allowedGrants: ['authorization_code', 'refresh_token'],
+    },
+  });
 
   console.log('✅ INITE Club OAuth2 client registered successfully!');
   console.log('');
@@ -103,15 +67,10 @@ async function registerIniteClubClient() {
   console.log('Redirect URIs:');
   redirectUris.forEach((uri) => console.log(`  - ${uri}`));
 
-  await dataSource.destroy();
+  await prisma.$disconnect();
 }
 
 registerIniteClubClient().catch((error) => {
   console.error('Error registering client:', error);
   process.exit(1);
 });
-
-
-
-
-

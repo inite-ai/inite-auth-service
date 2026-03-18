@@ -39,7 +39,11 @@ export function successMessage(message: string): SuccessResponse<null> {
 export function parsePostgresArray(raw: any): string[] {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string') {
-    return raw.replace(/^\{|\}$/g, '').split(',').map(s => s.trim()).filter(Boolean);
+    return raw
+      .replace(/^\{|\}$/g, '')
+      .split(',')
+      .map(s => s.trim().replace(/^"|"$/g, ''))
+      .filter(Boolean);
   }
   return [];
 }

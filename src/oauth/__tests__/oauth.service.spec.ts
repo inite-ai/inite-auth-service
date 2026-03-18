@@ -153,6 +153,11 @@ describe('OAuthService', () => {
       expect(result).toEqual(['https://a.com', 'https://b.com']);
     });
 
+    it('should handle Postgres quoted string format', () => {
+      const result = parsePostgresArray('{"https://a.com/callback","https://b.com/callback"}');
+      expect(result).toEqual(['https://a.com/callback', 'https://b.com/callback']);
+    });
+
     it('should handle empty/null', () => {
       expect(parsePostgresArray(null)).toEqual([]);
       expect(parsePostgresArray(undefined)).toEqual([]);

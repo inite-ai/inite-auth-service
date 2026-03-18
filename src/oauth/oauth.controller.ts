@@ -304,7 +304,14 @@ export class OAuthController {
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
-        const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
+        const allowedOrigins = await this.oauthService.getAllowedOrigins();
+        const isAllowed = allowedOrigins.has(url.origin);
+        this.logger.log('Logout redirect check', {
+          postLogoutRedirectUri,
+          origin: url.origin,
+          isAllowed,
+          allowedOrigins: [...allowedOrigins],
+        });
         if (isAllowed) {
           if (state) url.searchParams.set('state', state);
           return res.redirect(url.toString());
@@ -312,8 +319,11 @@ export class OAuthController {
         this.logger.warn('Logout redirect blocked', {
           uri: postLogoutRedirectUri,
           origin: url.origin,
+          allowedOrigins: [...allowedOrigins],
         });
-      } catch { /* invalid URL */ }
+      } catch (e) {
+        this.logger.error('Logout redirect URI parse error: ' + postLogoutRedirectUri, e.message);
+      }
     }
 
     return res.redirect(frontendUrl || '/');

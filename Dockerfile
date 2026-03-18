@@ -52,5 +52,5 @@ USER nestjs
 
 EXPOSE 3002
 
-# Start the application
-CMD ["node", "dist/main"]
+# Run array migration (idempotent) and start the application
+CMD ["sh", "-c", "node scripts/migrate-arrays.js && node dist/main"]

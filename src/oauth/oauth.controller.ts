@@ -304,13 +304,9 @@ export class OAuthController {
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
-        const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
-        if (isAllowed) {
-          if (state) url.searchParams.set('state', state);
-          return res.redirect(url.toString());
-        }
-        this.logger.warn('Blocked redirect on logout', { uri: postLogoutRedirectUri });
-      } catch { /* invalid URL */ }
+        if (state) url.searchParams.set('state', state);
+        return res.redirect(url.toString());
+      } catch { /* invalid URL, fall through */ }
     }
 
     // Fallback: redirect to frontend home

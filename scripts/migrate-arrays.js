@@ -37,6 +37,12 @@ async function main() {
 
     // Drop default first, then convert type, then set new default
     await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" DROP DEFAULT`);
+    // Normalize data: wrap bare comma-separated values in {} before casting
+    await client.query(`
+      UPDATE "oauth_clients"
+      SET "${col.name}" = '{' || "${col.name}" || '}'
+      WHERE "${col.name}" IS NOT NULL AND "${col.name}" NOT LIKE '{%'
+    `);
     await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" TYPE text[] USING "${col.name}"::text[]`);
     if (col.defaultVal) {
       await client.query(`ALTER TABLE "oauth_clients" ALTER COLUMN "${col.name}" SET DEFAULT ${col.defaultVal}`);

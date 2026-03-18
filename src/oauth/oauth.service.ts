@@ -496,7 +496,9 @@ export class OAuthService {
     // All active clients' redirect URI origins
     const clients = await this.clientRepository.find({ where: { active: true } });
     for (const client of clients) {
+      this.logger.log(`Client ${client.clientId} raw redirectUris: ${JSON.stringify(client.redirectUris)} (type: ${typeof client.redirectUris})`);
       const uris = parsePostgresArray(client.redirectUris);
+      this.logger.log(`Client ${client.clientId} parsed URIs: ${JSON.stringify(uris)}`);
       for (const uri of uris) {
         try { origins.add(new URL(uri).origin); } catch {}
       }

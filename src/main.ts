@@ -1,15 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
 import { AppModule } from './app.module';
-import { OAuthClient } from './database/entities';
+import { OAuthService } from './oauth/oauth.service';
 import { createLogger } from './common/logger.service';
 
 // Export for use in controllers
@@ -46,52 +44,16 @@ async function bootstrap() {
 
   // Dynamic CORS — check origin against OAuth client redirect URIs on every request
   const frontendUrl = configService.get<string>('FRONTEND_URL', '');
-  const extraOrigins = new Set(
-    configService.get<string>('CORS_ORIGINS', '').split(',').filter(Boolean),
-  );
-  if (frontendUrl) extraOrigins.add(frontendUrl);
-
-  const clientRepo = app.get<Repository<OAuthClient>>(getRepositoryToken(OAuthClient));
-
-  // Cache allowed origins, refresh every 60s
-  let cachedOrigins = new Set<string>(extraOrigins);
-  let cacheTime = 0;
-
-  async function getAllowedOrigins(): Promise<Set<string>> {
-    const now = Date.now();
-    if (now - cacheTime < 60_000) return cachedOrigins;
-
-    const origins = new Set<string>(extraOrigins);
-    try {
-      const clients = await clientRepo.find({
-        where: { active: true },
-      });
-      for (const client of clients) {
-        let uris: string[] = [];
-        if (Array.isArray(client.redirectUris)) {
-          uris = client.redirectUris;
-        } else if (typeof client.redirectUris === 'string') {
-          uris = (client.redirectUris as string).replace(/^\{|\}$/g, '').split(',').filter(Boolean);
-        }
-        for (const uri of uris) {
-          try { origins.add(new URL(uri.trim()).origin); } catch {}
-        }
-      }
-    } catch {}
-    cachedOrigins = origins;
-    cacheTime = now;
-    return origins;
-  }
-
-  // Warm cache at startup
-  await getAllowedOrigins();
-  logger.log(`CORS Origins: ${[...cachedOrigins].join(', ')}`);
+  // Reuse OAuthService for allowed origins (cached, auto-refreshes every 60s)
+  const oauthService = app.get(OAuthService);
+  const allowedOrigins = await oauthService.getAllowedOrigins();
+  logger.log(`CORS Origins: ${[...allowedOrigins].join(', ')}`);
 
   app.enableCors({
     origin: async (origin, callback) => {
       // Allow requests with no origin (server-to-server, curl, etc.)
       if (!origin) return callback(null, true);
-      const allowed = await getAllowedOrigins();
+      const allowed = await oauthService.getAllowedOrigins();
       if (allowed.has(origin)) return callback(null, true);
       callback(new Error(`CORS: ${origin} not allowed`));
     },

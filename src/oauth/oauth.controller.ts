@@ -304,12 +304,18 @@ export class OAuthController {
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
-        if (state) url.searchParams.set('state', state);
-        return res.redirect(url.toString());
-      } catch { /* invalid URL, fall through */ }
+        const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
+        if (isAllowed) {
+          if (state) url.searchParams.set('state', state);
+          return res.redirect(url.toString());
+        }
+        this.logger.warn('Logout redirect blocked', {
+          uri: postLogoutRedirectUri,
+          origin: url.origin,
+        });
+      } catch { /* invalid URL */ }
     }
 
-    // Fallback: redirect to frontend home
     return res.redirect(frontendUrl || '/');
   }
 

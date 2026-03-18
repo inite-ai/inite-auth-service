@@ -467,52 +467,62 @@ export class OAuthService {
     return this.configService.get<string>('FRONTEND_URL', 'https://auth.inite.ai');
   }
 
+  // Cache for allowed origins, shared with isAllowedOrigin
+  private allowedOriginsCache = new Set<string>();
+  private allowedOriginsCacheTime = 0;
+
   /**
-   * Check if an origin is allowed (from client redirect URIs + FRONTEND_URL)
+   * Load all allowed origins from DB + config. Cached for 60s.
    */
-  async isAllowedOrigin(origin: string): Promise<boolean> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', '');
-    if (frontendUrl) {
-      try {
-        if (new URL(frontendUrl).origin === origin) return true;
-      } catch {}
+  async getAllowedOrigins(): Promise<Set<string>> {
+    const now = Date.now();
+    if (now - this.allowedOriginsCacheTime < 60_000 && this.allowedOriginsCache.size > 0) {
+      return this.allowedOriginsCache;
     }
 
-    try {
-      const clients = await this.clientRepository.find({
-        where: { active: true },
-      });
+    const origins = new Set<string>();
 
-      for (const client of clients) {
-        let uris: string[] = [];
-        if (Array.isArray(client.redirectUris)) {
-          uris = client.redirectUris;
-        } else if (typeof client.redirectUris === 'string') {
-          // Postgres text[] can come as "{url1,url2}" string
-          uris = (client.redirectUris as string)
-            .replace(/^\{|\}$/g, '')
-            .split(',')
-            .filter(Boolean);
-        }
-        for (const uri of uris) {
-          try {
-            if (new URL(uri.trim()).origin === origin) return true;
-          } catch {}
-        }
-      }
-    } catch {}
+    // FRONTEND_URL
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', '');
+    if (frontendUrl) origins.add(frontendUrl.replace(/\/$/, ''));
 
-    // Fallback: also check CORS_ORIGINS env
+    // CORS_ORIGINS env
     const extra = this.configService.get<string>('CORS_ORIGINS', '');
     for (const o of extra.split(',').filter(Boolean)) {
-      try {
-        if (new URL(o).origin === origin) return true;
-      } catch {
-        if (o === origin) return true;
+      origins.add(o.replace(/\/$/, ''));
+    }
+
+    // All active clients' redirect URI origins
+    const clients = await this.clientRepository.find({ where: { active: true } });
+    for (const client of clients) {
+      const uris = this.parseRedirectUris(client.redirectUris);
+      for (const uri of uris) {
+        try { origins.add(new URL(uri).origin); } catch {}
       }
     }
 
-    return false;
+    this.allowedOriginsCache = origins;
+    this.allowedOriginsCacheTime = now;
+    return origins;
+  }
+
+  /**
+   * Normalize redirectUris from DB — handles both array and Postgres string format
+   */
+  private parseRedirectUris(raw: any): string[] {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      return raw.replace(/^\{|\}$/g, '').split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  /**
+   * Check if an origin is allowed
+   */
+  async isAllowedOrigin(origin: string): Promise<boolean> {
+    const allowed = await this.getAllowedOrigins();
+    return allowed.has(origin);
   }
 
   /**

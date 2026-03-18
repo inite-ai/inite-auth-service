@@ -8,6 +8,7 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Install dependencies
 RUN npm ci
@@ -30,6 +31,7 @@ WORKDIR /app
 # Copy package files and prisma schema
 COPY package*.json ./
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force

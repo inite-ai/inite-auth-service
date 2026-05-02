@@ -35,10 +35,12 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       // Start WebAuthn authentication
       const response = await startAuthentication(options)
 
-      // Verify authentication
+      // Verify authentication. The challenge is intentionally NOT sent —
+      // the server stored it in Redis when /options was called and reads it
+      // back from there to prevent replay (older builds trusted the
+      // client-supplied challenge, which defeated WebAuthn).
       const { data } = await api.post('/auth/passkey/authentication/verify', {
         response,
-        challenge: options.challenge,
       })
 
       toast.success('Authenticated successfully!')
@@ -80,23 +82,33 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
 
     setLoading(true)
     try {
-      // Check if user exists
-      const { data: checkData } = await api.post('/auth/passkey/prepare-registration', {
-        email,
-        allowExisting: true,
-      })
-
-      // If this is an existing user, they need to sign in first
-      // Then they can add a passkey in their account settings
-      if (checkData.isExistingUser) {
-        toast.error('This email already has an account. Sign in first using Magic Link or Password, then add a passkey in account settings.')
-        setMode('login')
-        setLoading(false)
-        return
+      // Create the account. Backend rejects with 400 if email already
+      // exists — surface that as a "sign in first" hint. (Older builds
+      // accepted allowExisting:true and minted a session for the existing
+      // user, which was an account takeover.)
+      let checkData: any
+      try {
+        const { data } = await api.post('/auth/passkey/prepare-registration', {
+          email,
+        })
+        checkData = data
+      } catch (error: any) {
+        const message: string = error.response?.data?.message || ''
+        if (
+          error.response?.status === 400 &&
+          message.toLowerCase().includes('already exists')
+        ) {
+          toast.error(
+            'This email already has an account. Sign in first using Magic Link or Password, then add a passkey in account settings.',
+          )
+          setMode('login')
+          setLoading(false)
+          return
+        }
+        throw error
       }
 
-      // New user - proceed with passkey registration
-      // Get registration options (always uses platform authenticator)
+      // New user — proceed with passkey registration
       const { data: options } = await api.post(
         '/auth/passkey/registration/options',
         {},
@@ -108,10 +120,12 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       // Start WebAuthn registration
       const response = await startRegistration(options)
 
-      // Verify registration
+      // Verify registration. Server reads the expected challenge from
+      // Redis (where /options stored it) — never trust the client to
+      // supply it.
       await api.post(
         '/auth/passkey/registration/verify',
-        { response, challenge: options.challenge },
+        { response },
         { headers: { Authorization: `Bearer ${checkData.access_token}` } }
       )
 

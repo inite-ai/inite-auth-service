@@ -30,13 +30,12 @@ export default function PasskeysSection({ passkeys, accessToken, onUpdate }: Pas
       // Start WebAuthn registration
       const response = await startRegistration(options)
 
-      // Verify registration
+      // Verify registration. Server reads the expected challenge from
+      // Redis (where /options stored it) — never trust the client to
+      // supply it.
       await api.post(
         '/auth/passkey/registration/verify',
-        {
-          response,
-          challenge: options.challenge,
-        },
+        { response },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
 

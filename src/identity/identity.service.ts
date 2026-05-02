@@ -22,10 +22,18 @@ export class IdentityService {
   ) {}
 
   /**
-   * Create a new identity with DID
+   * Create a new identity with DID.
+   *
+   * SECURITY: the DID private key is intentionally NOT persisted. The
+   * server never signs anything on behalf of the user with this key
+   * (credential issuance uses ISSUER_PRIVATE_KEY from env, not the user's
+   * key — see issueCredential). Storing user privkeys plaintext in JSONB
+   * was a critical data-leak liability with no upside. If client-side
+   * signing is ever needed, generate the keypair in the browser/wallet
+   * and only send the public key here.
    */
   async createIdentity(email?: string, name?: string): Promise<User> {
-    const { did, publicKey, privateKey } = await this.didService.generateDid();
+    const { did, publicKey } = await this.didService.generateDid();
 
     return await this.prisma.user.create({
       data: {
@@ -35,7 +43,6 @@ export class IdentityService {
         emailVerified: false,
         metadata: {
           didPublicKey: publicKey,
-          didPrivateKey: privateKey,
         },
       },
     });

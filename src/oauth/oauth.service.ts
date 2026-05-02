@@ -15,6 +15,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
 
+/**
+ * Compute the deterministic lookup hash for a refresh token.
+ * Uses HMAC-SHA256 with a server-side secret, so:
+ *   - Lookup is O(1) via a unique index (was O(N) bcrypt-scan).
+ *   - DB read alone cannot forge a token (still requires the HMAC secret).
+ *   - The HMAC value is BOTH the lookup key AND the verification — match
+ *     means the token was minted by this server.
+ */
+function hashRefreshToken(token: string, secret: string): string {
+  return crypto.createHmac('sha256', secret).update(token).digest('base64url');
+}
+
 @Injectable()
 export class OAuthService {
   constructor(
@@ -24,6 +36,23 @@ export class OAuthService {
     private readonly pkceService: PkceService,
     private readonly identityService: IdentityService,
   ) {}
+
+  /**
+   * The refresh-token HMAC secret. Falls back to JWT_SECRET only so dev
+   * setups don't break, but production MUST set REFRESH_TOKEN_HMAC_SECRET
+   * explicitly — using JWT_SECRET means leaking either burns both surfaces.
+   */
+  private getRefreshTokenSecret(): string {
+    const explicit = this.configService.get<string>('REFRESH_TOKEN_HMAC_SECRET');
+    if (explicit && explicit.trim().length > 0) return explicit;
+    const fallback = this.configService.get<string>('JWT_SECRET');
+    if (!fallback) {
+      throw new Error(
+        'REFRESH_TOKEN_HMAC_SECRET (or JWT_SECRET fallback) must be set',
+      );
+    }
+    return fallback;
+  }
 
   /**
    * Validate OAuth client (no secret required — for authorize endpoint)
@@ -148,7 +177,16 @@ export class OAuthService {
   }
 
   /**
-   * Exchange authorization code for tokens
+   * Exchange authorization code for tokens.
+   *
+   * Atomicity: the code is claimed via a single UPDATE WHERE used=false
+   * (Postgres' atomic single-row update guarantees only one concurrent
+   * request wins). Two parallel /token requests with the same code can no
+   * longer both pass the used-check — exactly one succeeds.
+   *
+   * Code-replay defense: if the claim fails because the code was already
+   * used, treat it as theft and revoke the entire refresh-token family
+   * issued from that code's user+client (RFC 6819 §4.4.1.1).
    */
   async exchangeAuthorizationCode(
     code: string,
@@ -162,28 +200,41 @@ export class OAuthService {
     expiresIn: number;
     scope: string;
   }> {
-    const authCode = await this.prisma.authorizationCode.findFirst({
-      where: { code, clientId, used: false },
-      include: { user: true },
+    const claim = await this.prisma.authorizationCode.updateMany({
+      where: {
+        code,
+        clientId,
+        redirectUri,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      data: { used: true },
     });
 
-    if (!authCode) {
+    if (claim.count !== 1) {
+      const replay = await this.prisma.authorizationCode.findUnique({
+        where: { code },
+      });
+      if (replay && replay.used) {
+        this.logger.warn(
+          `Authorization code replay detected — revoking refresh-token family for user=${replay.userId} client=${replay.clientId}`,
+        );
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: replay.userId, clientId: replay.clientId, revoked: false },
+          data: { revoked: true, revokedAt: new Date() },
+        });
+      }
       throw new BadRequestException('Invalid or expired authorization code');
     }
 
-    if (authCode.expiresAt < new Date()) {
-      throw new BadRequestException('Authorization code expired');
-    }
-
-    if (authCode.redirectUri !== redirectUri) {
-      throw new BadRequestException('Redirect URI mismatch');
-    }
-
-    // Mark code as used IMMEDIATELY to prevent race conditions
-    await this.prisma.authorizationCode.update({
-      where: { id: authCode.id },
-      data: { used: true },
+    const authCode = await this.prisma.authorizationCode.findUnique({
+      where: { code },
+      include: { user: true },
     });
+    if (!authCode) {
+      // Should never happen — we just claimed this row.
+      throw new BadRequestException('Authorization code not found after claim');
+    }
 
     if (authCode.codeChallenge) {
       if (!codeVerifier) {
@@ -209,12 +260,18 @@ export class OAuthService {
   }
 
   /**
-   * Generate access token, refresh token, and ID token
+   * Generate access token, refresh token, and ID token.
+   *
+   * `rotatedFrom`, when present, is the id of the previous refresh token
+   * in the rotation chain. Setting it on creation (rather than via a
+   * second updateMany after) is what fixes the previous silent-corruption
+   * bug — bcrypt's salted hash made the post-create lookup never match.
    */
   async generateTokens(
     user: User,
     clientId: string,
     scope: string,
+    rotatedFrom?: string,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -264,19 +321,23 @@ export class OAuthService {
     );
 
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
-    const refreshTokenHash = await bcrypt.hash(refreshTokenValue, 10);
+    const tokenLookup = hashRefreshToken(
+      refreshTokenValue,
+      this.getRefreshTokenSecret(),
+    );
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     await this.prisma.refreshToken.create({
       data: {
-        tokenHash: refreshTokenHash,
+        tokenLookup,
         userId: user.id,
         clientId,
         scope,
         expiresAt,
         revoked: false,
+        rotatedFrom: rotatedFrom ?? null,
       },
     });
 
@@ -290,7 +351,17 @@ export class OAuthService {
   }
 
   /**
-   * Refresh access token using refresh token (with rotation)
+   * Refresh access token using refresh token (with rotation + theft
+   * detection).
+   *
+   * - Lookup is O(1) via the unique tokenLookup index (HMAC-SHA256 of the
+   *   raw token under the server's secret). Knowing the HMAC value proves
+   *   the token was minted by this server, so HMAC match is enough — no
+   *   separate verification step needed.
+   * - If a token is presented that exists but is already REVOKED, treat
+   *   it as theft (the legitimate user already rotated past it) and
+   *   revoke the entire refresh-token family for that user+client. This
+   *   is RFC 6819 §5.2.2.3 behavior.
    */
   async refreshAccessToken(
     refreshTokenValue: string,
@@ -302,71 +373,68 @@ export class OAuthService {
     expiresIn: number;
     scope: string;
   }> {
-    const existingTokens = await this.prisma.refreshToken.findMany({
-      where: {
-        clientId,
-        revoked: false,
-        expiresAt: { gt: new Date() },
-      },
+    const tokenLookup = hashRefreshToken(
+      refreshTokenValue,
+      this.getRefreshTokenSecret(),
+    );
+
+    const matchedToken = await this.prisma.refreshToken.findUnique({
+      where: { tokenLookup },
       include: { user: true },
     });
 
-    let matchedToken: (typeof existingTokens)[0] | null = null;
-    for (const token of existingTokens) {
-      const isMatch = await bcrypt.compare(refreshTokenValue, token.tokenHash);
-      if (isMatch) {
-        matchedToken = token;
-        break;
-      }
+    if (!matchedToken || matchedToken.clientId !== clientId) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (!matchedToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+    if (matchedToken.revoked) {
+      this.logger.warn(
+        `Revoked refresh token replayed — possible theft. Revoking family for user=${matchedToken.userId} client=${matchedToken.clientId}`,
+      );
+      await this.prisma.refreshToken.updateMany({
+        where: {
+          userId: matchedToken.userId,
+          clientId: matchedToken.clientId,
+          revoked: false,
+        },
+        data: { revoked: true, revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token revoked');
     }
 
     if (matchedToken.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: matchedToken.id },
+    // Atomically claim this rotation slot — second concurrent rotate of
+    // the same token loses the race and gets count=0 here.
+    const claim = await this.prisma.refreshToken.updateMany({
+      where: { id: matchedToken.id, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
     });
+    if (claim.count !== 1) {
+      throw new UnauthorizedException('Refresh token already rotated');
+    }
 
-    const tokens = await this.generateTokens(
+    return this.generateTokens(
       matchedToken.user,
       clientId,
-      matchedToken.scope,
+      matchedToken.scope ?? '',
+      matchedToken.id,
     );
-
-    // Update the new refresh token's rotatedFrom field
-    const newRefreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: newRefreshTokenHash },
-      data: { rotatedFrom: matchedToken.id },
-    });
-
-    return tokens;
   }
 
   /**
-   * Revoke refresh token
+   * Revoke refresh token (RFC 7009).
+   * O(1) lookup via tokenLookup. Silently no-ops if the token is unknown,
+   * already revoked, or for a different client — per spec.
    */
   async revokeToken(token: string, clientId: string): Promise<void> {
-    const tokens = await this.prisma.refreshToken.findMany({
-      where: { clientId, revoked: false },
+    const tokenLookup = hashRefreshToken(token, this.getRefreshTokenSecret());
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenLookup, clientId, revoked: false },
+      data: { revoked: true, revokedAt: new Date() },
     });
-
-    for (const dbToken of tokens) {
-      const isMatch = await bcrypt.compare(token, dbToken.tokenHash);
-      if (isMatch) {
-        await this.prisma.refreshToken.update({
-          where: { id: dbToken.id },
-          data: { revoked: true, revokedAt: new Date() },
-        });
-        return;
-      }
-    }
   }
 
   /**

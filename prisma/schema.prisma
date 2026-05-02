@@ -114,7 +114,15 @@ model AuthorizationCode {
 
 model RefreshToken {
   id          String    @id @default(uuid()) @db.Uuid
-  tokenHash   String    @unique @map("tokenHash")
+  // Deterministic HMAC-SHA256(REFRESH_TOKEN_HMAC_SECRET, rawToken) used for
+  // O(1) indexed lookup AND verification (knowing the lookup proves the
+  // token was minted with this server's HMAC secret). Replaces the previous
+  // bcrypt-based scan-all-rows-and-compare approach.
+  tokenLookup String?   @unique @map("tokenLookup")
+  // Legacy bcrypt-hashed value, only present on rows minted before the
+  // refresh-token rewrite. New rows leave this null. Cleanup cron will
+  // delete legacy rows once they expire (max 7d).
+  tokenHash   String?   @map("tokenHash")
   userId      String    @map("userId") @db.Uuid
   clientId    String    @map("clientId")
   scope       String?
@@ -128,6 +136,7 @@ model RefreshToken {
   client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, clientId, revoked])
   @@map("refresh_tokens")
 }
 

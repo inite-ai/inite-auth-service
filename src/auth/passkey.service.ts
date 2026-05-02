@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   generateRegistrationOptions,
@@ -12,6 +12,16 @@ import type {
 } from '@simplewebauthn/types';
 import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../common/redis.service';
+
+// WebAuthn challenge replay protection: server-issued challenges are stored
+// in Redis with a 5-minute TTL and consumed atomically (getDel) on verify.
+// Per WebAuthn spec, the challenge is what makes each signed assertion
+// unique and unreplayable — relying on a client-supplied "expectedChallenge"
+// (the previous behavior) defeated the entire mechanism.
+const CHALLENGE_TTL_SECONDS = 5 * 60;
+const REGISTRATION_KEY = (userId: string) => `webauthn:reg:${userId}`;
+const AUTHENTICATION_KEY = (challenge: string) => `webauthn:auth:${challenge}`;
 
 @Injectable()
 export class PasskeyService {
@@ -22,10 +32,32 @@ export class PasskeyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly redis: RedisService,
   ) {
     this.rpName = this.configService.get<string>('RP_NAME', 'INITE Identity');
     this.rpID = this.configService.get<string>('RP_ID', 'inite.ai');
     this.origin = this.configService.get<string>('RP_ORIGIN', 'https://auth.inite.ai');
+  }
+
+  /**
+   * Decode the server-signed challenge from a WebAuthn assertion's
+   * clientDataJSON (base64url-encoded JSON). The library will also verify
+   * this matches expectedChallenge, but we extract it first so we can look
+   * up the server-issued challenge in Redis.
+   */
+  private extractChallengeFromResponse(
+    response: { response: { clientDataJSON: string } },
+  ): string {
+    try {
+      const json = Buffer.from(response.response.clientDataJSON, 'base64url').toString('utf-8');
+      const parsed = JSON.parse(json) as { challenge?: string };
+      if (typeof parsed.challenge !== 'string' || !parsed.challenge) {
+        throw new Error('missing challenge');
+      }
+      return parsed.challenge;
+    } catch {
+      throw new BadRequestException('Malformed WebAuthn response');
+    }
   }
 
   /**
@@ -60,22 +92,37 @@ export class PasskeyService {
       },
     });
 
+    await this.redis.set(
+      REGISTRATION_KEY(userId),
+      options.challenge,
+      CHALLENGE_TTL_SECONDS,
+    );
+
     (options as any).hints = ['client-device'];
 
     return options;
   }
 
   /**
-   * Verify registration response and save passkey
+   * Verify registration response and save passkey.
+   *
+   * The expected challenge is read from Redis (where it was stored when
+   * `generateRegistrationOptions` was called) — never from the client.
    */
   async verifyRegistrationResponse(
     userId: string,
     response: RegistrationResponseJSON,
-    expectedChallenge: string,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
+    }
+
+    const expectedChallenge = await this.redis.getDel(REGISTRATION_KEY(userId));
+    if (!expectedChallenge) {
+      throw new UnauthorizedException(
+        'Registration challenge expired or not found — call options endpoint again',
+      );
     }
 
     const verification = await verifyRegistrationResponse({
@@ -148,18 +195,41 @@ export class PasskeyService {
       allowCredentials,
     });
 
+    // Authentication is pre-identification — there's no userId to key the
+    // challenge by. Use the challenge itself as the key; the verify path
+    // extracts the challenge from the client's signed assertion and
+    // atomically getDel's the matching key.
+    await this.redis.set(
+      AUTHENTICATION_KEY(options.challenge),
+      '1',
+      CHALLENGE_TTL_SECONDS,
+    );
+
     (options as any).hints = ['client-device'];
 
     return options;
   }
 
   /**
-   * Verify authentication response
+   * Verify authentication response.
+   *
+   * The challenge is extracted from the client's signed assertion
+   * (clientDataJSON) and looked up in Redis. If it isn't present, the
+   * challenge was never issued by this server, already consumed, or
+   * expired — assertion is rejected. This is what makes WebAuthn
+   * assertions unreplayable.
    */
   async verifyAuthenticationResponse(
     response: AuthenticationResponseJSON,
-    expectedChallenge: string,
   ) {
+    const expectedChallenge = this.extractChallengeFromResponse(response);
+    const stored = await this.redis.getDel(AUTHENTICATION_KEY(expectedChallenge));
+    if (!stored) {
+      throw new UnauthorizedException(
+        'Authentication challenge expired, already used, or never issued',
+      );
+    }
+
     const credentialIdBase64Url = response.id;
 
     // Primary lookup - direct match with stored base64url

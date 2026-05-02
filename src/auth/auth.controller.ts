@@ -276,15 +276,19 @@ export class AuthController {
   // ==================== Passkey Auth (WebAuthn) ====================
 
   @Post('passkey/prepare-registration')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async preparePasskeyRegistration(
-    @Body() body: { email: string; name?: string; allowExisting?: boolean },
+    @Body() body: { email: string; name?: string },
     @Request() req: any,
   ) {
-    // allowExisting defaults to false for registration flow (will throw error if user exists)
+    // SECURITY: this endpoint is unauthenticated. Existing users CANNOT be
+    // logged in here (would be account takeover by email enumeration) — the
+    // service throws if email exists. To add a passkey to an existing
+    // account, call /auth/passkey/registration/options with the user's
+    // current JWT/session instead.
     const result = await this.authService.createUserForPasskey(
       body.email,
       body.name,
-      body.allowExisting ?? false,
     );
     
     // Set userId in session for SSO
@@ -335,12 +339,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async verifyRegistration(
     @Request() req: any,
-    @Body() body: { response: any; challenge: string },
+    @Body() body: { response: any },
   ) {
+    // body.challenge is intentionally ignored — the expected challenge is
+    // read from server-side Redis where it was stored by the options
+    // endpoint. Trusting client-supplied challenge defeats WebAuthn replay
+    // protection.
     const result = await this.passkeyService.verifyRegistrationResponse(
       req.user.userId,
       body.response,
-      body.challenge,
     );
     this.logger.auth('Passkey registered', { userId: req.user.userId, verified: result.verified });
     return result;
@@ -355,12 +362,12 @@ export class AuthController {
   @Post('passkey/authentication/verify')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verifyAuthentication(
-    @Body() body: { response: any; challenge: string },
+    @Body() body: { response: any },
     @Request() req: any,
   ) {
+    // body.challenge ignored — see verifyRegistration for rationale.
     const result = await this.passkeyService.verifyAuthenticationResponse(
       body.response,
-      body.challenge,
     );
 
     const accessToken = await this.authService['generateAccessToken'](result.user);

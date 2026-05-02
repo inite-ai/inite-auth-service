@@ -29,21 +29,23 @@ export class AuthService {
   }
 
   /**
-   * Create user account for passkey registration (no password)
+   * Create user account for passkey registration (no password).
+   *
+   * SECURITY: this endpoint is unauthenticated and MUST NOT mint a session
+   * for an already-existing email — that path was an account takeover
+   * (anyone could log in as any user by passing allowExisting:true).
+   * Existing users who want to add a passkey go through the authenticated
+   * /auth/passkey/registration/options flow with their existing JWT/session.
    */
   async createUserForPasskey(
     email: string,
     name?: string,
-    allowExisting: boolean = false,
-  ): Promise<{ user: User; accessToken: string; isExistingUser: boolean }> {
+  ): Promise<{ user: User; accessToken: string; isExistingUser: false }> {
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      if (allowExisting) {
-        const accessToken = this.generateAccessToken(existingUser);
-        return { user: existingUser, accessToken, isExistingUser: true };
-      } else {
-        throw new BadRequestException('User with this email already exists. Please sign in instead.');
-      }
+      throw new BadRequestException(
+        'User with this email already exists. Please sign in instead.',
+      );
     }
 
     let user = await this.identityService.createIdentity(email, name);

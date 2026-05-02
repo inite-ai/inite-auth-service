@@ -86,7 +86,10 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: self-hosted
+    # Pin to the SFO self-hosted runner so this job never lands on a
+    # different host that wouldn't have /opt/projects, traefik-global
+    # network, or the docker volumes this deploy step expects.
+    runs-on: [self-hosted, sfo]
     
     steps:
     - name: Login to Docker Hub

@@ -302,6 +302,18 @@ jobs:
         # never re-baselines or drops data). Fails the deploy if the
         # migration itself errors so we don't ship code expecting a schema
         # that isn't there.
+        #
+        # The DB pre-dates Prisma migration tracking (it was originally
+        # created via `db push` / TypeORM-era SQL), so the first formal
+        # migration `0001_convert_text_to_array` already applied to the
+        # schema but is not recorded in `_prisma_migrations`. Without a
+        # baseline marker, `migrate deploy` would try to re-run it and
+        # fail with P3005. We mark it applied here — `|| true` so this is
+        # idempotent: the first deploy creates the baseline row, every
+        # subsequent run sees "already applied" and continues.
+        echo "🗄️ Baselining historical migrations (idempotent)..."
+        docker exec inite-auth-service npx prisma migrate resolve --applied 0001_convert_text_to_array || true
+
         echo "🗄️ Running database migrations..."
         docker exec inite-auth-service npx prisma migrate deploy
         

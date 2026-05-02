@@ -36,6 +36,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:-}
       - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:-}
+      - REFRESH_TOKEN_HMAC_SECRET=${REFRESH_TOKEN_HMAC_SECRET:-${JWT_SECRET}}
       - JWT_ISSUER=https://auth-api.inite.ai
       - OIDC_ISSUER=https://auth-api.inite.ai
       - CORS_ORIGINS=http://localhost:3003

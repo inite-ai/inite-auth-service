@@ -109,6 +109,7 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
           echo "JWT_PRIVATE_KEY=\"$(printf '%s' '${{ secrets.JWT_PRIVATE_KEY }}' | sed ':a;N;$!ba;s/\n/\\n/g')\""
           echo "JWT_PUBLIC_KEY=\"$(printf '%s' '${{ secrets.JWT_PUBLIC_KEY }}' | sed ':a;N;$!ba;s/\n/\\n/g')\""
+          echo "REFRESH_TOKEN_HMAC_SECRET=${{ secrets.REFRESH_TOKEN_HMAC_SECRET }}"
           echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}"
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}"
           echo "ADMIN_NAME=${{ secrets.ADMIN_NAME }}"
@@ -161,6 +162,7 @@ jobs:
               - JWT_SECRET=\${JWT_SECRET}
               - JWT_PRIVATE_KEY=\${JWT_PRIVATE_KEY}
               - JWT_PUBLIC_KEY=\${JWT_PUBLIC_KEY}
+              - REFRESH_TOKEN_HMAC_SECRET=\${REFRESH_TOKEN_HMAC_SECRET}
               - JWT_ISSUER=https://auth-api.inite.ai
               - OIDC_ISSUER=https://auth-api.inite.ai
               - CORS_ORIGINS=
@@ -293,9 +295,12 @@ jobs:
         # Wait for services
         sleep 30
         
-        # Run migrations
+        # Run migrations (Prisma; production-safe — applies pending only,
+        # never re-baselines or drops data). Fails the deploy if the
+        # migration itself errors so we don't ship code expecting a schema
+        # that isn't there.
         echo "🗄️ Running database migrations..."
-        docker exec inite-auth-service npm run migration:run || echo "⚠️ Migrations failed or already applied"
+        docker exec inite-auth-service npx prisma migrate deploy
         
         # Create admin
         echo "👤 Creating admin user..."

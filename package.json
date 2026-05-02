@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
+    "prisma:migrate:deploy": "npx prisma migrate deploy",
     "prisma:studio": "npx prisma studio",
     "register-clients": "ts-node -r tsconfig-paths/register scripts/register-oauth-clients.ts",
     "register-smart-chat-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-client.ts",

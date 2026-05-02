@@ -49,6 +49,19 @@ Value: <your-secure-jwt-secret>
 ```
 **Generate with:** `openssl rand -base64 64`
 
+### 3a. Refresh-Token HMAC Secret (REQUIRED in prod)
+```
+Name: REFRESH_TOKEN_HMAC_SECRET
+Value: <independent random secret, ≥32 random bytes>
+```
+**Generate with:** `openssl rand -base64 64`
+
+Used to compute the deterministic lookup hash on refresh tokens
+(HMAC-SHA256). Must be a different secret than `JWT_SECRET` — sharing them
+means a leak of one burns both surfaces. The service falls back to
+`JWT_SECRET` if this is unset, but only as a dev convenience; production
+deployments without an explicit value will be flagged in logs.
+
 ### 4. SMTP (Mailgun) - только секретные данные
 ```
 Name: SMTP_USER
@@ -76,6 +89,7 @@ Value: <your-dockerhub-access-token>
 echo "POSTGRES_PASSWORD=$(openssl rand -base64 32)"
 echo "REDIS_PASSWORD=$(openssl rand -base64 32)"
 echo "JWT_SECRET=$(openssl rand -base64 64)"
+echo "REFRESH_TOKEN_HMAC_SECRET=$(openssl rand -base64 64)"
 ```
 
 ## Local Development `.env`
@@ -94,6 +108,10 @@ REDIS_PASSWORD=local_dev_redis_password
 # JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 # JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 JWT_SECRET=local_dev_jwt_secret_at_least_32_chars_long
+
+# Refresh-token HMAC (deterministic lookup hash). Falls back to JWT_SECRET
+# if unset, but production should always have its own value.
+REFRESH_TOKEN_HMAC_SECRET=local_dev_refresh_token_hmac_at_least_32_chars
 
 # Email (optional for local dev)
 SMTP_HOST=smtp.mailgun.org

@@ -40,13 +40,22 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     name: '',
     clientId: '',
     redirectUris: [''] as string[],
+    allowedScopes: ['openid', 'profile', 'email'] as string[],
+    allowedGrants: ['authorization_code', 'refresh_token'] as string[],
+    companyId: '',
   })
 
   const [editForm, setEditForm] = useState<any>({
     name: '',
     redirectUris: [] as string[],
+    allowedScopes: [] as string[],
+    allowedGrants: [] as string[],
+    companyId: '',
     active: true,
   })
+
+  const [scopeInput, setScopeInput] = useState('')
+  const [editScopeInput, setEditScopeInput] = useState('')
 
   const config = { headers: { Authorization: `Bearer ${accessToken}` } }
 
@@ -76,8 +85,24 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
   }
 
   const createClient = async () => {
-    if (!createForm.name || !createForm.clientId || !createForm.redirectUris) {
-      toast.error('Name, Client ID, and Redirect URIs are required')
+    if (!createForm.name || !createForm.clientId) {
+      toast.error('Name and Client ID are required')
+      return
+    }
+    if (createForm.allowedGrants.length === 0) {
+      toast.error('Pick at least one grant type')
+      return
+    }
+    if (createForm.allowedScopes.length === 0) {
+      toast.error('Pick at least one scope')
+      return
+    }
+    // Redirect URIs are only meaningful for grants that redirect.
+    const wantsRedirect =
+      createForm.allowedGrants.includes('authorization_code') ||
+      createForm.allowedGrants.includes('refresh_token')
+    if (wantsRedirect && createForm.redirectUris.filter(Boolean).length === 0) {
+      toast.error('Authorization code grant requires at least one redirect URI')
       return
     }
     setSaving(true)
@@ -86,11 +111,22 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         name: createForm.name,
         clientId: createForm.clientId,
         redirectUris: createForm.redirectUris.filter(Boolean),
+        allowedScopes: createForm.allowedScopes,
+        allowedGrants: createForm.allowedGrants,
+        companyId: createForm.companyId.trim() || null,
       }, config)
 
       setNewSecret(res.data.clientSecret)
       setShowCreate(false)
-      setCreateForm({ name: '', clientId: '', redirectUris: [''] })
+      setCreateForm({
+        name: '',
+        clientId: '',
+        redirectUris: [''],
+        allowedScopes: ['openid', 'profile', 'email'],
+        allowedGrants: ['authorization_code', 'refresh_token'],
+        companyId: '',
+      })
+      setScopeInput('')
       loadClients()
       toast.success('OAuth client created')
     } catch (error: any) {
@@ -105,17 +141,32 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     setEditForm({
       name: client.name || '',
       redirectUris: Array.isArray(client.redirectUris) ? [...client.redirectUris] : [],
+      allowedScopes: Array.isArray(client.allowedScopes) ? [...client.allowedScopes] : [],
+      allowedGrants: Array.isArray(client.allowedGrants) ? [...client.allowedGrants] : [],
+      companyId: client.companyId ?? '',
       active: client.active !== false,
     })
+    setEditScopeInput('')
   }
 
   const saveClient = async () => {
     if (!editingClient) return
+    if (editForm.allowedGrants.length === 0) {
+      toast.error('Pick at least one grant type')
+      return
+    }
+    if (editForm.allowedScopes.length === 0) {
+      toast.error('Pick at least one scope')
+      return
+    }
     setSaving(true)
     try {
       await api.put(`/admin/oauth-clients/${editingClient.clientId}`, {
         name: editForm.name,
         redirectUris: editForm.redirectUris.filter(Boolean),
+        allowedScopes: editForm.allowedScopes,
+        allowedGrants: editForm.allowedGrants,
+        companyId: editForm.companyId.trim() ? editForm.companyId.trim() : null,
         active: editForm.active,
       }, config)
 
@@ -127,6 +178,54 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     } finally {
       setSaving(false)
     }
+  }
+
+  // Available grant types — kept here so the UI stays a single source of
+  // truth. If you add a grant in oauth.service.ts, mirror it here.
+  const GRANT_OPTIONS: Array<{ id: string; label: string; hint: string }> = [
+    { id: 'authorization_code', label: 'Authorization Code', hint: 'User-flow apps with PKCE' },
+    { id: 'refresh_token', label: 'Refresh Token', hint: 'Long-lived sessions' },
+    { id: 'client_credentials', label: 'Client Credentials', hint: 'Service-to-service M2M, no user' },
+  ]
+
+  // Common scope presets — quick-add buttons. Operators can also type
+  // arbitrary scope strings (verticals decide their own scope vocabulary).
+  const SCOPE_PRESETS = [
+    'openid', 'profile', 'email', 'offline_access', 'wallet', 'admin',
+    'brain:read', 'brain:write', 'brain:admin', 'brain:read_pii',
+  ]
+
+  const toggleGrant = (
+    form: any,
+    setForm: (v: any) => void,
+    grant: string,
+  ) => {
+    const set = new Set<string>(form.allowedGrants)
+    if (set.has(grant)) {
+      set.delete(grant)
+    } else {
+      set.add(grant)
+    }
+    setForm({ ...form, allowedGrants: Array.from(set) })
+  }
+
+  const addScope = (
+    form: any,
+    setForm: (v: any) => void,
+    raw: string,
+  ) => {
+    const scope = raw.trim()
+    if (!scope) return
+    if (form.allowedScopes.includes(scope)) return
+    setForm({ ...form, allowedScopes: [...form.allowedScopes, scope] })
+  }
+
+  const removeScope = (
+    form: any,
+    setForm: (v: any) => void,
+    scope: string,
+  ) => {
+    setForm({ ...form, allowedScopes: form.allowedScopes.filter((s: string) => s !== scope) })
   }
 
   const rotateSecret = async (clientId: string) => {
@@ -383,42 +482,158 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm text-slate-400">Redirect URIs</label>
-                    <button
-                      onClick={() => setCreateForm({ ...createForm, redirectUris: [...createForm.redirectUris, ''] })}
-                      className="text-xs text-violet-400 hover:text-violet-300 transition flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add URI
-                    </button>
-                  </div>
+                  <label className="block text-sm text-slate-400 mb-2">Grant Types</label>
                   <div className="space-y-2">
-                    {createForm.redirectUris.map((uri: string, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          type="url"
-                          value={uri}
-                          onChange={(e) => {
-                            const uris = [...createForm.redirectUris]
-                            uris[idx] = e.target.value
-                            setCreateForm({ ...createForm, redirectUris: uris })
-                          }}
-                          placeholder="https://app.example.com/callback"
-                          className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                        />
-                        {createForm.redirectUris.length > 1 && (
-                          <button
-                            onClick={() => {
-                              const uris = createForm.redirectUris.filter((_: string, i: number) => i !== idx)
+                    {GRANT_OPTIONS.map((g) => {
+                      const checked = createForm.allowedGrants.includes(g.id)
+                      return (
+                        <button
+                          type="button"
+                          key={g.id}
+                          onClick={() => toggleGrant(createForm, setCreateForm, g.id)}
+                          className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border transition text-left ${
+                            checked
+                              ? 'bg-violet-500/10 border-violet-500/50'
+                              : 'bg-slate-800/30 border-slate-700 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            checked ? 'bg-violet-500 border-violet-500' : 'border-slate-500'
+                          }`}>
+                            {checked && <Check className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white font-mono">{g.id}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{g.hint}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {(createForm.allowedGrants.includes('authorization_code') ||
+                  createForm.allowedGrants.includes('refresh_token')) && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-slate-400">Redirect URIs</label>
+                      <button
+                        onClick={() => setCreateForm({ ...createForm, redirectUris: [...createForm.redirectUris, ''] })}
+                        className="text-xs text-violet-400 hover:text-violet-300 transition flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add URI
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {createForm.redirectUris.map((uri: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="url"
+                            value={uri}
+                            onChange={(e) => {
+                              const uris = [...createForm.redirectUris]
+                              uris[idx] = e.target.value
                               setCreateForm({ ...createForm, redirectUris: uris })
                             }}
-                            className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                            placeholder="https://app.example.com/callback"
+                            className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                          />
+                          {createForm.redirectUris.length > 1 && (
+                            <button
+                              onClick={() => {
+                                const uris = createForm.redirectUris.filter((_: string, i: number) => i !== idx)
+                                setCreateForm({ ...createForm, redirectUris: uris })
+                              }}
+                              className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {createForm.allowedGrants.includes('client_credentials') && (
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">
+                      Company ID
+                      <span className="text-slate-500 font-normal ml-2">
+                        — tenant key embedded as JWT `sub`
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.companyId}
+                      onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })}
+                      placeholder="co_smar_chat"
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Leave blank to use Client ID as `sub`. Set this to match an existing tenant
+                      (e.g. brain database) so M2M calls land in the same tenant as legacy keys.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Allowed Scopes</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {createForm.allowedScopes.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-500/15 border border-violet-500/40 rounded-lg text-xs text-violet-200 font-mono"
+                      >
+                        {s}
+                        <button
+                          type="button"
+                          onClick={() => removeScope(createForm, setCreateForm, s)}
+                          className="text-violet-300 hover:text-white"
+                          aria-label={`Remove ${s}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={scopeInput}
+                      onChange={(e) => setScopeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                          e.preventDefault()
+                          addScope(createForm, setCreateForm, scopeInput)
+                          setScopeInput('')
+                        }
+                      }}
+                      placeholder="custom.scope and press Enter"
+                      className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addScope(createForm, setCreateForm, scopeInput)
+                        setScopeInput('')
+                      }}
+                      className="px-3 py-2 bg-slate-700/50 text-slate-300 rounded-lg hover:bg-slate-600/50 transition text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {SCOPE_PRESETS.filter((s) => !createForm.allowedScopes.includes(s)).map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        onClick={() => addScope(createForm, setCreateForm, s)}
+                        className="px-2 py-0.5 text-xs text-slate-400 hover:text-violet-300 hover:bg-violet-500/10 rounded border border-slate-700 hover:border-violet-500/40 transition font-mono"
+                      >
+                        + {s}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -539,6 +754,118 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Grant Types</label>
+                  <div className="space-y-2">
+                    {GRANT_OPTIONS.map((g) => {
+                      const checked = editForm.allowedGrants.includes(g.id)
+                      return (
+                        <button
+                          type="button"
+                          key={g.id}
+                          onClick={() => toggleGrant(editForm, setEditForm, g.id)}
+                          className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border transition text-left ${
+                            checked
+                              ? 'bg-violet-500/10 border-violet-500/50'
+                              : 'bg-slate-800/30 border-slate-700 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            checked ? 'bg-violet-500 border-violet-500' : 'border-slate-500'
+                          }`}>
+                            {checked && <Check className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white font-mono">{g.id}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{g.hint}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {editForm.allowedGrants.includes('client_credentials') && (
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">
+                      Company ID
+                      <span className="text-slate-500 font-normal ml-2">
+                        — tenant key embedded as JWT `sub`
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.companyId}
+                      onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
+                      placeholder="co_smar_chat"
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Leave blank to use Client ID as `sub`.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Allowed Scopes</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {editForm.allowedScopes.map((s: string) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-500/15 border border-violet-500/40 rounded-lg text-xs text-violet-200 font-mono"
+                      >
+                        {s}
+                        <button
+                          type="button"
+                          onClick={() => removeScope(editForm, setEditForm, s)}
+                          className="text-violet-300 hover:text-white"
+                          aria-label={`Remove ${s}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={editScopeInput}
+                      onChange={(e) => setEditScopeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                          e.preventDefault()
+                          addScope(editForm, setEditForm, editScopeInput)
+                          setEditScopeInput('')
+                        }
+                      }}
+                      placeholder="custom.scope and press Enter"
+                      className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addScope(editForm, setEditForm, editScopeInput)
+                        setEditScopeInput('')
+                      }}
+                      className="px-3 py-2 bg-slate-700/50 text-slate-300 rounded-lg hover:bg-slate-600/50 transition text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {SCOPE_PRESETS.filter((s) => !editForm.allowedScopes.includes(s)).map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        onClick={() => addScope(editForm, setEditForm, s)}
+                        className="px-2 py-0.5 text-xs text-slate-400 hover:text-violet-300 hover:bg-violet-500/10 rounded border border-slate-700 hover:border-violet-500/40 transition font-mono"
+                      >
+                        + {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <label className="flex items-center gap-3 cursor-pointer">
                   <button
                     onClick={() => setEditForm({ ...editForm, active: !editForm.active })}
@@ -637,15 +964,52 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 )}
 
                 <div>
-                  <p className="text-xs text-slate-500 mb-2">Redirect URIs</p>
-                  <div className="space-y-1">
-                    {selectedClient.redirectUris?.map((uri: string, idx: number) => (
-                      <code key={idx} className="block text-sm text-slate-300 bg-slate-800/50 px-3 py-2 rounded-lg break-all">
-                        {uri}
+                  <p className="text-xs text-slate-500 mb-2">Grant Types</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(selectedClient.allowedGrants ?? []).map((g: string) => (
+                      <code key={g} className="text-xs text-slate-200 bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-lg">
+                        {g}
                       </code>
                     ))}
+                    {(!selectedClient.allowedGrants || selectedClient.allowedGrants.length === 0) && (
+                      <span className="text-xs text-slate-500">none configured</span>
+                    )}
                   </div>
                 </div>
+
+                <div>
+                  <p className="text-xs text-slate-500 mb-2">Allowed Scopes</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(selectedClient.allowedScopes ?? []).map((s: string) => (
+                      <code key={s} className="text-xs text-violet-200 bg-violet-500/10 border border-violet-500/30 px-2 py-1 rounded-lg">
+                        {s}
+                      </code>
+                    ))}
+                    {(!selectedClient.allowedScopes || selectedClient.allowedScopes.length === 0) && (
+                      <span className="text-xs text-slate-500">none configured</span>
+                    )}
+                  </div>
+                </div>
+
+                {selectedClient.companyId && (
+                  <div className="bg-slate-800/50 rounded-xl p-3">
+                    <p className="text-xs text-slate-500">Company ID (M2M `sub` claim)</p>
+                    <code className="text-sm text-white">{selectedClient.companyId}</code>
+                  </div>
+                )}
+
+                {selectedClient.redirectUris && selectedClient.redirectUris.length > 0 && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-2">Redirect URIs</p>
+                    <div className="space-y-1">
+                      {selectedClient.redirectUris.map((uri: string, idx: number) => (
+                        <code key={idx} className="block text-sm text-slate-300 bg-slate-800/50 px-3 py-2 rounded-lg break-all">
+                          {uri}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-slate-800/50 rounded-xl p-3">
                   <p className="text-xs text-slate-500">Created</p>

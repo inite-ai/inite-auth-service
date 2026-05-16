@@ -157,4 +157,89 @@ describe('AdminService', () => {
       expect(mockPrisma.oAuthClient.delete).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
     });
   });
+
+  describe('createOAuthClient', () => {
+    it('persists allowedGrants + companyId when provided', async () => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => ({
+        ...data,
+        id: 'uuid-1',
+        clientSecretHash: data.clientSecretHash,
+      }));
+
+      const result = await service.createOAuthClient({
+        name: 'Brain M2M',
+        clientId: 'smart-chat-brain',
+        redirectUris: [],
+        allowedScopes: ['brain:read', 'brain:write', 'brain:admin'],
+        allowedGrants: ['client_credentials'],
+        companyId: 'co_smar_chat',
+      });
+
+      const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(persisted.allowedScopes).toEqual([
+        'brain:read', 'brain:write', 'brain:admin',
+      ]);
+      expect(persisted.allowedGrants).toEqual(['client_credentials']);
+      expect(persisted.companyId).toBe('co_smar_chat');
+      expect(result.clientSecret).toBeDefined();
+      expect(result.clientSecret.length).toBeGreaterThan(20);
+    });
+
+    it('falls back to default scopes when none provided', async () => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+
+      await service.createOAuthClient({
+        name: 'User App',
+        clientId: 'user-app',
+        redirectUris: ['https://app.test/callback'],
+      });
+
+      const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(persisted.allowedScopes).toEqual(['openid', 'profile', 'email']);
+      // allowedGrants is omitted from the prisma payload — the schema
+      // default ['authorization_code', 'refresh_token'] applies.
+      expect(persisted.allowedGrants).toBeUndefined();
+      expect(persisted.companyId).toBeNull();
+    });
+
+    it('treats empty allowedGrants array as "use schema default"', async () => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+
+      await service.createOAuthClient({
+        name: 'X',
+        clientId: 'x',
+        redirectUris: [],
+        allowedGrants: [],
+      });
+
+      const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(persisted.allowedGrants).toBeUndefined();
+    });
+  });
+
+  describe('updateOAuthClient', () => {
+    it('passes allowedGrants and companyId through to prisma', async () => {
+      mockPrisma.oAuthClient.update.mockResolvedValue({
+        clientId: 'smart-chat-brain',
+        clientSecretHash: 'hash',
+        allowedGrants: ['client_credentials'],
+        companyId: 'co_smar_chat',
+      });
+
+      await service.updateOAuthClient('smart-chat-brain', {
+        allowedGrants: ['client_credentials'],
+        companyId: 'co_smar_chat',
+      });
+
+      const calledData = mockPrisma.oAuthClient.update.mock.calls[0][0].data;
+      expect(calledData.allowedGrants).toEqual(['client_credentials']);
+      expect(calledData.companyId).toBe('co_smar_chat');
+    });
+
+    it('returns null when the client does not exist', async () => {
+      mockPrisma.oAuthClient.update.mockRejectedValue(new Error('not found'));
+      const result = await service.updateOAuthClient('ghost', { name: 'X' });
+      expect(result).toBeNull();
+    });
+  });
 });

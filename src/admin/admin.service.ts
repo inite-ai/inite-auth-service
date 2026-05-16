@@ -161,6 +161,8 @@ export class AdminService {
     clientId: string;
     redirectUris: string[];
     allowedScopes?: string[];
+    allowedGrants?: string[];
+    companyId?: string | null;
   }) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -171,7 +173,13 @@ export class AdminService {
         name: data.name,
         redirectUris: data.redirectUris,
         clientSecretHash,
-        allowedScopes: data.allowedScopes || ['openid', 'profile', 'email'],
+        allowedScopes: data.allowedScopes ?? ['openid', 'profile', 'email'],
+        // Prisma uses the schema default when the field is omitted, so we
+        // only set allowedGrants explicitly when the operator picked one.
+        ...(data.allowedGrants && data.allowedGrants.length > 0
+          ? { allowedGrants: data.allowedGrants }
+          : {}),
+        companyId: data.companyId ?? null,
       },
     });
 
@@ -190,6 +198,7 @@ export class AdminService {
       redirectUris: string[];
       allowedScopes: string[];
       allowedGrants: string[];
+      companyId: string | null;
       active: boolean;
       logoUrl: string;
       privacyPolicyUrl: string;

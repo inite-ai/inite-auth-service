@@ -87,6 +87,8 @@ export class AdminController {
       clientSecret: string;
       redirectUris: string[];
       allowedScopes?: string[];
+      allowedGrants?: string[];
+      companyId?: string | null;
     },
   ) {
     return this.adminService.createOAuthClient(body);
@@ -101,6 +103,7 @@ export class AdminController {
       redirectUris: string[];
       allowedScopes: string[];
       allowedGrants: string[];
+      companyId: string | null;
       active: boolean;
       logoUrl: string;
       privacyPolicyUrl: string;

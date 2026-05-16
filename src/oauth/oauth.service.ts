@@ -425,6 +425,113 @@ export class OAuthService {
   }
 
   /**
+   * Issue a machine-to-machine access token via the
+   * client_credentials grant (RFC 6749 §4.4). No user identity is
+   * involved — the token's `sub` claim is the client's `companyId`
+   * (or its `clientId` when companyId is not set), so downstream
+   * services like brain key data per-tenant.
+   *
+   * Scopes are filtered against the client's `allowedScopes`: a
+   * client cannot request brain:admin if it wasn't provisioned for
+   * it. An empty request defaults to ALL the client's allowed scopes
+   * — common pattern for service-to-service callers who don't want
+   * to repeat the full scope list per request.
+   *
+   * Audience is honoured if the client passed one; otherwise the
+   * token has no aud claim (caller's loss — they'd be rejected by
+   * any service that audience-validates).
+   *
+   * The token is JWT-signed by the same JWKS the rest of the service
+   * uses. Refresh tokens are NOT issued — client_credentials is
+   * stateless by RFC; the caller re-fetches when the access token
+   * nears expiry (see @inite/auth/machineToken for the SDK helper).
+   */
+  async issueClientCredentialsToken(
+    client: OAuthClient,
+    requestedScope: string | undefined,
+    audience: string | undefined,
+  ): Promise<{
+    accessToken: string;
+    expiresIn: number;
+    scope: string;
+  }> {
+    const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
+    const allowed = client.allowedScopes ?? [];
+    const grantedScopes =
+      requested.length === 0
+        ? allowed.slice()
+        : requested.filter((s) => allowed.includes(s));
+
+    if (requested.length > 0 && grantedScopes.length !== requested.length) {
+      const denied = requested.filter((s) => !allowed.includes(s));
+      throw new BadRequestException(
+        `Scope(s) not allowed for this client: ${denied.join(', ')}`,
+      );
+    }
+
+    if (grantedScopes.length === 0) {
+      throw new BadRequestException(
+        'No scopes available for this client_credentials grant',
+      );
+    }
+
+    const sub = client.companyId ?? client.clientId;
+    const accessTokenExpiry = this.configService.get<string>(
+      'JWT_ACCESS_TOKEN_EXPIRY',
+      '10m',
+    );
+    const issuer = this.configService.get<string>(
+      'JWT_ISSUER',
+      'auth.inite.ai',
+    );
+
+    const accessToken = this.jwtService.sign(
+      {
+        sub,
+        client_id: client.clientId,
+        scopes: grantedScopes,
+        scope: grantedScopes.join(' '),
+      },
+      {
+        expiresIn: accessTokenExpiry as any,
+        audience: audience ?? client.clientId,
+        issuer,
+      },
+    );
+
+    const expiresIn = this.parseExpiryToSeconds(accessTokenExpiry);
+    return {
+      accessToken,
+      expiresIn,
+      scope: grantedScopes.join(' '),
+    };
+  }
+
+  /**
+   * Translate the expressive JWT expiry string ('10m', '1h', '3600s')
+   * into seconds for the OAuth token-response `expires_in` field.
+   * RFC 6749 §5.1 requires this as a number.
+   */
+  private parseExpiryToSeconds(expiry: string): number {
+    const m = /^(\d+)([smhd]?)$/.exec(expiry.trim());
+    if (!m) return 600;
+    const value = parseInt(m[1], 10);
+    switch (m[2]) {
+      case 's':
+      case '':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return value;
+    }
+  }
+
+  /**
    * Revoke refresh token (RFC 7009).
    * O(1) lookup via tokenLookup. Silently no-ops if the token is unknown,
    * already revoked, or for a different client — per spec.

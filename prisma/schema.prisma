@@ -79,6 +79,11 @@ model OAuthClient {
   redirectUris      String[] @map("redirectUris")
   allowedScopes     String[] @default([]) @map("allowedScopes")
   allowedGrants     String[] @default(["authorization_code", "refresh_token"]) @map("allowedGrants")
+  /// Tenant identifier embedded as `sub` in JWTs issued via the
+  /// client_credentials grant. Null for user-flow clients (those use
+  /// the user's DID as sub). Set for machine clients calling brain
+  /// or other horizontal services that key data by company.
+  companyId         String?  @map("companyId")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")

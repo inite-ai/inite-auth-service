@@ -166,6 +166,8 @@ export class OAuthController {
     @Body('client_secret') clientSecret: string,
     @Body('code_verifier') codeVerifier: string,
     @Body('refresh_token') refreshToken: string,
+    @Body('scope') scope: string,
+    @Body('audience') audience: string,
   ) {
     if (!grantType) {
       throw new BadRequestException('grant_type is required');
@@ -211,6 +213,27 @@ export class OAuthController {
         expires_in: tokens.expiresIn,
         refresh_token: tokens.refreshToken,
         id_token: tokens.idToken,
+        scope: tokens.scope,
+      };
+    }
+
+    if (grantType === 'client_credentials') {
+      const tokens = await this.oauthService.issueClientCredentialsToken(
+        client,
+        scope,
+        audience,
+      );
+
+      this.logger.oauth('M2M token issued', {
+        clientId,
+        scope: tokens.scope,
+        audience,
+      });
+
+      return {
+        access_token: tokens.accessToken,
+        token_type: 'Bearer',
+        expires_in: tokens.expiresIn,
         scope: tokens.scope,
       };
     }

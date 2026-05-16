@@ -25,7 +25,8 @@
     "register-clients": "ts-node -r tsconfig-paths/register scripts/register-oauth-clients.ts",
     "register-smart-chat-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-client.ts",
     "register-admin-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-admin-client.ts",
-    "register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client",
+    "register-brain-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-brain-client.ts",
+    "register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client && npm run register-brain-client",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin-user.ts"
   },
   "dependencies": {

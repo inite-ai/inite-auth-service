@@ -114,6 +114,90 @@ describe('OAuthService', () => {
     });
   });
 
+  describe('issueClientCredentialsToken', () => {
+    const m2mClient: Partial<OAuthClient> = {
+      id: 'uuid-m2m',
+      clientId: 'smart-chat-brain',
+      clientSecretHash: '$2a$10$x',
+      name: 'Smart Chat Brain',
+      redirectUris: [],
+      allowedScopes: ['brain:read', 'brain:write', 'brain:admin'],
+      allowedGrants: ['client_credentials'],
+      companyId: 'co_smar_chat',
+      active: true,
+    };
+
+    it('issues a token signed with sub=companyId when set', async () => {
+      const signSpy = jest.fn().mockReturnValue('m2m-jwt');
+      const jwt = (service as any).jwtService;
+      jwt.sign = signSpy;
+
+      const result = await service.issueClientCredentialsToken(
+        m2mClient as OAuthClient,
+        'brain:read brain:write brain:admin',
+        'brain',
+      );
+
+      expect(result.accessToken).toBe('m2m-jwt');
+      expect(result.scope).toBe('brain:read brain:write brain:admin');
+      const [payload, opts] = signSpy.mock.calls[0];
+      expect(payload.sub).toBe('co_smar_chat');
+      expect(payload.scopes).toEqual([
+        'brain:read',
+        'brain:write',
+        'brain:admin',
+      ]);
+      expect(opts.audience).toBe('brain');
+    });
+
+    it('falls back to clientId as sub when companyId is unset', async () => {
+      const signSpy = jest.fn().mockReturnValue('m2m-jwt');
+      (service as any).jwtService.sign = signSpy;
+
+      await service.issueClientCredentialsToken(
+        { ...m2mClient, companyId: null } as OAuthClient,
+        'brain:read',
+        undefined,
+      );
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload.sub).toBe('smart-chat-brain');
+    });
+
+    it('grants ALL allowed scopes when none are explicitly requested', async () => {
+      const signSpy = jest.fn().mockReturnValue('m2m-jwt');
+      (service as any).jwtService.sign = signSpy;
+
+      const result = await service.issueClientCredentialsToken(
+        m2mClient as OAuthClient,
+        undefined,
+        'brain',
+      );
+
+      expect(result.scope).toBe('brain:read brain:write brain:admin');
+    });
+
+    it('rejects when the requested scope is not in allowedScopes', async () => {
+      await expect(
+        service.issueClientCredentialsToken(
+          m2mClient as OAuthClient,
+          'brain:admin admin',
+          'brain',
+        ),
+      ).rejects.toThrow(/not allowed/);
+    });
+
+    it('rejects when the client has no scopes at all', async () => {
+      await expect(
+        service.issueClientCredentialsToken(
+          { ...m2mClient, allowedScopes: [] } as OAuthClient,
+          undefined,
+          'brain',
+        ),
+      ).rejects.toThrow(/No scopes available/);
+    });
+  });
+
   describe('normalizeScope', () => {
     it('should return requested scopes as-is', () => {
       expect(service.normalizeScope('openid profile')).toBe('openid profile');

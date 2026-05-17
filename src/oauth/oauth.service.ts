@@ -454,6 +454,7 @@ export class OAuthService {
     accessToken: string;
     expiresIn: number;
     scope: string;
+    audience: string;
   }> {
     const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
     const allowed = client.allowedScopes ?? [];
@@ -475,6 +476,25 @@ export class OAuthService {
       );
     }
 
+    // Audience binding — when the client has an explicit
+    // allowedAudiences list, any requested audience must be in it.
+    // Empty allow-list falls back to the legacy behaviour of using
+    // clientId as the audience.
+    const allowedAud = client.allowedAudiences ?? [];
+    let effectiveAudience: string;
+    if (audience) {
+      if (allowedAud.length > 0 && !allowedAud.includes(audience)) {
+        throw new BadRequestException(
+          `Audience "${audience}" is not allowed for this client`,
+        );
+      }
+      effectiveAudience = audience;
+    } else if (allowedAud.length > 0) {
+      effectiveAudience = allowedAud[0];
+    } else {
+      effectiveAudience = client.clientId;
+    }
+
     const sub = client.companyId ?? client.clientId;
     const accessTokenExpiry = this.configService.get<string>(
       'JWT_ACCESS_TOKEN_EXPIRY',
@@ -494,7 +514,7 @@ export class OAuthService {
       },
       {
         expiresIn: accessTokenExpiry as any,
-        audience: audience ?? client.clientId,
+        audience: effectiveAudience,
         issuer,
       },
     );
@@ -504,6 +524,7 @@ export class OAuthService {
       accessToken,
       expiresIn,
       scope: grantedScopes.join(' '),
+      audience: effectiveAudience,
     };
   }
 

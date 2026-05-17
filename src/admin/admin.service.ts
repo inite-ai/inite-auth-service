@@ -163,6 +163,7 @@ export class AdminService {
     allowedScopes?: string[];
     allowedGrants?: string[];
     companyId?: string | null;
+    allowedAudiences?: string[];
   }) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -179,6 +180,7 @@ export class AdminService {
         ...(data.allowedGrants && data.allowedGrants.length > 0
           ? { allowedGrants: data.allowedGrants }
           : {}),
+        allowedAudiences: data.allowedAudiences ?? [],
         companyId: data.companyId ?? null,
       },
     });
@@ -199,6 +201,7 @@ export class AdminService {
       allowedScopes: string[];
       allowedGrants: string[];
       companyId: string | null;
+      allowedAudiences: string[];
       active: boolean;
       logoUrl: string;
       privacyPolicyUrl: string;

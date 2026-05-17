@@ -215,6 +215,36 @@ describe('AdminService', () => {
       const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
       expect(persisted.allowedGrants).toBeUndefined();
     });
+
+    it('persists allowedAudiences for M2M clients', async () => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+
+      await service.createOAuthClient({
+        name: 'Brain M2M',
+        clientId: 'smart-chat-brain',
+        redirectUris: [],
+        allowedGrants: ['client_credentials'],
+        allowedScopes: ['brain:read'],
+        allowedAudiences: ['brain'],
+        companyId: 'co_smar_chat',
+      });
+
+      const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(persisted.allowedAudiences).toEqual(['brain']);
+    });
+
+    it('defaults allowedAudiences to empty array when not provided', async () => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+
+      await service.createOAuthClient({
+        name: 'User App',
+        clientId: 'user-app',
+        redirectUris: ['https://app.test/callback'],
+      });
+
+      const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(persisted.allowedAudiences).toEqual([]);
+    });
   });
 
   describe('updateOAuthClient', () => {

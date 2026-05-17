@@ -84,6 +84,12 @@ model OAuthClient {
   /// the user's DID as sub). Set for machine clients calling brain
   /// or other horizontal services that key data by company.
   companyId         String?  @map("companyId")
+  /// Permitted audiences for M2M JWTs. Without this allow-list a
+  /// stolen client_credentials pair could mint tokens for any
+  /// downstream service. Empty array = "no constraint" (issuer falls
+  /// back to clientId as audience). Set explicitly when provisioning
+  /// machine clients via the admin UI.
+  allowedAudiences  String[] @default([]) @map("allowedAudiences")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")
@@ -95,6 +101,28 @@ model OAuthClient {
   authorizationCodes AuthorizationCode[]
 
   @@map("oauth_clients")
+}
+
+/// Durable audit trail for OAuth + client lifecycle events.
+/// Replaces console-only logging so security forensics and
+/// compliance reviews don't depend on container log retention.
+model OAuthAuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  ts            DateTime @default(now())
+  event         String
+  clientId      String?
+  sub           String?
+  scopes        String[] @default([])
+  audience      String?
+  ip            String?
+  userAgent     String?
+  success       Boolean
+  errorMessage  String?
+  metadata      Json?
+
+  @@index([clientId, ts(sort: Desc)], map: "oauth_audit_log_clientId_ts_idx")
+  @@index([event, ts(sort: Desc)], map: "oauth_audit_log_event_ts_idx")
+  @@map("oauth_audit_log")
 }
 
 model AuthorizationCode {

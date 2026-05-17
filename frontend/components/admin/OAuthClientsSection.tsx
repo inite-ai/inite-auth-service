@@ -43,6 +43,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     allowedScopes: ['openid', 'profile', 'email'] as string[],
     allowedGrants: ['authorization_code', 'refresh_token'] as string[],
     companyId: '',
+    allowedAudiences: [] as string[],
   })
 
   const [editForm, setEditForm] = useState<any>({
@@ -51,11 +52,14 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     allowedScopes: [] as string[],
     allowedGrants: [] as string[],
     companyId: '',
+    allowedAudiences: [] as string[],
     active: true,
   })
 
   const [scopeInput, setScopeInput] = useState('')
   const [editScopeInput, setEditScopeInput] = useState('')
+  const [audInput, setAudInput] = useState('')
+  const [editAudInput, setEditAudInput] = useState('')
 
   const config = { headers: { Authorization: `Bearer ${accessToken}` } }
 
@@ -114,6 +118,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedScopes: createForm.allowedScopes,
         allowedGrants: createForm.allowedGrants,
         companyId: createForm.companyId.trim() || null,
+        allowedAudiences: createForm.allowedAudiences,
       }, config)
 
       setNewSecret(res.data.clientSecret)
@@ -125,8 +130,10 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedScopes: ['openid', 'profile', 'email'],
         allowedGrants: ['authorization_code', 'refresh_token'],
         companyId: '',
+        allowedAudiences: [],
       })
       setScopeInput('')
+      setAudInput('')
       loadClients()
       toast.success('OAuth client created')
     } catch (error: any) {
@@ -144,9 +151,11 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       allowedScopes: Array.isArray(client.allowedScopes) ? [...client.allowedScopes] : [],
       allowedGrants: Array.isArray(client.allowedGrants) ? [...client.allowedGrants] : [],
       companyId: client.companyId ?? '',
+      allowedAudiences: Array.isArray(client.allowedAudiences) ? [...client.allowedAudiences] : [],
       active: client.active !== false,
     })
     setEditScopeInput('')
+    setEditAudInput('')
   }
 
   const saveClient = async () => {
@@ -167,6 +176,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedScopes: editForm.allowedScopes,
         allowedGrants: editForm.allowedGrants,
         companyId: editForm.companyId.trim() ? editForm.companyId.trim() : null,
+        allowedAudiences: editForm.allowedAudiences,
         active: editForm.active,
       }, config)
 
@@ -226,6 +236,31 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     scope: string,
   ) => {
     setForm({ ...form, allowedScopes: form.allowedScopes.filter((s: string) => s !== scope) })
+  }
+
+  // Common audiences — quick-add for known horizontal services.
+  const AUDIENCE_PRESETS = ['brain', 'inbox', 'assistant', 'admin-panel']
+
+  const addAudience = (
+    form: any,
+    setForm: (v: any) => void,
+    raw: string,
+  ) => {
+    const a = raw.trim()
+    if (!a) return
+    if ((form.allowedAudiences ?? []).includes(a)) return
+    setForm({ ...form, allowedAudiences: [...(form.allowedAudiences ?? []), a] })
+  }
+
+  const removeAudience = (
+    form: any,
+    setForm: (v: any) => void,
+    a: string,
+  ) => {
+    setForm({
+      ...form,
+      allowedAudiences: (form.allowedAudiences ?? []).filter((x: string) => x !== a),
+    })
   }
 
   const rotateSecret = async (clientId: string) => {
@@ -557,25 +592,96 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 )}
 
                 {createForm.allowedGrants.includes('client_credentials') && (
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">
-                      Company ID
-                      <span className="text-slate-500 font-normal ml-2">
-                        — tenant key embedded as JWT `sub`
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.companyId}
-                      onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })}
-                      placeholder="co_smar_chat"
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Leave blank to use Client ID as `sub`. Set this to match an existing tenant
-                      (e.g. brain database) so M2M calls land in the same tenant as legacy keys.
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-1">
+                        Company ID
+                        <span className="text-slate-500 font-normal ml-2">
+                          — tenant key embedded as JWT `sub`
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={createForm.companyId}
+                        onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })}
+                        placeholder="co_smar_chat"
+                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Leave blank to use Client ID as `sub`. Set this to match an existing tenant
+                        (e.g. brain database) so M2M calls land in the same tenant as legacy keys.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Allowed Audiences
+                        <span className="text-slate-500 font-normal ml-2">
+                          — services this client can mint tokens for
+                        </span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {createForm.allowedAudiences.map((a) => (
+                          <span
+                            key={a}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/15 border border-amber-500/40 rounded-lg text-xs text-amber-200 font-mono"
+                          >
+                            {a}
+                            <button
+                              type="button"
+                              onClick={() => removeAudience(createForm, setCreateForm, a)}
+                              className="text-amber-300 hover:text-white"
+                              aria-label={`Remove ${a}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={audInput}
+                          onChange={(e) => setAudInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                              e.preventDefault()
+                              addAudience(createForm, setCreateForm, audInput)
+                              setAudInput('')
+                            }
+                          }}
+                          placeholder="brain · inbox · ... and press Enter"
+                          className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addAudience(createForm, setCreateForm, audInput)
+                            setAudInput('')
+                          }}
+                          className="px-3 py-2 bg-slate-700/50 text-slate-300 rounded-lg hover:bg-slate-600/50 transition text-sm"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {AUDIENCE_PRESETS.filter((a) => !createForm.allowedAudiences.includes(a)).map((a) => (
+                          <button
+                            type="button"
+                            key={a}
+                            onClick={() => addAudience(createForm, setCreateForm, a)}
+                            className="px-2 py-0.5 text-xs text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 rounded border border-slate-700 hover:border-amber-500/40 transition font-mono"
+                          >
+                            + {a}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Empty list = no constraint (audience defaults to Client ID).
+                        Set explicitly to limit blast radius if this client's secret leaks.
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 <div>
@@ -786,24 +892,91 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                 </div>
 
                 {editForm.allowedGrants.includes('client_credentials') && (
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">
-                      Company ID
-                      <span className="text-slate-500 font-normal ml-2">
-                        — tenant key embedded as JWT `sub`
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.companyId}
-                      onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
-                      placeholder="co_smar_chat"
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Leave blank to use Client ID as `sub`.
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-1">
+                        Company ID
+                        <span className="text-slate-500 font-normal ml-2">
+                          — tenant key embedded as JWT `sub`
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.companyId}
+                        onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
+                        placeholder="co_smar_chat"
+                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Leave blank to use Client ID as `sub`.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Allowed Audiences
+                        <span className="text-slate-500 font-normal ml-2">
+                          — services this client can mint tokens for
+                        </span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(editForm.allowedAudiences ?? []).map((a: string) => (
+                          <span
+                            key={a}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/15 border border-amber-500/40 rounded-lg text-xs text-amber-200 font-mono"
+                          >
+                            {a}
+                            <button
+                              type="button"
+                              onClick={() => removeAudience(editForm, setEditForm, a)}
+                              className="text-amber-300 hover:text-white"
+                              aria-label={`Remove ${a}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={editAudInput}
+                          onChange={(e) => setEditAudInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                              e.preventDefault()
+                              addAudience(editForm, setEditForm, editAudInput)
+                              setEditAudInput('')
+                            }
+                          }}
+                          placeholder="brain · inbox · ... and press Enter"
+                          className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addAudience(editForm, setEditForm, editAudInput)
+                            setEditAudInput('')
+                          }}
+                          className="px-3 py-2 bg-slate-700/50 text-slate-300 rounded-lg hover:bg-slate-600/50 transition text-sm"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {AUDIENCE_PRESETS.filter((a) => !(editForm.allowedAudiences ?? []).includes(a)).map((a) => (
+                          <button
+                            type="button"
+                            key={a}
+                            onClick={() => addAudience(editForm, setEditForm, a)}
+                            className="px-2 py-0.5 text-xs text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 rounded border border-slate-700 hover:border-amber-500/40 transition font-mono"
+                          >
+                            + {a}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div>
@@ -995,6 +1168,19 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                   <div className="bg-slate-800/50 rounded-xl p-3">
                     <p className="text-xs text-slate-500">Company ID (M2M `sub` claim)</p>
                     <code className="text-sm text-white">{selectedClient.companyId}</code>
+                  </div>
+                )}
+
+                {selectedClient.allowedAudiences && selectedClient.allowedAudiences.length > 0 && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-2">Allowed Audiences (M2M `aud` claim)</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedClient.allowedAudiences.map((a: string) => (
+                        <code key={a} className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-lg">
+                          {a}
+                        </code>
+                      ))}
+                    </div>
                   </div>
                 )}
 

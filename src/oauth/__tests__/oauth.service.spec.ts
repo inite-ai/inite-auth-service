@@ -196,6 +196,56 @@ describe('OAuthService', () => {
         ),
       ).rejects.toThrow(/No scopes available/);
     });
+
+    describe('audience binding', () => {
+      it('rejects audience not in allowedAudiences', async () => {
+        const signSpy = jest.fn().mockReturnValue('jwt');
+        (service as any).jwtService.sign = signSpy;
+        await expect(
+          service.issueClientCredentialsToken(
+            { ...m2mClient, allowedAudiences: ['brain'] } as OAuthClient,
+            undefined,
+            'admin-panel',
+          ),
+        ).rejects.toThrow(/Audience "admin-panel" is not allowed/);
+        expect(signSpy).not.toHaveBeenCalled();
+      });
+
+      it('accepts audience present in allowedAudiences', async () => {
+        const signSpy = jest.fn().mockReturnValue('jwt');
+        (service as any).jwtService.sign = signSpy;
+        const result = await service.issueClientCredentialsToken(
+          { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
+          undefined,
+          'inbox',
+        );
+        expect(result.audience).toBe('inbox');
+        const [, opts] = signSpy.mock.calls[0];
+        expect(opts.audience).toBe('inbox');
+      });
+
+      it('defaults to first allowedAudience when none requested', async () => {
+        const signSpy = jest.fn().mockReturnValue('jwt');
+        (service as any).jwtService.sign = signSpy;
+        const result = await service.issueClientCredentialsToken(
+          { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
+          undefined,
+          undefined,
+        );
+        expect(result.audience).toBe('brain');
+      });
+
+      it('falls back to clientId as audience when allowList empty and none requested', async () => {
+        const signSpy = jest.fn().mockReturnValue('jwt');
+        (service as any).jwtService.sign = signSpy;
+        const result = await service.issueClientCredentialsToken(
+          { ...m2mClient, allowedAudiences: [] } as OAuthClient,
+          undefined,
+          undefined,
+        );
+        expect(result.audience).toBe('smart-chat-brain');
+      });
+    });
   });
 
   describe('normalizeScope', () => {

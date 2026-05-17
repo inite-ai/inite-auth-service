@@ -27,6 +27,16 @@ function hashRefreshToken(token: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(token).digest('base64url');
 }
 
+/**
+ * Pre-computed bcrypt hash of a static random string. Used as a
+ * timing-equaliser target when validateClient finds no client row —
+ * we still pay one bcrypt.compare so the no-client path takes the
+ * same wall time as the wrong-secret path. Stops timing-channel
+ * enumeration of valid client_ids.
+ */
+const TIMING_DUMMY_HASH =
+  '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
+
 @Injectable()
 export class OAuthService {
   constructor(
@@ -71,6 +81,13 @@ export class OAuthService {
     });
 
     if (!client) {
+      // Pay one bcrypt round even on the no-client path so an
+      // attacker can't distinguish "client unknown" from "wrong
+      // secret" via response timing. Use a fixed dummy hash so the
+      // CPU cost is constant regardless of input.
+      if (clientSecret) {
+        await bcrypt.compare(clientSecret, TIMING_DUMMY_HASH);
+      }
       throw new UnauthorizedException('Invalid client');
     }
 
@@ -496,9 +513,13 @@ export class OAuthService {
     }
 
     const sub = client.companyId ?? client.clientId;
+    // M2M tokens use a shorter TTL than user-flow tokens so a
+    // deactivated machine client stops working within ≤5min — our
+    // chosen revocation strategy in place of a real-time revocation
+    // list. Override via JWT_M2M_ACCESS_TOKEN_EXPIRY.
     const accessTokenExpiry = this.configService.get<string>(
-      'JWT_ACCESS_TOKEN_EXPIRY',
-      '10m',
+      'JWT_M2M_ACCESS_TOKEN_EXPIRY',
+      '5m',
     );
     const issuer = this.configService.get<string>(
       'JWT_ISSUER',

@@ -21,6 +21,8 @@ properties we know we have NOT yet bought.
 | `client.active` enforced at validate-time | ✓ |
 | Audience binding via `allowedAudiences` per client | ✓ |
 | Durable audit log (`oauth_audit_log`) | ✓ |
+| M2M JWT TTL ≤5min (revocation window) | ✓ (`JWT_M2M_ACCESS_TOKEN_EXPIRY`) |
+| Constant-time client lookup (bcrypt-equalised) | ✓ |
 | Token introspection (RFC 7662) | ✓ |
 | AdminGuard + role-gated admin endpoints | ✓ |
 | Webauthn / passkey primary auth | ✓ |
@@ -92,17 +94,11 @@ painful.
 
 ### 5. Constant-time client lookup
 
-**Status:** Not implemented.
-**Risk:** `validateClient` does `prisma.oAuthClient.findFirst({
-where: { clientId, active: true } })` — an attacker can distinguish
-"client exists but is inactive" from "client doesn't exist" by
-response timing. Marginal info leak.
-**Why deferred:** All sensitive lookups (the bcrypt-compare on
-client_secret) are already constant-time. The clientId check leaks
-existence-of-active-client, not credentials.
-**Trigger to ship:** when a pentest report flags timing-channel
-exposure, OR when we open the OAuth client list to public
-registration (currently admin-only).
+**Status:** ✓ Shipped. `validateClient` pays one dummy `bcrypt.compare`
+on the no-client-found path so response time matches the
+wrong-secret path — see `TIMING_DUMMY_HASH` in `oauth.service.ts`.
+An attacker can no longer enumerate valid `client_id` values via
+response-time deltas.
 
 ## Reporting
 

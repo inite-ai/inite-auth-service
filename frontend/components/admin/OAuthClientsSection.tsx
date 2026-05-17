@@ -109,6 +109,16 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       toast.error('Authorization code grant requires at least one redirect URI')
       return
     }
+    // Server falls back to clientId as `aud` when allowedAudiences is empty —
+    // safe but operators forget the wider blast-radius implication. Force the
+    // explicit choice in UI for M2M clients.
+    if (
+      createForm.allowedGrants.includes('client_credentials') &&
+      createForm.allowedAudiences.length === 0
+    ) {
+      toast.error('Audience allow-list required when client_credentials grant is enabled')
+      return
+    }
     setSaving(true)
     try {
       const res = await api.post('/admin/oauth-clients', {
@@ -166,6 +176,13 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     }
     if (editForm.allowedScopes.length === 0) {
       toast.error('Pick at least one scope')
+      return
+    }
+    if (
+      editForm.allowedGrants.includes('client_credentials') &&
+      (editForm.allowedAudiences ?? []).length === 0
+    ) {
+      toast.error('Audience allow-list required when client_credentials grant is enabled')
       return
     }
     setSaving(true)

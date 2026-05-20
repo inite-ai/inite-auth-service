@@ -44,6 +44,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     allowedGrants: ['authorization_code', 'refresh_token'] as string[],
     companyId: '',
     allowedAudiences: [] as string[],
+    backchannelLogoutUri: '',
   })
 
   const [editForm, setEditForm] = useState<any>({
@@ -53,6 +54,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     allowedGrants: [] as string[],
     companyId: '',
     allowedAudiences: [] as string[],
+    backchannelLogoutUri: '',
     active: true,
   })
 
@@ -129,6 +131,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedGrants: createForm.allowedGrants,
         companyId: createForm.companyId.trim() || null,
         allowedAudiences: createForm.allowedAudiences,
+        backchannelLogoutUri: createForm.backchannelLogoutUri.trim() || null,
       }, config)
 
       setNewSecret(res.data.clientSecret)
@@ -141,6 +144,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedGrants: ['authorization_code', 'refresh_token'],
         companyId: '',
         allowedAudiences: [],
+        backchannelLogoutUri: '',
       })
       setScopeInput('')
       setAudInput('')
@@ -162,6 +166,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       allowedGrants: Array.isArray(client.allowedGrants) ? [...client.allowedGrants] : [],
       companyId: client.companyId ?? '',
       allowedAudiences: Array.isArray(client.allowedAudiences) ? [...client.allowedAudiences] : [],
+      backchannelLogoutUri: client.backchannelLogoutUri ?? '',
       active: client.active !== false,
     })
     setEditScopeInput('')
@@ -194,6 +199,9 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
         allowedGrants: editForm.allowedGrants,
         companyId: editForm.companyId.trim() ? editForm.companyId.trim() : null,
         allowedAudiences: editForm.allowedAudiences,
+        backchannelLogoutUri: editForm.backchannelLogoutUri?.trim()
+          ? editForm.backchannelLogoutUri.trim()
+          : null,
         active: editForm.active,
       }, config)
 
@@ -213,6 +221,11 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     { id: 'authorization_code', label: 'Authorization Code', hint: 'User-flow apps with PKCE' },
     { id: 'refresh_token', label: 'Refresh Token', hint: 'Long-lived sessions' },
     { id: 'client_credentials', label: 'Client Credentials', hint: 'Service-to-service M2M, no user' },
+    {
+      id: 'urn:ietf:params:oauth:grant-type:device_code',
+      label: 'Device Code',
+      hint: 'TV / CLI / IoT — user authorises on a second device',
+    },
   ]
 
   // Common scope presets — quick-add buttons. Operators can also type
@@ -280,13 +293,42 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     })
   }
 
-  const rotateSecret = async (clientId: string) => {
+  // 24h default grace; null when the operator picks "force revoke now"
+  const [rotateTarget, setRotateTarget] = useState<string | null>(null)
+  const [rotateGraceHours, setRotateGraceHours] = useState(24)
+  const [rotateForce, setRotateForce] = useState(false)
+  const [rotateBusy, setRotateBusy] = useState(false)
+
+  const openRotateDialog = (clientId: string) => {
+    setRotateTarget(clientId)
+    setRotateGraceHours(24)
+    setRotateForce(false)
+  }
+
+  const confirmRotate = async () => {
+    if (!rotateTarget) return
+    setRotateBusy(true)
     try {
-      const res = await api.post(`/admin/oauth-clients/${clientId}/rotate-secret`, {}, config)
+      const body: any = { force: rotateForce }
+      if (!rotateForce) {
+        body.graceWindowSeconds = Math.max(0, Math.min(7 * 24, rotateGraceHours)) * 3600
+      }
+      const res = await api.post(
+        `/admin/oauth-clients/${rotateTarget}/rotate-secret`,
+        body,
+        config,
+      )
       setNewSecret(res.data.clientSecret)
-      toast.success('Secret rotated')
+      toast.success(
+        rotateForce
+          ? 'Secret rotated; previous secret revoked immediately'
+          : `Secret rotated; previous secret accepted for ${rotateGraceHours}h`,
+      )
+      setRotateTarget(null)
     } catch {
       toast.error('Failed to rotate secret')
+    } finally {
+      setRotateBusy(false)
     }
   }
 
@@ -388,7 +430,7 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => rotateSecret(client.clientId)}
+                    onClick={() => openRotateDialog(client.clientId)}
                     className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-700/50 rounded-lg transition"
                     title="Rotate secret"
                   >
@@ -420,6 +462,99 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
           ))
         )}
       </div>
+
+      {/* Rotate Secret Dialog */}
+      <AnimatePresence>
+        {rotateTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !rotateBusy && setRotateTarget(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-white mb-1">
+                Rotate client secret
+              </h3>
+              <p className="text-sm text-slate-400 mb-4 font-mono">
+                {rotateTarget}
+              </p>
+
+              <div className="space-y-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rotateForce}
+                    onChange={(e) => setRotateForce(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="text-sm text-white">
+                      Revoke previous secret immediately
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Use this when the old secret is known to be
+                      compromised. Existing callers using the old
+                      secret will start failing right away.
+                    </p>
+                  </div>
+                </label>
+
+                {!rotateForce && (
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">
+                      Grace window: <span className="text-white">{rotateGraceHours}h</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={168}
+                      step={1}
+                      value={rotateGraceHours}
+                      onChange={(e) => setRotateGraceHours(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>1h</span>
+                      <span>24h (default)</span>
+                      <span>7d</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">
+                      Previous secret keeps working for this long so
+                      callers can roll forward without an outage.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => setRotateTarget(null)}
+                  disabled={rotateBusy}
+                  className="flex-1 px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRotate}
+                  disabled={rotateBusy}
+                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-xl hover:bg-amber-400 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {rotateBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Rotate
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Secret Display */}
       <AnimatePresence>
@@ -605,6 +740,30 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {(createForm.allowedGrants.includes('authorization_code') ||
+                  createForm.allowedGrants.includes('refresh_token')) && (
+                  <div>
+                    <label className="text-sm text-slate-400 block mb-2">
+                      Back-channel Logout URI
+                      <span className="ml-2 text-xs text-slate-500">
+                        optional — RP receives a signed logout_token on /oauth/logout
+                      </span>
+                    </label>
+                    <input
+                      type="url"
+                      value={createForm.backchannelLogoutUri}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          backchannelLogoutUri: e.target.value,
+                        })
+                      }
+                      placeholder="https://app.example.com/oidc/logout"
+                      className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    />
                   </div>
                 )}
 
@@ -875,6 +1034,27 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                       <p className="text-sm text-slate-500 text-center py-2">No redirect URIs configured</p>
                     )}
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">
+                    Back-channel Logout URI
+                    <span className="ml-2 text-xs text-slate-500">
+                      optional — receives signed logout_token on /oauth/logout
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    value={editForm.backchannelLogoutUri || ''}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        backchannelLogoutUri: e.target.value,
+                      })
+                    }
+                    placeholder="https://app.example.com/oidc/logout"
+                    className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-xl text-white font-mono text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                  />
                 </div>
 
                 <div>

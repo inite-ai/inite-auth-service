@@ -203,11 +203,20 @@ export class OAuthService {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
+    // Resolve companyId from the client row so the auth-code row
+    // carries the tenant scope. A separate query keeps this cheap
+    // even when the caller already validated the client elsewhere.
+    const clientRow = await this.prisma.oAuthClient.findUnique({
+      where: { clientId },
+      select: { companyId: true },
+    });
+
     await this.prisma.authorizationCode.create({
       data: {
         code,
         userId,
         clientId,
+        companyId: clientRow?.companyId ?? null,
         redirectUri,
         scope,
         codeChallenge,
@@ -379,11 +388,20 @@ export class OAuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    // Tenant scope is stamped on the refresh token at issue-time so
+    // admin reads can filter by companyId without joining oauth_clients
+    // (and survive a client delete).
+    const clientRow = await this.prisma.oAuthClient.findUnique({
+      where: { clientId },
+      select: { companyId: true },
+    });
+
     await this.prisma.refreshToken.create({
       data: {
         tokenLookup,
         userId: user.id,
         clientId,
+        companyId: clientRow?.companyId ?? null,
         scope,
         nonce: nonce ?? null,
         expiresAt,

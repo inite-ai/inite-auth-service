@@ -23,11 +23,31 @@ const CHALLENGE_TTL_SECONDS = 5 * 60;
 const REGISTRATION_KEY = (userId: string) => `webauthn:reg:${userId}`;
 const AUTHENTICATION_KEY = (challenge: string) => `webauthn:auth:${challenge}`;
 
+// simplewebauthn-server accepts 'none' | 'direct' | 'enterprise'.
+// 'indirect' is in the WebAuthn spec but maps to 'direct' in practice;
+// callers passing it via env get coerced to 'direct' below.
+type AttestationConveyancePreference = 'none' | 'direct' | 'enterprise';
+
 @Injectable()
 export class PasskeyService {
   private rpName: string;
   private rpID: string;
   private origin: string;
+  /**
+   * Attestation policy controls how much the RP demands of the
+   * authenticator's identity.
+   *
+   *   none       — Don't ask. Strongest privacy, weakest assurance.
+   *   indirect   — Anonymized attestation (browser may proxy).
+   *   direct     — Authenticator-issued statement (DEFAULT). Lets
+   *                downstream code verify make/model against a CA
+   *                allowlist if needed.
+   *   enterprise — Vendor-specific extension; reserved for managed
+   *                fleets.
+   *
+   * Override via env WEBAUTHN_ATTESTATION_TYPE.
+   */
+  private readonly attestationType: AttestationConveyancePreference;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,6 +57,15 @@ export class PasskeyService {
     this.rpName = this.configService.get<string>('RP_NAME', 'INITE Identity');
     this.rpID = this.configService.get<string>('RP_ID', 'inite.ai');
     this.origin = this.configService.get<string>('RP_ORIGIN', 'https://auth.inite.ai');
+    const configured = (
+      this.configService.get<string>('WEBAUTHN_ATTESTATION_TYPE', 'direct') ?? 'direct'
+    ).toLowerCase();
+    const normalised = configured === 'indirect' ? 'direct' : configured;
+    this.attestationType = (
+      (['none', 'direct', 'enterprise'] as const).includes(normalised as any)
+        ? normalised
+        : 'direct'
+    ) as AttestationConveyancePreference;
   }
 
   /**
@@ -79,7 +108,7 @@ export class PasskeyService {
       userID: isoUint8Array.fromUTF8String(user.id),
       userName: user.email || user.did,
       userDisplayName: user.name || user.email || 'User',
-      attestationType: 'none',
+      attestationType: this.attestationType,
       excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => ({
         id: passkey.credentialId,
         type: 'public-key' as const,

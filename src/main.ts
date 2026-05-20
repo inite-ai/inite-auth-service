@@ -4,7 +4,7 @@ import { startTracing } from './tracing';
 startTracing();
 
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -23,6 +23,16 @@ const logger = createLogger('Bootstrap');
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
+
+  // URI-based API versioning. Controllers are marked individually:
+  //   `@Controller({ path: 'oauth', version: '1' })`     → /v1/oauth/*
+  //   `@Controller({ path: '...', version: VERSION_NEUTRAL })` → unprefixed
+  //
+  // Spec endpoints (.well-known/*) stay neutral because RFC/OIDC
+  // discovery URLs are fixed by spec, not by us. Everything else
+  // hides behind /v1 so a v2 cutover later can ship side-by-side.
+  app.enableVersioning({ type: VersioningType.URI });
+
   const configService = app.get(ConfigService);
 
   // Security headers

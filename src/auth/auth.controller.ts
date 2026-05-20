@@ -16,9 +16,10 @@ import * as signature from 'cookie-signature';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoginEmailThrottlerGuard } from './guards/login-throttler.guard';
 import { LoggerService } from '../common/logger.service';
 
-@Controller('auth')
+@Controller({ path: 'auth', version: '1' })
 export class AuthController {
   private readonly logger = new LoggerService();
   private readonly sessionSecret: string;
@@ -79,6 +80,7 @@ export class AuthController {
   }
 
   @Post('password/login')
+  @UseGuards(LoginEmailThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async loginWithPassword(
     @Body() body: { email: string; password: string },
@@ -238,6 +240,7 @@ export class AuthController {
   // ==================== Password Reset ====================
 
   @Post('password/reset-request')
+  @UseGuards(LoginEmailThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async requestPasswordReset(@Body() body: { email: string }) {
     await this.authService.requestPasswordReset(body.email);

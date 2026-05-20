@@ -1,4 +1,4 @@
-import { Controller, Get, Header, HttpCode, HttpStatus, HttpException, Res } from '@nestjs/common';
+import { Controller, Get, Header, HttpCode, HttpStatus, HttpException, Res, VERSION_NEUTRAL } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { JwksService } from './jwks.service';
@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from './redis.service';
 import { MetricsService } from './metrics.service';
 
-@Controller()
+@Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(
     private readonly configService: ConfigService,
@@ -95,13 +95,13 @@ export class HealthController {
 
     return {
       issuer,
-      authorization_endpoint: `${issuer}/oauth/authorize`,
-      token_endpoint: `${issuer}/oauth/token`,
-      userinfo_endpoint: `${issuer}/oauth/userinfo`,
+      authorization_endpoint: `${issuer}/v1/oauth/authorize`,
+      token_endpoint: `${issuer}/v1/oauth/token`,
+      userinfo_endpoint: `${issuer}/v1/oauth/userinfo`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
-      revocation_endpoint: `${issuer}/oauth/revoke`,
-      introspection_endpoint: `${issuer}/oauth/introspect`,
-      end_session_endpoint: `${issuer}/oauth/logout`,
+      revocation_endpoint: `${issuer}/v1/oauth/revoke`,
+      introspection_endpoint: `${issuer}/v1/oauth/introspect`,
+      end_session_endpoint: `${issuer}/v1/oauth/logout`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       subject_types_supported: ['public'],

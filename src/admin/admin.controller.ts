@@ -33,7 +33,7 @@ function adminContext(req: Request): {
   };
 }
 
-@Controller('admin')
+@Controller({ path: 'admin', version: '1' })
 @UseGuards(AdminGuard)
 export class AdminController {
   constructor(

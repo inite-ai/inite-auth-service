@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { requestContext } from '../common/request-context';
+import { MetricsService } from '../common/metrics.service';
 
 /**
  * Durable audit trail for OAuth + client-lifecycle events.
@@ -56,11 +58,22 @@ export class OAuthAuditService {
   >();
   private static readonly COMPANY_CACHE_TTL_MS = 60_000;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {}
 
   async record(input: AuditEventInput): Promise<void> {
     try {
       const companyId = await this.resolveCompanyId(input);
+      // Auto-attach correlation ID to audit metadata so an audit row
+      // can be cross-referenced with the corresponding log lines.
+      const requestId = requestContext.getRequestId();
+      const metadata =
+        requestId
+          ? { ...(input.metadata ?? {}), requestId }
+          : input.metadata ?? null;
+
       await this.prisma.oAuthAuditLog.create({
         data: {
           event: input.event,
@@ -73,13 +86,14 @@ export class OAuthAuditService {
           userAgent: input.userAgent ?? null,
           success: input.success,
           errorMessage: input.errorMessage ?? null,
-          metadata: (input.metadata as any) ?? null,
+          metadata: (metadata as any) ?? null,
         },
       });
     } catch (e: any) {
       // Audit log write failures must NEVER tail-latency the OAuth
       // flow — log and move on. Operators monitoring this log line
       // can correlate with the DB outage.
+      this.metrics?.auditWriteFailures.inc();
       this.logger.warn(
         `audit log write failed [${input.event}]: ${e?.message ?? 'unknown'}`,
       );

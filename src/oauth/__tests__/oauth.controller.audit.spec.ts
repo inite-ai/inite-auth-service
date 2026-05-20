@@ -3,6 +3,16 @@ import { OAuthController } from '../oauth.controller';
 import { OAuthService } from '../oauth.service';
 import { AuthService } from '../../auth/auth.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
+import { MetricsService } from '../../common/metrics.service';
+
+const mockMetrics = (): any => ({
+  tokensIssued: { inc: jest.fn() },
+  tokenFailures: { inc: jest.fn() },
+  tokenLatency: { startTimer: () => () => undefined },
+  authAttempts: { inc: jest.fn() },
+  accountLockouts: { inc: jest.fn() },
+  auditWriteFailures: { inc: jest.fn() },
+});
 
 /**
  * Audit-log write coverage for /oauth/token paths. Stubs the
@@ -45,6 +55,7 @@ describe('OAuthController /oauth/token — audit log writes', () => {
       oauth as OAuthService,
       authSvc,
       audit as unknown as OAuthAuditService,
+      mockMetrics() as unknown as MetricsService,
     );
   });
 

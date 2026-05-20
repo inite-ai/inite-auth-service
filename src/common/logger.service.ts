@@ -1,4 +1,5 @@
 import { Injectable, LoggerService as NestLoggerService, Scope } from '@nestjs/common';
+import { requestContext } from './request-context';
 
 type LogLevel = 'log' | 'error' | 'warn' | 'debug' | 'verbose';
 
@@ -64,11 +65,13 @@ export class LoggerService implements NestLoggerService {
   private print(level: LogLevel, message: string, context?: LogContext | string, trace?: string) {
     const timestamp = new Date().toISOString();
     const ctxName = typeof context === 'string' ? context : this.context;
-    
+    const requestId = requestContext.getRequestId();
+
     const logData = {
       timestamp,
       level: level.toUpperCase(),
       context: ctxName,
+      ...(requestId ? { requestId } : {}),
       message,
       ...(typeof context === 'object' ? context : {}),
       ...(trace ? { trace } : {}),

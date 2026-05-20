@@ -20,6 +20,7 @@ import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { MetricsService } from '../common/metrics.service';
 
 /** Pulls IP + UA off the request for audit log enrichment. */
 function clientContext(req: Request): { ip: string; userAgent: string } {
@@ -39,6 +40,7 @@ export class OAuthController {
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
     private readonly audit: OAuthAuditService,
+    private readonly metrics: MetricsService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -191,9 +193,18 @@ export class OAuthController {
   ) {
     const { ip, userAgent } = clientContext(req);
 
-    if (!grantType) {
-      throw new BadRequestException('grant_type is required');
-    }
+    // Start a latency timer scoped to grant_type. End is called in
+    // every return / throw path via try/finally below to keep the
+    // histogram honest (we do not lose samples on the error path).
+    const endTimer = this.metrics.tokenLatency.startTimer({
+      grant_type: grantType || 'unknown',
+    });
+
+    try {
+      if (!grantType) {
+        this.metrics.tokenFailures.inc({ grant_type: 'unknown', reason: 'missing_grant' });
+        throw new BadRequestException('grant_type is required');
+      }
 
     // Token endpoint requires client authentication. Wrap so we can
     // audit-log a credential failure even when the client is unknown
@@ -203,6 +214,7 @@ export class OAuthController {
     try {
       client = await this.oauthService.validateClientWithSecret(clientId, clientSecret);
     } catch (e: any) {
+      this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'invalid_credentials' });
       await this.audit.record({
         event: 'token.failed.invalid_credentials',
         clientId: clientId ?? null,
@@ -218,6 +230,7 @@ export class OAuthController {
     try {
       this.oauthService.validateGrantType(client, grantType);
     } catch (e: any) {
+      this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'unsupported_grant' });
       await this.audit.record({
         event: 'token.failed.unsupported_grant',
         clientId: client.clientId,
@@ -239,6 +252,7 @@ export class OAuthController {
         code, clientId, redirectUri, codeVerifier,
       );
 
+      this.metrics.tokensIssued.inc({ grant_type: 'authorization_code' });
       this.logger.oauth('Token issued', { clientId, grantType });
       await this.audit.record({
         event: 'token.issued.authorization_code',
@@ -264,6 +278,7 @@ export class OAuthController {
 
       const tokens = await this.oauthService.refreshAccessToken(refreshToken, clientId);
 
+      this.metrics.tokensIssued.inc({ grant_type: 'refresh_token' });
       this.logger.oauth('Token refreshed', { clientId });
       await this.audit.record({
         event: 'token.refreshed',
@@ -297,9 +312,14 @@ export class OAuthController {
         // BadRequestException from the service. Distinguish via the
         // message for clearer audit replay.
         const msg = e?.message ?? '';
-        const event = msg.includes('Audience')
+        const isAudience = msg.includes('Audience');
+        const event = isAudience
           ? 'token.failed.audience_violation'
           : 'token.failed.scope_violation';
+        this.metrics.tokenFailures.inc({
+          grant_type: 'client_credentials',
+          reason: isAudience ? 'audience_violation' : 'scope_violation',
+        });
         await this.audit.record({
           event,
           clientId: client.clientId,
@@ -313,6 +333,7 @@ export class OAuthController {
         throw e;
       }
 
+      this.metrics.tokensIssued.inc({ grant_type: 'client_credentials' });
       this.logger.oauth('M2M token issued', {
         clientId,
         scope: tokens.scope,
@@ -337,7 +358,10 @@ export class OAuthController {
       };
     }
 
-    throw new BadRequestException('Unsupported grant_type');
+      throw new BadRequestException('Unsupported grant_type');
+    } finally {
+      endTimer();
+    }
   }
 
   /**

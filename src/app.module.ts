@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -14,6 +14,7 @@ import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
+import { RequestContextMiddleware } from './common/request-context.middleware';
 
 @Module({
   imports: [
@@ -99,4 +100,11 @@ import { HealthController } from './common/health.controller';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Correlation ID + AsyncLocalStorage context must wrap ALL
+    // requests so every log line and audit row picks up the
+    // current request's ID.
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

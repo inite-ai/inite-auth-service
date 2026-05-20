@@ -11,6 +11,7 @@ import { PasskeyService } from './passkey.service';
 import { MagicLinkService } from './magic-link.service';
 import { EmailService } from '../email/email.service';
 import { LoggerService } from '../common/logger.service';
+import { MetricsService } from '../common/metrics.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly metrics: MetricsService,
   ) {
     this.logger.setContext('AuthService');
   }
@@ -142,6 +144,7 @@ export class AuthService {
     if (user.lockoutUntil && user.lockoutUntil > new Date()) {
       const retryAfter = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 1000);
       this.logger.auth('Login blocked: account locked', { userId: user.id, retryAfter });
+      this.metrics.authAttempts.inc({ result: 'locked' });
       throw new UnauthorizedException(
         `Account temporarily locked. Try again in ${retryAfter}s.`,
       );
@@ -149,6 +152,7 @@ export class AuthService {
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
+      this.metrics.authAttempts.inc({ result: 'invalid' });
       await this.recordFailedLogin(user.id, user.failedLoginCount);
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -160,6 +164,7 @@ export class AuthService {
       });
     }
 
+    this.metrics.authAttempts.inc({ result: 'success' });
     const accessToken = this.generateAccessToken(user as any);
     return { user: user as any, accessToken };
   }
@@ -195,6 +200,7 @@ export class AuthService {
     });
 
     if (lockoutUntil) {
+      this.metrics.accountLockouts.inc();
       this.logger.auth('Account locked after failed login', {
         userId,
         failedCount: next,

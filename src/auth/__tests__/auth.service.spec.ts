@@ -7,7 +7,17 @@ import { MagicLinkService } from '../magic-link.service';
 import { IdentityService } from '../../identity/identity.service';
 import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MetricsService } from '../../common/metrics.service';
 import * as bcrypt from 'bcryptjs';
+
+const mockMetrics = (): any => ({
+  authAttempts: { inc: jest.fn() },
+  accountLockouts: { inc: jest.fn() },
+  tokensIssued: { inc: jest.fn() },
+  tokenFailures: { inc: jest.fn() },
+  tokenLatency: { startTimer: () => () => undefined },
+  auditWriteFailures: { inc: jest.fn() },
+});
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -53,6 +63,7 @@ describe('AuthService', () => {
         { provide: EmailService, useValue: { sendWelcome: jest.fn(), sendNewDeviceLogin: jest.fn(), sendPasswordReset: jest.fn().mockResolvedValue(true) } },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') } },
+        { provide: MetricsService, useValue: mockMetrics() },
       ],
     }).compile();
 

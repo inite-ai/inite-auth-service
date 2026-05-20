@@ -24,6 +24,14 @@ model User {
   emailVerificationExpires DateTime? @map("emailVerificationExpires")
   passwordResetToken       String?   @map("passwordResetToken")
   passwordResetExpires     DateTime? @map("passwordResetExpires")
+  /// Number of consecutive failed password-login attempts. Reset to 0
+  /// on successful login. Drives exponential backoff in
+  /// AuthService.loginWithPassword — see lockoutUntil.
+  failedLoginCount         Int       @default(0) @map("failedLoginCount")
+  /// Timestamp until which password-login is rejected for this user.
+  /// Cleared on successful login. Set after failedLoginCount crosses
+  /// 5 with progressively longer windows (1m → 5m → 15m → 1h → 24h).
+  lockoutUntil             DateTime? @map("lockoutUntil")
   metadata                 Json?
   createdAt                DateTime  @default(now()) @map("createdAt")
   updatedAt                DateTime  @updatedAt @map("updatedAt")

@@ -107,7 +107,13 @@ export class AuthService {
   }
 
   /**
-   * Login with email/password (legacy)
+   * Login with email/password (legacy).
+   *
+   * Account lockout: tracks `failedLoginCount` and applies exponential
+   * backoff after the 5th consecutive miss (1m → 5m → 15m → 1h → 24h).
+   * The `lockoutUntil` check runs BEFORE bcrypt.compare so a locked
+   * account does not leak the password-correctness bit. Counter resets
+   * to 0 on any successful login.
    */
   async loginWithPassword(
     email: string,
@@ -115,20 +121,86 @@ export class AuthService {
   ): Promise<{ user: User; accessToken: string }> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true, did: true, email: true, emailVerified: true, name: true, avatarUrl: true, passwordHash: true, metadata: true },
+      select: {
+        id: true,
+        did: true,
+        email: true,
+        emailVerified: true,
+        name: true,
+        avatarUrl: true,
+        passwordHash: true,
+        metadata: true,
+        failedLoginCount: true,
+        lockoutUntil: true,
+      },
     });
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const retryAfter = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 1000);
+      this.logger.auth('Login blocked: account locked', { userId: user.id, retryAfter });
+      throw new UnauthorizedException(
+        `Account temporarily locked. Try again in ${retryAfter}s.`,
+      );
+    }
+
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
+      await this.recordFailedLogin(user.id, user.failedLoginCount);
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.failedLoginCount > 0 || user.lockoutUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: 0, lockoutUntil: null },
+      });
     }
 
     const accessToken = this.generateAccessToken(user as any);
     return { user: user as any, accessToken };
+  }
+
+  /**
+   * Increment failed-login counter and set lockoutUntil with
+   * exponential backoff once threshold is crossed.
+   *
+   * Schedule: first 5 misses raise the counter but do not lock. The
+   * 5th miss (count becomes 5) starts a 1-minute lock. Each further
+   * miss multiplies: 5m, 15m, 1h, 24h, then capped at 24h.
+   */
+  private async recordFailedLogin(
+    userId: string,
+    currentCount: number,
+  ): Promise<void> {
+    const next = currentCount + 1;
+    const lockoutSchedule = [
+      { atFailures: 5, lockMs: 60 * 1000 },           // 1m
+      { atFailures: 6, lockMs: 5 * 60 * 1000 },       // 5m
+      { atFailures: 7, lockMs: 15 * 60 * 1000 },      // 15m
+      { atFailures: 8, lockMs: 60 * 60 * 1000 },      // 1h
+      { atFailures: 9, lockMs: 24 * 60 * 60 * 1000 }, // 24h
+    ];
+    const tier = [...lockoutSchedule]
+      .reverse()
+      .find((t) => next >= t.atFailures);
+    const lockoutUntil = tier ? new Date(Date.now() + tier.lockMs) : null;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginCount: next, lockoutUntil },
+    });
+
+    if (lockoutUntil) {
+      this.logger.auth('Account locked after failed login', {
+        userId,
+        failedCount: next,
+        lockoutUntil: lockoutUntil.toISOString(),
+      });
+    }
   }
 
   /**

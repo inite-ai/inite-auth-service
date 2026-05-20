@@ -35,13 +35,26 @@ import { HealthController } from './common/health.controller';
     // Database (Prisma - global module)
     PrismaModule,
 
-    // JWT: RS256 (JWKS) when JWT_PRIVATE_KEY set, else HS256 (JWT_SECRET)
+    // JWT: RS256 (JWKS) when JWT_PRIVATE_KEY set, else HS256 (JWT_SECRET).
+    //
+    // HS256 is dev-only. In production we hard-fail at boot if a private
+    // key is missing — letting it silently fall through to HS256 means
+    // anyone with the symmetric secret can mint tokens, and that secret
+    // ends up in env-files and CI logs.
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const privateKey = configService.get<string>('JWT_PRIVATE_KEY');
         const issuer = configService.get<string>('JWT_ISSUER', 'auth.inite.ai');
+        const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+
+        if (nodeEnv === 'production' && !privateKey) {
+          throw new Error(
+            'JWT_PRIVATE_KEY must be set in production. HS256 fallback is dev-only.',
+          );
+        }
+
         if (privateKey) {
           return {
             secretOrPrivateKey: privateKey,
@@ -50,11 +63,16 @@ import { HealthController } from './common/health.controller';
               issuer,
               keyid: 'auth-rs256-key-1',
             },
+            verifyOptions: {
+              algorithms: ['RS256'],
+              issuer,
+            },
           };
         }
         return {
           secret: configService.get<string>('JWT_SECRET'),
-          signOptions: { issuer },
+          signOptions: { algorithm: 'HS256', issuer },
+          verifyOptions: { algorithms: ['HS256'], issuer },
         };
       },
     }),

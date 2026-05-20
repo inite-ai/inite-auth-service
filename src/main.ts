@@ -17,6 +17,7 @@ const logger = createLogger('Bootstrap');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   const configService = app.get(ConfigService);
 
   // Security headers
@@ -124,6 +125,18 @@ async function bootstrap() {
       },
     }),
   );
+
+  // The session-store Redis client is created here, not through DI, so
+  // enableShutdownHooks() doesn't close it. Wire it to SIGTERM/SIGINT
+  // manually so containers don't drop sessions on rolling deploys.
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(sig, () => {
+      logger.log(`Received ${sig}, closing session redis client`);
+      redisClient.quit().catch((err) =>
+        logger.error('Redis quit error', err?.message ?? 'unknown'),
+      );
+    });
+  }
 
   const port = configService.get<number>('PORT', 3002);
   await app.listen(port);

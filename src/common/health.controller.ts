@@ -1,12 +1,16 @@
-import { Controller, Get, Header } from '@nestjs/common';
+import { Controller, Get, Header, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwksService } from './jwks.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from './redis.service';
 
 @Controller()
 export class HealthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly jwksService: JwksService,
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   @Get('health')
@@ -17,6 +21,39 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       version: '1.0.0',
     };
+  }
+
+  @Get('ready')
+  async ready() {
+    const checks: Record<string, { ok: boolean; error?: string; latencyMs?: number }> = {};
+
+    const start = Date.now();
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      checks.db = { ok: true, latencyMs: Date.now() - start };
+    } catch (err: any) {
+      checks.db = { ok: false, error: err?.message ?? 'unknown' };
+    }
+
+    const redisStart = Date.now();
+    try {
+      const pong = await this.redis.ping();
+      checks.redis = { ok: pong === 'PONG', latencyMs: Date.now() - redisStart };
+    } catch (err: any) {
+      checks.redis = { ok: false, error: err?.message ?? 'unknown' };
+    }
+
+    const allOk = Object.values(checks).every((c) => c.ok);
+    const payload = {
+      status: allOk ? 'ok' : 'degraded',
+      checks,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (!allOk) {
+      throw new HttpException(payload, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    return payload;
   }
 
   /**

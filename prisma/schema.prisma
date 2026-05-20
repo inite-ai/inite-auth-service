@@ -82,7 +82,10 @@ model Wallet {
 model OAuthClient {
   id                String   @id @default(uuid()) @db.Uuid
   clientId          String   @unique @map("clientId")
-  clientSecretHash  String   @map("clientSecretHash")
+  /// Nullable to support RFC 7591 public clients (token_endpoint_auth_method
+  /// = "none") registered via DCR. Confidential clients still carry a
+  /// bcrypt hash; public clients rely on PKCE alone.
+  clientSecretHash  String?  @map("clientSecretHash")
   /// Previous client_secret hash retained during the grace window
   /// after rotation. validateClient accepts both current and previous
   /// hashes until `previousSecretExpiresAt`, giving deployed callers
@@ -93,6 +96,11 @@ model OAuthClient {
   redirectUris      String[] @map("redirectUris")
   allowedScopes     String[] @default([]) @map("allowedScopes")
   allowedGrants     String[] @default(["authorization_code", "refresh_token"]) @map("allowedGrants")
+  /// RFC 7591 §2: token endpoint authentication method. "client_secret_post"
+  /// = confidential client (must present secret at /token). "none" = public
+  /// client (PKCE-only, no secret) — issued by DCR for MCP-style native
+  /// clients. Drives validateClient's bcrypt-skip path.
+  tokenEndpointAuthMethod String @default("client_secret_post") @map("tokenEndpointAuthMethod")
   /// Tenant identifier embedded as `sub` in JWTs issued via the
   /// client_credentials grant. Null for user-flow clients (those use
   /// the user's DID as sub). Set for machine clients calling brain
@@ -104,6 +112,12 @@ model OAuthClient {
   /// back to clientId as audience). Set explicitly when provisioning
   /// machine clients via the admin UI.
   allowedAudiences  String[] @default([]) @map("allowedAudiences")
+  /// RFC 8707 resource indicators the client may request via the
+  /// `resource` param on /authorize. Empty list = legacy behaviour
+  /// (access tokens carry aud=clientId, no resource binding). Set
+  /// explicitly to enable user-flow tokens bound to a downstream
+  /// resource server (e.g. an MCP endpoint).
+  allowedResources  String[] @default([]) @map("allowedResources")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")
@@ -174,6 +188,11 @@ model AuthorizationCode {
   amr                 String[] @default([]) @map("amr")
   codeChallenge       String?  @map("codeChallenge")
   codeChallengeMethod String?  @map("codeChallengeMethod")
+  /// RFC 8707 resource indicator captured at /authorize and round-tripped
+  /// into the access token's `aud` claim at /token. Null when the client
+  /// did not request resource binding — token then falls back to aud=clientId
+  /// for backward compatibility.
+  resource            String?
   expiresAt           DateTime @map("expiresAt")
   used                Boolean  @default(false)
   createdAt           DateTime @default(now()) @map("createdAt")
@@ -208,6 +227,10 @@ model RefreshToken {
   /// Carry AMR forward across rotation so refresh-issued id_tokens
   /// keep the original authentication context.
   amr         String[] @default([]) @map("amr")
+  /// RFC 8707 resource indicator carried forward across refresh-token
+  /// rotation, so access tokens minted via refresh keep the original
+  /// audience binding to the resource server.
+  resource    String?
   expiresAt   DateTime  @map("expiresAt")
   rotatedFrom String?   @map("rotatedFrom") @db.Uuid
   revoked     Boolean   @default(false)

@@ -37,6 +37,66 @@ function hashRefreshToken(token: string, secret: string): string {
 const TIMING_DUMMY_HASH =
   '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
 
+/**
+ * Scopes a DCR-registered public client (RFC 7591) is allowed to
+ * request — both at registration time and on subsequent /authorize
+ * calls. The list intentionally omits anything that grants privileged
+ * access: a DCR caller is by construction anonymous-on-the-internet
+ * and must not be able to escalate by asking for, e.g., `brain:admin`.
+ *
+ * Confidential clients (admin-provisioned via /v1/admin/oauth-clients)
+ * are unaffected — their allowedScopes are set explicitly by an
+ * operator and may include anything.
+ */
+const DCR_SCOPE_ALLOWLIST = new Set([
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  'mcp:audit',
+]);
+
+/**
+ * Redirect-URI policy for RFC 7591 public clients (OAuth 2.1 §4.1.3,
+ * RFC 8252 §7):
+ *   - https://*                                — fine
+ *   - http://127.0.0.1[:port], http://[::1][:port]  — loopback, fine
+ *                                                 (native CLI tools
+ *                                                 spin up a local
+ *                                                 callback server)
+ *   - non-http(s) custom schemes               — fine (RFC 8252 §7.1
+ *                                                 private-use URI
+ *                                                 scheme; OS enforces
+ *                                                 single-app
+ *                                                 ownership)
+ *   - http://* off-loopback                    — REJECTED. Plain HTTP
+ *                                                 to a third-party
+ *                                                 host would leak
+ *                                                 codes in flight.
+ *
+ * `localhost` is intentionally NOT accepted — DNS for "localhost" can
+ * be hijacked on shared networks; OAuth 2.1 §4.1.3 requires the
+ * literal IP form.
+ */
+function isAcceptablePublicRedirectUri(uri: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === 'https:') return true;
+  if (parsed.protocol === 'http:') {
+    // URL stores IPv6 hostnames with surrounding brackets.
+    const host = parsed.hostname.replace(/^\[|\]$/g, '');
+    return host === '127.0.0.1' || host === '::1';
+  }
+  // Any non-http(s) scheme is treated as an RFC 8252 §7.1 private-use
+  // URI scheme. Scheme ownership lives on the OS — we can't validate
+  // it from here, and the spec does not require us to.
+  return parsed.protocol !== '';
+}
+
 @Injectable()
 export class OAuthService {
   constructor(
@@ -91,10 +151,32 @@ export class OAuthService {
       throw new UnauthorizedException('Invalid client');
     }
 
+    // Public clients (RFC 7591 token_endpoint_auth_method=none) carry
+    // no secret. Reject if a secret is presented — and pay the bcrypt
+    // cost on the rejection path so the timing channel can't tell
+    // "public client" from "wrong secret". The success path skips
+    // bcrypt entirely (no secret to compare); the resulting fast-path
+    // leaks only the fact that a clientId is public, which is harmless
+    // because public clients have no secret to brute-force.
+    if (client.tokenEndpointAuthMethod === 'none') {
+      if (clientSecret) {
+        await bcrypt.compare(clientSecret, TIMING_DUMMY_HASH);
+        throw new UnauthorizedException(
+          'Public clients must not present client_secret',
+        );
+      }
+      return client;
+    }
+
     if (clientSecret) {
+      // Confidential client path. clientSecretHash is NOT NULL by
+      // construction here (the schema makes it nullable only to
+      // accommodate public clients, which we already returned above).
+      // Coerce for the type-checker — null would mean a data-integrity
+      // bug and bcrypt.compare would safely reject either way.
       const matchesCurrent = await bcrypt.compare(
         clientSecret,
-        client.clientSecretHash,
+        client.clientSecretHash ?? TIMING_DUMMY_HASH,
       );
 
       // Grace-period acceptance: during a rotation window, the prior
@@ -122,13 +204,33 @@ export class OAuthService {
   }
 
   /**
-   * Validate OAuth client with mandatory secret (for token/revoke endpoints)
+   * Validate OAuth client at token/revoke/introspect entry points.
+   *
+   * Confidential clients (token_endpoint_auth_method=client_secret_post)
+   * MUST present a non-empty client_secret. Public clients
+   * (token_endpoint_auth_method=none, DCR-registered) MUST NOT — PKCE
+   * is their authentication. We peek at the auth method before
+   * enforcing presence so public clients aren't rejected for the
+   * thing that makes them public.
+   *
+   * The dummy bcrypt on the "missing secret + confidential" path
+   * keeps the response time aligned with the wrong-secret path —
+   * timing alone cannot tell an attacker whether they fed a
+   * confidential clientId without a secret or a confidential clientId
+   * with the wrong secret.
    */
   async validateClientWithSecret(
     clientId: string,
     clientSecret: string,
   ): Promise<OAuthClient> {
-    if (!clientSecret) {
+    const probe = await this.prisma.oAuthClient.findFirst({
+      where: { clientId, active: true },
+      select: { tokenEndpointAuthMethod: true },
+    });
+    const isPublic = probe?.tokenEndpointAuthMethod === 'none';
+
+    if (!isPublic && !clientSecret) {
+      await bcrypt.compare('', TIMING_DUMMY_HASH);
       throw new UnauthorizedException('client_secret is required');
     }
     return this.validateClient(clientId, clientSecret);
@@ -181,6 +283,46 @@ export class OAuthService {
   }
 
   /**
+   * RFC 8707 resource-indicator validation.
+   *
+   * Accepts the resource param as it comes off Express (`undefined`,
+   * a single string, or — if repeated in the query — an array) and:
+   *   - returns `undefined` when none requested (legacy aud=clientId
+   *     path);
+   *   - throws if more than one resource is asked for (we don't yet
+   *     support multi-resource tokens; the spec allows but doesn't
+   *     require it);
+   *   - throws if the requested resource isn't in `client.allowedResources`;
+   *   - returns the single resource string otherwise.
+   *
+   * The strict allowlist matters: without it, a stolen authorization
+   * code from app-A could be exchanged for a token aud-bound to
+   * resource-B, bypassing the whole point of RFC 8707.
+   */
+  validateResource(
+    client: OAuthClient,
+    resource: string | string[] | undefined,
+  ): string | undefined {
+    if (resource === undefined || resource === null) return undefined;
+    const arr = Array.isArray(resource) ? resource : [resource];
+    const cleaned = arr.map((s) => (s ?? '').trim()).filter(Boolean);
+    if (cleaned.length === 0) return undefined;
+    if (cleaned.length > 1) {
+      throw new BadRequestException(
+        'Only one resource indicator is supported per request',
+      );
+    }
+    const r = cleaned[0];
+    const allowed = client.allowedResources ?? [];
+    if (!allowed.includes(r)) {
+      throw new BadRequestException(
+        `Resource "${r}" is not allowed for this client`,
+      );
+    }
+    return r;
+  }
+
+  /**
    * Create authorization code.
    *
    * `nonce` is the OIDC nonce parameter (core §3.1.2.1) and gets
@@ -197,7 +339,7 @@ export class OAuthService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
-    opts: { acrValues?: string; amr?: string[] } = {},
+    opts: { acrValues?: string; amr?: string[]; resource?: string } = {},
   ): Promise<string> {
     const code = crypto.randomBytes(32).toString('base64url');
 
@@ -225,6 +367,10 @@ export class OAuthService {
         nonce: nonce ?? null,
         acrValues: opts.acrValues ?? null,
         amr: opts.amr ?? [],
+        // RFC 8707 — captured at /authorize, round-tripped into the
+        // access token's aud claim when the code is exchanged. Null
+        // when the client did not request resource binding.
+        resource: opts.resource ?? null,
         expiresAt,
         used: false,
       },
@@ -319,6 +465,7 @@ export class OAuthService {
         amr: authCode.amr ?? [],
         acr: authCode.acrValues ?? undefined,
       },
+      authCode.resource ?? undefined,
     );
   }
 
@@ -337,6 +484,7 @@ export class OAuthService {
     rotatedFrom?: string,
     nonce?: string,
     authnContext: { amr?: string[]; acr?: string } = {},
+    resource?: string,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -351,6 +499,14 @@ export class OAuthService {
       '10m',
     );
 
+    // RFC 8707: when the auth flow carried a `resource` indicator, the
+    // access token is bound to that resource server via its `aud`
+    // claim. Without a resource, we fall back to the clientId (legacy
+    // behaviour) so existing apps that don't speak RFC 8707 keep
+    // working. The id_token's `aud` stays clientId regardless — per
+    // OIDC core §2 it identifies the relying party, not the API.
+    const accessTokenAudience = resource ?? clientId;
+
     const accessToken = this.jwtService.sign(
       {
         sub: user.did,
@@ -361,10 +517,16 @@ export class OAuthService {
         picture: user.avatarUrl,
         roles: (user.metadata as any)?.roles || ['user'],
         scope,
+        // Echo the client back into the access token. With resource
+        // binding the `aud` now identifies the resource server, so
+        // downstream RS code that needs to know which client minted
+        // this token (e.g. for per-client rate limiting) reads it
+        // from `client_id` instead.
+        client_id: clientId,
       },
       {
         expiresIn: accessTokenExpiry as any,
-        audience: clientId,
+        audience: accessTokenAudience,
         issuer,
       },
     );
@@ -420,6 +582,9 @@ export class OAuthService {
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
+        // Carry the resource indicator forward across rotation so the
+        // refresh-issued access token keeps the original aud binding.
+        resource: resource ?? null,
         expiresAt,
         revoked: false,
         rotatedFrom: rotatedFrom ?? null,
@@ -508,6 +673,7 @@ export class OAuthService {
       matchedToken.id,
       matchedToken.nonce ?? undefined,
       { amr: matchedToken.amr ?? [] },
+      matchedToken.resource ?? undefined,
     );
   }
 
@@ -712,6 +878,128 @@ export class OAuthService {
         active: true,
       },
     });
+  }
+
+  /**
+   * RFC 7591 Dynamic Client Registration — public clients only.
+   *
+   * Issues a brand new clientId and persists a row with
+   * `tokenEndpointAuthMethod=none` and no clientSecretHash. The MCP
+   * authorization spec expects this endpoint so native callers
+   * (Claude Code et al.) can self-register without an admin
+   * pre-provisioning them.
+   *
+   * Confidential clients still flow through /v1/admin/oauth-clients —
+   * DCR on this server is narrow on purpose.
+   *
+   * Security envelope:
+   *   - scope is intersected with DCR_SCOPE_ALLOWLIST; a DCR caller
+   *     cannot grant itself, e.g., `brain:admin`
+   *   - allowedResources is seeded from the server-wide
+   *     `DCR_DEFAULT_RESOURCES` env var (comma-separated) so the
+   *     operator controls which downstream resource servers DCR
+   *     clients may target. Unset → tokens fall back to aud=clientId
+   *     (no resource binding)
+   *   - redirect_uris policy enforced via isAcceptablePublicRedirectUri
+   *   - rate limiting is the controller's responsibility (see the
+   *     @Throttle decorator on /v1/oauth/register)
+   */
+  async registerPublicClient(input: {
+    redirectUris: string[];
+    scope?: string;
+    clientName?: string;
+    logoUri?: string;
+    policyUri?: string;
+    tosUri?: string;
+    grantTypes?: string[];
+  }): Promise<{
+    client_id: string;
+    client_id_issued_at: number;
+    redirect_uris: string[];
+    token_endpoint_auth_method: 'none';
+    grant_types: string[];
+    response_types: ['code'];
+    scope: string;
+    client_name?: string;
+    logo_uri?: string;
+    policy_uri?: string;
+    tos_uri?: string;
+  }> {
+    if (!input.redirectUris || input.redirectUris.length === 0) {
+      throw new BadRequestException('redirect_uris is required');
+    }
+    for (const uri of input.redirectUris) {
+      if (!isAcceptablePublicRedirectUri(uri)) {
+        throw new BadRequestException(
+          `redirect_uri "${uri}" is not acceptable for a public client ` +
+            '(use https, http://127.0.0.1, http://[::1], or a private-use URI scheme)',
+        );
+      }
+    }
+
+    const requestedScopes = (input.scope ?? '').split(/\s+/).filter(Boolean);
+    const grantedScopes =
+      requestedScopes.length === 0
+        ? ['mcp:audit']
+        : requestedScopes.filter((s) => DCR_SCOPE_ALLOWLIST.has(s));
+    if (requestedScopes.length > 0 && grantedScopes.length !== requestedScopes.length) {
+      const denied = requestedScopes.filter((s) => !DCR_SCOPE_ALLOWLIST.has(s));
+      throw new BadRequestException(
+        `Scope(s) not allowed for DCR registration: ${denied.join(', ')}`,
+      );
+    }
+
+    const dcrDefaultResources = (
+      this.configService.get<string>('DCR_DEFAULT_RESOURCES', '') ?? ''
+    )
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const allowedGrants =
+      input.grantTypes && input.grantTypes.length > 0
+        ? input.grantTypes
+        : ['authorization_code', 'refresh_token'];
+
+    // `dcr_` prefix lets admin queries filter self-registered clients
+    // with a single LIKE without an extra column or join.
+    const clientId = `dcr_${crypto.randomBytes(16).toString('hex')}`;
+
+    const created = await this.prisma.oAuthClient.create({
+      data: {
+        clientId,
+        clientSecretHash: null,
+        tokenEndpointAuthMethod: 'none',
+        name: input.clientName ?? 'Public Client (DCR)',
+        redirectUris: input.redirectUris,
+        allowedScopes: grantedScopes,
+        allowedGrants,
+        allowedResources: dcrDefaultResources,
+        allowedAudiences: [],
+        active: true,
+        logoUrl: input.logoUri ?? null,
+        privacyPolicyUrl: input.policyUri ?? null,
+        termsOfServiceUrl: input.tosUri ?? null,
+      },
+    });
+
+    // RFC 7591 §3.2.1 response shape — wire field names use snake_case
+    // verbatim from the spec so generic OAuth/DCR libraries on the
+    // client side can parse it without remapping.
+    const response: any = {
+      client_id: created.clientId,
+      client_id_issued_at: Math.floor(created.createdAt.getTime() / 1000),
+      redirect_uris: created.redirectUris,
+      token_endpoint_auth_method: 'none',
+      grant_types: created.allowedGrants,
+      response_types: ['code'],
+      scope: created.allowedScopes.join(' '),
+    };
+    if (created.name) response.client_name = created.name;
+    if (created.logoUrl) response.logo_uri = created.logoUrl;
+    if (created.privacyPolicyUrl) response.policy_uri = created.privacyPolicyUrl;
+    if (created.termsOfServiceUrl) response.tos_uri = created.termsOfServiceUrl;
+    return response;
   }
 
   getFrontendUrl(): string {

@@ -33,6 +33,15 @@ export interface ParPayload {
   nonce?: string;
   acrValues?: string;
   prompt?: string;
+  /**
+   * RFC 8707 resource indicator pushed at /par. Carried as opaque
+   * string here (or array form when the client pushed multiple) —
+   * validation against the client's allowedResources happens at
+   * /authorize when the request_uri is consumed, so a pushed value
+   * the client isn't allowed to request is still rejected before any
+   * code is issued.
+   */
+  resource?: string | string[];
 }
 
 @Injectable()

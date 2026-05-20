@@ -20,6 +20,11 @@ declare module 'express-session' {
       codeChallenge: string;
       codeChallengeMethod: string;
       nonce?: string;
+      /// RFC 8707 resource indicator carried through login → consent
+      /// when the original /authorize request asked for one. Validated
+      /// against client.allowedResources at request time so what's in
+      /// the session is already known-good.
+      resource?: string;
     };
   }
 }

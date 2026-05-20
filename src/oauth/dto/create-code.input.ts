@@ -32,6 +32,17 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   acrValues?: string;
+
+  /**
+   * RFC 8707 resource indicator. When the user-facing consent screen
+   * forwards an MCP-style authorization request that carried a
+   * `resource` query param, this echoes it back so the issued code
+   * binds the eventual access token's `aud` to the resource server
+   * instead of the clientId.
+   */
+  @IsString()
+  @IsOptional()
+  resource?: string;
 }
 
 

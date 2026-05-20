@@ -89,4 +89,59 @@ describe('HealthController', () => {
       }
     });
   });
+
+  describe('GET /.well-known/openid-configuration', () => {
+    it('advertises the new MCP-aware metadata', () => {
+      const meta = controller.openidConfiguration();
+      expect(meta.issuer).toBe('https://auth.inite.ai');
+      expect(meta.registration_endpoint).toBe(
+        'https://auth.inite.ai/v1/oauth/register',
+      );
+      expect(meta.token_endpoint_auth_methods_supported).toEqual(
+        expect.arrayContaining(['client_secret_post', 'none']),
+      );
+      expect(meta.scopes_supported).toEqual(
+        expect.arrayContaining(['mcp:audit']),
+      );
+    });
+  });
+
+  describe('GET /.well-known/oauth-authorization-server (RFC 8414)', () => {
+    it('returns OAuth-flavored discovery metadata', () => {
+      const meta = controller.oauthAuthorizationServer();
+      expect(meta.issuer).toBe('https://auth.inite.ai');
+      expect(meta.authorization_endpoint).toBe(
+        'https://auth.inite.ai/v1/oauth/authorize',
+      );
+      expect(meta.token_endpoint).toBe('https://auth.inite.ai/v1/oauth/token');
+      expect(meta.registration_endpoint).toBe(
+        'https://auth.inite.ai/v1/oauth/register',
+      );
+      expect(meta.jwks_uri).toBe('https://auth.inite.ai/.well-known/jwks.json');
+      expect(meta.grant_types_supported).toEqual(
+        expect.arrayContaining([
+          'authorization_code',
+          'refresh_token',
+          'client_credentials',
+        ]),
+      );
+      expect(meta.token_endpoint_auth_methods_supported).toEqual(
+        expect.arrayContaining(['client_secret_post', 'none']),
+      );
+      expect(meta.code_challenge_methods_supported).toEqual(['S256']);
+      expect(meta.scopes_supported).toEqual(
+        expect.arrayContaining(['mcp:audit']),
+      );
+      expect(meta.dpop_signing_alg_values_supported).toEqual(
+        expect.arrayContaining(['ES256', 'EdDSA']),
+      );
+    });
+
+    it('omits OIDC-only fields that would mislead a pure-OAuth client', () => {
+      const meta: any = controller.oauthAuthorizationServer();
+      expect(meta.id_token_signing_alg_values_supported).toBeUndefined();
+      expect(meta.userinfo_endpoint).toBeUndefined();
+      expect(meta.subject_types_supported).toBeUndefined();
+    });
+  });
 });

@@ -88,10 +88,7 @@ export class HealthController {
 
   @Get('.well-known/openid-configuration')
   openidConfiguration() {
-    const issuer = this.configService.get<string>(
-      'OIDC_ISSUER',
-      'https://auth.inite.ai',
-    );
+    const issuer = this.getIssuer();
 
     return {
       issuer,
@@ -99,6 +96,7 @@ export class HealthController {
       token_endpoint: `${issuer}/v1/oauth/token`,
       userinfo_endpoint: `${issuer}/v1/oauth/userinfo`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
+      registration_endpoint: `${issuer}/v1/oauth/register`,
       revocation_endpoint: `${issuer}/v1/oauth/revoke`,
       introspection_endpoint: `${issuer}/v1/oauth/introspect`,
       end_session_endpoint: `${issuer}/v1/oauth/logout`,
@@ -120,9 +118,12 @@ export class HealthController {
       id_token_signing_alg_values_supported: ['RS256'],
       token_endpoint_auth_methods_supported: [
         'client_secret_post',
+        // "none" enabled for RFC 7591 public clients (DCR-registered
+        // MCP/native callers using PKCE without a secret).
+        'none',
       ],
       code_challenge_methods_supported: ['S256'],
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'mcp:audit'],
       claims_supported: [
         'sub',
         'email',
@@ -143,6 +144,53 @@ export class HealthController {
       // tells SDK authors which key types to mint for M2M clients.
       dpop_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'EdDSA'],
     };
+  }
+
+  /**
+   * OAuth 2.0 Authorization Server Metadata (RFC 8414).
+   *
+   * MCP clients (Claude Code et al.) discover the auth server through
+   * this endpoint rather than the OIDC one — RFC 8414 is the OAuth-side
+   * twin of openid-configuration. The advertised metadata MUST agree
+   * with what's implemented, so the two endpoints overlap intentionally;
+   * they're only separate to satisfy clients that look for one and not
+   * the other.
+   *
+   * Notable additions vs. openid-configuration:
+   *   - registration_endpoint  (RFC 7591 DCR)
+   *   - "none" in token_endpoint_auth_methods_supported (public clients)
+   *   - mcp:audit advertised as a supported scope
+   *   - no OIDC-only fields (no id_token, no userinfo, no subject_types)
+   */
+  @Get('.well-known/oauth-authorization-server')
+  oauthAuthorizationServer() {
+    const issuer = this.getIssuer();
+
+    return {
+      issuer,
+      authorization_endpoint: `${issuer}/v1/oauth/authorize`,
+      token_endpoint: `${issuer}/v1/oauth/token`,
+      jwks_uri: `${issuer}/.well-known/jwks.json`,
+      registration_endpoint: `${issuer}/v1/oauth/register`,
+      revocation_endpoint: `${issuer}/v1/oauth/revoke`,
+      introspection_endpoint: `${issuer}/v1/oauth/introspect`,
+      response_types_supported: ['code'],
+      response_modes_supported: ['query'],
+      grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+      code_challenge_methods_supported: ['S256'],
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'mcp:audit'],
+      // RFC 9449 — DPoP-bound access tokens. MCP clients SHOULD use
+      // DPoP per the MCP authorization spec, so advertise it.
+      dpop_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'EdDSA'],
+      revocation_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+      introspection_endpoint_auth_methods_supported: ['client_secret_post'],
+    };
+  }
+
+  /** Single source of truth for the issuer URL across both discovery docs. */
+  private getIssuer(): string {
+    return this.configService.get<string>('OIDC_ISSUER', 'https://auth.inite.ai');
   }
 }
 

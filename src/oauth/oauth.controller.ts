@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
+import { RegisterClientInput } from './dto/register-client.input';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { MetricsService } from '../common/metrics.service';
 import { BackchannelLogoutService } from './backchannel-logout.service';
@@ -74,6 +75,7 @@ export class OAuthController {
     @Query('nonce') nonce: string,
     @Query('acr_values') acrValues: string,
     @Query('request_uri') requestUri: string,
+    @Query('resource') resource: string | string[] | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -97,6 +99,10 @@ export class OAuthController {
       nonce = pushed.nonce ?? nonce;
       acrValues = pushed.acrValues ?? acrValues;
       prompt = pushed.prompt ?? prompt;
+      // PAR-pushed resource overrides the inbound query (it shouldn't
+      // be there anyway when request_uri is used). The pushed value
+      // already went through validateResource at /par.
+      resource = (pushed as any).resource ?? resource;
     }
 
     // Validate required parameters
@@ -124,6 +130,11 @@ export class OAuthController {
     this.oauthService.validateGrantType(client, 'authorization_code');
 
     const grantedScope = this.oauthService.normalizeScope(scope || '');
+
+    // RFC 8707 — validate any requested resource indicator against the
+    // client's allowlist BEFORE we redirect to login/consent, so a
+    // bad resource never reaches the user-facing screens.
+    const validatedResource = this.oauthService.validateResource(client, resource);
 
     // PKCE is required
     if (!codeChallenge) {
@@ -160,6 +171,7 @@ export class OAuthController {
         {
           acrValues: acrValues || undefined,
           amr: (req.session as any)?.amr ?? [],
+          resource: validatedResource,
         },
       );
 
@@ -183,6 +195,7 @@ export class OAuthController {
         codeChallenge,
         codeChallengeMethod,
         nonce,
+        resource: validatedResource,
       };
 
       this.logger.oauth('Redirecting to login', { clientId });
@@ -194,6 +207,7 @@ export class OAuthController {
       if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge);
       if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
       if (nonce) loginUrl.searchParams.set('nonce', nonce);
+      if (validatedResource) loginUrl.searchParams.set('resource', validatedResource);
 
       return res.redirect(loginUrl.toString());
     }
@@ -208,6 +222,7 @@ export class OAuthController {
     if (codeChallenge) consentUrl.searchParams.set('code_challenge', codeChallenge);
     if (codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
     if (nonce) consentUrl.searchParams.set('nonce', nonce);
+    if (validatedResource) consentUrl.searchParams.set('resource', validatedResource);
 
     return res.redirect(consentUrl.toString());
   }
@@ -242,6 +257,7 @@ export class OAuthController {
           nonce: body.nonce,
           acrValues: body.acr_values,
           prompt: body.prompt,
+          resource: body.resource,
         })
       ).requestUri,
       expires_in: 60,
@@ -331,6 +347,68 @@ export class OAuthController {
       userId: req.user.userId,
     });
     return { status: updated.status };
+  }
+
+  /**
+   * Dynamic Client Registration (RFC 7591) — public clients only.
+   *
+   * Lets a native / MCP client (Claude Code et al.) self-register
+   * without an admin pre-provisioning it. The service narrows the
+   * surface aggressively: token_endpoint_auth_method is locked to
+   * "none" (PKCE-only), scopes are intersected against
+   * DCR_SCOPE_ALLOWLIST, and allowedResources is seeded from a
+   * server-wide env var so an operator still controls which downstream
+   * resource servers a DCR client may target. Confidential clients
+   * still flow through /v1/admin/oauth-clients.
+   *
+   * Rate-limited to 5 registrations per minute per IP — DCR is the
+   * one endpoint that creates persistent server state without an
+   * existing identity, so it needs hard caps.
+   */
+  @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async register(@Body() input: RegisterClientInput, @Req() req: Request) {
+    const { ip, userAgent } = clientContext(req);
+    try {
+      const result = await this.oauthService.registerPublicClient({
+        redirectUris: input.redirect_uris,
+        scope: input.scope,
+        clientName: input.client_name,
+        logoUri: input.logo_uri,
+        policyUri: input.policy_uri,
+        tosUri: input.tos_uri,
+        grantTypes: input.grant_types,
+      });
+      await this.audit.record({
+        event: 'client.registered.dcr',
+        clientId: result.client_id,
+        ip,
+        userAgent,
+        success: true,
+        metadata: {
+          redirectUris: result.redirect_uris,
+          scopes: result.scope.split(' ').filter(Boolean),
+        },
+      });
+      this.logger.oauth('Public client registered via DCR', {
+        clientId: result.client_id,
+      });
+      return result;
+    } catch (e: any) {
+      await this.audit.record({
+        event: 'client.registered.dcr.failed',
+        clientId: null,
+        ip,
+        userAgent,
+        success: false,
+        errorMessage: e?.message ?? 'unknown',
+        metadata: {
+          redirectUris: input.redirect_uris,
+          scope: input.scope,
+        },
+      });
+      throw e;
+    }
   }
 
   /**
@@ -768,6 +846,9 @@ export class OAuthController {
     }
 
     const grantedScope = this.oauthService.normalizeScope(input.scope || '');
+    // RFC 8707 — same validation as /authorize, so the consent screen
+    // can't smuggle a resource the client isn't allowed to request.
+    const validatedResource = this.oauthService.validateResource(client, input.resource);
 
     const code = await this.oauthService.createAuthorizationCode(
       req.user.userId,
@@ -780,6 +861,7 @@ export class OAuthController {
       {
         acrValues: input.acrValues,
         amr: (req.session as any)?.amr ?? [],
+        resource: validatedResource,
       },
     );
 

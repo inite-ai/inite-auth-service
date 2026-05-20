@@ -434,4 +434,191 @@ describe('OAuthService', () => {
       expect(await service.isAllowedOrigin('https://evil.com')).toBe(false);
     });
   });
+
+  // ============================================================
+  // RFC 7591 Dynamic Client Registration — public clients
+  // ============================================================
+  describe('public-client validation (RFC 7591 token_endpoint_auth_method=none)', () => {
+    const publicClient: Partial<OAuthClient> = {
+      ...mockClient,
+      tokenEndpointAuthMethod: 'none',
+      clientSecretHash: null,
+    } as any;
+
+    it('returns the client when no secret is presented', async () => {
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(publicClient);
+      const result = await service.validateClient('test-app');
+      expect(result.clientId).toBe('test-app');
+    });
+
+    it('rejects a public client that presents a secret', async () => {
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(publicClient);
+      await expect(
+        service.validateClient('test-app', 'some-secret'),
+      ).rejects.toThrow('Public clients must not present client_secret');
+    });
+
+    it('lets validateClientWithSecret pass through with no secret', async () => {
+      // First call: probe (selects auth method).
+      // Second call: full lookup inside validateClient.
+      mockPrisma.oAuthClient.findFirst
+        .mockResolvedValueOnce({ tokenEndpointAuthMethod: 'none' })
+        .mockResolvedValueOnce(publicClient);
+      const result = await service.validateClientWithSecret('test-app', '');
+      expect(result.clientId).toBe('test-app');
+    });
+  });
+
+  describe('registerPublicClient (DCR)', () => {
+    const buildInput = (overrides: any = {}) => ({
+      redirectUris: ['https://example.com/cb'],
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => ({
+        ...data,
+        id: 'uuid-new',
+        createdAt: new Date('2026-05-20T12:00:00Z'),
+      }));
+    });
+
+    it('issues a client with a dcr_ prefix and token_endpoint_auth_method=none', async () => {
+      const out = await service.registerPublicClient(buildInput());
+      expect(out.client_id).toMatch(/^dcr_[0-9a-f]{32}$/);
+      expect(out.token_endpoint_auth_method).toBe('none');
+      expect(out.grant_types).toEqual(['authorization_code', 'refresh_token']);
+      expect(out.response_types).toEqual(['code']);
+    });
+
+    it('persists clientSecretHash as null', async () => {
+      await service.registerPublicClient(buildInput());
+      const created = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(created.clientSecretHash).toBeNull();
+      expect(created.tokenEndpointAuthMethod).toBe('none');
+    });
+
+    it('defaults scope to mcp:audit when none requested', async () => {
+      const out = await service.registerPublicClient(buildInput());
+      expect(out.scope).toBe('mcp:audit');
+    });
+
+    it('rejects scopes outside the DCR allowlist', async () => {
+      await expect(
+        service.registerPublicClient(
+          buildInput({ scope: 'openid brain:admin' }),
+        ),
+      ).rejects.toThrow('not allowed for DCR registration');
+    });
+
+    it('accepts https, loopback, and custom-scheme redirect URIs', async () => {
+      await expect(
+        service.registerPublicClient({
+          redirectUris: [
+            'https://example.com/cb',
+            'http://127.0.0.1:8080/cb',
+            'http://[::1]:8080/cb',
+            'claude-code://callback',
+          ],
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects http:// to an off-loopback host', async () => {
+      await expect(
+        service.registerPublicClient({
+          redirectUris: ['http://attacker.com/cb'],
+        }),
+      ).rejects.toThrow('is not acceptable for a public client');
+    });
+
+    it('rejects http://localhost (DNS-hijack risk; OAuth 2.1 §4.1.3)', async () => {
+      await expect(
+        service.registerPublicClient({
+          redirectUris: ['http://localhost:8080/cb'],
+        }),
+      ).rejects.toThrow('is not acceptable');
+    });
+
+    it('rejects empty redirect_uris', async () => {
+      await expect(
+        service.registerPublicClient({ redirectUris: [] }),
+      ).rejects.toThrow('redirect_uris is required');
+    });
+
+    it('seeds allowedResources from DCR_DEFAULT_RESOURCES env var', async () => {
+      const configGet = jest
+        .fn()
+        .mockImplementation((key: string, def?: string) =>
+          key === 'DCR_DEFAULT_RESOURCES'
+            ? 'https://api.inite.studio/mcp,https://other.example/api'
+            : def ?? '',
+        );
+      (service as any).configService = { get: configGet };
+
+      await service.registerPublicClient(buildInput());
+      const created = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
+      expect(created.allowedResources).toEqual([
+        'https://api.inite.studio/mcp',
+        'https://other.example/api',
+      ]);
+    });
+  });
+
+  // ============================================================
+  // RFC 8707 Resource Indicators
+  // ============================================================
+  describe('validateResource (RFC 8707)', () => {
+    const clientWithResources: any = {
+      ...mockClient,
+      allowedResources: [
+        'https://api.inite.studio/mcp',
+        'https://other.example/api',
+      ],
+    };
+    const clientNoResources: any = { ...mockClient, allowedResources: [] };
+
+    it('returns undefined when resource not requested', () => {
+      expect(service.validateResource(clientWithResources, undefined)).toBeUndefined();
+      expect(service.validateResource(clientWithResources, '')).toBeUndefined();
+    });
+
+    it('returns the resource when it is in the allowlist', () => {
+      expect(
+        service.validateResource(
+          clientWithResources,
+          'https://api.inite.studio/mcp',
+        ),
+      ).toBe('https://api.inite.studio/mcp');
+    });
+
+    it('throws when the requested resource is not in the allowlist', () => {
+      expect(() =>
+        service.validateResource(clientWithResources, 'https://attacker.example/'),
+      ).toThrow('is not allowed for this client');
+    });
+
+    it('throws when the client has no resource allowlist at all', () => {
+      expect(() =>
+        service.validateResource(clientNoResources, 'https://anything.example/'),
+      ).toThrow('is not allowed for this client');
+    });
+
+    it('throws on multiple resource indicators (not yet supported)', () => {
+      expect(() =>
+        service.validateResource(clientWithResources, [
+          'https://api.inite.studio/mcp',
+          'https://other.example/api',
+        ]),
+      ).toThrow('Only one resource indicator is supported per request');
+    });
+
+    it('accepts a single-element array (canonical Express ?resource= form)', () => {
+      expect(
+        service.validateResource(clientWithResources, [
+          'https://api.inite.studio/mcp',
+        ]),
+      ).toBe('https://api.inite.studio/mcp');
+    });
+  });
 });

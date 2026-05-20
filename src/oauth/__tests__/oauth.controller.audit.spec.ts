@@ -4,6 +4,8 @@ import { OAuthService } from '../oauth.service';
 import { AuthService } from '../../auth/auth.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { MetricsService } from '../../common/metrics.service';
+import { BackchannelLogoutService } from '../backchannel-logout.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 const mockMetrics = (): any => ({
   tokensIssued: { inc: jest.fn() },
@@ -56,6 +58,8 @@ describe('OAuthController /oauth/token — audit log writes', () => {
       authSvc,
       audit as unknown as OAuthAuditService,
       mockMetrics() as unknown as MetricsService,
+      { fanOut: jest.fn().mockResolvedValue(0) } as unknown as BackchannelLogoutService,
+      { user: { findUnique: jest.fn() } } as unknown as PrismaService,
     );
   });
 

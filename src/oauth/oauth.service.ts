@@ -197,6 +197,7 @@ export class OAuthService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
+    opts: { acrValues?: string; amr?: string[] } = {},
   ): Promise<string> {
     const code = crypto.randomBytes(32).toString('base64url');
 
@@ -222,6 +223,8 @@ export class OAuthService {
         codeChallenge,
         codeChallengeMethod,
         nonce: nonce ?? null,
+        acrValues: opts.acrValues ?? null,
+        amr: opts.amr ?? [],
         expiresAt,
         used: false,
       },
@@ -312,6 +315,10 @@ export class OAuthService {
       authCode.scope,
       undefined,
       authCode.nonce ?? undefined,
+      {
+        amr: authCode.amr ?? [],
+        acr: authCode.acrValues ?? undefined,
+      },
     );
   }
 
@@ -329,6 +336,7 @@ export class OAuthService {
     scope: string,
     rotatedFrom?: string,
     nonce?: string,
+    authnContext: { amr?: string[]; acr?: string } = {},
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -372,6 +380,13 @@ export class OAuthService {
       roles: (user.metadata as any)?.roles || ['user'],
     };
     if (nonce) idTokenClaims.nonce = nonce;
+    // amr is RFC 8176 — list of methods that authenticated the user
+    // for this session. acr is a coarser bucket the RP can compare
+    // against acr_values_supported. Both ride the id_token only.
+    if (authnContext.amr && authnContext.amr.length > 0) {
+      idTokenClaims.amr = authnContext.amr;
+    }
+    if (authnContext.acr) idTokenClaims.acr = authnContext.acr;
 
     const idToken = this.jwtService.sign(idTokenClaims, {
       expiresIn: accessTokenExpiry as any,
@@ -404,6 +419,7 @@ export class OAuthService {
         companyId: clientRow?.companyId ?? null,
         scope,
         nonce: nonce ?? null,
+        amr: authnContext.amr ?? [],
         expiresAt,
         revoked: false,
         rotatedFrom: rotatedFrom ?? null,
@@ -491,6 +507,7 @@ export class OAuthService {
       matchedToken.scope ?? '',
       matchedToken.id,
       matchedToken.nonce ?? undefined,
+      { amr: matchedToken.amr ?? [] },
     );
   }
 

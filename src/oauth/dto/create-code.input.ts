@@ -28,6 +28,10 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   nonce?: string;
+
+  @IsString()
+  @IsOptional()
+  acrValues?: string;
 }
 
 

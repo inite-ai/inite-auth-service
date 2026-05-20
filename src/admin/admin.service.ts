@@ -164,6 +164,7 @@ export class AdminService {
     allowedGrants?: string[];
     companyId?: string | null;
     allowedAudiences?: string[];
+    backchannelLogoutUri?: string | null;
   }) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -182,6 +183,7 @@ export class AdminService {
           : {}),
         allowedAudiences: data.allowedAudiences ?? [],
         companyId: data.companyId ?? null,
+        backchannelLogoutUri: data.backchannelLogoutUri ?? null,
       },
     });
 
@@ -206,6 +208,7 @@ export class AdminService {
       logoUrl: string;
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
+      backchannelLogoutUri: string | null;
     }>,
   ) {
     try {

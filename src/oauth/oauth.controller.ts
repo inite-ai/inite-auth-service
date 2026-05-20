@@ -21,6 +21,8 @@ import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { MetricsService } from '../common/metrics.service';
+import { BackchannelLogoutService } from './backchannel-logout.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 /** Pulls IP + UA off the request for audit log enrichment. */
 function clientContext(req: Request): { ip: string; userAgent: string } {
@@ -41,6 +43,8 @@ export class OAuthController {
     private readonly authService: AuthService,
     private readonly audit: OAuthAuditService,
     private readonly metrics: MetricsService,
+    private readonly backchannelLogout: BackchannelLogoutService,
+    private readonly prisma: PrismaService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -60,6 +64,7 @@ export class OAuthController {
     @Query('code_challenge_method') codeChallengeMethod: string,
     @Query('prompt') prompt: string,
     @Query('nonce') nonce: string,
+    @Query('acr_values') acrValues: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -121,6 +126,10 @@ export class OAuthController {
         codeChallenge,
         codeChallengeMethod || 'S256',
         nonce,
+        {
+          acrValues: acrValues || undefined,
+          amr: (req.session as any)?.amr ?? [],
+        },
       );
 
       this.logger.oauth('Silent SSO success', { clientId, userId });
@@ -431,6 +440,23 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    // Capture identity + session id BEFORE we destroy the session,
+    // so back-channel logout has something to put in `sub`/`sid`.
+    let userDid: string | null = null;
+    const sid: string | undefined = req.session?.id;
+    const userId = req.session?.userId;
+    if (userId) {
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { did: true },
+        });
+        userDid = user?.did ?? null;
+      } catch (e: any) {
+        this.logger.warn(`Logout: could not resolve userDid: ${e?.message}`);
+      }
+    }
+
     // Destroy session
     if (req.session) {
       await new Promise<void>((resolve) => {
@@ -444,6 +470,25 @@ export class OAuthController {
 
     // Clear session cookie
     res.clearCookie('inite.sid');
+
+    // Best-effort fan-out to RPs with backchannel_logout_uri set.
+    // Bounded by per-call timeout in the service so a slow RP can't
+    // delay the user's redirect indefinitely.
+    if (userDid) {
+      this.backchannelLogout
+        .fanOut({ userDid, sid })
+        .then((count) =>
+          this.logger.session('Back-channel logout fan-out', {
+            recipients: count,
+            sub: userDid,
+          }),
+        )
+        .catch((e) =>
+          this.logger.warn(
+            `Back-channel fan-out error: ${e?.message ?? 'unknown'}`,
+          ),
+        );
+    }
 
     const frontendUrl = this.oauthService.getFrontendUrl();
 
@@ -500,6 +545,10 @@ export class OAuthController {
       input.codeChallenge,
       input.codeChallengeMethod || 'S256',
       input.nonce,
+      {
+        acrValues: input.acrValues,
+        amr: (req.session as any)?.amr ?? [],
+      },
     );
 
     this.logger.oauth('Code created', { clientId: input.clientId, userId: req.user.userId });

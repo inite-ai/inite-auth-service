@@ -24,6 +24,10 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   codeChallengeMethod?: string;
+
+  @IsString()
+  @IsOptional()
+  nonce?: string;
 }
 
 

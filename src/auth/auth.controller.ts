@@ -51,7 +51,9 @@ export class AuthController {
     // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
-      
+      // Password registration → 'pwd' AMR for downstream id_tokens.
+      req.session.amr = ['pwd'];
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err: any) => {
           if (err) {
@@ -102,9 +104,11 @@ export class AuthController {
             reject(err);
             return;
           }
-          
+
           req.session.userId = userId;
-          
+          // Password login → 'pwd' AMR.
+          req.session.amr = ['pwd'];
+
           req.session.save((saveErr: any) => {
             if (saveErr) {
               this.logger.error('Session save error', saveErr.message, { action: 'login' });
@@ -198,6 +202,10 @@ export class AuthController {
             return;
           }
           req.session.userId = userId;
+          // Magic-link uses email control as the auth factor — RFC
+          // 8176 doesn't define a perfect AMR, but 'mfa' fits the
+          // "knowledge + control of inbox" semantic.
+          req.session.amr = ['magic-link'];
           req.session.save((saveErr: any) => {
             if (saveErr) {
               this.logger.error('Session save error', saveErr.message, { action: 'magic-link-verify' });
@@ -260,6 +268,7 @@ export class AuthController {
 
     if (req.session) {
       req.session.userId = result.user.id;
+      req.session.amr = ['pwd'];
       this.logger.session('Set after password reset', { userId: result.user.id });
     }
 
@@ -297,6 +306,13 @@ export class AuthController {
     // Set userId in session for SSO
     if (req.session) {
       req.session.userId = result.user.id;
+      // The user has presented an email and bootstrapped a passkey
+      // registration. They have NOT yet authenticated with the
+      // passkey itself (no assertion verified), so we record the
+      // weaker 'magic-link'-class AMR for now. After they verify
+      // their first passkey, the next session refresh upgrades AMR
+      // to 'fido' on verifyAuthentication.
+      req.session.amr = ['magic-link'];
       await new Promise<void>((resolve, reject) => {
         req.session.save((err: any) => {
           if (err) {
@@ -377,6 +393,8 @@ export class AuthController {
 
     if (req.session) {
       req.session.userId = result.user.id;
+      // FIDO2/WebAuthn assertion verified — strongest AMR class.
+      req.session.amr = ['fido'];
       this.logger.session('Set after passkey auth', { userId: result.user.id });
     }
 

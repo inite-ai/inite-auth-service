@@ -3,6 +3,7 @@ import { OAuthService } from './oauth.service';
 import { OAuthController } from './oauth.controller';
 import { PkceService } from './pkce.service';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
+import { BackchannelLogoutService } from './backchannel-logout.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 
@@ -11,8 +12,13 @@ import { AuthModule } from '../auth/auth.module';
     IdentityModule,
     forwardRef(() => AuthModule),
   ],
-  providers: [OAuthService, PkceService, TokenEndpointThrottlerGuard],
+  providers: [
+    OAuthService,
+    PkceService,
+    TokenEndpointThrottlerGuard,
+    BackchannelLogoutService,
+  ],
   controllers: [OAuthController],
-  exports: [OAuthService],
+  exports: [OAuthService, BackchannelLogoutService],
 })
 export class OAuthModule {}

@@ -108,6 +108,11 @@ model OAuthClient {
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")
   termsOfServiceUrl String?  @map("termsOfServiceUrl")
+  /// OIDC Back-Channel Logout (https://openid.net/specs/openid-connect-backchannel-1_0.html).
+  /// When set, /oauth/logout POSTs a signed logout_token to this URL
+  /// so the RP can invalidate its local session before the user's next
+  /// request. Required for SSO sign-out parity across multiple RPs.
+  backchannelLogoutUri String? @map("backchannelLogoutUri")
   createdAt         DateTime @default(now()) @map("createdAt")
   updatedAt         DateTime @updatedAt @map("updatedAt")
 
@@ -159,6 +164,14 @@ model AuthorizationCode {
   /// id_token to the original authorization request — without it, an
   /// attacker who intercepts a code can replay a stolen id_token.
   nonce               String?
+  /// Requested ACR values (OIDC core §3.1.2.1). Whitespace-separated
+  /// list passed verbatim from /authorize. The IdP echoes the matched
+  /// value back via id_token.acr — RPs use it to enforce step-up auth.
+  acrValues           String?  @map("acrValues")
+  /// Authentication Methods References — list of methods (pwd, fido,
+  /// otp, mfa, magic-link) that built the session, captured at the
+  /// time the auth code was issued. Embedded into id_token.amr.
+  amr                 String[] @default([]) @map("amr")
   codeChallenge       String?  @map("codeChallenge")
   codeChallengeMethod String?  @map("codeChallengeMethod")
   expiresAt           DateTime @map("expiresAt")
@@ -192,6 +205,9 @@ model RefreshToken {
   /// id_tokens minted via refresh still embed the same nonce as the
   /// original (OIDC core §12.1).
   nonce       String?
+  /// Carry AMR forward across rotation so refresh-issued id_tokens
+  /// keep the original authentication context.
+  amr         String[] @default([]) @map("amr")
   expiresAt   DateTime  @map("expiresAt")
   rotatedFrom String?   @map("rotatedFrom") @db.Uuid
   revoked     Boolean   @default(false)

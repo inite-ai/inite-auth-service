@@ -118,7 +118,15 @@ export class HealthController {
         'name',
         'picture',
         'roles',
+        'nonce',
+        'amr',
+        'acr',
       ],
+      // Back-channel logout — RP can register backchannel_logout_uri
+      // on its OAuth client; IdP fans out signed logout_tokens on
+      // /oauth/logout.
+      backchannel_logout_supported: true,
+      backchannel_logout_session_supported: true,
     };
   }
 }

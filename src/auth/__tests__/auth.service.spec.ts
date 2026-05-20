@@ -21,6 +21,8 @@ describe('AuthService', () => {
     emailVerified: true,
     name: 'Test User',
     metadata: { roles: ['user'] },
+    failedLoginCount: 0,
+    lockoutUntil: null,
   };
 
   beforeEach(async () => {
@@ -81,6 +83,105 @@ describe('AuthService', () => {
     it('should throw for user without password', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: null });
       await expect(service.loginWithPassword('test@example.com', 'pass')).rejects.toThrow('Invalid credentials');
+    });
+  });
+
+  describe('account lockout', () => {
+    it('rejects login when lockoutUntil is in the future', async () => {
+      const future = new Date(Date.now() + 60_000);
+      const hash = await bcrypt.hash('correct', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        lockoutUntil: future,
+      });
+
+      await expect(
+        service.loginWithPassword('test@example.com', 'correct'),
+      ).rejects.toThrow(/Account temporarily locked/);
+
+      // Even valid password is refused while locked
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('allows login after lockoutUntil expires', async () => {
+      const past = new Date(Date.now() - 60_000);
+      const hash = await bcrypt.hash('correct', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        failedLoginCount: 5,
+        lockoutUntil: past,
+      });
+
+      const result = await service.loginWithPassword('test@example.com', 'correct');
+      expect(result.accessToken).toBe('jwt-token');
+      // Counter+lock cleared on success
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { failedLoginCount: 0, lockoutUntil: null },
+      });
+    });
+
+    it('increments failedLoginCount without lock under threshold', async () => {
+      const hash = await bcrypt.hash('correct', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        failedLoginCount: 2,
+      });
+
+      await expect(
+        service.loginWithPassword('test@example.com', 'wrong'),
+      ).rejects.toThrow('Invalid credentials');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { failedLoginCount: 3, lockoutUntil: null },
+      });
+    });
+
+    it('triggers 1-minute lockout on the 5th failed attempt', async () => {
+      const hash = await bcrypt.hash('correct', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        failedLoginCount: 4,
+      });
+
+      const before = Date.now();
+      await expect(
+        service.loginWithPassword('test@example.com', 'wrong'),
+      ).rejects.toThrow('Invalid credentials');
+      const after = Date.now();
+
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      expect(call.data.failedLoginCount).toBe(5);
+      const lockMs = call.data.lockoutUntil.getTime();
+      // 60s lock, allow 50ms execution slack
+      expect(lockMs).toBeGreaterThanOrEqual(before + 60_000 - 50);
+      expect(lockMs).toBeLessThanOrEqual(after + 60_000 + 50);
+    });
+
+    it('escalates lockout window with each subsequent failure', async () => {
+      const hash = await bcrypt.hash('correct', 10);
+      // 8 prior failures => next is the 9th => 24h
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        failedLoginCount: 8,
+      });
+
+      const before = Date.now();
+      await expect(
+        service.loginWithPassword('test@example.com', 'wrong'),
+      ).rejects.toThrow('Invalid credentials');
+
+      const call = mockPrisma.user.update.mock.calls[0][0];
+      expect(call.data.failedLoginCount).toBe(9);
+      expect(call.data.lockoutUntil.getTime()).toBeGreaterThanOrEqual(
+        before + 24 * 60 * 60 * 1000 - 100,
+      );
     });
   });
 

@@ -17,6 +17,8 @@ import {
   ExternalLink,
   ToggleLeft,
   ToggleRight,
+  PlayCircle,
+  Terminal,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
@@ -299,6 +301,99 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
   const [rotateForce, setRotateForce] = useState(false)
   const [rotateBusy, setRotateBusy] = useState(false)
 
+  // M2M test-token dialog. We don't keep client_secret in the DB
+  // in plaintext, so the operator pastes the secret they saved at
+  // create / rotate time. The dialog mints a fresh token and shows
+  // the decoded claims + a curl snippet for copy-paste.
+  const [testTarget, setTestTarget] = useState<any | null>(null)
+  const [testSecret, setTestSecret] = useState('')
+  const [testScope, setTestScope] = useState('')
+  const [testAudience, setTestAudience] = useState('')
+  const [testBusy, setTestBusy] = useState(false)
+  const [testResult, setTestResult] = useState<{
+    rawJwt: string
+    header: any
+    payload: any
+    expiresIn: number
+    scope: string
+  } | null>(null)
+  const [testError, setTestError] = useState<string | null>(null)
+
+  const openTestDialog = (client: any) => {
+    setTestTarget(client)
+    setTestSecret('')
+    setTestScope((client.allowedScopes ?? []).join(' '))
+    setTestAudience((client.allowedAudiences ?? [])[0] ?? '')
+    setTestResult(null)
+    setTestError(null)
+  }
+
+  const decodeJwtSegment = (seg: string): any => {
+    try {
+      return JSON.parse(
+        Buffer.from(seg.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+          'utf-8',
+        ),
+      )
+    } catch {
+      return null
+    }
+  }
+
+  const runTestToken = async () => {
+    if (!testTarget || !testSecret) {
+      toast.error('Paste the client_secret from creation or rotation')
+      return
+    }
+    setTestBusy(true)
+    setTestError(null)
+    setTestResult(null)
+    try {
+      const body: Record<string, string> = {
+        grant_type: 'client_credentials',
+        client_id: testTarget.clientId,
+        client_secret: testSecret,
+      }
+      if (testScope.trim()) body.scope = testScope.trim()
+      if (testAudience.trim()) body.audience = testAudience.trim()
+
+      const res = await api.post('/oauth/token', body)
+      const jwt = res.data.access_token as string
+      const [h, p] = jwt.split('.')
+      setTestResult({
+        rawJwt: jwt,
+        header: decodeJwtSegment(h),
+        payload: decodeJwtSegment(p),
+        expiresIn: res.data.expires_in,
+        scope: res.data.scope ?? '',
+      })
+    } catch (err: any) {
+      setTestError(
+        err?.response?.data?.message ??
+          err?.response?.data?.error ??
+          err?.message ??
+          'Token request failed',
+      )
+    } finally {
+      setTestBusy(false)
+    }
+  }
+
+  const curlSnippet = (client: any): string => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://auth.inite.ai'
+    const scopeLine = (client?.allowedScopes ?? []).length
+      ? `\n  -d 'scope=${(client.allowedScopes ?? []).join(' ')}' \\`
+      : ''
+    const audLine = (client?.allowedAudiences ?? [])[0]
+      ? `\n  -d 'audience=${(client.allowedAudiences ?? [])[0]}' \\`
+      : ''
+    return `curl -X POST ${host}/v1/oauth/token \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'grant_type=client_credentials' \\
+  -d 'client_id=${client?.clientId ?? '<client-id>'}' \\
+  -d 'client_secret=<your-secret>' \\${scopeLine}${audLine}`
+  }
+
   const openRotateDialog = (clientId: string) => {
     setRotateTarget(clientId)
     setRotateGraceHours(24)
@@ -429,6 +524,15 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
+                  {(client.allowedGrants ?? []).includes('client_credentials') && (
+                    <button
+                      onClick={() => openTestDialog(client)}
+                      className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-700/50 rounded-lg transition"
+                      title="Test M2M token"
+                    >
+                      <PlayCircle className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => openRotateDialog(client.clientId)}
                     className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-700/50 rounded-lg transition"
@@ -462,6 +566,197 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
           ))
         )}
       </div>
+
+      {/* M2M Test Token Dialog */}
+      <AnimatePresence>
+        {testTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !testBusy && setTestTarget(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <PlayCircle className="w-5 h-5 text-emerald-400" />
+                    Test M2M token
+                  </h3>
+                  <p className="text-sm text-slate-400 font-mono">
+                    {testTarget.clientId}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setTestTarget(null)}
+                  className="p-1 text-slate-400 hover:text-white"
+                  disabled={testBusy}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-slate-400">
+                      client_secret
+                      <span className="ml-2 text-slate-500">
+                        (paste, or rotate to issue a fresh one)
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await api.post(
+                            `/admin/oauth-clients/${testTarget.clientId}/rotate-secret`,
+                            { force: false, graceWindowSeconds: 3600 },
+                            config,
+                          )
+                          setTestSecret(res.data.clientSecret)
+                          toast.success(
+                            'New secret issued (previous valid for 1h grace)',
+                          )
+                        } catch {
+                          toast.error('Rotation failed')
+                        }
+                      }}
+                      className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                      disabled={testBusy}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Issue fresh
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    value={testSecret}
+                    onChange={(e) => setTestSecret(e.target.value)}
+                    placeholder="paste secret or click 'Issue fresh'"
+                    className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white font-mono text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">
+                      scope (space-separated)
+                    </label>
+                    <input
+                      value={testScope}
+                      onChange={(e) => setTestScope(e.target.value)}
+                      placeholder="brain:read brain:write"
+                      className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">audience</label>
+                    <input
+                      value={testAudience}
+                      onChange={(e) => setTestAudience(e.target.value)}
+                      placeholder="brain"
+                      className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white font-mono text-sm"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={runTestToken}
+                  disabled={testBusy || !testSecret}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {testBusy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <PlayCircle className="w-4 h-4" />
+                      Mint test token
+                    </>
+                  )}
+                </button>
+
+                {testError && (
+                  <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-sm text-rose-300">
+                    {testError}
+                  </div>
+                )}
+
+                {testResult && (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-sm text-emerald-300 flex items-center gap-2">
+                      <Check className="w-4 h-4" />
+                      Token minted — expires in {testResult.expiresIn}s
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-slate-400">access_token</label>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(testResult.rawJwt)
+                            toast.success('Copied')
+                          }}
+                          className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                        >
+                          <Copy className="w-3 h-3" /> Copy
+                        </button>
+                      </div>
+                      <pre className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all max-h-24">
+                        {testResult.rawJwt}
+                      </pre>
+                    </div>
+
+                    {testResult.payload && (
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">
+                          decoded payload
+                        </label>
+                        <pre className="text-xs text-slate-300 bg-slate-950 border border-slate-800 rounded-lg p-3 overflow-x-auto max-h-64">
+{JSON.stringify(testResult.payload, null, 2)}
+                        </pre>
+                        {testResult.payload?.cnf?.jkt && (
+                          <p className="text-xs text-violet-400 mt-1">
+                            ✓ DPoP-bound (cnf.jkt present)
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-slate-800 pt-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-slate-400 flex items-center gap-1">
+                      <Terminal className="w-3 h-3" />
+                      curl snippet
+                    </label>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(curlSnippet(testTarget))
+                        toast.success('Copied')
+                      }}
+                      className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" /> Copy
+                    </button>
+                  </div>
+                  <pre className="text-[11px] text-slate-300 bg-slate-950 border border-slate-800 rounded-lg p-3 overflow-x-auto">
+{curlSnippet(testTarget)}
+                  </pre>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Rotate Secret Dialog */}
       <AnimatePresence>

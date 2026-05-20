@@ -1,8 +1,10 @@
-import { Controller, Get, Header, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
+import { Controller, Get, Header, HttpCode, HttpStatus, HttpException, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Response } from 'express';
 import { JwksService } from './jwks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from './redis.service';
+import { MetricsService } from './metrics.service';
 
 @Controller()
 export class HealthController {
@@ -11,7 +13,15 @@ export class HealthController {
     private readonly jwksService: JwksService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly metrics: MetricsService,
   ) {}
+
+  @Get('metrics')
+  async metricsEndpoint(@Res() res: Response): Promise<void> {
+    const { contentType, body } = await this.metrics.expose();
+    res.setHeader('Content-Type', contentType);
+    res.send(body);
+  }
 
   @Get('health')
   health() {

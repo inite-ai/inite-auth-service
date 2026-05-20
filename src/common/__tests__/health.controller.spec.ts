@@ -13,6 +13,7 @@ import { HealthController } from '../health.controller';
 import { JwksService } from '../jwks.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../redis.service';
+import { MetricsService } from '../metrics.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -30,6 +31,7 @@ describe('HealthController', () => {
         { provide: JwksService, useValue: { getJwks: jest.fn().mockReturnValue({ keys: [] }) } },
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
+        { provide: MetricsService, useValue: { expose: jest.fn() } },
       ],
     }).compile();
 

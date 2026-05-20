@@ -1,3 +1,8 @@
+// MUST be first — OTel auto-instrumentations need to load before
+// http/express/pg/redis get pulled in by everything below.
+import { startTracing } from './tracing';
+startTracing();
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

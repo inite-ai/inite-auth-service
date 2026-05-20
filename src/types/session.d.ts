@@ -10,6 +10,7 @@ declare module 'express-session' {
       state?: string;
       codeChallenge: string;
       codeChallengeMethod: string;
+      nonce?: string;
     };
   }
 }

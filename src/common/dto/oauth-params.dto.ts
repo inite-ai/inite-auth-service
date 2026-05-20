@@ -5,4 +5,5 @@ export interface OAuthParamsDto {
   state?: string;
   codeChallenge?: string;
   codeChallengeMethod?: string;
+  nonce?: string;
 }

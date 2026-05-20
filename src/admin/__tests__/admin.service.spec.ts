@@ -272,4 +272,59 @@ describe('AdminService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('rotateClientSecret', () => {
+    const existingClient = {
+      clientId: 'test-app',
+      clientSecretHash: 'old-hash',
+      previousSecretHash: null,
+      previousSecretExpiresAt: null,
+    };
+
+    it('moves the current hash to the previous slot with default 24h grace', async () => {
+      mockPrisma.oAuthClient.findUnique.mockResolvedValue(existingClient);
+      mockPrisma.oAuthClient.update.mockResolvedValue({});
+
+      const before = Date.now();
+      const result = await service.rotateClientSecret('test-app');
+      const after = Date.now();
+
+      const updatePayload = mockPrisma.oAuthClient.update.mock.calls[0][0].data;
+      expect(updatePayload.previousSecretHash).toBe('old-hash');
+      expect(updatePayload.clientSecretHash).not.toBe('old-hash');
+      const expiresMs = updatePayload.previousSecretExpiresAt.getTime();
+      expect(expiresMs).toBeGreaterThanOrEqual(before + 24 * 3600 * 1000 - 50);
+      expect(expiresMs).toBeLessThanOrEqual(after + 24 * 3600 * 1000 + 50);
+      expect(result!.graceWindowSeconds).toBe(24 * 3600);
+      expect(result!.clientSecret.length).toBeGreaterThan(20);
+    });
+
+    it('clears the previous slot when force=true', async () => {
+      mockPrisma.oAuthClient.findUnique.mockResolvedValue(existingClient);
+      mockPrisma.oAuthClient.update.mockResolvedValue({});
+
+      const result = await service.rotateClientSecret('test-app', { force: true });
+      const updatePayload = mockPrisma.oAuthClient.update.mock.calls[0][0].data;
+      expect(updatePayload.previousSecretHash).toBeNull();
+      expect(updatePayload.previousSecretExpiresAt).toBeNull();
+      expect(result!.graceWindowSeconds).toBe(0);
+    });
+
+    it('caps the grace window at 7 days', async () => {
+      mockPrisma.oAuthClient.findUnique.mockResolvedValue(existingClient);
+      mockPrisma.oAuthClient.update.mockResolvedValue({});
+
+      const ridiculous = 365 * 24 * 3600;
+      const result = await service.rotateClientSecret('test-app', {
+        graceWindowSeconds: ridiculous,
+      });
+      expect(result!.graceWindowSeconds).toBe(7 * 24 * 3600);
+    });
+
+    it('returns null when the client does not exist', async () => {
+      mockPrisma.oAuthClient.findUnique.mockResolvedValue(null);
+      const result = await service.rotateClientSecret('ghost');
+      expect(result).toBeNull();
+    });
+  });
 });

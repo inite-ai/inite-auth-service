@@ -220,7 +220,22 @@ export class AdminService {
     }
   }
 
-  async rotateClientSecret(clientId: string) {
+  /**
+   * Rotate a client secret with an optional grace window.
+   *
+   * Default behaviour: previous secret stays valid for 24h after
+   * rotation so deployed callers can roll forward without an outage.
+   * Pass `force: true` to revoke the old secret immediately — used
+   * when the old value is known to be compromised.
+   *
+   * Grace window is capped at 7 days. Anything longer should be
+   * handled by issuing a brand-new client instead, so the audit
+   * trail stays clean.
+   */
+  async rotateClientSecret(
+    clientId: string,
+    opts: { graceWindowSeconds?: number; force?: boolean } = {},
+  ) {
     const client = await this.prisma.oAuthClient.findUnique({
       where: { clientId },
     });
@@ -230,15 +245,35 @@ export class AdminService {
     const newSecret = crypto.randomBytes(32).toString('base64url');
     const newSecretHash = await bcrypt.hash(newSecret, 10);
 
+    const maxGraceSeconds = 7 * 24 * 60 * 60;
+    const requested = opts.graceWindowSeconds ?? 24 * 60 * 60;
+    const graceSeconds = Math.min(Math.max(requested, 0), maxGraceSeconds);
+
+    const data: any = {
+      clientSecretHash: newSecretHash,
+    };
+    if (opts.force || graceSeconds === 0) {
+      data.previousSecretHash = null;
+      data.previousSecretExpiresAt = null;
+    } else {
+      data.previousSecretHash = client.clientSecretHash;
+      data.previousSecretExpiresAt = new Date(Date.now() + graceSeconds * 1000);
+    }
+
     await this.prisma.oAuthClient.update({
       where: { clientId },
-      data: { clientSecretHash: newSecretHash },
+      data,
     });
 
     return {
       clientId,
       clientSecret: newSecret,
-      message: 'Secret rotated successfully. Save this secret - it will not be shown again!',
+      graceWindowSeconds: opts.force ? 0 : graceSeconds,
+      previousSecretExpiresAt: data.previousSecretExpiresAt ?? null,
+      message:
+        opts.force
+          ? 'Secret rotated. Previous secret revoked immediately. Save this secret — it will not be shown again.'
+          : `Secret rotated. Previous secret accepted for ${graceSeconds}s. Save this secret — it will not be shown again.`,
     };
   }
 

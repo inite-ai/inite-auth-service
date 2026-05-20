@@ -83,6 +83,12 @@ model OAuthClient {
   id                String   @id @default(uuid()) @db.Uuid
   clientId          String   @unique @map("clientId")
   clientSecretHash  String   @map("clientSecretHash")
+  /// Previous client_secret hash retained during the grace window
+  /// after rotation. validateClient accepts both current and previous
+  /// hashes until `previousSecretExpiresAt`, giving deployed callers
+  /// time to roll forward without an outage.
+  previousSecretHash       String?   @map("previousSecretHash")
+  previousSecretExpiresAt  DateTime? @map("previousSecretExpiresAt")
   name              String
   redirectUris      String[] @map("redirectUris")
   allowedScopes     String[] @default([]) @map("allowedScopes")
@@ -140,6 +146,11 @@ model AuthorizationCode {
   clientId            String   @map("clientId")
   redirectUri         String   @map("redirectUri")
   scope               String?
+  /// OIDC nonce parameter (core §3.1.2.1). Persisted at /authorize and
+  /// embedded into the id_token at /token. Required to bind a given
+  /// id_token to the original authorization request — without it, an
+  /// attacker who intercepts a code can replay a stolen id_token.
+  nonce               String?
   codeChallenge       String?  @map("codeChallenge")
   codeChallengeMethod String?  @map("codeChallengeMethod")
   expiresAt           DateTime @map("expiresAt")
@@ -167,6 +178,10 @@ model RefreshToken {
   userId      String    @map("userId") @db.Uuid
   clientId    String    @map("clientId")
   scope       String?
+  /// OIDC nonce carried forward across refresh-token rotation, so
+  /// id_tokens minted via refresh still embed the same nonce as the
+  /// original (OIDC core §12.1).
+  nonce       String?
   expiresAt   DateTime  @map("expiresAt")
   rotatedFrom String?   @map("rotatedFrom") @db.Uuid
   revoked     Boolean   @default(false)

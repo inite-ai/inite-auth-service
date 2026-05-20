@@ -7,9 +7,11 @@ import {
   Res,
   Req,
   UseGuards,
+  UseInterceptors,
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
 import { Response, Request } from 'express';
@@ -219,6 +221,7 @@ export class OAuthController {
    * hands to the user agent on /authorize.
    */
   @Post('par')
+  @UseInterceptors(IdempotencyInterceptor)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   async pushAuthorization(@Body() body: Record<string, any>) {
     const clientId = body.client_id;
@@ -336,6 +339,7 @@ export class OAuthController {
    */
   @Post('token')
   @UseGuards(TokenEndpointThrottlerGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   async token(
     @Body('grant_type') grantType: string,

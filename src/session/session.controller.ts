@@ -9,7 +9,7 @@ import {
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller('auth/session')
+@Controller({ path: 'auth/session', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}

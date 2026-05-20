@@ -32,7 +32,7 @@ function clientContext(req: Request): { ip: string; userAgent: string } {
   };
 }
 
-@Controller('oauth')
+@Controller({ path: 'oauth', version: '1' })
 export class OAuthController {
   private readonly logger = new LoggerService();
 

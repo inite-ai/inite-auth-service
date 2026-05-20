@@ -13,7 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller('auth/identity')
+@Controller({ path: 'auth/identity', version: '1' })
 export class IdentityController {
   constructor(private readonly identityService: IdentityService) {}
 

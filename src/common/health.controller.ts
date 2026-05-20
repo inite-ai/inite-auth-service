@@ -127,6 +127,9 @@ export class HealthController {
       // /oauth/logout.
       backchannel_logout_supported: true,
       backchannel_logout_session_supported: true,
+      // RFC 9449. Listing the algorithms our DPoP verifier accepts
+      // tells SDK authors which key types to mint for M2M clients.
+      dpop_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'EdDSA'],
     };
   }
 }

@@ -22,6 +22,7 @@ import { CreateCodeInput } from './dto/create-code.input';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { MetricsService } from '../common/metrics.service';
 import { BackchannelLogoutService } from './backchannel-logout.service';
+import { DpopService } from './dpop.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Pulls IP + UA off the request for audit log enrichment. */
@@ -45,6 +46,7 @@ export class OAuthController {
     private readonly metrics: MetricsService,
     private readonly backchannelLogout: BackchannelLogoutService,
     private readonly prisma: PrismaService,
+    private readonly dpop: DpopService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -309,12 +311,47 @@ export class OAuthController {
     }
 
     if (grantType === 'client_credentials') {
+      // RFC 9449 — caller may opt into sender-constrained tokens by
+      // presenting a `DPoP` proof header on this request. We bind
+      // SHA-256(jwk) into the access token's `cnf.jkt` claim and
+      // flip token_type to "DPoP" so resource servers know to
+      // demand a matching proof on every protected request.
+      let dpopJkt: string | undefined;
+      const dpopHeader = (req.headers['dpop'] as string | undefined) ?? null;
+      if (dpopHeader) {
+        const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+          ?? (req as any).protocol
+          ?? 'https';
+        const host = req.headers.host ?? '';
+        const fullUrl = `${proto}://${host}${req.path ?? req.url?.split('?')[0] ?? ''}`;
+        try {
+          const result = await this.dpop.validate(dpopHeader, 'POST', fullUrl);
+          dpopJkt = result.jkt;
+        } catch (e: any) {
+          this.metrics.tokenFailures.inc({
+            grant_type: 'client_credentials',
+            reason: 'dpop_invalid',
+          });
+          await this.audit.record({
+            event: 'token.failed.dpop_invalid',
+            clientId: client.clientId,
+            sub: client.companyId ?? client.clientId,
+            ip,
+            userAgent,
+            success: false,
+            errorMessage: e?.message ?? 'unknown',
+          });
+          throw e;
+        }
+      }
+
       let tokens;
       try {
         tokens = await this.oauthService.issueClientCredentialsToken(
           client,
           scope,
           audience,
+          dpopJkt,
         );
       } catch (e: any) {
         // Scope or audience violation — both surface as
@@ -361,7 +398,7 @@ export class OAuthController {
 
       return {
         access_token: tokens.accessToken,
-        token_type: 'Bearer',
+        token_type: tokens.tokenType,
         expires_in: tokens.expiresIn,
         scope: tokens.scope,
       };
@@ -423,7 +460,10 @@ export class OAuthController {
         exp: payload.exp,
         iat: payload.iat,
         iss: payload.iss,
-        token_type: 'Bearer',
+        // RFC 9449 §6.1: surface the JWK thumbprint so an RS that
+        // happens to call introspect (rare for M2M, but legal) can
+        // also verify sender-constraint.
+        ...(payload.cnf ? { cnf: payload.cnf, token_type: 'DPoP' } : { token_type: 'Bearer' }),
       };
     } catch {
       return { active: false };

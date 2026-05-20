@@ -537,11 +537,13 @@ export class OAuthService {
     client: OAuthClient,
     requestedScope: string | undefined,
     audience: string | undefined,
+    dpopJkt?: string,
   ): Promise<{
     accessToken: string;
     expiresIn: number;
     scope: string;
     audience: string;
+    tokenType: 'Bearer' | 'DPoP';
   }> {
     const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
     const allowed = client.allowedScopes ?? [];
@@ -596,19 +598,24 @@ export class OAuthService {
       'auth.inite.ai',
     );
 
-    const accessToken = this.jwtService.sign(
-      {
-        sub,
-        client_id: client.clientId,
-        scopes: grantedScopes,
-        scope: grantedScopes.join(' '),
-      },
-      {
-        expiresIn: accessTokenExpiry as any,
-        audience: effectiveAudience,
-        issuer,
-      },
-    );
+    const claims: Record<string, any> = {
+      sub,
+      client_id: client.clientId,
+      scopes: grantedScopes,
+      scope: grantedScopes.join(' '),
+    };
+    if (dpopJkt) {
+      // RFC 9449 §6.1: bind the access token to the client's DPoP
+      // key by SHA-256 thumbprint. Resource servers verify it
+      // matches the proof they receive on the protected request.
+      claims.cnf = { jkt: dpopJkt };
+    }
+
+    const accessToken = this.jwtService.sign(claims, {
+      expiresIn: accessTokenExpiry as any,
+      audience: effectiveAudience,
+      issuer,
+    });
 
     const expiresIn = this.parseExpiryToSeconds(accessTokenExpiry);
     return {
@@ -616,6 +623,7 @@ export class OAuthService {
       expiresIn,
       scope: grantedScopes.join(' '),
       audience: effectiveAudience,
+      tokenType: dpopJkt ? 'DPoP' : 'Bearer',
     };
   }
 

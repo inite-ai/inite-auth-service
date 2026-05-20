@@ -4,6 +4,7 @@ import { OAuthController } from './oauth.controller';
 import { PkceService } from './pkce.service';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
 import { BackchannelLogoutService } from './backchannel-logout.service';
+import { DpopService } from './dpop.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 
@@ -17,8 +18,9 @@ import { AuthModule } from '../auth/auth.module';
     PkceService,
     TokenEndpointThrottlerGuard,
     BackchannelLogoutService,
+    DpopService,
   ],
   controllers: [OAuthController],
-  exports: [OAuthService, BackchannelLogoutService],
+  exports: [OAuthService, BackchannelLogoutService, DpopService],
 })
 export class OAuthModule {}

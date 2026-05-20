@@ -10,7 +10,8 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
+import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
 import { AuthService } from '../auth/auth.service';
@@ -18,6 +19,17 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+
+/** Pulls IP + UA off the request for audit log enrichment. */
+function clientContext(req: Request): { ip: string; userAgent: string } {
+  const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
+  const ip = fwd.split(',')[0]?.trim() || req.ip || '';
+  return {
+    ip,
+    userAgent: (req.headers['user-agent'] as string | undefined) ?? '',
+  };
+}
 
 @Controller('oauth')
 export class OAuthController {
@@ -26,6 +38,7 @@ export class OAuthController {
   constructor(
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
+    private readonly audit: OAuthAuditService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -157,7 +170,8 @@ export class OAuthController {
    * POST /oauth/token
    */
   @Post('token')
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(TokenEndpointThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   async token(
     @Body('grant_type') grantType: string,
     @Body('code') code: string,
@@ -166,16 +180,50 @@ export class OAuthController {
     @Body('client_secret') clientSecret: string,
     @Body('code_verifier') codeVerifier: string,
     @Body('refresh_token') refreshToken: string,
+    @Body('scope') scope: string,
+    @Body('audience') audience: string,
+    @Req() req: Request,
   ) {
+    const { ip, userAgent } = clientContext(req);
+
     if (!grantType) {
       throw new BadRequestException('grant_type is required');
     }
 
-    // Token endpoint requires client authentication
-    const client = await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+    // Token endpoint requires client authentication. Wrap so we can
+    // audit-log a credential failure even when the client is unknown
+    // (no client = no clientId on the audit row, but the IP/UA still
+    // tells the operator who's probing).
+    let client;
+    try {
+      client = await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+    } catch (e: any) {
+      await this.audit.record({
+        event: 'token.failed.invalid_credentials',
+        clientId: clientId ?? null,
+        ip,
+        userAgent,
+        success: false,
+        errorMessage: e?.message ?? 'unknown',
+        metadata: { grantType },
+      });
+      throw e;
+    }
 
-    // Validate grant type
-    this.oauthService.validateGrantType(client, grantType);
+    try {
+      this.oauthService.validateGrantType(client, grantType);
+    } catch (e: any) {
+      await this.audit.record({
+        event: 'token.failed.unsupported_grant',
+        clientId: client.clientId,
+        ip,
+        userAgent,
+        success: false,
+        errorMessage: e?.message ?? 'unknown',
+        metadata: { grantType },
+      });
+      throw e;
+    }
 
     if (grantType === 'authorization_code') {
       if (!code) throw new BadRequestException('code is required');
@@ -187,6 +235,14 @@ export class OAuthController {
       );
 
       this.logger.oauth('Token issued', { clientId, grantType });
+      await this.audit.record({
+        event: 'token.issued.authorization_code',
+        clientId: client.clientId,
+        scopes: tokens.scope ? tokens.scope.split(' ') : [],
+        ip,
+        userAgent,
+        success: true,
+      });
 
       return {
         access_token: tokens.accessToken,
@@ -204,6 +260,14 @@ export class OAuthController {
       const tokens = await this.oauthService.refreshAccessToken(refreshToken, clientId);
 
       this.logger.oauth('Token refreshed', { clientId });
+      await this.audit.record({
+        event: 'token.refreshed',
+        clientId: client.clientId,
+        scopes: tokens.scope ? tokens.scope.split(' ') : [],
+        ip,
+        userAgent,
+        success: true,
+      });
 
       return {
         access_token: tokens.accessToken,
@@ -211,6 +275,59 @@ export class OAuthController {
         expires_in: tokens.expiresIn,
         refresh_token: tokens.refreshToken,
         id_token: tokens.idToken,
+        scope: tokens.scope,
+      };
+    }
+
+    if (grantType === 'client_credentials') {
+      let tokens;
+      try {
+        tokens = await this.oauthService.issueClientCredentialsToken(
+          client,
+          scope,
+          audience,
+        );
+      } catch (e: any) {
+        // Scope or audience violation — both surface as
+        // BadRequestException from the service. Distinguish via the
+        // message for clearer audit replay.
+        const msg = e?.message ?? '';
+        const event = msg.includes('Audience')
+          ? 'token.failed.audience_violation'
+          : 'token.failed.scope_violation';
+        await this.audit.record({
+          event,
+          clientId: client.clientId,
+          sub: client.companyId ?? client.clientId,
+          audience: audience ?? null,
+          ip,
+          userAgent,
+          success: false,
+          errorMessage: msg,
+        });
+        throw e;
+      }
+
+      this.logger.oauth('M2M token issued', {
+        clientId,
+        scope: tokens.scope,
+        audience: tokens.audience,
+      });
+      await this.audit.record({
+        event: 'token.issued.client_credentials',
+        clientId: client.clientId,
+        sub: client.companyId ?? client.clientId,
+        scopes: tokens.scope.split(' ').filter(Boolean),
+        audience: tokens.audience,
+        ip,
+        userAgent,
+        success: true,
+      });
+
+      return {
+        access_token: tokens.accessToken,
+        token_type: 'Bearer',
+        expires_in: tokens.expiresIn,
         scope: tokens.scope,
       };
     }

@@ -11,6 +11,7 @@ import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
+import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
 
@@ -60,6 +61,9 @@ import { HealthController } from './common/health.controller';
 
     // Common Module (global)
     CommonModule,
+
+    // Audit (global) — durable OAuth + client lifecycle audit trail
+    AuditModule,
 
     // Feature Modules
     AuthModule,

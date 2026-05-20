@@ -23,6 +23,8 @@ import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { MetricsService } from '../common/metrics.service';
 import { BackchannelLogoutService } from './backchannel-logout.service';
 import { DpopService } from './dpop.service';
+import { ParService } from './par.service';
+import { DeviceFlowService } from './device-flow.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Pulls IP + UA off the request for audit log enrichment. */
@@ -47,6 +49,8 @@ export class OAuthController {
     private readonly backchannelLogout: BackchannelLogoutService,
     private readonly prisma: PrismaService,
     private readonly dpop: DpopService,
+    private readonly par: ParService,
+    private readonly deviceFlow: DeviceFlowService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -67,9 +71,32 @@ export class OAuthController {
     @Query('prompt') prompt: string,
     @Query('nonce') nonce: string,
     @Query('acr_values') acrValues: string,
+    @Query('request_uri') requestUri: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    // RFC 9126: when request_uri is presented, the inbound query
+    // params are ignored (other than client_id which we use to bind
+    // the PAR consumption) and the pushed values take over.
+    if (requestUri) {
+      if (!clientId) {
+        throw new BadRequestException('client_id is required with request_uri');
+      }
+      const pushed = await this.par.consume(requestUri, clientId);
+      if (!pushed) {
+        throw new BadRequestException('Invalid or expired request_uri');
+      }
+      responseType = pushed.responseType ?? responseType;
+      redirectUri = pushed.redirectUri;
+      scope = pushed.scope ?? scope;
+      state = pushed.state ?? state;
+      codeChallenge = pushed.codeChallenge ?? codeChallenge;
+      codeChallengeMethod = pushed.codeChallengeMethod ?? codeChallengeMethod;
+      nonce = pushed.nonce ?? nonce;
+      acrValues = pushed.acrValues ?? acrValues;
+      prompt = pushed.prompt ?? prompt;
+    }
+
     // Validate required parameters
     if (!responseType || responseType !== 'code') {
       throw new BadRequestException('Invalid response_type. Only "code" is supported.');
@@ -184,6 +211,126 @@ export class OAuthController {
   }
 
   /**
+   * Pushed Authorization Requests (RFC 9126).
+   * POST /v1/oauth/par
+   *
+   * Confidential authentication via client_secret_post; on success
+   * returns a `request_uri` (single-use, 60 s TTL) which the client
+   * hands to the user agent on /authorize.
+   */
+  @Post('par')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async pushAuthorization(@Body() body: Record<string, any>) {
+    const clientId = body.client_id;
+    const clientSecret = body.client_secret;
+    if (!clientId) throw new BadRequestException('client_id is required');
+    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+
+    return {
+      request_uri: (
+        await this.par.push({
+          clientId,
+          redirectUri: body.redirect_uri,
+          responseType: body.response_type,
+          scope: body.scope,
+          state: body.state,
+          codeChallenge: body.code_challenge,
+          codeChallengeMethod: body.code_challenge_method,
+          nonce: body.nonce,
+          acrValues: body.acr_values,
+          prompt: body.prompt,
+        })
+      ).requestUri,
+      expires_in: 60,
+    };
+  }
+
+  /**
+   * Device Authorization Grant (RFC 8628) — step 1.
+   * POST /v1/oauth/device_authorization
+   *
+   * The device authenticates with its client_id (public clients
+   * skip client_secret per spec §3.1). We return device_code,
+   * user_code, and the verification URI to display.
+   */
+  @Post('device_authorization')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async deviceAuthorization(
+    @Body('client_id') clientId: string,
+    @Body('scope') scope: string,
+    @Req() req: Request,
+  ) {
+    if (!clientId) throw new BadRequestException('client_id is required');
+    const client = await this.oauthService.validateClient(clientId);
+    this.oauthService.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
+
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?? (req as any).protocol
+      ?? 'https';
+    const host = req.headers.host ?? '';
+    const verificationUri = `${proto}://${host}/v1/oauth/device`;
+    return await this.deviceFlow.issue({
+      client,
+      scope,
+      verificationUri,
+    });
+  }
+
+  /**
+   * Device verification — step 2.
+   * GET /v1/oauth/device?user_code=ABCD-EFGH
+   *
+   * The user lands here from the URL printed by the device. We
+   * resolve the user_code, then bounce the browser into the
+   * /authorize-style consent flow with a synthetic auth code.
+   *
+   * In this codebase the actual consent UI lives on the frontend;
+   * this endpoint returns the resolved client + scope so the SPA
+   * can render the consent screen + POST approval back.
+   */
+  @Get('device')
+  async deviceVerify(@Query('user_code') userCode: string) {
+    if (!userCode) throw new BadRequestException('user_code is required');
+    const row = await this.deviceFlow.findByUserCode(userCode);
+    if (!row) {
+      throw new BadRequestException('Invalid or expired user_code');
+    }
+    return {
+      user_code: row.userCode,
+      client_id: row.clientId,
+      scope: row.scope ?? null,
+      status: row.status,
+      expires_at: row.expiresAt,
+    };
+  }
+
+  /**
+   * Device verification — approval step.
+   * POST /v1/oauth/device/approve  body: { user_code, decision }
+   *
+   * Requires an authenticated browser session. decision = 'approve'
+   * flips the device row to approved, attaching the user; 'deny'
+   * marks denied so the device's next poll returns access_denied.
+   */
+  @Post('device/approve')
+  @UseGuards(JwtOrSessionGuard)
+  async deviceApprove(
+    @Body() body: { user_code: string; decision: 'approve' | 'deny' },
+    @Req() req: any,
+  ) {
+    if (!body?.user_code) throw new BadRequestException('user_code is required');
+    if (body.decision === 'deny') {
+      await this.deviceFlow.deny(body.user_code);
+      return { status: 'denied' };
+    }
+    const updated = await this.deviceFlow.approve({
+      userCode: body.user_code,
+      userId: req.user.userId,
+    });
+    return { status: updated.status };
+  }
+
+  /**
    * Token endpoint
    * POST /oauth/token
    */
@@ -294,6 +441,47 @@ export class OAuthController {
       await this.audit.record({
         event: 'token.refreshed',
         clientId: client.clientId,
+        scopes: tokens.scope ? tokens.scope.split(' ') : [],
+        ip,
+        userAgent,
+        success: true,
+      });
+
+      return {
+        access_token: tokens.accessToken,
+        token_type: 'Bearer',
+        expires_in: tokens.expiresIn,
+        refresh_token: tokens.refreshToken,
+        id_token: tokens.idToken,
+        scope: tokens.scope,
+      };
+    }
+
+    if (grantType === DeviceFlowService.GRANT_TYPE) {
+      const deviceCode = (req.body as any)?.device_code as string | undefined;
+      if (!deviceCode) throw new BadRequestException('device_code is required');
+
+      const approved = await this.deviceFlow.pollForApproval({
+        deviceCode,
+        clientId,
+      });
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: approved.userId! },
+      });
+      if (!user) throw new BadRequestException({ error: 'invalid_grant' });
+
+      const tokens = await this.oauthService.generateTokens(
+        user,
+        clientId,
+        approved.scope ?? '',
+      );
+
+      this.metrics.tokensIssued.inc({ grant_type: 'device_code' });
+      await this.audit.record({
+        event: 'token.issued.device_code',
+        clientId: client.clientId,
+        sub: user.did,
         scopes: tokens.scope ? tokens.scope.split(' ') : [],
         ip,
         userAgent,

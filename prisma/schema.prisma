@@ -241,6 +241,38 @@ model MagicLink {
   @@map("magic_links")
 }
 
+/// OAuth 2.0 Device Authorization Grant (RFC 8628).
+/// Persists state for the device flow: a TV/CLI/IoT client requests
+/// a device_code + user_code; the user authorises via a separate
+/// browser session; the client polls /token with device_code until
+/// status transitions to APPROVED.
+model DeviceAuthorization {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Long random opaque code returned to the device; client polls
+  /// /token with this. Hashed at rest via SHA-256 so a DB read can't
+  /// approve random codes.
+  deviceCodeHash String @unique @map("deviceCodeHash")
+  /// Short user-facing code (8 chars, format XXXX-XXXX). Stored
+  /// plain because the user needs to type it.
+  userCode     String   @unique @map("userCode")
+  clientId     String   @map("clientId")
+  scope        String?
+  /// Set when the user approves; null while pending.
+  userId       String?  @map("userId") @db.Uuid
+  /// 'pending' | 'approved' | 'denied' | 'expired'
+  status       String   @default("pending")
+  expiresAt    DateTime @map("expiresAt")
+  /// Last poll timestamp — used to enforce the spec's `slow_down`
+  /// response when a client polls below `interval`.
+  lastPolledAt DateTime? @map("lastPolledAt")
+  interval     Int      @default(5)
+  createdAt    DateTime @default(now()) @map("createdAt")
+
+  @@index([userCode])
+  @@index([expiresAt])
+  @@map("device_authorizations")
+}
+
 model UserKnownDevice {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String   @map("userId") @db.Uuid

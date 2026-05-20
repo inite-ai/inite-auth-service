@@ -8,6 +8,7 @@ import {
   BarChart3,
   Users,
   AppWindow,
+  FileSearch,
   LogOut,
   Loader2,
 } from 'lucide-react'
@@ -15,14 +16,20 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
-import { StatsSection, UsersSection, OAuthClientsSection } from '@/components/admin'
+import {
+  StatsSection,
+  UsersSection,
+  OAuthClientsSection,
+  AuditLogSection,
+} from '@/components/admin'
 
-type Tab = 'stats' | 'users' | 'clients'
+type Tab = 'stats' | 'users' | 'clients' | 'audit'
 
 const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'stats', label: 'Dashboard', icon: BarChart3 },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'clients', label: 'OAuth Clients', icon: AppWindow },
+  { key: 'audit', label: 'Audit Log', icon: FileSearch },
 ]
 
 export default function AdminPage() {
@@ -174,6 +181,7 @@ export default function AdminPage() {
           {activeTab === 'stats' && stats && <StatsSection stats={stats} />}
           {activeTab === 'users' && <UsersSection accessToken={accessToken} />}
           {activeTab === 'clients' && <OAuthClientsSection accessToken={accessToken} />}
+          {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}
         </div>
 
         {/* Footer */}

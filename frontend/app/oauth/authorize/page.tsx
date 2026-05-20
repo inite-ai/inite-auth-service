@@ -32,7 +32,7 @@ function OAuthAuthorizeContent() {
       // If no valid token, try to refresh from session (SSO)
       if (!isAuthenticated) {
         try {
-          const response = await fetch('/auth/session/me', {
+          const response = await fetch('/v1/auth/session/me', {
             credentials: 'include',
           })
           const data = await response.json()

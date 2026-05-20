@@ -115,7 +115,7 @@ function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
         let token = authStorage.getValidToken()
         if (!token) {
           try {
-            const response = await fetch('/auth/session/me', { credentials: 'include' })
+            const response = await fetch('/v1/auth/session/me', { credentials: 'include' })
             const data = await response.json()
             if (data.authenticated && data.access_token) {
               authStorage.save({

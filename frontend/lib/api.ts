@@ -1,8 +1,10 @@
 import axios from 'axios'
 
-// Use relative paths - Traefik routes /auth/* and /oauth/* to backend
-// This ensures cookies are first-party (same domain)
-const API_URL = ''
+// Backend mounted everything app-level under /v1 (URI versioning).
+// Spec-pinned endpoints (.well-known/*, /health, /ready, /metrics)
+// stay neutral — call those without baseURL when needed.
+// Relative paths keep cookies first-party via the Traefik proxy.
+const API_URL = '/v1'
 
 const api = axios.create({
   baseURL: API_URL,

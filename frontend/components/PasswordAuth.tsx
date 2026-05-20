@@ -67,7 +67,22 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
       }
     } catch (error: any) {
       console.error('Password auth error:', error)
-      toast.error(error.message || 'Authentication failed')
+      // The backend surfaces breached-password reject as a structured
+      // 400. Show a more useful message than the generic "Authentication
+      // failed" so the user picks a different password.
+      const breached =
+        error?.response?.data?.error === 'password_breached' ||
+        error?.body?.error === 'password_breached' ||
+        /password_breached/.test(String(error?.message ?? ''))
+      if (breached) {
+        const count =
+          error?.response?.data?.breach_count ?? error?.body?.breach_count ?? '?'
+        toast.error(
+          `This password appears in ${count} known data breaches. Pick a unique one.`,
+        )
+      } else {
+        toast.error(error?.response?.data?.message || error.message || 'Authentication failed')
+      }
     } finally {
       setLoading(false)
     }

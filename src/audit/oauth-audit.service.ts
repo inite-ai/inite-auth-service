@@ -28,6 +28,10 @@ import { PrismaService } from '../prisma/prisma.service';
 export interface AuditEventInput {
   event: string;
   clientId?: string | null;
+  /// When the caller already has the tenant identifier handy (e.g.
+  /// client_credentials flow where it's the JWT sub), pass it
+  /// directly. Otherwise it's resolved from the OAuthClient row.
+  companyId?: string | null;
   sub?: string | null;
   scopes?: string[];
   audience?: string | null;
@@ -42,14 +46,26 @@ export interface AuditEventInput {
 export class OAuthAuditService {
   private readonly logger = new Logger(OAuthAuditService.name);
 
+  // Tiny in-process cache for clientId → companyId so high-volume
+  // token endpoints don't hit the DB on every audit write. OAuth
+  // clients rarely change tenants, and a stale entry is at worst a
+  // briefly mis-scoped audit row (the next 60s eviction clears it).
+  private readonly companyIdCache = new Map<
+    string,
+    { companyId: string | null; cachedAt: number }
+  >();
+  private static readonly COMPANY_CACHE_TTL_MS = 60_000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: AuditEventInput): Promise<void> {
     try {
+      const companyId = await this.resolveCompanyId(input);
       await this.prisma.oAuthAuditLog.create({
         data: {
           event: input.event,
           clientId: input.clientId ?? null,
+          companyId,
           sub: input.sub ?? null,
           scopes: input.scopes ?? [],
           audience: input.audience ?? null,
@@ -68,5 +84,85 @@ export class OAuthAuditService {
         `audit log write failed [${input.event}]: ${e?.message ?? 'unknown'}`,
       );
     }
+  }
+
+  private async resolveCompanyId(
+    input: AuditEventInput,
+  ): Promise<string | null> {
+    if (input.companyId !== undefined) return input.companyId ?? null;
+    if (!input.clientId) return null;
+
+    const cached = this.companyIdCache.get(input.clientId);
+    if (
+      cached &&
+      Date.now() - cached.cachedAt < OAuthAuditService.COMPANY_CACHE_TTL_MS
+    ) {
+      return cached.companyId;
+    }
+
+    try {
+      const client = await this.prisma.oAuthClient.findUnique({
+        where: { clientId: input.clientId },
+        select: { companyId: true },
+      });
+      const companyId = client?.companyId ?? null;
+      this.companyIdCache.set(input.clientId, {
+        companyId,
+        cachedAt: Date.now(),
+      });
+      return companyId;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * List audit-log rows with optional filters. Scoped reads pass
+   * companyId; superadmin reads pass undefined to see all tenants.
+   * Capped at 200 rows per page; ordering newest-first.
+   */
+  async list(filters: {
+    companyId?: string;
+    clientId?: string;
+    event?: string;
+    success?: boolean;
+    since?: Date;
+    until?: Date;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+
+    const where: any = {};
+    if (filters.companyId !== undefined) where.companyId = filters.companyId;
+    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.event) where.event = filters.event;
+    if (filters.success !== undefined) where.success = filters.success;
+    if (filters.since || filters.until) {
+      where.ts = {};
+      if (filters.since) where.ts.gte = filters.since;
+      if (filters.until) where.ts.lte = filters.until;
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.oAuthAuditLog.findMany({
+        where,
+        orderBy: { ts: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.oAuthAuditLog.count({ where }),
+    ]);
+
+    return {
+      rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 }

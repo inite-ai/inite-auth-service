@@ -125,6 +125,10 @@ model OAuthAuditLog {
   ts            DateTime @default(now())
   event         String
   clientId      String?
+  /// Tenant scope, denormalised from the OAuthClient at write-time.
+  /// Lets scoped admin reads filter without a join (and ensures the
+  /// filter still works after a client is deleted/renamed).
+  companyId     String?
   sub           String?
   scopes        String[] @default([])
   audience      String?
@@ -136,6 +140,7 @@ model OAuthAuditLog {
 
   @@index([clientId, ts(sort: Desc)], map: "oauth_audit_log_clientId_ts_idx")
   @@index([event, ts(sort: Desc)], map: "oauth_audit_log_event_ts_idx")
+  @@index([companyId, ts(sort: Desc)], map: "oauth_audit_log_companyId_ts_idx")
   @@map("oauth_audit_log")
 }
 
@@ -144,6 +149,9 @@ model AuthorizationCode {
   code                String   @unique
   userId              String   @map("userId") @db.Uuid
   clientId            String   @map("clientId")
+  /// Tenant scope, denormalised from OAuthClient at create-time. Null
+  /// for user-flow clients (no tenant), set for company-keyed M2M.
+  companyId           String?  @map("companyId")
   redirectUri         String   @map("redirectUri")
   scope               String?
   /// OIDC nonce parameter (core §3.1.2.1). Persisted at /authorize and
@@ -177,6 +185,8 @@ model RefreshToken {
   tokenHash   String?   @map("tokenHash")
   userId      String    @map("userId") @db.Uuid
   clientId    String    @map("clientId")
+  /// Tenant scope, denormalised from OAuthClient at issue-time.
+  companyId   String?   @map("companyId")
   scope       String?
   /// OIDC nonce carried forward across refresh-token rotation, so
   /// id_tokens minted via refresh still embed the same nonce as the
@@ -193,6 +203,7 @@ model RefreshToken {
 
   @@index([userId])
   @@index([userId, clientId, revoked])
+  @@index([companyId, revoked], map: "refresh_tokens_companyId_revoked_idx")
   @@map("refresh_tokens")
 }
 

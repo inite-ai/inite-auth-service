@@ -1,6 +1,6 @@
 {
   "name": "inite-auth-service",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "INITE Identity Provider - Unified authentication service for all INITE ecosystem modules",
   "author": "INITE",
   "private": true,

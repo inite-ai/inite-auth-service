@@ -12,6 +12,7 @@ import { MagicLinkService } from './magic-link.service';
 import { EmailService } from '../email/email.service';
 import { LoggerService } from '../common/logger.service';
 import { MetricsService } from '../common/metrics.service';
+import { HibpService } from './hibp.service';
 
 @Injectable()
 export class AuthService {
@@ -26,8 +27,28 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly metrics: MetricsService,
+    private readonly hibp: HibpService,
   ) {
     this.logger.setContext('AuthService');
+  }
+
+  /**
+   * Throw if HIBP is enabled and the password is in the breach
+   * corpus. Wraps the HibpService check so call sites read cleanly.
+   */
+  private async enforceHibp(password: string): Promise<void> {
+    try {
+      await this.hibp.assertNotBreached(password);
+    } catch (err: any) {
+      if (err?.code === 'password_breached') {
+        throw new BadRequestException({
+          error: 'password_breached',
+          message: err.message,
+          breach_count: err.breachCount,
+        });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -84,6 +105,10 @@ export class AuthService {
     if (existingUser) {
       throw new BadRequestException('User with this email already exists');
     }
+
+    // Reject passwords known to be in the HIBP breach corpus when
+    // the operator enabled HIBP. No-op when disabled.
+    await this.enforceHibp(password);
 
     let user = await this.identityService.createIdentity(email, name);
 
@@ -301,6 +326,8 @@ export class AuthService {
     if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
       throw new BadRequestException('Reset token expired');
     }
+
+    await this.enforceHibp(newPassword);
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const updated = await this.prisma.user.update({

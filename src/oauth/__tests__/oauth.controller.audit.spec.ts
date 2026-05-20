@@ -7,6 +7,8 @@ import { MetricsService } from '../../common/metrics.service';
 import { BackchannelLogoutService } from '../backchannel-logout.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DpopService } from '../dpop.service';
+import { ParService } from '../par.service';
+import { DeviceFlowService } from '../device-flow.service';
 
 const mockMetrics = (): any => ({
   tokensIssued: { inc: jest.fn() },
@@ -62,6 +64,8 @@ describe('OAuthController /oauth/token — audit log writes', () => {
       { fanOut: jest.fn().mockResolvedValue(0) } as unknown as BackchannelLogoutService,
       { user: { findUnique: jest.fn() } } as unknown as PrismaService,
       { validate: jest.fn() } as unknown as DpopService,
+      { push: jest.fn(), consume: jest.fn() } as unknown as ParService,
+      { issue: jest.fn(), findByUserCode: jest.fn(), approve: jest.fn(), deny: jest.fn(), pollForApproval: jest.fn() } as unknown as DeviceFlowService,
     );
   });
 

@@ -102,8 +102,20 @@ export class HealthController {
       revocation_endpoint: `${issuer}/v1/oauth/revoke`,
       introspection_endpoint: `${issuer}/v1/oauth/introspect`,
       end_session_endpoint: `${issuer}/v1/oauth/logout`,
+      pushed_authorization_request_endpoint: `${issuer}/v1/oauth/par`,
+      device_authorization_endpoint: `${issuer}/v1/oauth/device_authorization`,
+      // RFC 9126 §5: when set, the IdP rejects /authorize requests
+      // for THIS client that don't come via /par. We don't enforce
+      // globally — operators flip this per-client via an admin
+      // flag when they need FAPI-grade hardening.
+      require_pushed_authorization_requests: false,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
+      grant_types_supported: [
+        'authorization_code',
+        'refresh_token',
+        'client_credentials',
+        'urn:ietf:params:oauth:grant-type:device_code',
+      ],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
       token_endpoint_auth_methods_supported: [

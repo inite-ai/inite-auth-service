@@ -92,8 +92,28 @@ export class OAuthService {
     }
 
     if (clientSecret) {
-      const isValid = await bcrypt.compare(clientSecret, client.clientSecretHash);
-      if (!isValid) {
+      const matchesCurrent = await bcrypt.compare(
+        clientSecret,
+        client.clientSecretHash,
+      );
+
+      // Grace-period acceptance: during a rotation window, the prior
+      // secret is still honoured until previousSecretExpiresAt. Run
+      // the compare unconditionally when the column is present so an
+      // attacker can't time-distinguish "current matched" from
+      // "previous matched".
+      let matchesPrevious = false;
+      const previousHash = client.previousSecretHash;
+      const previousExp = client.previousSecretExpiresAt;
+      if (previousHash && previousExp && previousExp > new Date()) {
+        matchesPrevious = await bcrypt.compare(clientSecret, previousHash);
+      } else if (previousHash) {
+        // Expired but still in column — pay the bcrypt cost to keep
+        // timing constant, then ignore the result.
+        await bcrypt.compare(clientSecret, previousHash);
+      }
+
+      if (!matchesCurrent && !matchesPrevious) {
         throw new UnauthorizedException('Invalid client credentials');
       }
     }
@@ -161,7 +181,13 @@ export class OAuthService {
   }
 
   /**
-   * Create authorization code
+   * Create authorization code.
+   *
+   * `nonce` is the OIDC nonce parameter (core §3.1.2.1) and gets
+   * round-tripped into the id_token claims at /token. We store it
+   * verbatim — the spec leaves length+format to the RP — and only
+   * embed it when present, so legacy OAuth2-only clients don't get
+   * an unexpected claim.
    */
   async createAuthorizationCode(
     userId: string,
@@ -170,6 +196,7 @@ export class OAuthService {
     scope: string,
     codeChallenge?: string,
     codeChallengeMethod?: string,
+    nonce?: string,
   ): Promise<string> {
     const code = crypto.randomBytes(32).toString('base64url');
 
@@ -185,6 +212,7 @@ export class OAuthService {
         scope,
         codeChallenge,
         codeChallengeMethod,
+        nonce: nonce ?? null,
         expiresAt,
         used: false,
       },
@@ -273,6 +301,8 @@ export class OAuthService {
       authCode.user,
       clientId,
       authCode.scope,
+      undefined,
+      authCode.nonce ?? undefined,
     );
   }
 
@@ -289,6 +319,7 @@ export class OAuthService {
     clientId: string,
     scope: string,
     rotatedFrom?: string,
+    nonce?: string,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -321,21 +352,23 @@ export class OAuthService {
       },
     );
 
-    const idToken = this.jwtService.sign(
-      {
-        sub: user.did,
-        email: user.email,
-        email_verified: user.emailVerified,
-        name: user.name,
-        picture: user.avatarUrl,
-        roles: (user.metadata as any)?.roles || ['user'],
-      },
-      {
-        expiresIn: accessTokenExpiry as any,
-        audience: clientId,
-        issuer,
-      },
-    );
+    // nonce goes ONLY into the id_token per OIDC core §2 — access_token
+    // does not carry it because RPs validate nonces on the id_token side.
+    const idTokenClaims: Record<string, any> = {
+      sub: user.did,
+      email: user.email,
+      email_verified: user.emailVerified,
+      name: user.name,
+      picture: user.avatarUrl,
+      roles: (user.metadata as any)?.roles || ['user'],
+    };
+    if (nonce) idTokenClaims.nonce = nonce;
+
+    const idToken = this.jwtService.sign(idTokenClaims, {
+      expiresIn: accessTokenExpiry as any,
+      audience: clientId,
+      issuer,
+    });
 
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
     const tokenLookup = hashRefreshToken(
@@ -352,6 +385,7 @@ export class OAuthService {
         userId: user.id,
         clientId,
         scope,
+        nonce: nonce ?? null,
         expiresAt,
         revoked: false,
         rotatedFrom: rotatedFrom ?? null,
@@ -438,6 +472,7 @@ export class OAuthService {
       clientId,
       matchedToken.scope ?? '',
       matchedToken.id,
+      matchedToken.nonce ?? undefined,
     );
   }
 

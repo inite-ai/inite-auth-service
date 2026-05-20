@@ -57,6 +57,7 @@ export class OAuthController {
     @Query('code_challenge') codeChallenge: string,
     @Query('code_challenge_method') codeChallengeMethod: string,
     @Query('prompt') prompt: string,
+    @Query('nonce') nonce: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -117,6 +118,7 @@ export class OAuthController {
         grantedScope,
         codeChallenge,
         codeChallengeMethod || 'S256',
+        nonce,
       );
 
       this.logger.oauth('Silent SSO success', { clientId, userId });
@@ -138,6 +140,7 @@ export class OAuthController {
         state,
         codeChallenge,
         codeChallengeMethod,
+        nonce,
       };
 
       this.logger.oauth('Redirecting to login', { clientId });
@@ -148,7 +151,8 @@ export class OAuthController {
       if (state) loginUrl.searchParams.set('state', state);
       if (codeChallenge) loginUrl.searchParams.set('code_challenge', codeChallenge);
       if (codeChallengeMethod) loginUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
-      
+      if (nonce) loginUrl.searchParams.set('nonce', nonce);
+
       return res.redirect(loginUrl.toString());
     }
 
@@ -161,7 +165,8 @@ export class OAuthController {
     if (state) consentUrl.searchParams.set('state', state);
     if (codeChallenge) consentUrl.searchParams.set('code_challenge', codeChallenge);
     if (codeChallengeMethod) consentUrl.searchParams.set('code_challenge_method', codeChallengeMethod);
-    
+    if (nonce) consentUrl.searchParams.set('nonce', nonce);
+
     return res.redirect(consentUrl.toString());
   }
 
@@ -470,6 +475,7 @@ export class OAuthController {
       grantedScope,
       input.codeChallenge,
       input.codeChallengeMethod || 'S256',
+      input.nonce,
     );
 
     this.logger.oauth('Code created', { clientId: input.clientId, userId: req.user.userId });

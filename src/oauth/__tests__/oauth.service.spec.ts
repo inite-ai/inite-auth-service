@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcryptjs';
 import { OAuthService } from '../oauth.service';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
@@ -277,9 +278,117 @@ describe('OAuthService', () => {
             scope: 'openid profile',
             codeChallenge: 'challenge',
             codeChallengeMethod: 'S256',
+            nonce: null,
           }),
         }),
       );
+    });
+
+    it('persists nonce when provided (OIDC core §3.1.2.1)', async () => {
+      mockPrisma.authorizationCode.create.mockResolvedValue({ code: 'test-code' });
+
+      await service.createAuthorizationCode(
+        'user-1', 'test-app', 'https://app.example.com/callback',
+        'openid profile', 'challenge', 'S256', 'n-0S6_WzA2Mj',
+      );
+
+      expect(mockPrisma.authorizationCode.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ nonce: 'n-0S6_WzA2Mj' }),
+        }),
+      );
+    });
+  });
+
+  describe('nonce in id_token', () => {
+    const setHmacSecret = () => {
+      (service as any).configService.get = jest.fn((key: string) => {
+        if (key === 'REFRESH_TOKEN_HMAC_SECRET') return 'test-secret';
+        if (key === 'JWT_SECRET') return 'test-secret';
+        return '';
+      });
+    };
+
+    it('embeds nonce in id_token claims when present on the auth code', async () => {
+      const signSpy = jest.fn().mockReturnValue('jwt');
+      (service as any).jwtService.sign = signSpy;
+      mockPrisma.refreshToken.create.mockResolvedValue({});
+      setHmacSecret();
+
+      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
+      await (service as any).generateTokens(user, 'test-app', 'openid', undefined, 'nonce-value');
+
+      // First sign call = access_token (no nonce). Second = id_token (with nonce).
+      const accessClaims = signSpy.mock.calls[0][0];
+      const idClaims = signSpy.mock.calls[1][0];
+      expect(accessClaims.nonce).toBeUndefined();
+      expect(idClaims.nonce).toBe('nonce-value');
+    });
+
+    it('omits nonce from id_token when not provided (back-compat)', async () => {
+      const signSpy = jest.fn().mockReturnValue('jwt');
+      (service as any).jwtService.sign = signSpy;
+      mockPrisma.refreshToken.create.mockResolvedValue({});
+      setHmacSecret();
+
+      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
+      await (service as any).generateTokens(user, 'test-app', 'openid');
+
+      const idClaims = signSpy.mock.calls[1][0];
+      expect('nonce' in idClaims).toBe(false);
+    });
+  });
+
+  describe('grace-period client secret', () => {
+    const buildClient = async (currentSecret: string, previousSecret?: string, previousExpiresAt?: Date | null) => {
+      const clientSecretHash = await bcrypt.hash(currentSecret, 4);
+      const previousSecretHash = previousSecret ? await bcrypt.hash(previousSecret, 4) : null;
+      return {
+        ...mockClient,
+        clientSecretHash,
+        previousSecretHash,
+        previousSecretExpiresAt: previousExpiresAt ?? null,
+      };
+    };
+
+    it('accepts the current secret', async () => {
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(
+        await buildClient('current-secret'),
+      );
+      const result = await service.validateClient('test-app', 'current-secret');
+      expect(result.clientId).toBe('test-app');
+    });
+
+    it('accepts the previous secret during the grace window', async () => {
+      const future = new Date(Date.now() + 60_000);
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(
+        await buildClient('current-secret', 'old-secret', future),
+      );
+
+      const result = await service.validateClient('test-app', 'old-secret');
+      expect(result.clientId).toBe('test-app');
+    });
+
+    it('rejects the previous secret once the grace window expired', async () => {
+      const past = new Date(Date.now() - 60_000);
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(
+        await buildClient('current-secret', 'old-secret', past),
+      );
+
+      await expect(
+        service.validateClient('test-app', 'old-secret'),
+      ).rejects.toThrow('Invalid client credentials');
+    });
+
+    it('rejects an entirely wrong secret even if a previous slot exists', async () => {
+      const future = new Date(Date.now() + 60_000);
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(
+        await buildClient('current-secret', 'old-secret', future),
+      );
+
+      await expect(
+        service.validateClient('test-app', 'random-junk'),
+      ).rejects.toThrow('Invalid client credentials');
     });
   });
 

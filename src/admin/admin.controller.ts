@@ -171,9 +171,13 @@ export class AdminController {
   @Post('oauth-clients/:clientId/rotate-secret')
   async rotateClientSecret(
     @Param('clientId') clientId: string,
+    @Body() body: { graceWindowSeconds?: number; force?: boolean } = {},
     @Req() req: Request,
   ) {
-    const result = await this.adminService.rotateClientSecret(clientId);
+    const result = await this.adminService.rotateClientSecret(clientId, {
+      graceWindowSeconds: body.graceWindowSeconds,
+      force: body.force,
+    });
     const ctx = adminContext(req);
     await this.audit.record({
       event: 'client.secret_rotated',
@@ -182,6 +186,10 @@ export class AdminController {
       ip: ctx.ip,
       userAgent: ctx.userAgent,
       success: result !== null,
+      metadata: {
+        force: !!body.force,
+        graceWindowSeconds: result?.graceWindowSeconds ?? null,
+      },
     });
     return result;
   }

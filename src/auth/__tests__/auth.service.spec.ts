@@ -9,6 +9,8 @@ import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MetricsService } from '../../common/metrics.service';
 import { HibpService } from '../hibp.service';
+import { RedisService } from '../../common/redis.service';
+import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import * as bcrypt from 'bcryptjs';
 
 const mockMetrics = (): any => ({
@@ -66,6 +68,17 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') } },
         { provide: MetricsService, useValue: mockMetrics() },
         { provide: HibpService, useValue: { isEnabled: () => false, assertNotBreached: jest.fn() } },
+        {
+          provide: RedisService,
+          useValue: {
+            setIfAbsent: jest.fn().mockResolvedValue(false),
+            sAddWithTtl: jest.fn().mockResolvedValue(1),
+          },
+        },
+        {
+          provide: OAuthAuditService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

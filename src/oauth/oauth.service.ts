@@ -14,6 +14,7 @@ import { OAuthClient, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
+import { EmailService } from '../email/email.service';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -39,12 +40,15 @@ const TIMING_DUMMY_HASH =
 
 @Injectable()
 export class OAuthService {
+  private readonly oauthLogger = new Logger(OAuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly pkceService: PkceService,
     private readonly identityService: IdentityService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -309,7 +313,7 @@ export class OAuthService {
       }
     }
 
-    return await this.generateTokens(
+    const tokens = await this.generateTokens(
       authCode.user,
       clientId,
       authCode.scope,
@@ -320,6 +324,60 @@ export class OAuthService {
         acr: authCode.acrValues ?? undefined,
       },
     );
+
+    // Best-effort: if this is the first successful token exchange
+    // between this user and this client, notify the user so they
+    // have an audit trail of "what apps did I authorize?" outside
+    // the admin panel. We check for any pre-existing (non-revoked)
+    // refresh token from before this generateTokens() call — the
+    // new one we just minted will be present too, so we exclude it
+    // by created_at ordering rather than count.
+    this.notifyFirstTimeConsent(authCode.user, clientId, authCode.scope).catch(
+      () => {},
+    );
+
+    return tokens;
+  }
+
+  /**
+   * Send the "you authorized this app" email exactly once per
+   * (user, client). Skipped when a non-revoked refresh token already
+   * existed before this exchange — that means the grant isn't new.
+   */
+  private async notifyFirstTimeConsent(
+    user: User,
+    clientId: string,
+    scope: string,
+  ): Promise<void> {
+    try {
+      // Count refresh tokens for this user+client created MORE than
+      // 5 seconds ago. The one we just minted is younger than that,
+      // so a count of 0 means "this was the first issuance".
+      const cutoff = new Date(Date.now() - 5000);
+      const priorCount = await this.prisma.refreshToken.count({
+        where: {
+          userId: user.id,
+          clientId,
+          createdAt: { lt: cutoff },
+        },
+      });
+      if (priorCount > 0) return;
+
+      const client = await this.prisma.oAuthClient.findUnique({
+        where: { clientId },
+        select: { name: true },
+      });
+      const scopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
+      await this.emailService.sendOAuthConsentGranted(
+        { email: user.email, name: user.name ?? undefined },
+        client?.name ?? clientId,
+        scopes,
+      );
+    } catch (e: any) {
+      this.oauthLogger.warn(
+        `first-time-consent notification failed: ${e?.message ?? 'unknown'}`,
+      );
+    }
   }
 
   /**

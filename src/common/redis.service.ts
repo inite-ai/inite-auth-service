@@ -61,4 +61,45 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async ping(): Promise<string> {
     return this.client.ping();
   }
+
+  /**
+   * Add a member to a set and return the resulting cardinality.
+   * Single round-trip; sets a TTL so the bucket auto-prunes.
+   * Used by anti-flood/anomaly counters that need "distinct values
+   * seen from this key in the last N seconds".
+   */
+  async sAddWithTtl(
+    key: string,
+    member: string,
+    ttlSeconds: number,
+  ): Promise<number> {
+    const pipeline = this.client.pipeline();
+    pipeline.sadd(key, member);
+    pipeline.scard(key);
+    pipeline.expire(key, ttlSeconds);
+    const results = await pipeline.exec();
+    const card = results?.[1]?.[1];
+    return typeof card === 'number' ? card : 0;
+  }
+
+  /**
+   * Conditional set with TTL. Returns true if the key was set (didn't
+   * exist), false if it already existed. Used for "do this thing at
+   * most once per N seconds" debouncing — e.g. admin notifications
+   * triggered by a tripped guard.
+   */
+  async setIfAbsent(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.client.set(
+      key,
+      value,
+      'EX',
+      ttlSeconds,
+      'NX',
+    );
+    return result === 'OK';
+  }
 }

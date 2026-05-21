@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { OAuthService } from '../oauth.service';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
+import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthClient } from '@prisma/client';
 
@@ -61,6 +62,10 @@ describe('OAuthService', () => {
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
         { provide: PkceService, useValue: { verifyCodeChallenge: jest.fn() } },
         { provide: IdentityService, useValue: { getWallets: jest.fn().mockResolvedValue([]) } },
+        {
+          provide: EmailService,
+          useValue: { sendOAuthConsentGranted: jest.fn().mockResolvedValue(true) },
+        },
       ],
     }).compile();
 

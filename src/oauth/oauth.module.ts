@@ -9,16 +9,20 @@ import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
+import { EmailModule } from '../email/email.module';
+import { ClientIdThrottlerGuard } from './client-throttler.guard';
 
 @Module({
   imports: [
     IdentityModule,
+    EmailModule,
     forwardRef(() => AuthModule),
   ],
   providers: [
     OAuthService,
     PkceService,
     TokenEndpointThrottlerGuard,
+    ClientIdThrottlerGuard,
     BackchannelLogoutService,
     DpopService,
     ParService,

@@ -37,6 +37,9 @@ export default function AdminPage() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [accessToken, setAccessToken] = useState('')
+  // Set when the user jumps to the Clients tab from "New service client"
+  // on the Service Tokens panel — opens the create form pre-filled for M2M.
+  const [createSeed, setCreateSeed] = useState<'service' | null>(null)
   const router = useRouter()
 
   const loadAdmin = useCallback(async () => {
@@ -153,11 +156,20 @@ export default function AdminPage() {
         <div>
           {activeTab === 'stats' && stats && <StatsSection stats={stats} />}
           {activeTab === 'users' && <UsersSection accessToken={accessToken} />}
-          {activeTab === 'clients' && <OAuthClientsSection accessToken={accessToken} />}
+          {activeTab === 'clients' && (
+            <OAuthClientsSection
+              accessToken={accessToken}
+              createSeed={createSeed}
+              onCreateSeedConsumed={() => setCreateSeed(null)}
+            />
+          )}
           {activeTab === 'services' && (
             <ServiceTokensSection
               accessToken={accessToken}
-              onCreateNew={() => setActiveTab('clients')}
+              onCreateNew={() => {
+                setCreateSeed('service')
+                setActiveTab('clients')
+              }}
             />
           )}
           {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}

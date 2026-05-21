@@ -26,9 +26,17 @@ import { SkeletonRow } from '@/components/ui'
 
 interface OAuthClientsSectionProps {
   accessToken: string
+  /** Pre-fill + auto-open the create form for a specific use-case. */
+  createSeed?: 'service' | null
+  /** Acknowledge the seed so the parent can clear it. */
+  onCreateSeedConsumed?: () => void
 }
 
-export default function OAuthClientsSection({ accessToken }: OAuthClientsSectionProps) {
+export default function OAuthClientsSection({
+  accessToken,
+  createSeed,
+  onCreateSeedConsumed,
+}: OAuthClientsSectionProps) {
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -84,6 +92,24 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
     loadClients()
   }, [loadClients])
 
+  // Open the create form pre-filled when the user clicked
+  // "New service client" on the Service Tokens panel.
+  useEffect(() => {
+    if (createSeed !== 'service') return
+    setCreateForm({
+      name: '',
+      clientId: '',
+      redirectUris: [],
+      allowedScopes: ['admin'],
+      allowedGrants: ['client_credentials'],
+      companyId: '',
+      allowedAudiences: [],
+      backchannelLogoutUri: '',
+    })
+    setShowCreate(true)
+    onCreateSeedConsumed?.()
+  }, [createSeed, onCreateSeedConsumed])
+
   const loadClientDetails = async (clientId: string) => {
     try {
       const res = await api.get(`/admin/oauth-clients/${clientId}`, config)
@@ -114,15 +140,19 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       toast.error('Authorization code grant requires at least one redirect URI')
       return
     }
-    // Server falls back to clientId as `aud` when allowedAudiences is empty —
-    // safe but operators forget the wider blast-radius implication. Force the
-    // explicit choice in UI for M2M clients.
+    // Server falls back to clientId as `aud` when allowedAudiences is empty.
+    // That's safe — tokens are bound to the client's own identifier — and
+    // sometimes desirable (e.g. an auth-admin tool client that talks to /v1/admin).
+    // We surface a one-time warning so operators understand the implication,
+    // but don't block creation.
     if (
       createForm.allowedGrants.includes('client_credentials') &&
       createForm.allowedAudiences.length === 0
     ) {
-      toast.error('Audience allow-list required when client_credentials grant is enabled')
-      return
+      toast(
+        'No explicit audiences — tokens will default to clientId as aud. OK for self-bound clients.',
+        { icon: '⚠️' },
+      )
     }
     setSaving(true)
     try {
@@ -190,8 +220,10 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       editForm.allowedGrants.includes('client_credentials') &&
       (editForm.allowedAudiences ?? []).length === 0
     ) {
-      toast.error('Audience allow-list required when client_credentials grant is enabled')
-      return
+      toast(
+        'No explicit audiences — tokens will default to clientId as aud.',
+        { icon: '⚠️' },
+      )
     }
     setSaving(true)
     try {

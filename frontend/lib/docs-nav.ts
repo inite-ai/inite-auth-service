@@ -53,6 +53,17 @@ export const DOCS_GROUPS: DocGroup[] = [
     ],
   },
   {
+    heading: 'AI integration',
+    pages: [
+      {
+        slug: 'mcp',
+        title: 'MCP for assistants',
+        description:
+          '@inite/auth-admin — six tools and three skills exposed via the per-vertical MCP route.',
+      },
+    ],
+  },
+  {
     heading: 'Reference',
     pages: [
       {

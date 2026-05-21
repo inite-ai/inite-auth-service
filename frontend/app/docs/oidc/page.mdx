@@ -1,0 +1,140 @@
+export const metadata = {
+  title: 'OIDC reference · INITE Docs',
+  description: 'Discovery, JWKS, supported claims, DPoP, PAR, back-channel logout.',
+}
+
+# OIDC reference
+
+INITE is a standards-compliant OpenID Connect provider. Everything below is exposed through the discovery document — when in doubt, fetch that first.
+
+## Discovery
+
+```
+https://auth.inite.ai/.well-known/openid-configuration
+```
+
+Returns the full advertised surface — endpoints, supported grants, scopes, claims, signing algorithms. Clients (`oidc-client-ts`, `next-auth`, `passport`, `oauth4webapi`, etc.) bootstrap from this URL automatically.
+
+Key fields:
+
+| Field                                              | Value                                                    |
+| -------------------------------------------------- | -------------------------------------------------------- |
+| `issuer`                                           | `https://auth-api.inite.ai` (env-overridable)             |
+| `authorization_endpoint`                           | `/v1/oauth/authorize`                                    |
+| `token_endpoint`                                   | `/v1/oauth/token`                                        |
+| `userinfo_endpoint`                                | `/v1/oauth/userinfo`                                     |
+| `jwks_uri`                                         | `/.well-known/jwks.json`                                 |
+| `revocation_endpoint`                              | `/v1/oauth/revoke`                                       |
+| `introspection_endpoint`                           | `/v1/oauth/introspect`                                   |
+| `end_session_endpoint`                             | `/v1/oauth/logout`                                       |
+| `pushed_authorization_request_endpoint`            | `/v1/oauth/par` (RFC 9126)                               |
+| `device_authorization_endpoint`                    | `/v1/oauth/device_authorization` (RFC 8628)              |
+| `response_types_supported`                         | `["code"]`                                               |
+| `grant_types_supported`                            | `authorization_code`, `refresh_token`, `client_credentials`, device |
+| `id_token_signing_alg_values_supported`            | `["RS256"]`                                              |
+| `code_challenge_methods_supported`                 | `["S256"]`                                               |
+| `dpop_signing_alg_values_supported`                | `ES256`, `ES384`, `ES512`, `EdDSA` (RFC 9449)            |
+| `backchannel_logout_supported`                     | `true`                                                   |
+| `require_pushed_authorization_requests`            | `false` globally; flippable per client                   |
+
+## JWKS
+
+```
+https://auth.inite.ai/.well-known/jwks.json
+```
+
+Public keys for verifying ID tokens and access tokens. Crypto-agile — keys identified by `kid`. Rotation publishes the new key here ahead of the cutover so RPs cache both.
+
+## Supported scopes
+
+| Scope            | Effect                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| `openid`         | Required for OIDC. Issues an `id_token`.                              |
+| `profile`        | Adds `name`, `picture` to userinfo + id_token.                        |
+| `email`          | Adds `email`, `email_verified`.                                       |
+| `offline_access` | Issues a `refresh_token`. Without this, sessions are one-shot.        |
+
+OAuth clients restrict the requestable subset via their `allowedScopes`.
+
+## Supported claims
+
+```
+sub             — user's DID (did:key:…)
+email           — verified email
+email_verified  — boolean
+name            — display name
+picture         — avatar URL
+roles           — array (e.g. ["admin"])
+nonce           — round-tripped from /authorize for replay defence
+amr             — authentication methods used (e.g. ["pwd","mfa"])
+acr             — authentication context class (URN string)
+```
+
+### AMR values
+
+| Value         | Meaning                                |
+| ------------- | -------------------------------------- |
+| `pwd`         | Password authentication                |
+| `mfa`         | A second factor was satisfied          |
+| `webauthn`    | Passkey / WebAuthn                     |
+| `magic_link`  | Email magic link                       |
+| `wallet`      | Web3 wallet signature                  |
+
+### ACR levels
+
+INITE doesn't impose a fixed ACR vocabulary — clients pass any URN they need (e.g. `urn:inite:acr:strong`) via `acr_values=` on `/authorize` and the IdP rounds-trips it into the id_token if the auth path satisfied it.
+
+## DPoP (RFC 9449)
+
+Sender-constrained tokens. The caller proves possession of a private key with each request; the token only validates when accompanied by a matching DPoP proof JWT.
+
+```
+DPoP: <signed JWT proving key ownership>
+Authorization: DPoP <access_token>
+```
+
+INITE verifies the proof's `jti` (replay window), `htu` (target URL), `htm` (method), and `iat` skew. Supported algorithms: ES256, ES384, ES512, EdDSA. Tokens with `cnf.jkt` claim are DPoP-bound — Bearer-only callers cannot replay them.
+
+## Back-channel logout
+
+Register `backchannel_logout_uri` on your OAuth client. On user logout, INITE POSTs:
+
+```
+POST https://your-app/back-channel-logout
+Content-Type: application/x-www-form-urlencoded
+
+logout_token=<signed JWT>
+```
+
+The `logout_token` JWT contains:
+
+- `sub` — user DID
+- `sid` — session id (if available)
+- `events` — `{ "http://schemas.openid.net/event/backchannel-logout": {} }`
+- `iat`, `iss`, `aud`
+
+Verify with JWKS, then invalidate the matching session in your app. Fan-out is best-effort with a bounded per-RP timeout — INITE doesn't block the user's redirect on slow RPs.
+
+## Token introspection (RFC 7662)
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/introspect \
+  -u 'your-client:secret' \
+  -d 'token=<access_token>'
+```
+
+Returns `{ active, sub, scope, exp, iat, iss, client_id, token_type }`. Useful for opaque-token clients (rare for INITE — we issue JWTs and you can verify locally).
+
+## Revocation (RFC 7009)
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/revoke \
+  -u 'your-client:secret' \
+  -d 'token=<refresh_or_access_token>'
+```
+
+Revokes a single token. Refresh-token revocation also kills the entire family it descended from.
+
+## Identifiers — DID
+
+Every user has a `did:key:…` identifier in the `sub` claim. Portable, self-issued, cryptographically verifiable without contacting INITE. If you want INITE-internal user ids (UUID), use the `/v1/auth/identity/me` endpoint.

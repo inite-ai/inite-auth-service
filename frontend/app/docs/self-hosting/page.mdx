@@ -1,0 +1,109 @@
+export const metadata = {
+  title: 'Self-hosting · INITE Docs',
+  description: 'Env vars, Prisma migrations, docker-compose, deploy.yml, metrics.',
+}
+
+# Self-hosting
+
+INITE ships as two containers (backend + Next.js frontend) plus Postgres and Redis. The reference deployment is Docker Compose behind Traefik; a Kubernetes manifest works just as well — the surface is portable.
+
+## Required env
+
+| Variable                       | Example                                              | Notes                                                  |
+| ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------ |
+| `DATABASE_URL`                 | `postgresql://postgres:pw@postgres:5432/inite_auth`  | Standard Prisma URL.                                   |
+| `REDIS_HOST`, `REDIS_PORT`     | `redis`, `6379`                                      | Session store + throttler + audit debouncing.          |
+| `REDIS_PASSWORD`               | random 32-byte                                       | Required in production.                                |
+| `JWT_SECRET`                   | random 64-byte                                       | HS256 fallback signing.                                |
+| `JWT_PRIVATE_KEY` / `_PUBLIC_` | PEM (single-line, `\n` escaped)                      | RS256 / ES256 / EdDSA preferred.                       |
+| `REFRESH_TOKEN_HMAC_SECRET`    | random 64-byte                                       | Defaults to `JWT_SECRET` but **must** be set in prod.  |
+| `OIDC_ISSUER`                  | `https://auth-api.inite.ai`                          | Goes into every signed token.                          |
+| `RP_ID`                        | `inite.ai`                                           | WebAuthn relying-party domain.                         |
+| `RP_ORIGIN`                    | `https://auth.inite.ai`                              | WebAuthn origin.                                       |
+| `SMTP_*`                       | Mailgun / SES / etc.                                 | Magic links, password reset, security notifications.   |
+| `FRONTEND_URL`                 | `https://auth.inite.ai`                              | First-party origin; the `inite.sid` cookie domain.     |
+| `COOKIE_DOMAIN`                | `auth.inite.ai`                                      | Match the IdP domain.                                  |
+| `SESSION_SECRET`               | random 64-byte                                       | Defaults to `JWT_SECRET`.                              |
+| `HIBP_ENABLED`                 | `true`                                               | Optional. See [security](/docs/security#hibp).         |
+| `ADMIN_EMAIL` / `_PASSWORD`    | bootstrap admin                                      | Used by `npm run create-admin`.                        |
+
+## Prisma migrations
+
+The repo's `prisma/migrations/` is the source of truth. On deploy, the workflow brings up Postgres first, then runs `migrate deploy` in a one-shot container, then starts the app:
+
+```yaml
+docker-compose up -d postgres redis
+# wait for postgres healthcheck
+docker-compose run --rm --no-deps auth-service \
+  npx prisma migrate resolve --applied 0001_convert_text_to_array || true
+docker-compose run --rm --no-deps auth-service npx prisma migrate deploy
+docker-compose up -d auth-service auth-frontend
+```
+
+The `migrate resolve --applied 0001` line is a one-time baseline marker — older deployments predate Prisma migration tracking, so we mark the first migration as already-applied. Idempotent on re-run.
+
+## Docker Compose
+
+Reference compose at [`deploy/docker-compose.prod.yml`](https://github.com/inite-ai/inite-auth-service/blob/main/deploy/docker-compose.prod.yml). Includes:
+
+- `auth-service` (NestJS backend)
+- `auth-frontend` (Next.js)
+- `postgres:15-alpine`
+- `redis:7-alpine`
+- Traefik labels for path-based routing on a single host
+
+For a single-domain deployment, Traefik routes `/v1`, `/.well-known`, `/health`, `/ready`, `/metrics` to the backend and everything else to the frontend.
+
+Legacy paths (`/oauth`, `/auth`, `/identity`, `/session`) 308-redirect to `/v1/<same>` via a Traefik `redirectregex` middleware — for back-compat with old SDK callers.
+
+## Health probes
+
+- `GET /health` — liveness, always returns `{ status: 'ok', version }`
+- `GET /ready` — readiness, executes DB + Redis ping, returns 503 if either is down
+- `GET /metrics` — Prometheus scrape (auth attempts, token issuance, audit write failures, account lockouts)
+
+All three are `VERSION_NEUTRAL` (no `/v1` prefix).
+
+## Deployment pipeline
+
+The CI workflow (`.github/workflows/deploy.yml`):
+
+1. **Test** — runs `npm test` + `npm run build` on a GitHub-hosted runner.
+2. **Build** — builds both Docker images, pushes to Docker Hub with `latest` + sha tags.
+3. **Deploy** — runs on a self-hosted runner (`runs-on: [self-hosted, sfo]`):
+   - Pulls compose from the repo's `deploy/docker-compose.prod.yml`.
+   - Brings up postgres + redis.
+   - Polls postgres healthcheck (60s budget).
+   - Runs `migrate deploy` in a one-shot container.
+   - Starts auth-service + auth-frontend.
+   - Polls `/health` (120s budget) then `/ready` end-to-end.
+   - Aborts with logs if any step fails — refuses to declare success on a crashlooping prod.
+
+To self-host, replace the self-hosted runner with whatever orchestration you use (Kubernetes manifest, Ansible play, etc.) and point it at the same compose / Prisma sequence.
+
+## Monitoring
+
+Backend uses OpenTelemetry SDK auto-instrumentation — set `OTEL_EXPORTER_OTLP_ENDPOINT` and the rest of `OTEL_*` env vars to ship traces to your collector. Prometheus scrapes `/metrics` directly.
+
+Key metrics:
+
+```
+auth_attempts_total{result="success|invalid|locked"}
+account_lockouts_total
+tokens_issued_total{grant_type, client_id}
+token_failures_total{reason}
+token_latency_seconds_bucket
+audit_write_failures_total
+```
+
+## Backups
+
+- **Postgres**: `pg_dump inite_auth` daily, keep 30 days. The audit log grows fastest — partition or rotate older rows if you have heavy traffic.
+- **Redis**: AOF is enabled by default; sessions tolerate Redis restart but not Redis loss. Take a snapshot of `redis_data` daily if uninterrupted sessions matter.
+- **JWT keys**: rotate every 6-12 months. New key goes into JWKS first, signing path picks it up after a deploy. Old key stays in JWKS until all tokens minted with it have expired.
+
+## Upgrading INITE
+
+The CI image tag `latest` always points at the most recent main commit. Pin to a specific sha for reproducible deploys: change `image: …/inite-auth-service:latest` to `:<sha>` in your compose.
+
+Migration policy: Prisma migrations are append-only; rolling back a deployed migration requires a forward-fix migration, never `prisma migrate reset` in prod.

@@ -1,0 +1,117 @@
+export const metadata = {
+  title: 'Service tokens · INITE Docs',
+  description: 'Machine-to-machine auth via OAuth 2.0 client_credentials grant.',
+}
+
+# Service tokens
+
+When one of your backends needs to call another of your backends (no user in the loop), use the `client_credentials` grant. The result is a short-lived JWT signed by INITE that the receiving service verifies with the public JWKS — no shared secret between the two backends.
+
+> **TL;DR**: One OAuth client per calling service. Each client has scopes (what it can do) and an audience (who it's calling). Mint a token at request time and forward it as `Authorization: Bearer …`.
+
+## Why not just share a static API key?
+
+- **Rotation**: a leaked static key requires re-issuing it on every consumer. Service tokens expire in minutes; a leak is bounded.
+- **Audit**: every mint is logged with `clientId`, `scope`, `audience`, `ip` — searchable per tenant.
+- **Scope**: the same client can mint tokens with reduced privileges per call.
+- **Resource server isolation**: setting `audience` binds the token to one specific receiver — a token for service A can't be replayed at service B.
+
+## Step 1 — create a service client
+
+In the admin panel at [`/admin → OAuth Clients`](https://auth.inite.ai/admin):
+
+1. **New client** → name it after the **calling** service (e.g. `smart-chat-worker`).
+2. Grants: enable **`client_credentials`** only (no `authorization_code`).
+3. Scopes: list what this caller is allowed to request (e.g. `chat:read chat:write`).
+4. Audiences: list the receiving services that accept this token (e.g. `chat-api`). If you leave it empty, the audience defaults to the `clientId`.
+5. Save → copy the `clientId` and the one-time `clientSecret`.
+
+The secret is shown **once**. Store it in your calling service's secret manager.
+
+## Step 2 — mint a token at request time
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=client_credentials' \
+  -d 'client_id=smart-chat-worker' \
+  -d 'client_secret=<from step 1>' \
+  -d 'scope=chat:read chat:write' \
+  -d 'audience=chat-api'
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGc…",
+  "token_type": "Bearer",
+  "expires_in": 300,
+  "scope": "chat:read chat:write"
+}
+```
+
+Default M2M TTL is **5 minutes** — match your call's typical wall-time, mint on demand. Don't cache for hours.
+
+## Step 3 — verify on the receiving side
+
+The receiving service has the OIDC public keys via JWKS:
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from 'jose'
+
+const jwks = createRemoteJWKSet(
+  new URL('https://auth.inite.ai/.well-known/jwks.json'),
+)
+
+export async function verifyServiceToken(bearer: string) {
+  const { payload } = await jwtVerify(bearer, jwks, {
+    issuer: 'https://auth-api.inite.ai',
+    audience: 'chat-api',  // matches what we minted with
+  })
+
+  // payload.sub  = caller (companyId or clientId)
+  // payload.scope = space-separated grants
+  return payload
+}
+```
+
+If the token was minted with `audience=other-service`, `jwtVerify` throws — your service is safe from cross-audience replay.
+
+## Audience binding deep dive
+
+Without an audience, an attacker who steals a `chat:read` token from service A can replay it against service B (also requiring `chat:read`). Binding `aud=chat-api` collapses the blast radius — the token only validates at the named receiver.
+
+INITE enforces:
+
+- If the client has **no** `allowedAudiences`, `audience` defaults to the `clientId`.
+- If the client has `allowedAudiences`, the requested `audience` must be in that list.
+- If no `audience` is requested but `allowedAudiences[0]` is set, that's the default.
+
+## Scope inheritance
+
+Requested scopes are validated against the client's `allowedScopes`. Request:
+
+- **No scope** → token gets all `allowedScopes`.
+- **Specific scopes** → must all be in `allowedScopes`, otherwise 400.
+
+This lets one client mint reduced tokens for individual calls without re-registering.
+
+## Secret rotation with grace window
+
+When rotating a leaked secret:
+
+1. `/admin → OAuth Clients → rotate secret` — sets a grace window (default 10 min).
+2. During the window **both** the current and the previous secret are accepted.
+3. Roll the new secret out to all caller instances (k8s rollout, etc).
+4. After the window, the previous secret is rejected.
+
+This avoids a "rotation outage" where a fleet of callers using the old secret all fail at once.
+
+## Per-client throttling
+
+The token endpoint keys per `client_id`, not per IP. A fleet of caller instances behind one load balancer doesn't starve unrelated clients. Default limit is 60 mints / minute per client — tune via `THROTTLE_DEFAULT_LIMIT`.
+
+## Admin shortcut: test a client
+
+`/admin → Service Tokens` → pick a client → paste secret → "Mint test token". You see the JWT, its decoded header + payload, and a ready-to-paste curl snippet. Use it to verify the integration before wiring it into your service.

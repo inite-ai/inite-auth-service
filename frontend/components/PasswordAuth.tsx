@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
 import { OAuthParams, isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
+import { validateEmail, validatePassword } from '@/lib/validation'
+import { useT } from '@/lib/i18n'
 import { Input, Button, Card, CardHeader } from '@/components/ui'
 
 interface PasswordAuthProps {
@@ -16,19 +18,30 @@ interface PasswordAuthProps {
 }
 
 export default function PasswordAuth({ oauthParams, initialMode = 'login' }: PasswordAuthProps) {
+  const t = useT()
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
+  const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const [name, setName] = useState('')
   const router = useRouter()
 
+  const emailError = emailTouched ? validateEmail(email) : null
+  const passwordError =
+    passwordTouched && mode === 'register' ? validatePassword(password) : null
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!email || !password) {
-      toast.error('Please fill in all fields')
+
+    const eErr = validateEmail(email)
+    const pErr = mode === 'register' ? validatePassword(password) : null
+    if (eErr || pErr) {
+      setEmailTouched(true)
+      setPasswordTouched(true)
+      toast.error(eErr ?? pErr ?? 'Please fix the highlighted fields')
       return
     }
 
@@ -47,7 +60,11 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
         ? await fetchWithCredentials(endpoint, payload)
         : (await api.post(endpoint, payload)).data
 
-      toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created!')
+      toast.success(
+        mode === 'login'
+          ? t('auth.password.success.login')
+          : t('auth.password.success.register'),
+      )
 
       // Save auth data
       authStorage.save({
@@ -77,11 +94,13 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
       if (breached) {
         const count =
           error?.response?.data?.breach_count ?? error?.body?.breach_count ?? '?'
-        toast.error(
-          `This password appears in ${count} known data breaches. Pick a unique one.`,
-        )
+        toast.error(t('auth.password.error.breached', { count }))
       } else {
-        toast.error(error?.response?.data?.message || error.message || 'Authentication failed')
+        toast.error(
+          error?.response?.data?.message ||
+            error.message ||
+            t('auth.password.error.generic'),
+        )
       }
     } finally {
       setLoading(false)
@@ -93,8 +112,16 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
       <CardHeader
         icon={<Lock className="w-8 h-8 text-white" />}
         iconClassName="from-gray-600 to-gray-800"
-        title={mode === 'login' ? 'Sign in with Password' : 'Create Account'}
-        description={mode === 'login' ? 'Use your email and password' : 'Register with email and password'}
+        title={
+          mode === 'login'
+            ? t('auth.password.title.login')
+            : t('auth.password.title.register')
+        }
+        description={
+          mode === 'login'
+            ? t('auth.password.subtitle.login')
+            : t('auth.password.subtitle.register')
+        }
       />
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -118,8 +145,11 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
           label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          onBlur={() => setEmailTouched(true)}
           placeholder="your@email.com"
+          autoComplete="email"
           required
+          error={emailError ?? undefined}
         />
 
         <Input
@@ -127,11 +157,14 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
           label="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onBlur={() => setPasswordTouched(true)}
           placeholder="••••••••"
+          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           required
           showPasswordToggle
           isPasswordVisible={showPassword}
           onPasswordToggle={() => setShowPassword(!showPassword)}
+          error={passwordError ?? undefined}
         />
 
         <Button
@@ -141,10 +174,13 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
           icon={<Lock className="w-5 h-5" />}
           className="from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900 mt-6"
         >
-          {loading 
-            ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
-            : (mode === 'login' ? 'Sign In' : 'Create Account')
-          }
+          {loading
+            ? mode === 'login'
+              ? t('auth.password.cta.loading.login')
+              : t('auth.password.cta.loading.register')
+            : mode === 'login'
+              ? t('auth.password.cta.login')
+              : t('auth.password.cta.register')}
         </Button>
       </form>
 
@@ -153,14 +189,15 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
           onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
-          {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          {mode === 'login'
+            ? t('auth.password.switch.toRegister')
+            : t('auth.password.switch.toLogin')}
         </button>
       </div>
 
       <Card variant="warning" className="mt-8 p-4">
         <p className="text-xs text-yellow-800 dark:text-yellow-200">
-          ⚠️ Password authentication is provided for backward compatibility. 
-          We recommend using Passkey for better security.
+          ⚠️ {t('auth.password.warning')}
         </p>
       </Card>
     </Card>

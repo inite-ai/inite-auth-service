@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { SkeletonRow } from '@/components/ui'
 
 interface UsersSectionProps {
   accessToken: string
@@ -150,8 +151,10 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
       {/* Users Table */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700/50 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+          <div className="p-6 space-y-3">
+            {[...Array(6)].map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
           </div>
         ) : (
           <>

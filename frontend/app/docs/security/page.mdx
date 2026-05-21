@@ -1,0 +1,152 @@
+export const metadata = {
+  title: 'Security model · INITE Docs',
+  description: 'Lockout, HIBP, IP flood, audit log, notifications.',
+}
+
+# Security model
+
+What's on by default. You opt **out** of hardening, not into it.
+
+## Brute-force defence
+
+### Per-account lockout
+
+Tracked on the user row (`failedLoginCount`, `lockoutUntil`). Exponential backoff:
+
+| Consecutive failures | Lockout window |
+| -------------------- | -------------- |
+| 1 – 4                | none           |
+| 5                    | 1 minute       |
+| 6                    | 5 minutes      |
+| 7                    | 15 minutes     |
+| 8                    | 1 hour         |
+| 9+                   | 24 hours       |
+
+The `lockoutUntil` check runs **before** `bcrypt.compare` — locked accounts don't leak the password-correctness bit via timing.
+
+Counter resets to 0 on any successful login.
+
+### Per-email throttle (LoginEmailThrottlerGuard)
+
+Caps `/v1/auth/password/login` at 5 attempts / minute per email. Sits upstream of the lockout so the lockout itself can't be hammered.
+
+### Per-IP horizontal defence (IpFloodGuard)
+
+Per-email throttling protects each account in isolation, but a botnet rotating through many accounts from one IP is invisible at the email-bucket level.
+
+`IpFloodGuard` tracks the **set** of distinct emails attempted from each IP in a 5-minute window. When the IP touches more than **30 distinct accounts**, further requests are rejected with 429 and an `auth.flood.ip_blocked` audit row is written.
+
+The Redis SET TTL means the bucket self-prunes.
+
+## Password hygiene
+
+### HIBP — Have I Been Pwned?
+
+Optional, enabled via `HIBP_ENABLED=true`. Every new password (registration + reset) is k-anonymised (SHA-1 prefix of 5 hex chars) and checked against `api.pwnedpasswords.com`. Passwords seen in known breaches are rejected with a structured error the UI surfaces as "this password appears in N data breaches, pick a unique one."
+
+Defaults:
+
+- `HIBP_MIN_BREACH_COUNT=1` — any sighting trips
+- `HIBP_TIMEOUT_MS=1500` — HIBP downtime fails open, never blocks registration
+- `HIBP_API_BASE` — overridable for an internal mirror
+
+### Password change notifications
+
+After every successful password change, the user receives an email with a "if this wasn't you, reset now" link. Compromise-recovery surface for credential-stuffing victims.
+
+### Failed-login + lockout notifications
+
+- **3 failed attempts** → email warning with security recommendations (enable 2FA, add a passkey). Once per hour per user.
+- **5+ failed attempts → account locked** → email with the lockout end time + a one-click reset link.
+
+Debounced via Redis `SETNX` so a sustained burst doesn't email-spam the user.
+
+## OAuth client security
+
+### Per-client throttling (token endpoint)
+
+Stock `@nestjs/throttler` keys per IP — wrong for M2M, where a fleet behind one load balancer self-starves. `TokenEndpointThrottlerGuard` keys per `client_id` for `client_credentials` and falls back to IP for user-flow grants.
+
+Default: 60 mints / min per client.
+
+### Per-client throttling (revoke + introspect)
+
+`ClientIdThrottlerGuard` does the same for `/v1/oauth/revoke` (30/min) and `/v1/oauth/introspect` (60/min). One misbehaving caller can't starve unrelated clients.
+
+### bcrypt timing equaliser
+
+`validateClient` pays one `bcrypt.compare` even when the client_id doesn't exist — using a pre-computed dummy hash. Stops timing-channel enumeration of valid client_ids.
+
+### Authorization-code single-use
+
+`authorizationCode` rows are claimed via a single `UPDATE … WHERE used=false` — Postgres' atomic single-row update guarantees only one concurrent request wins. Code-replay attempts (using the same code twice) trigger refresh-token family revocation per RFC 6819 §4.4.1.1.
+
+### Audience binding (M2M)
+
+See [Service tokens](/docs/service-tokens#audience-binding-deep-dive). Tokens minted with `audience=A` only validate at resource server A.
+
+### Secret rotation with grace window
+
+See [Service tokens](/docs/service-tokens#secret-rotation-with-grace-window). Old secret accepted alongside the new one during a configurable window so fleet rollouts don't fail.
+
+## Session security
+
+### Dual-cookie model
+
+| Cookie                | SameSite | Set when                                                  | Sent to                                 |
+| --------------------- | -------- | --------------------------------------------------------- | --------------------------------------- |
+| `inite.sid`           | `lax`    | Same-origin / `FRONTEND_URL`                              | Same-origin only — CSRF defence intact  |
+| `inite.sid.embed`     | `none`   | Registered partner Origin (via OAuth client allowlist)    | Cross-origin embedded sessions          |
+
+CSRF on the embed surface is contained by the CORS Origin allowlist — an unallowed origin can't reach the endpoint.
+
+### CSP per partner
+
+`connect-src` and `frame-ancestors` are built per request from the OAuth client `redirectUris` allowlist. Partners can XHR / iframe-embed; everyone else gets blocked.
+
+### New device notification
+
+Every login compares the (UA + IP) SHA-256 fingerprint against `UserKnownDevice`. New fingerprint → email the user with device + IP snippet. Catches credential stuffing where the password works but the device is new.
+
+## Audit log
+
+`oauth_audit_log` table, written fire-and-forget so DB hiccups never tail-latency the OAuth flow.
+
+### Captured events
+
+```
+token.issued.client_credentials       M2M token minted
+token.issued.authorization_code       user-flow access token minted
+token.refreshed                       refresh_token grant
+token.failed.invalid_credentials      bad client_secret
+token.failed.scope_violation          requested scope not allowed
+token.failed.audience_violation       requested audience not allowed
+token.failed.unsupported_grant        grant not in allowedGrants
+client.created / .updated / .deactivated / .deleted
+client.secret_rotated
+auth.login.password                   user signed in
+auth.login.failed                     wrong password
+auth.flood.ip_blocked                 IpFloodGuard tripped
+```
+
+Each row carries `ts`, `clientId`, `companyId`, `sub`, `ip`, `userAgent`, `scopes`, `audience`, `success`, `errorMessage`, `metadata.requestId`.
+
+### Querying
+
+- **End users** see their own events at `GET /v1/auth/security/audit` (also rendered in `/account → Recent activity`).
+- **Operators** see everything at `GET /v1/admin/audit-log` with `clientId`, `event`, `success`, `since`, `until` filters, scoped to their tenant unless superadmin.
+
+## Cryptographic agility
+
+`id_token_signing_alg_values_supported` lists RS256 today. The signing path picks the algorithm from the active key's `alg`, so adding ES256 / EdDSA keys to the JWKS rotates the signing path without a code change.
+
+`dpop_signing_alg_values_supported` advertises every algorithm the DPoP verifier accepts (ES256/384/512, EdDSA).
+
+## What to harden next
+
+For environments that need FAPI-grade hardening:
+
+- Flip `require_pushed_authorization_requests=true` per client → forces all `/authorize` requests through `/par`.
+- Set `RP_ID` to your apex domain to allow passkeys across subdomains.
+- Set `JWT_PRIVATE_KEY` to an EC or Ed25519 key instead of HS256 (RS256 is fine for most).
+- Mirror HIBP locally to remove the external dependency.

@@ -1,0 +1,149 @@
+export const metadata = {
+  title: 'OAuth flows · INITE Docs',
+  description: 'Authorization code + PKCE, refresh, device flow, with curl recipes.',
+}
+
+# OAuth flows
+
+INITE supports four grant types out of the box. Pick the one matching your client:
+
+| Grant                   | Use when                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `authorization_code`    | Browser app needs a user session. Always combined with PKCE.                     |
+| `refresh_token`         | Renew a short-lived access token without re-prompting the user.                  |
+| `client_credentials`    | Backend service mints a token for itself. See [Service tokens](/docs/service-tokens). |
+| `urn:…:device_code`     | TV, CLI, IoT device that can't open a browser. RFC 8628.                         |
+
+The discovery document at [`/.well-known/openid-configuration`](https://auth.inite.ai/.well-known/openid-configuration) lists every supported endpoint and method.
+
+## Authorization code + PKCE
+
+The standard browser flow. INITE requires PKCE for all `authorization_code` requests — `code_challenge` and `code_verifier` are mandatory.
+
+### Step 1 — generate PKCE verifier + challenge
+
+```ts
+const verifier = base64url(crypto.getRandomValues(new Uint8Array(64)))
+const challenge = base64url(
+  await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)),
+)
+sessionStorage.setItem('pkce_verifier', verifier)
+```
+
+### Step 2 — redirect to /authorize
+
+```
+https://auth.inite.ai/v1/oauth/authorize
+  ?response_type=code
+  &client_id=your-app
+  &redirect_uri=https://your-app/callback
+  &scope=openid+profile+email
+  &state=random-state
+  &code_challenge=<challenge>
+  &code_challenge_method=S256
+```
+
+The IdP authenticates the user, then redirects back to `redirect_uri` with `?code=…&state=…`.
+
+### Step 3 — exchange code for tokens
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=authorization_code' \
+  -d 'code=<code from step 2>' \
+  -d 'client_id=your-app' \
+  -d 'redirect_uri=https://your-app/callback' \
+  -d 'code_verifier=<verifier from step 1>'
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGc…",
+  "refresh_token": "rt_…",
+  "id_token": "eyJhbGc…",
+  "token_type": "Bearer",
+  "expires_in": 600,
+  "scope": "openid profile email"
+}
+```
+
+Access tokens are short-lived (10 min default). Store the refresh token securely (HttpOnly cookie or backend session) — **never** in client-side JS storage.
+
+## Refresh token rotation
+
+Every refresh issues a new refresh token and revokes the previous one. Reuse of a revoked refresh token revokes the entire token family (RFC 6819 §4.4.1.1) — assume theft and force re-login.
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=refresh_token' \
+  -d 'refresh_token=<rt>' \
+  -d 'client_id=your-app'
+```
+
+The SDK handles this automatically — `auth.authedFetch` retries once on 401.
+
+## Device authorization (RFC 8628)
+
+For devices without a keyboard or browser (TV, CLI, IoT).
+
+### Step 1 — device requests codes
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/device_authorization \
+  -d 'client_id=your-device-app' \
+  -d 'scope=openid+profile'
+```
+
+```json
+{
+  "device_code": "dc_…",
+  "user_code": "WDJB-MJHT",
+  "verification_uri": "https://auth.inite.ai/device",
+  "verification_uri_complete": "https://auth.inite.ai/device?user_code=WDJB-MJHT",
+  "expires_in": 600,
+  "interval": 5
+}
+```
+
+### Step 2 — display user_code to the user
+
+Show **WDJB-MJHT** on screen with the instruction "Open [`auth.inite.ai/device`](https://auth.inite.ai/device) and enter this code." If your device can render a QR, encode `verification_uri_complete` — the user lands directly on the approve screen.
+
+### Step 3 — poll for the token
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -d 'grant_type=urn:ietf:params:oauth:grant-type:device_code' \
+  -d 'device_code=dc_…' \
+  -d 'client_id=your-device-app'
+```
+
+Until approved, returns `{ "error": "authorization_pending" }` — wait `interval` seconds and retry.
+
+## PAR (RFC 9126) — pushed authorization requests
+
+For FAPI-grade clients that need to keep auth params off the user's URL bar:
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/par \
+  -u 'your-app:secret' \
+  -d 'response_type=code' \
+  -d 'redirect_uri=https://your-app/callback' \
+  -d 'scope=openid+profile' \
+  -d 'code_challenge=…' \
+  -d 'code_challenge_method=S256'
+```
+
+Returns `{ "request_uri": "urn:ietf:params:oauth:request_uri:…", "expires_in": 60 }`. Then redirect to `/authorize?client_id=your-app&request_uri=…` — INITE ignores the inline params and uses the pushed ones.
+
+## Back-channel logout
+
+Register `backchannel_logout_uri` on your OAuth client. When the user logs out at the IdP, INITE POSTs a signed `logout_token` JWT to that URL with `sub` and `sid` claims — invalidate the session in your app.
+
+## OIDC details
+
+See [OIDC reference](/docs/oidc) for the discovery document, JWKS, claims, AMR / ACR semantics, and DPoP.

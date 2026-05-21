@@ -10,8 +10,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "^16.2.6",
     "@simplewebauthn/browser": "^13.2.2",
     "@tonconnect/ui-react": "^2.3.1",
+    "@types/mdx": "^2.0.13",
     "@walletconnect/ethereum-provider": "^2.23.4",
     "@walletconnect/modal": "^2.7.0",
     "axios": "^1.13.2",

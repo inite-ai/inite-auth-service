@@ -54,6 +54,84 @@ describe('AdminService', () => {
     service = module.get<AdminService>(AdminService);
   });
 
+  describe('revokeAllUserSessions', () => {
+    it('revokes refresh tokens + sets lockout + audits', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        did: 'did:key:abc',
+        email: 'a@b.com',
+      });
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 3 });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      const audit = { record: jest.fn().mockResolvedValue(undefined) };
+      const backchannel = { fanOut: jest.fn().mockResolvedValue(2) };
+      const s = new (AdminService as any)(mockPrisma, audit, backchannel);
+
+      const result = await s.revokeAllUserSessions('u1', { reason: 'leaked' });
+
+      expect(result.success).toBe(true);
+      expect(result.refreshTokensRevoked).toBe(3);
+      expect(result.backchannelLogoutRecipients).toBe(2);
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', revoked: false },
+        data: { revoked: true, revokedAt: expect.any(Date) },
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: expect.objectContaining({
+            failedLoginCount: 0,
+            lockoutUntil: expect.any(Date),
+          }),
+        }),
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'admin.user.sessions_revoked',
+          sub: 'did:key:abc',
+          success: true,
+        }),
+      );
+    });
+
+    it('throws when user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const s = new (AdminService as any)(mockPrisma);
+      await expect(s.revokeAllUserSessions('gone')).rejects.toThrow(/not found/);
+    });
+
+    it('works without audit / backchannel services injected', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        did: null,
+        email: 'a@b.com',
+      });
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      const s = new (AdminService as any)(mockPrisma);
+      const result = await s.revokeAllUserSessions('u1');
+      expect(result.success).toBe(true);
+      expect(result.backchannelLogoutRecipients).toBe(0);
+    });
+
+    it('honours custom lockoutHours, capped to 7d', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1', did: 'did:k', email: 'a@b.com' });
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.user.update.mockResolvedValue({});
+      const s = new (AdminService as any)(mockPrisma);
+
+      const before = Date.now();
+      const result = await s.revokeAllUserSessions('u1', { lockoutHours: 9999 });
+      const lockoutMs = new Date(result.lockoutUntil).getTime();
+
+      // Capped at 7 days
+      expect(lockoutMs).toBeLessThanOrEqual(before + 7 * 24 * 60 * 60 * 1000 + 1000);
+      expect(lockoutMs).toBeGreaterThanOrEqual(before + 7 * 24 * 60 * 60 * 1000 - 1000);
+    });
+  });
+
   describe('getAllUsers', () => {
     it('should return paginated users without passwordHash', async () => {
       const users = [

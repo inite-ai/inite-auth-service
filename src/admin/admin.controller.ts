@@ -90,6 +90,20 @@ export class AdminController {
     return this.adminService.deleteUser(userId);
   }
 
+  /**
+   * Emergency session kill: revoke every refresh token for the user
+   * + 24h lockout + best-effort back-channel logout fan-out. Use for
+   * compromise / lost-device incident response. Active access tokens
+   * live until their (short) expiry; nothing past that.
+   */
+  @Post('users/:userId/revoke-sessions')
+  async revokeUserSessions(
+    @Param('userId') userId: string,
+    @Body() body: { reason?: string; lockoutHours?: number } = {},
+  ) {
+    return this.adminService.revokeAllUserSessions(userId, body);
+  }
+
   // ==================== OAuth Clients Management ====================
 
   @Get('oauth-clients')

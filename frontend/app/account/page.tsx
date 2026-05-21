@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
-import { LogOut, ArrowLeft, Shield, Sparkles } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
+import { AppHeader } from '@/components/AppHeader'
 import {
   ProfileSection,
   SecuritySection,
@@ -103,71 +103,30 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-violet-400" />
-          </div>
+      <div className="min-h-screen bg-[var(--bg)]">
+        <AppHeader user={user} context="Account" />
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-5 h-5 text-[var(--text-faint)] animate-spin" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Background — static, low-saturation. The previous pulsing blobs
-          read as "v0 prototype" by 2026; this is calmer and doesn't
-          re-render on every animation frame. */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-violet-500/8 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-fuchsia-500/8 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative max-w-4xl mx-auto py-8 px-4">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                Account Settings
-                <Sparkles className="w-6 h-6 text-violet-400" />
-              </h1>
-              <p className="text-slate-400 mt-1">Manage your identity and security</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {user?.metadata?.isAdmin && (
-              <button
-                onClick={() => router.push('/admin')}
-                className="px-4 py-2 bg-violet-500/20 text-violet-300 rounded-xl hover:bg-violet-500/30 border border-violet-500/30 transition flex items-center gap-2"
-              >
-                <Shield className="w-4 h-4" />
-                Admin
-              </button>
-            )}
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition flex items-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </button>
-          </div>
-        </motion.div>
+    <div className="min-h-screen bg-[var(--bg)]">
+      <AppHeader user={user} context="Account" />
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div>
+          <h1 className="text-xl font-semibold text-[var(--text)] tracking-tight">
+            Account
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Manage your identity, devices, and security.
+          </p>
+        </div>
 
         {/* Main Content */}
-        <div className="space-y-6">
+        <div className="mt-6 space-y-4">
           {/* Profile Section */}
           <ProfileSection
             user={user}
@@ -214,19 +173,11 @@ export default function AccountPage() {
         </div>
 
         {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-12 text-center"
-        >
-          <p className="text-sm text-slate-500">
-            INITE Identity Provider • Secure Decentralized Authentication
+        <div className="mt-12 pt-6 border-t border-[var(--border)] text-center">
+          <p className="text-xs text-[var(--text-faint)]">
+            INITE Identity Provider · Your identity, your control
           </p>
-          <p className="text-xs text-slate-600 mt-2">
-            Your identity, your control
-          </p>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

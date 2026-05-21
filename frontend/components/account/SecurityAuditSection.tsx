@@ -88,7 +88,7 @@ export default function SecurityAuditSection({ accessToken }: Props) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
+      className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-5"
     >
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

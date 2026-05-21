@@ -1,34 +1,34 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
 import {
-  Shield,
-  ArrowLeft,
   BarChart3,
   Users,
   AppWindow,
   FileSearch,
-  LogOut,
+  Server,
   Loader2,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
+import { AppHeader } from '@/components/AppHeader'
 import {
   StatsSection,
   UsersSection,
   OAuthClientsSection,
   AuditLogSection,
+  ServiceTokensSection,
 } from '@/components/admin'
 
-type Tab = 'stats' | 'users' | 'clients' | 'audit'
+type Tab = 'stats' | 'users' | 'clients' | 'services' | 'audit'
 
 const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'stats', label: 'Dashboard', icon: BarChart3 },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'clients', label: 'OAuth Clients', icon: AppWindow },
+  { key: 'services', label: 'Service Tokens', icon: Server },
   { key: 'audit', label: 'Audit Log', icon: FileSearch },
 ]
 
@@ -103,98 +103,65 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-violet-400" />
-          </div>
+      <div className="min-h-screen bg-[var(--bg)]">
+        <AppHeader context="Admin" />
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-5 h-5 text-[var(--text-faint)] animate-spin" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-violet-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-fuchsia-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-      </div>
+    <div className="min-h-screen bg-[var(--bg)]">
+      <AppHeader user={{ id: '', email: 'admin', metadata: { isAdmin: true } }} context="Admin" />
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold text-[var(--text)] tracking-tight">
+            Admin
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Users, OAuth clients, service tokens, and audit log.
+          </p>
+        </div>
 
-      <div className="relative max-w-6xl mx-auto py-8 px-4">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/account')}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                Admin Panel
-                <Shield className="w-6 h-6 text-violet-400" />
-              </h1>
-              <p className="text-slate-400 mt-1">Manage users and applications</p>
-            </div>
+        {/* Tabs — underline-style, Linear pattern. */}
+        <div className="border-b border-[var(--border)] mb-6">
+          <div className="flex gap-1 -mb-px overflow-x-auto">
+            {tabs.map((tab) => {
+              const active = activeTab === tab.key
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`h-9 px-3 inline-flex items-center gap-1.5 text-sm whitespace-nowrap border-b-2 transition-colors ${
+                    active
+                      ? 'text-[var(--text)] border-[var(--accent)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)] border-transparent'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </motion.div>
-
-        {/* Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="flex gap-2 mb-6"
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
-                activeTab === tab.key
-                  ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25'
-                  : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50 border border-slate-700/50'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </motion.div>
+        </div>
 
         {/* Content */}
-        <div className="space-y-6">
+        <div>
           {activeTab === 'stats' && stats && <StatsSection stats={stats} />}
           {activeTab === 'users' && <UsersSection accessToken={accessToken} />}
           {activeTab === 'clients' && <OAuthClientsSection accessToken={accessToken} />}
+          {activeTab === 'services' && (
+            <ServiceTokensSection
+              accessToken={accessToken}
+              onCreateNew={() => setActiveTab('clients')}
+            />
+          )}
           {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}
         </div>
-
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="mt-12 text-center"
-        >
-          <p className="text-sm text-slate-500">
-            INITE Identity Provider — Admin Panel
-          </p>
-        </motion.div>
       </div>
     </div>
   )

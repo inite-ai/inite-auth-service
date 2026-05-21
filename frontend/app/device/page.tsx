@@ -14,6 +14,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
+import { AppHeader } from '@/components/AppHeader'
 
 /**
  * OAuth 2.0 Device Authorization Grant (RFC 8628) — verification UI.
@@ -117,7 +118,7 @@ function DeviceVerifyContent() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
       </div>
     )
@@ -125,7 +126,7 @@ function DeviceVerifyContent() {
 
   if (!authed) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -156,7 +157,7 @@ function DeviceVerifyContent() {
   if (result) {
     const ok = result === 'approved'
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -181,11 +182,13 @@ function DeviceVerifyContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg)]">
+      <AppHeader context="Authorize device" />
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 max-w-md w-full"
+        transition={{ duration: 0.2 }}
+        className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-6 max-w-md mx-auto mt-12"
       >
         <div className="text-center mb-6">
           <Tv className="w-12 h-12 text-violet-400 mx-auto mb-3" />

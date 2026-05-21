@@ -1,0 +1,184 @@
+export const metadata = {
+  title: 'MCP integration · INITE Docs',
+  description:
+    'Expose INITE auth-admin operations to AI assistants (Claude, Cursor, Goose, n8n) via the Model Context Protocol.',
+}
+
+# MCP integration
+
+INITE ships `@inite/auth-admin` — a package that turns six auth-administration operations into AI tools and three guided skills. Once mounted in a vertical's bootstrap, those tools become available to any Model Context Protocol client connecting through `/mcp/[companySlug]/route.ts`: Claude Desktop, Cursor, Goose, ChatGPT, n8n, anything that speaks MCP.
+
+> **TL;DR**: AI assistants register and rotate OAuth clients, mint debug tokens, investigate user audit trails, and revoke sessions during incidents — without humans clicking the admin UI.
+
+## Architecture
+
+```
+┌────────────────────┐   MCP (JSON-RPC)   ┌──────────────────────┐
+│  Claude / Cursor / │ ─────────────────▶ │ /mcp/[slug]/route.ts │
+│  Goose / ChatGPT / │                    │  (per-vertical)      │
+│  n8n               │ ◀───────────────── │                      │
+└────────────────────┘                    └──────────┬───────────┘
+                                                     │
+                                       @inite/assistant.registerToolModule()
+                                       @inite/skills.registerSkill()
+                                                     │
+                                                     ▼
+                                          ┌────────────────────┐
+                                          │ @inite/auth-admin  │
+                                          │   tools + skills   │
+                                          └──────────┬─────────┘
+                                                     │ MachineTokenClient
+                                                     │ (scope=admin)
+                                                     ▼
+                                          ┌────────────────────┐
+                                          │  inite-auth-service │
+                                          │   /v1/admin/*      │
+                                          └────────────────────┘
+```
+
+The MCP server is **not** a standalone process — every vertical (`carRental`, `figma`, `smart-chat`, …) already mounts an MCP route. Bootstrapping `@inite/auth-admin` simply adds six tools to that surface.
+
+## Tools
+
+| Tool | Endpoint | Use when the user asks to… |
+| --- | --- | --- |
+| `provision_oauth_client` | `POST /v1/admin/oauth-clients` | "Register a new app", "set up SSO for X", "create M2M credentials" |
+| `list_oauth_clients` | `GET /v1/admin/oauth-clients` | "What apps do we have", "list registered clients" |
+| `rotate_client_secret` | `POST /v1/admin/oauth-clients/:cid/rotate-secret` | "Rotate this secret", "the secret leaked" |
+| `mint_service_token` | `POST /v1/oauth/token` | "Mint a debug token", "verify this client_credentials setup" |
+| `query_user_audit` | `GET /v1/admin/audit-log?sub=…` | "What happened to my account", "show this user's login history" |
+| `revoke_user_sessions` | `POST /v1/admin/users/:id/revoke-sessions` | "Kill all sessions for this user", "my account is compromised" |
+
+All operations require `scope=admin` on the calling client. The package mints that token internally via `MachineTokenClient` and forwards it as `Authorization: Bearer …`.
+
+## Skills
+
+Skills are activation rules that bundle a focused subset of tools into the assistant's system prompt only when the user's intent matches — keeps the prompt cheap and the model focused.
+
+| Skill | Activates on (regex) | Tools |
+| --- | --- | --- |
+| `auth-client-provisioning` | `register`, `provision`, `set up SSO`, `new oauth client`, `rotate secret` | provision + list + rotate |
+| `auth-incident-response` | `compromised`, `hacked`, `lost device`, `leaked password`, `revoke sessions`, `incident` | audit + revoke |
+| `auth-debug-token` | `mint token`, `debug token`, `client_credentials`, `m2m`, `audience mismatch` | mint |
+
+Each skill's `instructions` tell the model how to *use* its tools — e.g. the incident-response skill instructs "investigate first with `query_user_audit`, confirm with the user, then call `revoke_user_sessions`."
+
+## Step 1 — provision the admin client (once per environment)
+
+On the auth-service host:
+
+```bash
+AUTH_ADMIN_TOOLS_CLIENT_SECRET=$(openssl rand -hex 32) \
+  npm run register-auth-admin-tools-client
+```
+
+This registers an OAuth client with `clientId=inite-auth-admin-tools`, `grants: ['client_credentials']`, `scopes: ['admin']`. The secret is printed once — store it in your secret manager (Doppler, 1Password, k8s Secret).
+
+> The `admin` scope grants **full** `/v1/admin/*` access. Per-tenant gating is done downstream in each vertical's `ToolPermissionMap` (see Security).
+
+## Step 2 — env in each vertical
+
+```dotenv
+AUTH_ADMIN_TOOLS_CLIENT_ID=inite-auth-admin-tools
+AUTH_ADMIN_TOOLS_CLIENT_SECRET=<from step 1>
+AUTH_SERVICE_URL=https://auth-api.inite.ai
+```
+
+`AUTH_SERVICE_URL` defaults to `https://auth-api.inite.ai`. Override for staging / on-prem.
+
+## Step 3 — bootstrap the package
+
+In your vertical's `instrumentation.ts` (or wherever it already calls `registerToolModule` / `registerSkill`):
+
+```ts
+import { registerAuthAdminTool, authAdminSkills } from '@inite/auth-admin'
+import { registerSkill } from '@inite/skills'
+
+registerAuthAdminTool()
+for (const s of authAdminSkills) registerSkill(s)
+```
+
+The tools become available to every assistant mode flagged `backoffice: true` or `mcp: true` — automatically picked up by `createMcpRoute()` in `app/mcp/[companySlug]/route.ts`.
+
+## Step 4 — connect from an MCP client
+
+### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "your-vertical-admin": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch",
+        "https://your-vertical.example.com/mcp/<companySlug>/route"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude — the six tools appear under your vertical's namespace. Say *"register a new oauth client for the marketing dashboard"* and the `auth-client-provisioning` skill activates.
+
+### Cursor / Goose / n8n
+
+Point them at the same `/mcp/<companySlug>/route` URL. Cursor and Goose discover tools at handshake. n8n's MCP node lists tools dropdown-style.
+
+## Security model
+
+The package itself enforces **no** role checks — the vertical does it via `ToolPermissionMap` passed to `createMcpRoute`. Recommended layering:
+
+```ts
+import { createMcpRoute } from '@inite/mcp'
+import { hasPermission } from '@/lib/rbac'
+
+export const { POST } = createMcpRoute({
+  resolvePermissions: async (ctx) => ({
+    revoke_user_sessions: await hasPermission(ctx, 'auth:admin'),
+    rotate_client_secret: await hasPermission(ctx, 'auth:admin'),
+    provision_oauth_client: await hasPermission(ctx, 'auth:write'),
+    list_oauth_clients: await hasPermission(ctx, 'auth:read'),
+    mint_service_token: await hasPermission(ctx, 'auth:debug'),
+    query_user_audit: await hasPermission(ctx, 'auth:read'),
+  }),
+})
+```
+
+Layer-by-layer guarantees:
+
+1. **MCP client** — must hit your vertical's `/mcp/[slug]` route, behind your existing auth (session cookie or bearer).
+2. **`ToolPermissionMap`** — vertical-side RBAC filters which tools the calling user can see / invoke at all.
+3. **Tool execution** — `@inite/auth-admin` mints a `scope=admin` machine token (cached in process) and calls auth-service.
+4. **`AdminGuard`** in auth-service — classifies the token as `kind: 'machine'` with `scope: ['admin']` and admits the call.
+5. **Audit log** — every action lands in `/v1/admin/audit-log` with `clientId=inite-auth-admin-tools` and the user-initiated reason.
+
+## Audit trail
+
+Every `revoke_user_sessions`, `provision_oauth_client`, and `rotate_client_secret` invocation lands in the auth-service audit log. Query the trail per user-facing actor by passing the vertical's `companyId` and the originating `userId` into the `reason` field — the AI is instructed by the skill to do this automatically.
+
+## Cost & latency
+
+- Token mint: one HTTP round-trip per process startup (cached 5 min, refreshed in background).
+- Tool invocations: single HTTP call to `/v1/admin/*`.
+- Skill activation: regex on user input — sub-millisecond, no model call needed to *decide* whether to load the skill.
+- Per-call cost is < 1 KB of system prompt overhead.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `@inite/auth-admin: AUTH_ADMIN_TOOLS_CLIENT_ID and …_SECRET must be set` | Env not loaded in the runtime that called `getAuthAdminClient()` | Ensure `instrumentation.ts` runs in the same process as MCP route |
+| `auth-admin request failed (401)` | Client secret rotated, env still has old | Re-run step 1 with the current secret, or rotate the client |
+| `auth-admin request failed (403)` | Calling client lost `admin` scope | Re-create the client (script is idempotent) |
+| `Tool not visible in Claude Desktop` | Vertical's MCP route filtered it via `ToolPermissionMap` | Grant the user `auth:read`/`auth:write`/`auth:admin` per the matrix above |
+| `revoke_user_sessions` returns `refreshTokensRevoked: 0` | User had no active sessions (already signed out) | Expected — short-lived access tokens may still live up to 10 min |
+
+## Related
+
+- [`@inite/auth-admin` README](https://github.com/inite-ai/inite-shared/tree/main/packages/auth-admin) — package source.
+- [Service tokens](/docs/service-tokens) — the underlying M2M auth used by the package.
+- [Security model](/docs/security) — guard rails the assistant inherits.
+- [OIDC reference](/docs/oidc) — JWKS endpoint the receiving service uses to verify tokens.

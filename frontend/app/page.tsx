@@ -13,6 +13,7 @@ import {
   Lock,
   Mail,
   CheckCircle2,
+  Bot,
 } from 'lucide-react'
 import { authStorage } from '@/lib/authStorage'
 import { AppHeader } from '@/components/AppHeader'
@@ -65,6 +66,11 @@ function HomeContent() {
       title: 'DID identity',
       desc: 'Every user gets a did:key — portable across the INITE ecosystem and out of it.',
     },
+    {
+      icon: Bot,
+      title: 'AI-ready (MCP)',
+      desc: 'Six auth-admin tools and three skills shipped via @inite/auth-admin — Claude Desktop, Cursor, Goose, n8n provision clients and respond to incidents through MCP.',
+    },
   ]
 
   const checklist = [
@@ -101,8 +107,8 @@ function HomeContent() {
           <p className="mt-5 max-w-xl mx-auto text-[15px] leading-relaxed text-[var(--text-muted)]">
             INITE is an OAuth 2.0 / OIDC provider with passkeys, magic links,
             password fallback, Web3 wallet linking, and a service-token surface
-            for backend-to-backend auth. Drop the SDK into your app or embed
-            the iframe — no redirects required.
+            for backend-to-backend auth. Drop the SDK into your app, embed the
+            iframe, or wire AI assistants in via MCP — no redirects required.
           </p>
 
           <div className="mt-8 flex items-center justify-center gap-2 flex-wrap">
@@ -201,6 +207,37 @@ const auth = new IniteAuth({ clientId: 'your-app-id' })
 const { user, accessToken } = await auth.loginWithPassword({
   email, password,
 })`}</pre>
+          </div>
+        </section>
+
+        {/* MCP snippet */}
+        <section className="py-12 border-t border-[var(--border)]">
+          <h2 className="text-lg font-semibold text-[var(--text)] tracking-tight">
+            AI assistants ship as a peer dependency.
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Two lines in your vertical&apos;s bootstrap exposes provisioning,
+            rotation, audit and revoke through every MCP client. Per-tenant
+            role gates layer on top of OAuth scope.
+          </p>
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] overflow-hidden">
+            <div className="px-3 py-2 border-b border-[var(--border)] text-[11px] font-mono text-[var(--text-faint)]">
+              @inite/auth-admin
+            </div>
+            <pre className="px-4 py-4 text-[12px] leading-relaxed font-mono text-[var(--text)] overflow-x-auto">{`import { registerAuthAdminTool, authAdminSkills } from '@inite/auth-admin'
+import { registerSkill } from '@inite/skills'
+
+registerAuthAdminTool()
+for (const s of authAdminSkills) registerSkill(s)`}</pre>
+          </div>
+          <div className="mt-4">
+            <Link
+              href="/docs/mcp"
+              className="text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1"
+            >
+              Read the MCP integration guide
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </section>
 

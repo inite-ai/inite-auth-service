@@ -2,9 +2,20 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Shield, Key, Fingerprint, Wallet, ArrowRight, Github } from 'lucide-react'
+import Link from 'next/link'
+import {
+  Shield,
+  Key,
+  Fingerprint,
+  Wallet,
+  ArrowRight,
+  Server,
+  Lock,
+  Mail,
+  CheckCircle2,
+} from 'lucide-react'
 import { authStorage } from '@/lib/authStorage'
+import { AppHeader } from '@/components/AppHeader'
 
 function HomeContent() {
   const router = useRouter()
@@ -12,15 +23,12 @@ function HomeContent() {
   const [authenticated, setAuthenticated] = useState(false)
 
   useEffect(() => {
-    // If OAuth params, go straight to login
     const clientId = searchParams.get('client_id')
     if (clientId) {
       const params = new URLSearchParams(searchParams.toString())
       router.push(`/login?${params.toString()}`)
       return
     }
-
-    // Check if already authenticated
     if (authStorage.getValidToken()) {
       setAuthenticated(true)
     }
@@ -30,183 +38,202 @@ function HomeContent() {
     {
       icon: Fingerprint,
       title: 'Passkeys',
-      desc: 'Passwordless auth with Touch ID, Face ID & Windows Hello',
-      color: 'from-violet-500 to-fuchsia-500',
+      desc: 'Phishing-resistant sign-in with Touch ID, Face ID, Windows Hello, or a hardware key.',
     },
     {
       icon: Shield,
       title: 'OAuth 2.0 / OIDC',
-      desc: 'Standards-compliant identity provider with PKCE',
-      color: 'from-cyan-500 to-blue-500',
+      desc: 'Standards-compliant authorization code + PKCE, refresh rotation, PAR, DPoP, back-channel logout.',
+    },
+    {
+      icon: Server,
+      title: 'Service tokens',
+      desc: 'client_credentials grant with audience binding and scoped JWTs — fleet-safe M2M auth.',
+    },
+    {
+      icon: Mail,
+      title: 'Magic links',
+      desc: 'Passwordless email sign-in with rate limiting, replay protection, and HIBP-checked fallbacks.',
     },
     {
       icon: Wallet,
-      title: 'Web3 Wallets',
-      desc: 'Link Ethereum, Polygon & TON wallets via signatures',
-      color: 'from-amber-500 to-orange-500',
+      title: 'Web3 wallets',
+      desc: 'Ethereum, Polygon, and TON linked via signed challenges — keep your crypto identity portable.',
     },
     {
       icon: Key,
-      title: 'DID Identity',
-      desc: 'Decentralized identifiers for portable identity',
-      color: 'from-emerald-500 to-teal-500',
+      title: 'DID identity',
+      desc: 'Every user gets a did:key — portable across the INITE ecosystem and out of it.',
     },
   ]
 
+  const checklist = [
+    'Account lockout with exponential backoff',
+    'HIBP breached-password rejection',
+    'Per-IP credential-stuffing defence',
+    'Audit log surfaced to users and admins',
+    'Embed-ready: CORS + CSP per partner',
+    'Self-hostable, OSS license',
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-hidden">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-violet-500/15 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-fuchsia-500/15 rounded-full blur-[120px]" />
-        <div className="absolute top-[40%] left-[30%] w-[400px] h-[400px] bg-cyan-500/8 rounded-full blur-[100px]" />
-      </div>
+    <div className="min-h-screen bg-[var(--bg)]">
+      <AppHeader
+        hideUserMenu={!authenticated}
+        user={
+          authenticated
+            ? { id: '', email: 'You', metadata: { isAdmin: false } }
+            : undefined
+        }
+      />
 
-      <div className="relative">
-        {/* Nav */}
-        <motion.nav
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between max-w-6xl mx-auto px-6 py-6"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">INITE</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {authenticated ? (
-              <button
-                onClick={() => router.push('/account')}
-                className="px-5 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl hover:from-violet-600 hover:to-fuchsia-600 transition text-sm font-medium"
-              >
-                My Account
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => router.push('/login')}
-                  className="px-5 py-2.5 text-slate-300 hover:text-white transition text-sm font-medium"
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => router.push('/register')}
-                  className="px-5 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl hover:from-violet-600 hover:to-fuchsia-600 transition text-sm font-medium"
-                >
-                  Get Started
-                </button>
-              </>
-            )}
-          </div>
-        </motion.nav>
-
+      <main className="max-w-5xl mx-auto px-6">
         {/* Hero */}
-        <div className="max-w-6xl mx-auto px-6 pt-20 pb-32">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-violet-500/10 border border-violet-500/20 rounded-full text-violet-300 text-sm mb-8">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              Identity Provider
-            </div>
+        <section className="pt-20 pb-16 text-center">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[11px] text-[var(--text-muted)] mb-6">
+            <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--success)]" />
+            Identity Provider · v1.1
+          </div>
 
-            <h1 className="text-5xl md:text-7xl font-bold text-white leading-tight mb-6">
-              Secure
-              <span className="gradient-text"> Identity </span>
-              <br />
-              for the Web
-            </h1>
+          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-[var(--text)] leading-[1.05]">
+            Identity that fits your stack.
+          </h1>
+          <p className="mt-5 max-w-xl mx-auto text-[15px] leading-relaxed text-[var(--text-muted)]">
+            INITE is an OAuth 2.0 / OIDC provider with passkeys, magic links,
+            password fallback, Web3 wallet linking, and a service-token surface
+            for backend-to-backend auth. Drop the SDK into your app or embed
+            the iframe — no redirects required.
+          </p>
 
-            <p className="text-lg text-slate-400 max-w-xl mx-auto mb-10 leading-relaxed">
-              Decentralized authentication with passkeys, OAuth 2.0, and Web3 wallets.
-              One identity across the entire INITE ecosystem.
-            </p>
+          <div className="mt-8 flex items-center justify-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => router.push(authenticated ? '/account' : '/register')}
+              className="h-9 px-3.5 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)]"
+            >
+              {authenticated ? 'Open account' : 'Create identity'}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <a
+              href="/.well-known/openid-configuration"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-9 px-3.5 inline-flex items-center gap-1.5 rounded-md border border-[var(--border-strong)] text-[var(--text)] text-sm font-medium hover:bg-[var(--bg-overlay)]"
+            >
+              OIDC discovery
+            </a>
+            <Link
+              href="/login"
+              className="h-9 px-3.5 inline-flex items-center gap-1.5 rounded-md text-[var(--text-muted)] text-sm hover:text-[var(--text)] hover:bg-[var(--bg-overlay)]"
+            >
+              Sign in
+            </Link>
+          </div>
 
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={() => router.push(authenticated ? '/account' : '/register')}
-                className="px-8 py-3.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl hover:from-violet-600 hover:to-fuchsia-600 transition font-medium flex items-center gap-2 shadow-lg shadow-violet-500/25"
-              >
-                {authenticated ? 'My Account' : 'Create Identity'}
-                <ArrowRight className="w-4 h-4" />
-              </button>
-              <a
-                href="/.well-known/openid-configuration"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-8 py-3.5 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 border border-slate-700/50 transition font-medium"
-              >
-                OIDC Config
-              </a>
-            </div>
-          </motion.div>
+          <div className="mt-12 accent-underline" />
+        </section>
 
-          {/* Features */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-24"
-          >
-            {features.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + i * 0.1 }}
-                className="bg-gradient-to-br from-slate-900 to-slate-800/80 rounded-2xl p-6 border border-slate-700/40 hover:border-slate-600/60 transition group"
-              >
-                <div className={`w-12 h-12 bg-gradient-to-br ${f.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition`}>
-                  <f.icon className="w-6 h-6 text-white" />
+        {/* Features grid */}
+        <section className="py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {features.map((f) => {
+              const Icon = f.icon
+              return (
+                <div
+                  key={f.title}
+                  className="p-5 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)] transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-md bg-[var(--bg-overlay)] border border-[var(--border)] flex items-center justify-center text-[var(--accent)] mb-3">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-[var(--text)] tracking-tight">
+                    {f.title}
+                  </h3>
+                  <p className="mt-1 text-[13px] leading-relaxed text-[var(--text-muted)]">
+                    {f.desc}
+                  </p>
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{f.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
-              </motion.div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* What's in the box */}
+        <section className="py-12 border-t border-[var(--border)] grid md:grid-cols-2 gap-10">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--text)] tracking-tight">
+              Security defaults that don&apos;t need a security team.
+            </h2>
+            <p className="mt-2 text-sm text-[var(--text-muted)] leading-relaxed">
+              Every primitive is on by default — you opt out of hardening, not
+              into it. Audit log is queryable by both end users and operators.
+            </p>
+          </div>
+          <ul className="space-y-2.5">
+            {checklist.map((line) => (
+              <li
+                key={line}
+                className="flex items-start gap-2 text-sm text-[var(--text)]"
+              >
+                <CheckCircle2 className="w-4 h-4 mt-0.5 text-[color:var(--success)] shrink-0" />
+                {line}
+              </li>
             ))}
-          </motion.div>
-        </div>
+          </ul>
+        </section>
+
+        {/* Embed snippet */}
+        <section className="py-12 border-t border-[var(--border)]">
+          <h2 className="text-lg font-semibold text-[var(--text)] tracking-tight">
+            Embed in five lines.
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Headless SDK + drop-in iframe widget. CORS and CSP auto-allow
+            registered partner origins.
+          </p>
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] overflow-hidden">
+            <div className="px-3 py-2 border-b border-[var(--border)] text-[11px] font-mono text-[var(--text-faint)]">
+              @inite/auth-sdk
+            </div>
+            <pre className="px-4 py-4 text-[12px] leading-relaxed font-mono text-[var(--text)] overflow-x-auto">{`import { IniteAuth } from '@inite/auth-sdk'
+
+const auth = new IniteAuth({ clientId: 'your-app-id' })
+const { user, accessToken } = await auth.loginWithPassword({
+  email, password,
+})`}</pre>
+          </div>
+        </section>
 
         {/* Footer */}
-        <motion.footer
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="border-t border-slate-800/50 py-8"
-        >
-          <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              INITE Identity Provider
-            </p>
-            <div className="flex items-center gap-4 text-sm text-slate-500">
-              <a href="/.well-known/openid-configuration" className="hover:text-slate-300 transition">
-                OIDC
-              </a>
-              <a href="/.well-known/jwks.json" className="hover:text-slate-300 transition">
-                JWKS
-              </a>
-              <a href="/health" className="hover:text-slate-300 transition">
-                Status
-              </a>
-            </div>
+        <footer className="py-8 border-t border-[var(--border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-faint)]">
+          <div className="flex items-center gap-2">
+            <Lock className="w-3.5 h-3.5" />
+            INITE Identity Provider · v1.1
           </div>
-        </motion.footer>
-      </div>
+          <div className="flex items-center gap-4">
+            <a href="/.well-known/openid-configuration" className="hover:text-[var(--text)]">
+              OIDC
+            </a>
+            <a href="/.well-known/jwks.json" className="hover:text-[var(--text)]">
+              JWKS
+            </a>
+            <a href="/health" className="hover:text-[var(--text)]">
+              Status
+            </a>
+          </div>
+        </footer>
+      </main>
     </div>
   )
 }
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center" />
+      }
+    >
       <HomeContent />
     </Suspense>
   )

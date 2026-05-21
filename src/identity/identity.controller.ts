@@ -162,6 +162,7 @@ export class IdentityController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async changePassword(
     @Request() req: any,
     @Body() body: { currentPassword: string; newPassword: string },

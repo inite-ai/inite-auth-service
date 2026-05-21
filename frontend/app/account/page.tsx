@@ -10,6 +10,7 @@ import { authStorage } from '@/lib/authStorage'
 import {
   ProfileSection,
   SecuritySection,
+  SecurityAuditSection,
   PasskeysSection,
   WalletsSection,
   SessionsSection,
@@ -181,6 +182,9 @@ export default function AccountPage() {
               onUpdate={loadUserData}
             />
           )}
+
+          {/* Recent Activity (audit log) */}
+          {accessToken && <SecurityAuditSection accessToken={accessToken} />}
 
           {/* Passkeys Section */}
           <PasskeysSection

@@ -333,6 +333,128 @@ export class EmailService {
     });
   }
 
+  /**
+   * Security: notify on password change. The "if this wasn't you,
+   * reset your password" link is the canonical compromise-recovery
+   * surface — without it, a successful credential-stuffer holds the
+   * account silently.
+   */
+  async sendPasswordChanged(user: {
+    email: string;
+    name?: string;
+  }): Promise<boolean> {
+    const frontend = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://auth.inite.ai',
+    );
+    const resetUrl = `${frontend}/forgot-password`;
+    return await this.sendEmail({
+      to: user.email,
+      subject: '[INITE] Your password was changed',
+      html: `
+        <h1>Password Changed</h1>
+        <p>Hi${user.name ? ` ${user.name}` : ''},</p>
+        <p>Your INITE account password was just changed.</p>
+        <p>If this was you — no action needed.</p>
+        <p><strong>If this wasn't you</strong>, your account may be compromised. Reset your password immediately:</p>
+        <p><a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; text-decoration: none; border-radius: 8px;">Reset password</a></p>
+        <p>Or open <a href="${resetUrl}">${resetUrl}</a>.</p>
+      `,
+    });
+  }
+
+  /**
+   * Security: notify after N consecutive failed login attempts but
+   * before lockout. Gives the user a chance to react (change a leaked
+   * password, enable 2FA) before the next attempt actually succeeds.
+   */
+  async sendFailedLoginThreshold(
+    user: { email: string; name?: string },
+    attemptCount: number,
+  ): Promise<boolean> {
+    const frontend = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://auth.inite.ai',
+    );
+    return await this.sendEmail({
+      to: user.email,
+      subject: '[INITE] Multiple failed sign-in attempts',
+      html: `
+        <h1>Failed Sign-In Attempts Detected</h1>
+        <p>Hi${user.name ? ` ${user.name}` : ''},</p>
+        <p>We detected <strong>${attemptCount} failed sign-in attempts</strong> to your INITE account in the last few minutes.</p>
+        <p>If this was you — try the <a href="${frontend}/forgot-password">password reset</a> flow.</p>
+        <p><strong>If this wasn't you</strong>, someone is trying to access your account. Consider:</p>
+        <ul>
+          <li>Changing your password to something unique</li>
+          <li>Enabling 2FA in your account security settings</li>
+          <li>Adding a passkey for phishing-resistant sign-in</li>
+        </ul>
+        <p><a href="${frontend}/account">Review your account security</a></p>
+      `,
+    });
+  }
+
+  /**
+   * Security: notify when an account is locked out. The user sees
+   * "your account is locked" in the UI, but the email gives them the
+   * unlock path (password reset) without contacting support.
+   */
+  async sendAccountLocked(
+    user: { email: string; name?: string },
+    lockedUntil: Date,
+  ): Promise<boolean> {
+    const frontend = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://auth.inite.ai',
+    );
+    const resetUrl = `${frontend}/forgot-password`;
+    return await this.sendEmail({
+      to: user.email,
+      subject: '[INITE] Your account has been temporarily locked',
+      html: `
+        <h1>Account Locked</h1>
+        <p>Hi${user.name ? ` ${user.name}` : ''},</p>
+        <p>Your INITE account has been temporarily locked because of too many failed sign-in attempts. The lock will lift automatically at <strong>${lockedUntil.toUTCString()}</strong>.</p>
+        <p>If you forgot your password, reset it now and you'll be back in:</p>
+        <p><a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; text-decoration: none; border-radius: 8px;">Reset password</a></p>
+        <p><strong>If you didn't try to sign in</strong>, someone else is attempting to access your account. Reset your password as a precaution.</p>
+      `,
+    });
+  }
+
+  /**
+   * Security: notify when the user grants an OAuth client access to
+   * their account for the first time. Audit-trail surface for the
+   * user — "what apps did I authorize?" — without requiring them to
+   * dig through the admin panel.
+   */
+  async sendOAuthConsentGranted(
+    user: { email: string; name?: string },
+    clientName: string,
+    scopes: string[],
+  ): Promise<boolean> {
+    const frontend = this.configService.get<string>(
+      'FRONTEND_URL',
+      'https://auth.inite.ai',
+    );
+    const scopeList = scopes.length
+      ? `<ul>${scopes.map((s) => `<li><code>${s}</code></li>`).join('')}</ul>`
+      : '<p><em>(no scopes requested)</em></p>';
+    return await this.sendEmail({
+      to: user.email,
+      subject: `[INITE] You authorized ${clientName}`,
+      html: `
+        <h1>App Authorization Granted</h1>
+        <p>Hi${user.name ? ` ${user.name}` : ''},</p>
+        <p>You just authorized <strong>${clientName}</strong> to access your INITE account with these permissions:</p>
+        ${scopeList}
+        <p>You can revoke this access at any time from your <a href="${frontend}/account">account security settings</a>.</p>
+        <p>If you didn't authorize this app, sign in and revoke the grant immediately, then change your password.</p>
+      `,
+    });
+  }
+
   async testConnection(): Promise<boolean> {
     if (!this.transporter) {
       return false;

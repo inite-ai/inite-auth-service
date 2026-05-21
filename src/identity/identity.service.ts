@@ -312,7 +312,7 @@ Issued At: ${issuedAt}`;
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true },
+      select: { id: true, email: true, name: true, passwordHash: true },
     });
 
     if (!user) {
@@ -341,6 +341,19 @@ Issued At: ${issuedAt}`;
       where: { id: userId },
       data: { passwordHash: newPasswordHash },
     });
+
+    // Notify so the user has a compromise-recovery surface (the
+    // email contains the password-reset link). Fire-and-forget: the
+    // password is already changed; an SMTP hiccup should not roll it
+    // back or 500 the request.
+    this.emailService
+      .sendPasswordChanged({
+        email: user.email,
+        name: user.name ?? undefined,
+      })
+      .catch(() => {
+        /* logged inside EmailService */
+      });
   }
 
   /**

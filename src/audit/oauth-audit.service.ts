@@ -135,6 +135,70 @@ export class OAuthAuditService {
    * companyId; superadmin reads pass undefined to see all tenants.
    * Capped at 200 rows per page; ordering newest-first.
    */
+  /**
+   * Same list() shape but scoped to a single user's events (matched
+   * on the `sub` column which we populate with user.did). Used by
+   * the user-facing GET /v1/auth/security/audit endpoint — no
+   * cross-tenant visibility, no clientId filter required (user can
+   * see events across all the apps they've authorized).
+   */
+  async listForUser(filters: {
+    sub: string;
+    event?: string;
+    success?: boolean;
+    since?: Date;
+    until?: Date;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
+
+    const where: any = { sub: filters.sub };
+    if (filters.event) where.event = filters.event;
+    if (filters.success !== undefined) where.success = filters.success;
+    if (filters.since || filters.until) {
+      where.ts = {};
+      if (filters.since) where.ts.gte = filters.since;
+      if (filters.until) where.ts.lte = filters.until;
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.oAuthAuditLog.findMany({
+        where,
+        orderBy: { ts: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        // The user has no business seeing every internal metadata key —
+        // strip the requestId/companyId/etc. that's useful to operators
+        // but noise to end users. Surface only what's user-meaningful.
+        select: {
+          id: true,
+          ts: true,
+          event: true,
+          success: true,
+          errorMessage: true,
+          ip: true,
+          userAgent: true,
+          clientId: true,
+          scopes: true,
+          audience: true,
+        },
+      }),
+      this.prisma.oAuthAuditLog.count({ where }),
+    ]);
+
+    return {
+      rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async list(filters: {
     companyId?: string;
     clientId?: string;

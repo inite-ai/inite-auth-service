@@ -34,7 +34,14 @@ describe('IdentityService', () => {
         IdentityService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: DidService, useValue: { generateDid: jest.fn().mockResolvedValue({ did: 'did:key:test', publicKey: 'pk', privateKey: 'sk' }) } },
-        { provide: EmailService, useValue: { sendEmailVerification: jest.fn(), sendEmailChangeVerification: jest.fn() } },
+        {
+          provide: EmailService,
+          useValue: {
+            sendEmailVerification: jest.fn(),
+            sendEmailChangeVerification: jest.fn(),
+            sendPasswordChanged: jest.fn().mockResolvedValue(true),
+          },
+        },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') } },
       ],
     }).compile();

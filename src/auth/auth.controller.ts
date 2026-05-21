@@ -17,7 +17,10 @@ import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginEmailThrottlerGuard } from './guards/login-throttler.guard';
+import { IpFloodGuard } from './guards/ip-flood.guard';
 import { LoggerService } from '../common/logger.service';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -28,6 +31,8 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
     private readonly configService: ConfigService,
+    private readonly audit: OAuthAuditService,
+    private readonly prisma: PrismaService,
   ) {
     this.logger.setContext('AuthController');
     this.sessionSecret = configService.get<string>('SESSION_SECRET') ||
@@ -82,7 +87,7 @@ export class AuthController {
   }
 
   @Post('password/login')
-  @UseGuards(LoginEmailThrottlerGuard)
+  @UseGuards(LoginEmailThrottlerGuard, IpFloodGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async loginWithPassword(
     @Body() body: { email: string; password: string },
@@ -482,5 +487,42 @@ export class AuthController {
       this.logger.error('Session user fetch failed', error.message);
       return { authenticated: false };
     }
+  }
+
+  /**
+   * User-facing audit log. Returns events scoped to the authenticated
+   * user — login successes/failures, password changes, OAuth grants,
+   * new devices — so the user can spot suspicious activity without
+   * waiting for the operator to forward an audit row.
+   *
+   * Matches on user.did via the audit log's `sub` column.
+   */
+  @Get('security/audit')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async getSecurityAudit(
+    @Request() req: any,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('event') event?: string,
+    @Query('success') success?: string,
+    @Query('since') since?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { did: true },
+    });
+    if (!user?.did) {
+      return { rows: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } };
+    }
+
+    return await this.audit.listForUser({
+      sub: user.did,
+      limit: limit ? Math.min(100, Math.max(1, parseInt(limit, 10) || 50)) : 50,
+      page: page ? Math.max(1, parseInt(page, 10) || 1) : 1,
+      event,
+      success: success === undefined ? undefined : success === 'true',
+      since: since ? new Date(since) : undefined,
+    });
   }
 }

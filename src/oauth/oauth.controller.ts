@@ -14,6 +14,7 @@ import {
 import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
+import { ClientIdThrottlerGuard } from './client-throttler.guard';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
 import { AuthService } from '../auth/auth.service';
@@ -60,8 +61,14 @@ export class OAuthController {
   /**
    * Authorization endpoint
    * GET /oauth/authorize
+   *
+   * Throttled per-IP. 20/min is generous for legitimate users (a fresh
+   * load + a retry handles the typical OAuth dance) but cuts off the
+   * "spray client_ids to enumerate which exist" failure mode where an
+   * attacker probes for valid client registrations.
    */
   @Get('authorize')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async authorize(
     @Query('response_type') responseType: string,
     @Query('client_id') clientId: string,
@@ -317,6 +324,7 @@ export class OAuthController {
    */
   @Post('device/approve')
   @UseGuards(JwtOrSessionGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async deviceApprove(
     @Body() body: { user_code: string; decision: 'approve' | 'deny' },
     @Req() req: any,
@@ -613,8 +621,15 @@ export class OAuthController {
 
   /**
    * Token revocation endpoint
+   *
+   * Keyed per client_id so one misbehaving client can't starve revoke
+   * for the rest. 30/min lets legitimate "user logged out, revoke all
+   * their refresh tokens" cleanup run through; an attacker burning
+   * credentials trying to guess valid tokens trips the limit fast.
    */
   @Post('revoke')
+  @UseGuards(ClientIdThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async revoke(
     @Body('token') token: string,
     @Body('client_id') clientId: string,
@@ -631,8 +646,14 @@ export class OAuthController {
 
   /**
    * Token introspection endpoint (RFC 7662)
+   *
+   * Per-client throttle for the same reason as /revoke. 60/min — more
+   * generous because RSes legitimately introspect on every request and
+   * cache only briefly.
    */
   @Post('introspect')
+  @UseGuards(ClientIdThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   async introspect(
     @Body('token') token: string,
     @Body('client_id') clientId: string,
@@ -747,8 +768,13 @@ export class OAuthController {
    */
   /**
    * Get public client info (for consent page)
+   *
+   * Throttled to prevent enumeration of registered clientIds by anyone
+   * who can reach the endpoint. Legitimate consent page loads it once
+   * per session.
    */
   @Get('client-info')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async clientInfo(@Query('client_id') clientId: string) {
     if (!clientId) throw new BadRequestException('client_id is required');
     return await this.oauthService.getClientInfo(clientId);

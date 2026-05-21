@@ -7,6 +7,7 @@ import { MagicLinkService } from './magic-link.service';
 import { HibpService } from './hibp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { IpFloodGuard } from './guards/ip-flood.guard';
 import { IdentityModule } from '../identity/identity.module';
 import { EmailModule } from '../email/email.module';
 
@@ -23,6 +24,7 @@ import { EmailModule } from '../email/email.module';
     HibpService,
     JwtStrategy,
     JwtAuthGuard,
+    IpFloodGuard,
   ],
   controllers: [AuthController],
   exports: [AuthService, JwtAuthGuard],

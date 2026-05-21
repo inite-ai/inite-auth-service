@@ -13,6 +13,8 @@ import { EmailService } from '../email/email.service';
 import { LoggerService } from '../common/logger.service';
 import { MetricsService } from '../common/metrics.service';
 import { HibpService } from './hibp.service';
+import { RedisService } from '../common/redis.service';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +30,8 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly metrics: MetricsService,
     private readonly hibp: HibpService,
+    private readonly redis: RedisService,
+    private readonly audit: OAuthAuditService,
   ) {
     this.logger.setContext('AuthService');
   }
@@ -178,6 +182,14 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       this.metrics.authAttempts.inc({ result: 'invalid' });
+      this.audit
+        .record({
+          event: 'auth.login.failed',
+          sub: user.did,
+          success: false,
+          errorMessage: 'invalid_credentials',
+        })
+        .catch(() => {});
       await this.recordFailedLogin(user.id, user.failedLoginCount);
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -190,6 +202,13 @@ export class AuthService {
     }
 
     this.metrics.authAttempts.inc({ result: 'success' });
+    this.audit
+      .record({
+        event: 'auth.login.password',
+        sub: user.did,
+        success: true,
+      })
+      .catch(() => {});
     const accessToken = this.generateAccessToken(user as any);
     return { user: user as any, accessToken };
   }
@@ -231,6 +250,86 @@ export class AuthService {
         failedCount: next,
         lockoutUntil: lockoutUntil.toISOString(),
       });
+      // Notify the user — debounced so the email isn't re-sent on
+      // every additional failure that just extends the lock.
+      this.notifyAccountLocked(userId, lockoutUntil).catch(() => {});
+    }
+
+    // Heads-up at the third consecutive miss, BEFORE the lock kicks
+    // in at the fifth. Gives the user a chance to react (reset
+    // password, enable 2FA) instead of finding their account already
+    // locked. One notification per pre-lockout window per user.
+    if (next === 3) {
+      this.notifyFailedLoginThreshold(userId, next).catch(() => {});
+    }
+  }
+
+  /**
+   * Fire-and-forget account-locked notification. Debounce window is
+   * the lockout duration: if a new lock starts strictly after the
+   * previous one expired, we send again; otherwise we suppress.
+   */
+  private async notifyAccountLocked(
+    userId: string,
+    lockedUntil: Date,
+  ): Promise<void> {
+    try {
+      const wasSet = await this.redis.setIfAbsent(
+        `notify:locked:${userId}`,
+        lockedUntil.toISOString(),
+        // TTL matches lockout: once it lifts, the next lock is a
+        // fresh event worth notifying about.
+        Math.max(60, Math.ceil((lockedUntil.getTime() - Date.now()) / 1000)),
+      );
+      if (!wasSet) return;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, name: true },
+      });
+      if (!user?.email) return;
+
+      await this.emailService.sendAccountLocked(
+        { email: user.email, name: user.name ?? undefined },
+        lockedUntil,
+      );
+    } catch (e: any) {
+      this.logger.warn(
+        `account-locked notification failed: ${e?.message ?? 'unknown'}`,
+      );
+    }
+  }
+
+  /**
+   * Pre-lockout warning email. Debounced for an hour so we don't
+   * fire on every retry inside a single attack burst.
+   */
+  private async notifyFailedLoginThreshold(
+    userId: string,
+    attemptCount: number,
+  ): Promise<void> {
+    try {
+      const wasSet = await this.redis.setIfAbsent(
+        `notify:failed-threshold:${userId}`,
+        String(attemptCount),
+        3600,
+      );
+      if (!wasSet) return;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, name: true },
+      });
+      if (!user?.email) return;
+
+      await this.emailService.sendFailedLoginThreshold(
+        { email: user.email, name: user.name ?? undefined },
+        attemptCount,
+      );
+    } catch (e: any) {
+      this.logger.warn(
+        `failed-login-threshold notification failed: ${e?.message ?? 'unknown'}`,
+      );
     }
   }
 

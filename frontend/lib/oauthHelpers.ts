@@ -68,7 +68,7 @@ export async function createAuthorizationCode(
   accessToken: string,
   params: OAuthParams
 ): Promise<string> {
-  const response = await fetch('/oauth/create-code', {
+  const response = await fetch('/v1/oauth/create-code', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

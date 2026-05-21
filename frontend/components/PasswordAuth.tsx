@@ -167,9 +167,11 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
   )
 }
 
-// Helper for fetch with credentials (needed for cookies in OAuth flow)
+// Helper for fetch with credentials (needed for cookies in OAuth flow).
+// Mirrors the /v1 prefix that lib/api.ts applies to axios calls.
 async function fetchWithCredentials(endpoint: string, payload: object) {
-  const response = await fetch(endpoint, {
+  const url = endpoint.startsWith('/v1/') ? endpoint : `/v1${endpoint}`
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

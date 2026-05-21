@@ -17,6 +17,7 @@ import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
 import { authStorage } from '@/lib/authStorage'
 import { buildConsentUrl, isOAuthFlow, OAuthParams } from '@/lib/oauthHelpers'
+import { LocaleSwitcher } from '@/components/ui'
 
 type AuthMethod = 'passkey' | 'magic-link' | 'password'
 type AuthVariant = 'login' | 'register'
@@ -245,6 +246,9 @@ export default function AuthPage({ variant }: AuthPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
+        <div className="flex justify-end mb-4">
+          <LocaleSwitcher />
+        </div>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <div className="flex items-center justify-center mb-4">
             <div

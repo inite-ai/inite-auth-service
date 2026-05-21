@@ -30,8 +30,6 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         email: email || undefined,
       })
 
-      console.log('🔐 WebAuthn authentication options:', JSON.stringify(options, null, 2))
-
       // Start WebAuthn authentication
       const response = await startAuthentication(options)
 
@@ -114,8 +112,6 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         {},
         { headers: { Authorization: `Bearer ${checkData.access_token}` } }
       )
-
-      console.log('🔐 WebAuthn registration options:', JSON.stringify(options, null, 2))
 
       // Start WebAuthn registration
       const response = await startRegistration(options)

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { SkeletonRow } from '@/components/ui'
 
 interface OAuthClientsSectionProps {
   accessToken: string
@@ -464,8 +465,10 @@ export default function OAuthClientsSection({ accessToken }: OAuthClientsSection
       {/* Clients List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 border border-slate-700/50 space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
           </div>
         ) : clients.length === 0 ? (
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-12 border border-slate-700/50 text-center">

@@ -11,6 +11,8 @@ export const metadata = {
 npm install @inite/auth-sdk
 ```
 
+> **Inside INITE?** For verticals using Next.js RSC + Prisma, prefer `@inite/auth` from inite-shared instead — it provides server-side `getSession()`, role/permission helpers, `MachineTokenClient` for backend M2M, and `verifyAccessToken()` for verified JWT decoding. This browser SDK is for portable / external / pure-client scenarios. See [Service tokens](/docs/service-tokens) for the internal vs external split.
+
 ## `new IniteAuth(options)`
 
 ```ts

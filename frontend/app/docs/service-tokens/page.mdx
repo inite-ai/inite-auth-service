@@ -30,6 +30,34 @@ The secret is shown **once**. Store it in your calling service's secret manager.
 
 ## Step 2 — mint a token at request time
 
+### Inside INITE (use `MachineTokenClient` from `@inite/auth`)
+
+If your service is part of the INITE monorepo, the shared `@inite/auth` package already wraps this — caching, proactive refresh, and concurrent-safe single-flight in one line:
+
+```ts
+import { MachineTokenClient } from '@inite/auth'
+
+const tokens = new MachineTokenClient({
+  clientId: process.env.SMART_CHAT_WORKER_CLIENT_ID!,
+  clientSecret: process.env.SMART_CHAT_WORKER_CLIENT_SECRET!,
+  audience: 'chat-api',
+  scopes: ['chat:read', 'chat:write'],
+  // authServiceUrl defaults to AUTH_SERVICE_URL env (or https://auth-api.inite.ai)
+})
+
+const accessToken = await tokens.getAccessToken()
+
+await fetch('https://chat-api.inite.ai/v1/messages', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+})
+```
+
+The client caches the token until 60s before expiry, then refreshes once for all concurrent callers — your N parallel requests share one in-flight mint, not N.
+
+### Outside INITE (raw HTTP)
+
+For partners / external services, hit the token endpoint directly:
+
 ```bash
 curl -X POST https://auth.inite.ai/v1/oauth/token \
   -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -55,7 +83,29 @@ Default M2M TTL is **5 minutes** — match your call's typical wall-time, mint o
 
 ## Step 3 — verify on the receiving side
 
-The receiving service has the OIDC public keys via JWKS:
+The receiving service has the OIDC public keys via JWKS. **Always check the signature** — not just decoding the JWT body — or any attacker that can write the token can write whatever claims they like.
+
+### Inside INITE
+
+`@inite/auth` exports a verified-decoder via `verifyAccessToken()` (uses jose + cached JWKS under the hood):
+
+```ts
+import { verifyAccessToken } from '@inite/auth'
+
+// In your Express/Next.js/Nest middleware:
+const payload = await verifyAccessToken(bearer, {
+  audience: 'chat-api',
+  // issuer defaults to OIDC_ISSUER env / https://auth-api.inite.ai
+})
+// payload.sub = companyId or clientId
+// payload.scope = "chat:read chat:write"
+```
+
+If the token's signature doesn't validate against any current JWKS key, `verifyAccessToken` throws. If `audience` doesn't match, it throws.
+
+> **Note:** `decodeJWT()` exists in `@inite/auth` for inspection only — it does **not** check the signature. Never trust its output for authorization decisions.
+
+### Outside INITE
 
 ```ts
 import { createRemoteJWKSet, jwtVerify } from 'jose'
@@ -75,6 +125,8 @@ export async function verifyServiceToken(bearer: string) {
   return payload
 }
 ```
+
+`createRemoteJWKSet` caches keys in-memory and re-fetches on `kid` miss — handles JWKS rotation automatically.
 
 If the token was minted with `audience=other-service`, `jwtVerify` throws — your service is safe from cross-audience replay.
 

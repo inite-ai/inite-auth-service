@@ -3,25 +3,41 @@
 import { HTMLAttributes, forwardRef } from 'react'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'success' | 'warning' | 'error' | 'info'
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'flat'
+  /** Compact padding for in-list cards. Default false. */
+  dense?: boolean
 }
 
-const variantStyles = {
-  default: 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700',
-  success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
-  warning: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800',
-  error: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
-  info: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+/**
+ * Linear-style card. Flat surface, 1px border, no drop shadow. The
+ * `variant` prop tints the border + faint background for status
+ * cards; `flat` removes the border entirely for cards inside a
+ * larger framed surface (admin sections).
+ */
+const variantClasses: Record<NonNullable<CardProps['variant']>, string> = {
+  default:
+    'bg-[var(--bg-elevated)] border border-[var(--border)]',
+  flat:
+    'bg-[var(--bg-elevated)]',
+  success:
+    'bg-[color:var(--success)]/5 border border-[color:var(--success)]/30',
+  warning:
+    'bg-[color:var(--warning)]/5 border border-[color:var(--warning)]/30',
+  error:
+    'bg-[color:var(--danger)]/5 border border-[color:var(--danger)]/30',
+  info:
+    'bg-[var(--accent-faint)] border border-[color:var(--accent)]/30',
 }
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ variant = 'default', className = '', children, ...props }, ref) => {
+  ({ variant = 'default', dense = false, className = '', children, ...props }, ref) => {
     return (
       <div
         ref={ref}
         className={`
-          rounded-2xl shadow-2xl p-8 border
-          ${variantStyles[variant]}
+          rounded-lg
+          ${dense ? 'p-4' : 'p-6'}
+          ${variantClasses[variant]}
           ${className}
         `}
         {...props}
@@ -29,37 +45,49 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
         {children}
       </div>
     )
-  }
+  },
 )
 
 Card.displayName = 'Card'
 
-// Card Header component
-export const CardHeader = ({ 
-  icon, 
-  title, 
+/**
+ * Section header used inside Card. Icon stays small, no gradient
+ * box — Linear-style is to let typography do the heavy lifting.
+ */
+export const CardHeader = ({
+  icon,
+  title,
   description,
-  iconClassName = 'from-violet-500 to-purple-600',
-}: { 
-  icon: React.ReactNode
+  action,
+}: {
+  icon?: React.ReactNode
   title: string
   description?: string
+  action?: React.ReactNode
+  /**
+   * Legacy: ignored. Kept on the type so existing call sites that
+   * pass `iconClassName` from the old API don't break the build.
+   */
   iconClassName?: string
 }) => (
-  <div className="text-center mb-8">
-    <div className={`w-16 h-16 bg-gradient-to-br ${iconClassName} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-      {icon}
+  <div className="flex items-start justify-between gap-4 mb-5">
+    <div className="flex items-start gap-3">
+      {icon && (
+        <div className="w-8 h-8 rounded-md bg-[var(--bg-overlay)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] shrink-0">
+          {icon}
+        </div>
+      )}
+      <div>
+        <h2 className="text-base font-semibold text-[var(--text)] tracking-tight">
+          {title}
+        </h2>
+        {description && (
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
     </div>
-    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-      {title}
-    </h2>
-    {description && (
-      <p className="text-gray-600 dark:text-gray-400">
-        {description}
-      </p>
-    )}
+    {action && <div className="shrink-0">{action}</div>}
   </div>
 )
-
-
-

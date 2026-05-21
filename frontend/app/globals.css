@@ -1,158 +1,143 @@
 @import "tailwindcss";
 
+/* Linear-style design tokens.
+ *
+ * Dark-by-default — the IdP surfaces look better on a dense flat
+ * background, and the light-mode override below stays for users who
+ * explicitly prefer it. Sharp, neutral palette, single violet accent.
+ */
 :root {
-  --background: #020617;
-  --foreground: #f1f5f9;
+  /* Surfaces, dark mode is the default. */
+  --bg: #08090a;
+  --bg-elevated: #0e0f11;
+  --bg-overlay: #14161a;
+  --border: #1f2226;
+  --border-strong: #2a2e34;
+  /* Text */
+  --text: #e6e7e9;
+  --text-muted: #9ba0a8;
+  --text-faint: #6b7079;
+  /* Single accent (violet) — keep gradients minimal. */
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-faint: rgba(139, 92, 246, 0.12);
+  --accent-ring: rgba(139, 92, 246, 0.35);
+  /* Status */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    --bg: #fafafa;
+    --bg-elevated: #ffffff;
+    --bg-overlay: #f4f4f5;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+    --accent: #7c3aed;
+    --accent-hover: #6d28d9;
+    --accent-faint: rgba(124, 58, 237, 0.08);
+    --accent-ring: rgba(124, 58, 237, 0.35);
   }
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-family: 'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Custom scrollbar */
+/* Scrollbar — thin and neutral. */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 4px;
+  background: var(--border-strong);
+  border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: var(--text-faint);
 }
 
-@media (prefers-color-scheme: light) {
-  ::-webkit-scrollbar-track {
-    background: rgba(226, 232, 240, 0.8);
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.6);
-  }
-}
-
-/* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
-  color: white;
+  background: var(--accent-faint);
+  color: var(--text);
 }
 
-@media (prefers-color-scheme: light) {
-  ::selection {
-    background: rgba(139, 92, 246, 0.25);
-    color: #0f172a;
-  }
-}
-
-/* Focus outline */
+/* Single focus ring source — applied to all interactive elements via
+   the design-tokens `focusRing` helper. */
 *:focus-visible {
-  outline: 2px solid rgba(139, 92, 246, 0.5);
+  outline: 2px solid var(--accent-ring);
   outline-offset: 2px;
 }
 
-/* Input autofill – light theme */
-@media (prefers-color-scheme: light) {
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px rgb(241, 245, 249) inset !important;
-    -webkit-text-fill-color: rgb(15, 23, 42) !important;
-    caret-color: rgb(15, 23, 42);
-  }
+/* Autofill blends with our surface instead of webkit's yellow. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-elevated) inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  caret-color: var(--text);
 }
 
-/* Input autofill – dark theme */
-@media (prefers-color-scheme: dark) {
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px rgb(30, 41, 59) inset !important;
-    -webkit-text-fill-color: #f1f5f9 !important;
-    caret-color: #f1f5f9;
-  }
+/* Hairline divider — used between rows in dense layouts. */
+.hr {
+  height: 1px;
+  background: var(--border);
 }
 
-/* Animations */
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
+/* Shimmer for skeletons — subtle, no rainbow. */
+@keyframes shimmer-sweep {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
-
-.animate-shimmer {
-  animation: shimmer 2s infinite;
+.shimmer {
   background: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    transparent 100%
+    90deg,
+    var(--bg-overlay) 0%,
+    var(--border) 50%,
+    var(--bg-overlay) 100%
   );
-  background-size: 1000px 100%;
+  background-size: 400px 100%;
+  animation: shimmer-sweep 1.6s linear infinite;
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; }
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
+/* Subtle gradient hairline used as accent under hero blocks (Linear's
+   signature trick) — replaces full-page blob backgrounds. */
+.accent-underline {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent) 30%,
+    var(--accent) 70%,
+    transparent
+  );
+  opacity: 0.4;
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #8b5cf6, #ec4899, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Subdued grid background — optional, applied via class. Linear/
+   Vercel use this on hero sections; we ship it but use sparingly. */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black, transparent);
 }
-
-/* Glass effect */
-.glass {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Glow effects */
-.glow-violet {
-  box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
-}
-
-.glow-fuchsia {
-  box-shadow: 0 0 40px rgba(217, 70, 239, 0.3);
-}
-
-.glow-cyan {
-  box-shadow: 0 0 40px rgba(6, 182, 212, 0.3);
-}
-
-
-

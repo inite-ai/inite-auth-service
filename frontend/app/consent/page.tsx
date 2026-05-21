@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
 import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
+import { AppHeader } from '@/components/AppHeader'
 import api from '@/lib/api'
 
 interface UserInfo {
@@ -156,7 +157,7 @@ function ConsentContent() {
   // Loading state
   if (!user || !oauthParams) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="min-h-screen bg-[var(--bg)]">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
       </div>
     )
@@ -165,7 +166,7 @@ function ConsentContent() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+      <div className="min-h-screen bg-[var(--bg)] p-4">
         <Card className="max-w-md w-full text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-red-600 mb-2">Authorization Error</h1>
@@ -176,12 +177,15 @@ function ConsentContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+    <div className="min-h-screen bg-[var(--bg)]">
+      <AppHeader hideUserMenu context="Authorize app" />
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="max-w-md mx-auto px-4 py-12"
       >
-        <Card className="max-w-md w-full">
+        <Card className="w-full">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg overflow-hidden">
@@ -302,7 +306,7 @@ function ConsentContent() {
 export default function ConsentPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="min-h-screen bg-[var(--bg)]">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
       </div>
     }>

@@ -3,7 +3,7 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react'
 import { Loader2 } from 'lucide-react'
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,64 +11,80 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
   loading?: boolean
   icon?: React.ReactNode
+  iconTrailing?: React.ReactNode
+  /** Stretch to fill the parent. Default true to preserve existing call sites. */
+  block?: boolean
 }
 
-const variantStyles: Record<ButtonVariant, string> = {
-  primary: 'bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700 shadow-lg hover:shadow-xl',
-  secondary: 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600',
-  danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700',
-  ghost: 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
+/**
+ * Linear-style button. Flat surfaces, 1px borders, single accent.
+ *
+ * Primary = solid violet (the one place we use a saturated fill).
+ * Secondary = transparent w/ 1px border — the default action color.
+ * Ghost = no border, hover overlay only.
+ * Danger = transparent w/ red border, fills on hover.
+ *
+ * Sizes target Linear's compact rhythm: 28/32/40 px.
+ */
+const variantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:translate-y-px',
+  secondary:
+    'bg-transparent border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--bg-overlay)] hover:border-[var(--text-faint)]',
+  ghost:
+    'bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text)]',
+  danger:
+    'bg-transparent border border-[color:var(--danger)]/40 text-[color:var(--danger)] hover:bg-[color:var(--danger)]/10',
 }
 
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-3 py-2 text-sm',
-  md: 'px-4 py-3',
-  lg: 'px-6 py-4 text-lg',
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: 'h-7 px-2.5 text-xs gap-1.5',
+  md: 'h-9 px-3 text-sm gap-2',
+  lg: 'h-10 px-4 text-sm gap-2',
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ 
-    variant = 'primary', 
-    size = 'md', 
-    loading = false, 
-    icon, 
-    children, 
-    disabled, 
-    className = '', 
-    ...props 
-  }, ref) => {
+  (
+    {
+      variant = 'primary',
+      size = 'md',
+      loading = false,
+      icon,
+      iconTrailing,
+      children,
+      disabled,
+      block = true,
+      className = '',
+      ...props
+    },
+    ref,
+  ) => {
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
         className={`
-          w-full rounded-xl font-semibold
-          transition-all duration-300
+          inline-flex items-center justify-center rounded-md font-medium
+          transition-colors duration-150
           disabled:opacity-50 disabled:cursor-not-allowed
-          flex items-center justify-center gap-2
-          ${variantStyles[variant]}
-          ${sizeStyles[size]}
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]
+          ${block ? 'w-full' : ''}
+          ${variantClasses[variant]}
+          ${sizeClasses[size]}
           ${className}
         `}
         {...props}
       >
         {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            {children}
-          </>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
-          <>
-            {icon}
-            {children}
-          </>
+          icon
         )}
+        {children}
+        {iconTrailing}
       </button>
     )
-  }
+  },
 )
 
 Button.displayName = 'Button'
-
-
-

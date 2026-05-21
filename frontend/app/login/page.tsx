@@ -5,7 +5,7 @@ import AuthPage, { AuthPageFallback } from '@/components/AuthPage'
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<AuthPageFallback variant="login" />}>
+    <Suspense fallback={<AuthPageFallback />}>
       <AuthPage variant="login" />
     </Suspense>
   )

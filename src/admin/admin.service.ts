@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { BackchannelLogoutService } from '../oauth/backchannel-logout.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly audit?: OAuthAuditService,
+    @Optional() private readonly backchannelLogout?: BackchannelLogoutService,
+  ) {}
 
   // ==================== Users ====================
 
@@ -120,6 +126,95 @@ export class AdminService {
     // Cascade delete handles related records
     await this.prisma.user.delete({ where: { id: userId } });
     return { success: true };
+  }
+
+  /**
+   * Emergency kick: invalidate every active refresh token for the
+   * user, set a 24h lockout so /password/login refuses while the
+   * incident is resolved, and best-effort fan out a back-channel
+   * logout to every RP that registered one.
+   *
+   * Active access tokens already minted live until their (short)
+   * expiry — typically 10 minutes. Anything longer-lived for this
+   * user requires a fresh refresh, which is now revoked, so the
+   * user can't reauthenticate by token alone.
+   *
+   * Use cases: password leak, lost device, account compromise.
+   */
+  async revokeAllUserSessions(
+    userId: string,
+    opts: { reason?: string; lockoutHours?: number } = {},
+  ): Promise<{
+    success: true;
+    refreshTokensRevoked: number;
+    lockoutUntil: string;
+    backchannelLogoutRecipients: number;
+  }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, did: true, email: true },
+    });
+    if (!user) {
+      throw new Error(`User ${userId} not found`);
+    }
+
+    const now = new Date();
+    const lockoutHours = Math.min(Math.max(opts.lockoutHours ?? 24, 0), 24 * 7);
+    const lockoutUntil = new Date(now.getTime() + lockoutHours * 60 * 60 * 1000);
+
+    // 1) Revoke every active refresh token. Use updateMany so we
+    //    pick up tokens across all clients in one statement.
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true, revokedAt: now },
+    });
+
+    // 2) Lockout so password login can't immediately reissue. The
+    //    user-flow timing-equaliser already runs the lockout check
+    //    before bcrypt, so this is sharp.
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lockoutUntil, failedLoginCount: 0 },
+    });
+
+    // 3) Best-effort back-channel logout fan-out. Bounded by the
+    //    service's per-RP timeout so a slow RP can't tail-latency
+    //    the admin response.
+    let bclRecipients = 0;
+    if (this.backchannelLogout && user.did) {
+      try {
+        bclRecipients = await this.backchannelLogout.fanOut({
+          userDid: user.did,
+        });
+      } catch {
+        bclRecipients = 0;
+      }
+    }
+
+    // 4) Audit.
+    this.audit
+      ?.record({
+        event: 'admin.user.sessions_revoked',
+        sub: user.did,
+        success: true,
+        metadata: {
+          userId,
+          email: user.email,
+          refreshTokensRevoked: revoked.count,
+          lockoutHours,
+          lockoutUntil: lockoutUntil.toISOString(),
+          backchannelRecipients: bclRecipients,
+          reason: opts.reason ?? null,
+        },
+      })
+      .catch(() => {});
+
+    return {
+      success: true,
+      refreshTokensRevoked: revoked.count,
+      lockoutUntil: lockoutUntil.toISOString(),
+      backchannelLogoutRecipients: bclRecipients,
+    };
   }
 
   // ==================== OAuth Clients ====================

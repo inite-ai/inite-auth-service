@@ -24,6 +24,19 @@ export type AdminScope =
   | { kind: 'scoped'; companyId: string };
 
 export function resolveAdminScope(user: any): AdminScope | null {
+  // Machine principal (M2M token) — admin-scoped service. If the
+  // calling OAuth client has a companyId stamped, treat the tool as
+  // scoped to that tenant; otherwise it's a cross-tenant admin
+  // service (rare, used by INITE's own automation).
+  if (user?.kind === 'machine') {
+    const scope = user.scope instanceof Set ? user.scope : new Set<string>();
+    if (!scope.has('admin')) return null;
+    if (typeof user.companyId === 'string' && user.companyId.length > 0) {
+      return { kind: 'scoped', companyId: user.companyId };
+    }
+    return { kind: 'superadmin' };
+  }
+
   const metadata = user?.metadata ?? {};
   const roles: string[] = Array.isArray(metadata.roles) ? metadata.roles : [];
 

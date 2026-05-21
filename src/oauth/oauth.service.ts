@@ -820,6 +820,18 @@ export class OAuthService {
   }
 
   /**
+   * Synchronous cache read for hot paths that can't await — middleware
+   * like session-cookie-mode selection or CSP-header rewriting. Returns
+   * the most recent snapshot; the cache is refreshed by any concurrent
+   * async caller. On a cold start this returns an empty Set, which
+   * collapses to "default first-party only" behaviour until the cache
+   * warms — fail-safe.
+   */
+  getAllowedOriginsSync(): Set<string> {
+    return this.allowedOriginsCache;
+  }
+
+  /**
    * Parse scope string into entitlements array
    */
   private parseScope(scope: string): string[] {

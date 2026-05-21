@@ -36,18 +36,57 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Security headers
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
+  //
+  // CSP is built from the synchronous origins cache so embed-registered
+  // partner origins can XHR to this API and load us in iframes. Without
+  // this, connectSrc='self' would block any cross-origin SDK call even
+  // when CORS itself allows it.
+  //
+  // We don't allow * — the allowlist is the OAuth-client redirectUris
+  // table, mirrored from the same source CORS uses. Iframe ancestors
+  // are similarly scoped via frame-ancestors so we keep clickjacking
+  // resistance for non-partners.
+  const oauthForCsp = app.get(OAuthService);
+  // Warm the cache up front so the first request doesn't get an
+  // empty allowlist for one cycle.
+  await oauthForCsp.getAllowedOrigins();
+  app.use((req: any, res: any, next: any) => {
+    const partners = [...oauthForCsp.getAllowedOriginsSync()];
+    res.locals = res.locals ?? {};
+    res.locals.allowedPartners = partners;
+    next();
+  });
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          // Build per-request: refresh the partner list every time.
+          // helmet calls the function with (req, res); the cache call
+          // is O(1) so this stays cheap.
+          connectSrc: [
+            "'self'",
+            (_req, res) =>
+              (res as any).locals?.allowedPartners?.join(' ') ?? '',
+          ] as any,
+          frameAncestors: [
+            "'self'",
+            (_req, res) =>
+              (res as any).locals?.allowedPartners?.join(' ') ?? '',
+          ] as any,
+        },
       },
-    },
-    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-  }));
+      // Override the default X-Frame-Options=SAMEORIGIN — that header
+      // is older than CSP frame-ancestors and is now used by browsers
+      // as a hard fallback that overrides CSP. Disabling lets the
+      // (correctly-scoped) frame-ancestors directive be authoritative.
+      frameguard: false,
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    }),
+  );
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -124,22 +163,59 @@ async function bootstrap() {
   }
   sessionSecret = configuredSecret;
 
-  app.use(
-    session({
-      store: new RedisStore({ client: redisClient }),
-      secret: sessionSecret,
-      resave: false,
-      saveUninitialized: false,
-      name: 'inite.sid',
-      cookie: {
-        secure: true,
-        httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax',
-        path: '/',
-      },
-    }),
-  );
+  // Dual session config: first-party flow gets `inite.sid` with
+  // SameSite=lax (CSRF protection for browser-driven OAuth), embed
+  // flow gets `inite.sid.embed` with SameSite=none so the cookie
+  // survives a cross-origin iframe POST.
+  //
+  // Choice is keyed on Origin: a partner whose origin is in the
+  // OAuth-client allowlist (and not equal to FRONTEND_URL) gets the
+  // embed cookie. Everything else (no Origin, FRONTEND_URL Origin,
+  // unknown Origin) gets the first-party cookie.
+  //
+  // CSRF on the embed surface is contained by the CORS Origin check —
+  // an unallowed origin can't reach the endpoint in the first place.
+  const sessionBase = {
+    store: new RedisStore({ client: redisClient }),
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+  } as const;
+  const firstPartySession = session({
+    ...sessionBase,
+    name: 'inite.sid',
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+      path: '/',
+    },
+  });
+  const embedSession = session({
+    ...sessionBase,
+    name: 'inite.sid.embed',
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'none',
+      path: '/',
+    },
+  });
+  const normalizedFrontendUrl = (
+    configService.get<string>('FRONTEND_URL', '') ?? ''
+  ).replace(/\/$/, '');
+  app.use((req: any, res: any, next: any) => {
+    const origin = req.headers.origin as string | undefined;
+    if (origin) {
+      const allowed = oauthForCsp.getAllowedOriginsSync();
+      if (allowed.has(origin) && origin !== normalizedFrontendUrl) {
+        return embedSession(req, res, next);
+      }
+    }
+    return firstPartySession(req, res, next);
+  });
 
   // The session-store Redis client is created here, not through DI, so
   // enableShutdownHooks() doesn't close it. Wire it to SIGTERM/SIGINT

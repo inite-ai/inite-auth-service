@@ -38,6 +38,11 @@ function hashRefreshToken(token: string, secret: string): string {
 const TIMING_DUMMY_HASH =
   '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
 
+/** RFC 8252 §7.3 — loopback hosts for native/CLI app redirects. */
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1' || hostname === 'localhost';
+}
+
 @Injectable()
 export class OAuthService {
   private readonly oauthLogger = new Logger(OAuthService.name);
@@ -178,10 +183,38 @@ export class OAuthService {
   }
 
   /**
-   * Validate redirect URI
+   * Validate redirect URI.
+   *
+   * Standard rule: exact match against the client's registered list.
+   * RFC 8252 §7.3 exception: when both the requested URI and *some*
+   * registered URI use a loopback hostname (`127.0.0.1`, `[::1]`,
+   * `localhost`), the port is ignored at match time because native /
+   * CLI apps bind a random ephemeral port at runtime.
    */
   validateRedirectUri(client: OAuthClient, redirectUri: string): boolean {
-    return client.redirectUris.includes(redirectUri);
+    if (client.redirectUris.includes(redirectUri)) return true;
+
+    let requested: URL;
+    try {
+      requested = new URL(redirectUri);
+    } catch {
+      return false;
+    }
+    if (!isLoopbackHost(requested.hostname)) return false;
+
+    return client.redirectUris.some((registered) => {
+      try {
+        const r = new URL(registered);
+        return (
+          isLoopbackHost(r.hostname) &&
+          r.hostname === requested.hostname &&
+          r.protocol === requested.protocol &&
+          r.pathname === requested.pathname
+        );
+      } catch {
+        return false;
+      }
+    });
   }
 
   /**

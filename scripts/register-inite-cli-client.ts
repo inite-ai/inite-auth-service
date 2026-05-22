@@ -17,10 +17,15 @@ const prisma = new PrismaClient();
 
 const config = {
   clientId: 'inite-cli',
-  name: 'INITE CLI (device flow)',
-  redirectUris: [] as string[],
+  name: 'INITE CLI',
+  // RFC 8252 §7.3 — loopback redirect with ANY port. The OAuth service
+  // ignores the port when matching loopback URIs at /oauth/authorize time.
+  redirectUris: ['http://127.0.0.1/callback'] as string[],
   allowedScopes: ['openid', 'profile', 'email'] as string[],
+  // Primary: authorization_code + PKCE with loopback redirect (Claude-Code-style).
+  // Fallback: device_code for headless / no-browser environments.
   allowedGrants: [
+    'authorization_code',
     'urn:ietf:params:oauth:grant-type:device_code',
     'refresh_token',
   ] as string[],

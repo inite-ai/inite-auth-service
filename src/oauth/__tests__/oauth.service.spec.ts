@@ -106,6 +106,54 @@ describe('OAuthService', () => {
     it('should return false for unregistered URI', () => {
       expect(service.validateRedirectUri(mockClient as OAuthClient, 'https://evil.com/callback')).toBe(false);
     });
+
+    it('should ignore port for loopback redirects when 127.0.0.1 registered', () => {
+      const cli: Partial<OAuthClient> = {
+        redirectUris: ['http://127.0.0.1/callback'],
+      };
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:54321/callback'),
+      ).toBe(true);
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1/callback'),
+      ).toBe(true);
+    });
+
+    it('should also allow localhost for ::1/localhost when registered', () => {
+      const cli: Partial<OAuthClient> = {
+        redirectUris: ['http://localhost/callback'],
+      };
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'http://localhost:9999/callback'),
+      ).toBe(true);
+    });
+
+    it('should NOT allow port-ignore for non-loopback hosts', () => {
+      const cli: Partial<OAuthClient> = {
+        redirectUris: ['https://app.example.com/callback'],
+      };
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'https://app.example.com:8443/callback'),
+      ).toBe(false);
+    });
+
+    it('should require matching pathname even for loopback', () => {
+      const cli: Partial<OAuthClient> = {
+        redirectUris: ['http://127.0.0.1/callback'],
+      };
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1234/other'),
+      ).toBe(false);
+    });
+
+    it('should require matching scheme (no http→https crosstalk)', () => {
+      const cli: Partial<OAuthClient> = {
+        redirectUris: ['http://127.0.0.1/callback'],
+      };
+      expect(
+        service.validateRedirectUri(cli as OAuthClient, 'https://127.0.0.1:1234/callback'),
+      ).toBe(false);
+    });
   });
 
   describe('validateGrantType', () => {

@@ -1,4 +1,9 @@
-import { Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -150,12 +155,17 @@ export class AdminService {
     lockoutUntil: string;
     backchannelLogoutRecipients: number;
   }> {
+    // Postgres rejects non-UUID strings on this column — surface a 400
+    // instead of letting Prisma throw a 500 from inside findUnique.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new BadRequestException(`Invalid userId — not a UUID: ${userId}`);
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, did: true, email: true },
     });
     if (!user) {
-      throw new Error(`User ${userId} not found`);
+      throw new NotFoundException(`User ${userId} not found`);
     }
 
     const now = new Date();

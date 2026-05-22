@@ -26,7 +26,8 @@
     "register-smart-chat-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-client.ts",
     "register-admin-client": "ts-node -r tsconfig-paths/register scripts/register-smart-chat-admin-client.ts",
     "register-auth-admin-tools-client": "ts-node -r tsconfig-paths/register scripts/register-auth-admin-tools-client.ts",
-    "register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client && npm run register-auth-admin-tools-client",
+    "register-inite-cli-client": "ts-node -r tsconfig-paths/register scripts/register-inite-cli-client.ts",
+    "register-all-clients": "npm run register-smart-chat-client && npm run register-admin-client && npm run register-auth-admin-tools-client && npm run register-inite-cli-client",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin-user.ts"
   },
   "dependencies": {

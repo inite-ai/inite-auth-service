@@ -131,14 +131,29 @@ export class OAuthService {
   }
 
   /**
-   * Validate OAuth client with mandatory secret (for token/revoke endpoints)
+   * Validate OAuth client at the token endpoint.
+   *
+   * Confidential clients (`isPublic=false`) must present a matching
+   * `client_secret`. Public clients (`isPublic=true`, e.g. CLIs and
+   * native apps) skip the secret — their authentication is bound to
+   * the grant: PKCE for authorization_code, the device_code itself
+   * for the device flow. Per RFC 6749 §2.1 + RFC 7636.
+   *
+   * The grant-specific branches in the controller still enforce their
+   * own checks (code_verifier must match the original challenge, the
+   * device_code must be approved, etc.) so dropping the secret here
+   * doesn't loosen the overall guarantees.
    */
   async validateClientWithSecret(
     clientId: string,
     clientSecret: string,
   ): Promise<OAuthClient> {
     if (!clientSecret) {
-      throw new UnauthorizedException('client_secret is required');
+      const client = await this.validateClient(clientId);
+      if (!client.isPublic) {
+        throw new UnauthorizedException('client_secret is required');
+      }
+      return client;
     }
     return this.validateClient(clientId, clientSecret);
   }

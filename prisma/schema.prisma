@@ -104,6 +104,12 @@ model OAuthClient {
   /// back to clientId as audience). Set explicitly when provisioning
   /// machine clients via the admin UI.
   allowedAudiences  String[] @default([]) @map("allowedAudiences")
+  /// Marks the client as a public client (RFC 6749 §2.1) — no
+  /// client_secret. Token-endpoint authentication relies on PKCE
+  /// (authorization_code) or the device_code itself (device flow)
+  /// instead of a shared secret. Set true for CLIs, native apps,
+  /// and other zero-trust environments.
+  isPublic          Boolean  @default(false) @map("isPublic")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")

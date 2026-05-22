@@ -29,6 +29,7 @@ interface SystemClient {
   allowedScopes: string[];
   allowedGrants: string[];
   allowedAudiences: string[];
+  isPublic: boolean;
 }
 
 const SYSTEM_CLIENTS: SystemClient[] = [
@@ -44,6 +45,9 @@ const SYSTEM_CLIENTS: SystemClient[] = [
       'refresh_token',
     ],
     allowedAudiences: [],
+    // Public client — PKCE / device_code authenticates the request,
+    // no client_secret involved.
+    isPublic: true,
   },
 ];
 
@@ -81,6 +85,7 @@ export class SystemClientsSeeder implements OnApplicationBootstrap {
           allowedScopes: c.allowedScopes,
           allowedGrants: c.allowedGrants,
           allowedAudiences: c.allowedAudiences,
+          isPublic: c.isPublic,
           active: true,
         },
       });
@@ -103,6 +108,7 @@ export class SystemClientsSeeder implements OnApplicationBootstrap {
         allowedScopes: c.allowedScopes,
         allowedGrants: c.allowedGrants,
         allowedAudiences: c.allowedAudiences,
+        isPublic: c.isPublic,
         active: true,
       },
     });

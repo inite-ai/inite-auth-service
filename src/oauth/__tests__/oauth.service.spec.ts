@@ -91,10 +91,24 @@ describe('OAuthService', () => {
   });
 
   describe('validateClientWithSecret', () => {
-    it('should throw when no secret provided', async () => {
+    it('should throw when no secret provided for confidential client', async () => {
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue({
+        ...mockClient,
+        isPublic: false,
+      } as any);
       await expect(service.validateClientWithSecret('test-app', '')).rejects.toThrow(
         'client_secret is required',
       );
+    });
+
+    it('should allow missing secret for public clients (PKCE)', async () => {
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue({
+        ...mockClient,
+        isPublic: true,
+      } as any);
+      const result = await service.validateClientWithSecret('test-app', '');
+      expect(result).toBeDefined();
+      expect((result as any).isPublic).toBe(true);
     });
   });
 

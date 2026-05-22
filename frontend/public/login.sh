@@ -149,6 +149,149 @@ from urllib.parse import urlparse, parse_qs
 
 code_file, port_file = sys.argv[1], sys.argv[2]
 
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>INITE · login {status_word}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {{
+    --bg: #0a0a0b;
+    --bg-elevated: #131316;
+    --bg-overlay: #1c1c20;
+    --text: #ededef;
+    --text-muted: #9b9ba3;
+    --text-faint: #5f5f68;
+    --border: #25252b;
+    --accent: #6ea1ff;
+    --success: #2fb178;
+    --danger:  #f0556c;
+    --status: var(--{status_color});
+    --status-bg: color-mix(in srgb, var(--status) 14%, transparent);
+  }}
+  * {{ box-sizing: border-box; }}
+  html, body {{ height: 100%; }}
+  body {{
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }}
+  .card {{
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px 32px 30px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+                0 12px 40px rgba(0,0,0,0.45);
+  }}
+  .badge {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--status-bg);
+    color: var(--status);
+    border: 1px solid color-mix(in srgb, var(--status) 35%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }}
+  .badge .dot {{
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--status);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--status) 20%, transparent);
+  }}
+  h1 {{
+    margin: 18px 0 6px;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }}
+  p {{
+    margin: 4px 0;
+    color: var(--text-muted);
+  }}
+  .hint {{
+    margin-top: 20px;
+    padding: 12px 14px;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }}
+  .hint code {{
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1px 6px;
+    color: var(--text);
+    font-size: 12px;
+  }}
+  .footer {{
+    margin-top: 24px;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }}
+  pre {{
+    background: var(--bg-overlay);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    font-size: 12.5px;
+    color: var(--text);
+    white-space: pre-wrap;
+  }}
+</style>
+</head>
+<body>
+  <main class="card" role="alert" aria-live="polite">
+    <span class="badge"><span class="dot"></span>{badge}</span>
+    <h1>{headline}</h1>
+    <p>{body_html}</p>
+    {extra}
+    <div class="footer">INITE · CLI login</div>
+  </main>
+</body>
+</html>
+"""
+
+def render_success():
+    return PAGE.format(
+        status_word="complete",
+        status_color="success",
+        badge="Signed in",
+        headline="You can close this tab",
+        body_html="Return to your terminal — the token is on its way.",
+        extra='<div class="hint">Tip: run <code>jq -r .access_token ~/.config/inite/auth.json</code> '
+              'to read the bearer token.</div>',
+    )
+
+def render_error(detail):
+    safe = (detail or 'unknown').replace('<', '&lt;').replace('>', '&gt;')
+    return PAGE.format(
+        status_word="error",
+        status_color="danger",
+        badge="Login failed",
+        headline="Something went wrong",
+        body_html="The authorization server returned an error.",
+        extra=f'<pre>{safe}</pre>',
+    )
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a, **k): pass
     def do_GET(self):
@@ -159,13 +302,13 @@ class Handler(BaseHTTPRequestHandler):
         code = (q.get('code') or [''])[0]
         err  = (q.get('error') or [''])[0]
         if err:
-            payload = f"<h1>Login failed</h1><pre>{err}</pre>"
+            payload = render_error(err)
         elif code:
             with open(code_file, 'w') as f:
                 f.write(code)
-            payload = "<h1>You can close this tab.</h1><p>INITE login complete — return to your terminal.</p>"
+            payload = render_success()
         else:
-            payload = "<h1>No code in callback.</h1>"
+            payload = render_error('no code in callback')
         body = payload.encode('utf-8')
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')

@@ -12,7 +12,6 @@ import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
-import { MCPLoginModule } from './mcp-login/mcp-login.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
 import { RequestContextMiddleware } from './common/request-context.middleware';
@@ -92,7 +91,6 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     SessionModule,
     EmailModule,
     AdminModule,
-    MCPLoginModule,
   ],
   controllers: [HealthController],
   providers: [

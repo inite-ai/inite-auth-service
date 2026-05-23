@@ -67,71 +67,50 @@ Skills are activation rules that bundle a focused subset of tools into the assis
 
 Each skill's `instructions` tell the model how to *use* its tools — e.g. the incident-response skill instructs "investigate first with `query_user_audit`, confirm with the user, then call `revoke_user_sessions`."
 
-## Onboarding — `/v1/mcp/login`
+## Connecting an MCP client
 
-INITE ships a public MCP endpoint at **`https://auth.inite.ai/v1/mcp/login`** so AI assistants can sign a user in without dropping them to a terminal. It speaks JSON-RPC 2.0 over plain HTTP, requires no `Authorization` header, and exposes three tools:
+### Recommended — local CLI proxy (`@inite/cli`)
 
-| Tool | Returns |
-| --- | --- |
-| `start_login` | `device_code`, `user_code`, `verification_uri_complete`, `expires_in`, `interval` — RFC 8628 step 1 |
-| `poll_login` | `{ status: "pending" \| "approved" \| "denied" \| "expired" }` and on approval also `access_token`, `refresh_token`, `expires_in` |
-| `whoami` | resolved user (from `Authorization: Bearer` header or `access_token` arg), or `{ authenticated: false }` |
-
-The AI's flow:
-
-```
-User: log me in
-AI:   [start_login]
-       → "Open https://auth.inite.ai/v1/oauth/device?user_code=PDMT-JMBK
-          in your browser and approve."
-User: done
-AI:   [poll_login(device_code)]
-       → { status: "approved", access_token: "eyJ…" }
-       → "Signed in. Add this token as Authorization: Bearer in your
-          other MCP servers."
-```
-
-Every per-vertical MCP route also returns a `login_url` hint in its 401 body (and a `WWW-Authenticate: Bearer realm=…` header per RFC 6750), so any MCP client that hits a vertical without a token automatically learns where to onboard:
-
-```json
-{
-  "error": "Unauthorized",
-  "login_url": "https://auth.inite.ai/v1/mcp/login",
-  "login_hint": "Run start_login on the login MCP server, complete the device flow, then resend this request with Authorization: Bearer <access_token>."
-}
-```
-
-### Claude Desktop config — two servers
+For desktop clients (Claude Desktop, Cursor, Goose) the cleanest UX is the local proxy. It runs as a stdio MCP server, forwards every tool call to the remote vertical URL, and — the first time a call returns 401 — opens your browser, does the PKCE + loopback dance, caches the JWT in `~/.config/inite/auth.json`, and retries. One config block per vertical, no token paste, no manual restarts.
 
 ```json
 {
   "mcpServers": {
-    "inite-login": {
-      "url": "https://auth.inite.ai/v1/mcp/login"
-    },
     "inite-rent": {
-      "url": "https://inite.rent/mcp/inite-rent",
-      "headers": {
-        "Authorization": "Bearer ${INITE_TOKEN}"
-      }
+      "command": "npx",
+      "args": ["-y", "@inite/cli", "proxy", "https://inite.rent/mcp/inite-rent"]
     }
   }
 }
 ```
 
-After running `start_login` + `poll_login` on the first server, export the returned `access_token` as `INITE_TOKEN` (or paste into the second server's headers manually) and restart Claude. The token is universal — same JWT works against every vertical's `/mcp/<slug>` route because they all JWKS-verify against `auth-api.inite.ai`.
+After the first authenticated call the cached token is reused for every subsequent vertical — same JWT works against `inite.rent`, `figma.inite.ai`, etc., because every vertical JWKS-verifies against the canonical `auth-api.inite.ai` issuer.
 
-### CLI shortcut — `curl … login.sh | bash`
+### Terminal — `login.sh`
 
-For terminal users:
+For shell users / CI:
 
 ```bash
 curl -fsSL https://auth.inite.ai/login.sh | bash
-# token cached at ~/.config/inite/auth.json
+# token cached at ~/.config/inite/auth.json (same file the proxy uses)
+
 export INITE_TOKEN=$(jq -r .access_token ~/.config/inite/auth.json)
+curl -H "Authorization: Bearer $INITE_TOKEN" https://inite.rent/mcp/inite-rent ...
 ```
 
-Same device flow under the hood — `/login.sh` and `/v1/mcp/login` share the public `inite-cli` OAuth client.
+`login.sh` defaults to authorization-code + PKCE with a loopback redirect; falls back to device flow when no browser is available (set `INITE_LOGIN_MODE=device` to force).
+
+### Self-recovery on 401
+
+If an MCP client connects to a vertical without a token, the 401 body now carries a `login_url` and a matching `WWW-Authenticate: Bearer realm="…"` header. Clients that understand the hint (or assistants that read the response) can route the user to `/docs/mcp` for setup.
+
+```json
+{
+  "error": "Unauthorized",
+  "login_url": "https://auth.inite.ai/docs/mcp",
+  "login_hint": "Install @inite/cli (npx) and configure it as the MCP server URL — it handles browser-based sign-in on first request."
+}
+```
 
 ## Step 1 — bootstrap the package
 

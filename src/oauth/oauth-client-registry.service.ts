@@ -4,8 +4,23 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { OAuthClient } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegisterClientDto } from './dto/register-client.dto';
+
+// Grants an open (unauthenticated) RFC 7591 registration may request.
+// Deliberately EXCLUDES token-exchange and device_code — those are
+// privilege-escalating and must be provisioned by an operator.
+const DCR_ALLOWED_GRANTS = [
+  'authorization_code',
+  'refresh_token',
+  'client_credentials',
+];
+const DCR_DEFAULT_GRANTS = ['authorization_code', 'refresh_token'];
+const DCR_SUPPORTED_SCOPES = ['openid', 'profile', 'email', 'offline_access'];
+const DCR_DEFAULT_SCOPES = ['openid', 'profile', 'email'];
+const DCR_MAX_REDIRECT_URIS = 10;
 
 /**
  * Pre-computed bcrypt hash of a static random string. Used as a
@@ -201,5 +216,75 @@ export class OAuthClientRegistryService {
         active: true,
       },
     });
+  }
+
+  /**
+   * RFC 7591 Dynamic Client Registration (open, unauthenticated).
+   * Security boundary: grants/scopes are intersected against hard
+   * allow-lists, public clients never receive a secret, redirect_uris
+   * are required for authorization_code and capped. Returns the row
+   * plus the plaintext secret (null for public) for one-time display.
+   */
+  async registerDynamicClient(
+    meta: RegisterClientDto,
+  ): Promise<{ client: OAuthClient; clientSecret: string | null }> {
+    const isPublic = meta.token_endpoint_auth_method === 'none';
+    const allowedGrants = this.sanitizeGrants(meta.grant_types, isPublic);
+    const allowedScopes = this.sanitizeScopes(meta.scope);
+    const redirectUris = this.sanitizeRedirectUris(meta.redirect_uris, allowedGrants);
+    const clientId = 'dcr_' + crypto.randomBytes(16).toString('hex');
+    const { clientSecret, clientSecretHash } = await this.buildSecret(isPublic);
+    const client = await this.prisma.oAuthClient.create({
+      data: {
+        clientId,
+        clientSecretHash,
+        name: meta.client_name || 'Dynamically Registered Client',
+        redirectUris,
+        allowedScopes,
+        allowedGrants,
+        isPublic,
+        active: true,
+        logoUrl: meta.logo_uri ?? null,
+        privacyPolicyUrl: meta.policy_uri ?? null,
+        termsOfServiceUrl: meta.tos_uri ?? null,
+      },
+    });
+    return { client, clientSecret };
+  }
+
+  private sanitizeGrants(requested: string[] | undefined, isPublic: boolean): string[] {
+    const valid = (requested ?? []).filter((g) => DCR_ALLOWED_GRANTS.includes(g));
+    const grants = valid.length > 0 ? [...new Set(valid)] : [...DCR_DEFAULT_GRANTS];
+    if (grants.includes('client_credentials') && isPublic) {
+      throw new BadRequestException('confidential client required for client_credentials');
+    }
+    return grants;
+  }
+
+  private sanitizeScopes(scope: string | undefined): string[] {
+    const requested = (scope ?? '').split(/\s+/).filter(Boolean);
+    const valid = [...new Set(requested.filter((s) => DCR_SUPPORTED_SCOPES.includes(s)))];
+    return valid.length > 0 ? valid : [...DCR_DEFAULT_SCOPES];
+  }
+
+  private sanitizeRedirectUris(uris: string[] | undefined, grants: string[]): string[] {
+    const list = uris ?? [];
+    if (grants.includes('authorization_code') && list.length === 0) {
+      throw new BadRequestException('redirect_uris is required for the authorization_code grant');
+    }
+    if (list.length > DCR_MAX_REDIRECT_URIS) {
+      throw new BadRequestException(`redirect_uris cannot exceed ${DCR_MAX_REDIRECT_URIS} entries`);
+    }
+    return list;
+  }
+
+  // Public clients store a random unusable hash (column never empty) but
+  // discard the plaintext — they authenticate via PKCE, not a secret.
+  private async buildSecret(
+    isPublic: boolean,
+  ): Promise<{ clientSecret: string | null; clientSecretHash: string }> {
+    const raw = crypto.randomBytes(32).toString('base64url');
+    const clientSecretHash = await bcrypt.hash(raw, 10);
+    return { clientSecret: isPublic ? null : raw, clientSecretHash };
   }
 }

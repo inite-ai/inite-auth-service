@@ -185,7 +185,9 @@ boot (gitignored) so tooling can pick it up without a running instance.
 
 OAuth2/OIDC: `/.well-known/openid-configuration`, `/.well-known/jwks.json`,
 `/v1/oauth/{authorize,token,userinfo,revoke,introspect,par,device_authorization,logout}`.
-Auth: `/v1/auth/{passkey,email,password}/*`. Social login: `/v1/auth/oauth/:provider/{start,callback}`
+Auth: `/v1/auth/{passkey,email,password}/*`. OTP: `/v1/auth/otp/{request,verify}`
++ `/v1/auth/otp/mfa/{request,verify}` (email/SMS code login + step-up). Social
+login: `/v1/auth/oauth/:provider/{start,callback}`
 (Google, GitHub, generic OIDC). Identity: `/v1/auth/identity/*`
 (DID, wallets, credentials, 2FA, export/delete). Sessions: `/v1/session/*`.
 Admin: `/v1/admin/*`.

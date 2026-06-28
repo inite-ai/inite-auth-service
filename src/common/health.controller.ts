@@ -89,17 +89,54 @@ export class HealthController {
 
   @Get('.well-known/openid-configuration')
   openidConfiguration() {
-    const issuer = this.configService.get<string>(
+    return this.authServerMetadata(this.issuer());
+  }
+
+  /**
+   * RFC 8414 — Authorization Server Metadata served at the OAuth-AS
+   * well-known path. MCP clients (and other RFC 8414-only consumers)
+   * look here rather than at the OIDC discovery path, so we serve the
+   * identical document at both locations.
+   */
+  @Get('.well-known/oauth-authorization-server')
+  @Header('Content-Type', 'application/json')
+  oauthAuthorizationServer() {
+    return this.authServerMetadata(this.issuer());
+  }
+
+  /**
+   * RFC 9728 — Protected Resource Metadata. Tells MCP clients which
+   * authorization server protects this resource and how to present
+   * bearer tokens.
+   */
+  @Get('.well-known/oauth-protected-resource')
+  @Header('Content-Type', 'application/json')
+  oauthProtectedResource() {
+    const issuer = this.issuer();
+    return {
+      resource: issuer,
+      authorization_servers: [issuer],
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+      bearer_methods_supported: ['header'],
+      resource_documentation: `${issuer}/docs`,
+    };
+  }
+
+  private issuer(): string {
+    return this.configService.get<string>(
       'OIDC_ISSUER',
       'http://localhost:3002',
     );
+  }
 
+  private authServerMetadata(issuer: string) {
     return {
       issuer,
       authorization_endpoint: `${issuer}/v1/oauth/authorize`,
       token_endpoint: `${issuer}/v1/oauth/token`,
       userinfo_endpoint: `${issuer}/v1/oauth/userinfo`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
+      registration_endpoint: `${issuer}/v1/oauth/register`,
       revocation_endpoint: `${issuer}/v1/oauth/revoke`,
       introspection_endpoint: `${issuer}/v1/oauth/introspect`,
       end_session_endpoint: `${issuer}/v1/oauth/logout`,

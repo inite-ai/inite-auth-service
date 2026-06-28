@@ -1,13 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { IdentityService } from '../identity.service';
+import { IdentityAccountService } from '../identity-account.service';
+import { IdentityEmailService } from '../identity-email.service';
 import { DidService } from '../did.service';
 import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
 describe('IdentityService', () => {
-  let service: IdentityService;
+  let accountService: IdentityAccountService;
+  let emailService: IdentityEmailService;
   let mockPrisma: any;
 
   beforeEach(async () => {
@@ -32,6 +35,8 @@ describe('IdentityService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IdentityService,
+        IdentityAccountService,
+        IdentityEmailService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: DidService, useValue: { generateDid: jest.fn().mockResolvedValue({ did: 'did:key:test', publicKey: 'pk', privateKey: 'sk' }) } },
         {
@@ -46,35 +51,36 @@ describe('IdentityService', () => {
       ],
     }).compile();
 
-    service = module.get<IdentityService>(IdentityService);
+    accountService = module.get<IdentityAccountService>(IdentityAccountService);
+    emailService = module.get<IdentityEmailService>(IdentityEmailService);
   });
 
   describe('changePassword', () => {
     it('should reject password shorter than 8 chars', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
-      await expect(service.changePassword('1', '', 'short')).rejects.toThrow('at least 8 characters');
+      await expect(accountService.changePassword('1', '', 'short')).rejects.toThrow('at least 8 characters');
     });
 
     it('should reject password without uppercase', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
-      await expect(service.changePassword('1', '', 'lowercase1')).rejects.toThrow('uppercase');
+      await expect(accountService.changePassword('1', '', 'lowercase1')).rejects.toThrow('uppercase');
     });
 
     it('should reject password without number', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
-      await expect(service.changePassword('1', '', 'NoNumbers')).rejects.toThrow('number');
+      await expect(accountService.changePassword('1', '', 'NoNumbers')).rejects.toThrow('number');
     });
 
     it('should accept valid password', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
       mockPrisma.user.update.mockResolvedValue({});
-      await expect(service.changePassword('1', '', 'ValidPass1')).resolves.not.toThrow();
+      await expect(accountService.changePassword('1', '', 'ValidPass1')).resolves.not.toThrow();
     });
 
     it('should verify current password if set', async () => {
       const hash = await bcrypt.hash('oldpass', 10);
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: hash });
-      await expect(service.changePassword('1', 'wrongold', 'NewPass1')).rejects.toThrow('incorrect');
+      await expect(accountService.changePassword('1', 'wrongold', 'NewPass1')).rejects.toThrow('incorrect');
     });
   });
 
@@ -86,7 +92,7 @@ describe('IdentityService', () => {
         Promise.resolve({ ...user, metadata: data.metadata }),
       );
 
-      const result = await service.updateMetadata('1', {
+      const result = await accountService.updateMetadata('1', {
         isAdmin: true,
         roles: ['admin'],
         customField: 'value',
@@ -110,7 +116,7 @@ describe('IdentityService', () => {
       });
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await service.verifyEmail('valid-token');
+      const result = await emailService.verifyEmail('valid-token');
       expect(result.success).toBe(true);
     });
 
@@ -123,7 +129,7 @@ describe('IdentityService', () => {
         emailVerificationExpires: past,
       });
 
-      await expect(service.verifyEmail('expired')).rejects.toThrow('expired');
+      await expect(emailService.verifyEmail('expired')).rejects.toThrow('expired');
     });
   });
 });

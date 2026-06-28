@@ -35,11 +35,13 @@ uses options objects + one-contract-per-file; only NestJS DI ctors / route handl
 carry documented disables; legacy carries `TODO(par-max)`/`TODO(complexity)`.
 
 **Follow-ups for next session:**
-- Frontend: dedicated OTP login method + a step-up "enter code" widget (backend paths exist; UI minimal).
+- ✅ Frontend OTP login method shipped (`OtpAuth.tsx`, wired into AuthPage). Still
+  TODO: a step-up "enter code" widget driving `/v1/auth/otp/mfa/*` for the RFC 9470
+  re-auth flow (today step-up is satisfied by re-auth with a stronger method).
 - Pay down the ~33 legacy `TODO(par-max)`/`TODO(complexity)` disables (options objects / decompose).
 - Differentiators (items 8–9): OAuth-for-MCP bundle, Token Exchange (RFC 8693).
 - Infra debt: Prisma 7, TS 6, ESLint 10.
-- Commits are local/unpushed — pushing `main` triggers the prod deploy.
+- Released as v1.2.0; remaining dev-only `js-yaml` (jest 3.x coverage tooling) advisory accepted.
 
 ## Session goal
 

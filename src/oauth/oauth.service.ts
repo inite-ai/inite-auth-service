@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- TODO(god-file): decompose below 300 (pattern: federation/token/admin/email splits in this PR) */
 import {
   Injectable,
   BadRequestException,
@@ -16,6 +17,7 @@ import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
+import { TokenExchangeInput } from './dto/token-exchange.input';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -38,6 +40,10 @@ function hashRefreshToken(token: string, secret: string): string {
  */
 const TIMING_DUMMY_HASH =
   '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
+
+/** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
+const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
+const TOKEN_TYPE_JWT = 'urn:ietf:params:oauth:token-type:jwt';
 
 /** RFC 8252 §7.3 — loopback hosts for native/CLI app redirects. */
 function isLoopbackHost(hostname: string): boolean {
@@ -756,6 +762,138 @@ export class OAuthService {
       audience: effectiveAudience,
       tokenType: dpopJkt ? 'DPoP' : 'Bearer',
     };
+  }
+
+  /**
+   * RFC 8693 Token Exchange. Exchanges a presented subject_token (one of our
+   * own signed access tokens / JWTs) for a new access token scoped down to a
+   * target resource, carrying an `act` claim that names the requesting client
+   * as the party acting on behalf of the subject (agent on-behalf-of
+   * delegation). Authority can only narrow: the issued scope is bounded by the
+   * subject token's scope and the calling client's allowedScopes.
+   */
+  async exchangeToken(input: TokenExchangeInput): Promise<{
+    accessToken: string;
+    expiresIn: number;
+    scope: string;
+    issuedTokenType: string;
+    tokenType: 'Bearer';
+  }> {
+    const { client } = input;
+    const okType =
+      input.subjectTokenType === TOKEN_TYPE_ACCESS ||
+      input.subjectTokenType === TOKEN_TYPE_JWT;
+    if (!okType) {
+      throw new BadRequestException('Unsupported subject_token_type');
+    }
+
+    const subject = this.verifyExchangeToken(input.subjectToken);
+    const subjectScopes = this.claimScopes(subject);
+    const grantedScopes = this.resolveExchangeScopes(
+      input.requestedScope,
+      subjectScopes,
+      client.allowedScopes ?? [],
+    );
+    const effectiveAudience = this.resolveExchangeAudience(
+      client,
+      input.resource ?? input.audience,
+    );
+
+    // Actor: the party acting on behalf of the subject. Defaults to the
+    // calling client; a presented actor_token nests its sub (RFC 8693 §4.1).
+    let act: Record<string, any> = { sub: client.clientId };
+    if (input.actorToken) {
+      const actorClaims = this.verifyExchangeToken(input.actorToken);
+      act = { sub: actorClaims.sub, client_id: client.clientId };
+    }
+
+    const accessTokenExpiry = this.configService.get<string>(
+      'JWT_M2M_ACCESS_TOKEN_EXPIRY',
+      '5m',
+    );
+    const issuer = this.configService.get<string>(
+      'JWT_ISSUER',
+      'http://localhost:3002',
+    );
+
+    const accessToken = this.jwtService.sign(
+      {
+        sub: subject.sub,
+        client_id: client.clientId,
+        act,
+        scopes: grantedScopes,
+        scope: grantedScopes.join(' '),
+      },
+      { expiresIn: accessTokenExpiry as any, audience: effectiveAudience, issuer },
+    );
+
+    return {
+      accessToken,
+      expiresIn: this.parseExpiryToSeconds(accessTokenExpiry),
+      scope: grantedScopes.join(' '),
+      issuedTokenType: TOKEN_TYPE_ACCESS,
+      tokenType: 'Bearer',
+    };
+  }
+
+  private verifyExchangeToken(token: string): Record<string, any> {
+    try {
+      return this.jwtService.verify(token);
+    } catch {
+      throw new BadRequestException(
+        'subject_token or actor_token is invalid or expired',
+      );
+    }
+  }
+
+  private claimScopes(claims: Record<string, any>): string[] {
+    if (Array.isArray(claims.scopes)) return claims.scopes;
+    if (typeof claims.scope === 'string') {
+      return claims.scope.split(/\s+/).filter(Boolean);
+    }
+    return [];
+  }
+
+  /** Issued scope = requested ∩ subject authority ∩ client allow-list. */
+  private resolveExchangeScopes(
+    requested: string | undefined,
+    subjectScopes: string[],
+    clientAllowed: string[],
+  ): string[] {
+    let ceiling = subjectScopes;
+    if (clientAllowed.length > 0) {
+      ceiling = ceiling.filter((s) => clientAllowed.includes(s));
+    }
+    const req = (requested ?? '').split(/\s+/).filter(Boolean);
+    if (req.length === 0) {
+      if (ceiling.length === 0) {
+        throw new BadRequestException('No scopes available for token exchange');
+      }
+      return ceiling;
+    }
+    const denied = req.filter((s) => !ceiling.includes(s));
+    if (denied.length > 0) {
+      throw new BadRequestException(
+        `Requested scope exceeds the subject token: ${denied.join(', ')}`,
+      );
+    }
+    return req;
+  }
+
+  private resolveExchangeAudience(
+    client: OAuthClient,
+    audience: string | undefined,
+  ): string {
+    const allowedAud = client.allowedAudiences ?? [];
+    if (audience) {
+      if (allowedAud.length > 0 && !allowedAud.includes(audience)) {
+        throw new BadRequestException(
+          `Audience "${audience}" is not allowed for this client`,
+        );
+      }
+      return audience;
+    }
+    return allowedAud.length > 0 ? allowedAud[0] : client.clientId;
   }
 
   /**

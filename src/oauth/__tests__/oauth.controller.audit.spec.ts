@@ -1,14 +1,11 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { OAuthController } from '../oauth.controller';
+import { TokenController } from '../token.controller';
+import { TokenGrantService } from '../token-grant.service';
 import { OAuthService } from '../oauth.service';
-import { AuthService } from '../../auth/auth.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { MetricsService } from '../../common/metrics.service';
-import { BackchannelLogoutService } from '../backchannel-logout.service';
 import { DpopService } from '../dpop.service';
-import { ParService } from '../par.service';
 import { DeviceFlowService } from '../device-flow.service';
-import { StepUpService } from '../step-up.service';
 
 const mockMetrics = (): any => ({
   tokensIssued: { inc: jest.fn() },
@@ -25,8 +22,8 @@ const mockMetrics = (): any => ({
  * on every success + failure branch. We don't hit Prisma — the
  * audit service itself is mocked.
  */
-describe('OAuthController /oauth/token — audit log writes', () => {
-  let controller: OAuthController;
+describe('TokenController /oauth/token — audit log writes', () => {
+  let controller: TokenController;
   let oauth: any;
   let audit: jest.Mocked<Pick<OAuthAuditService, 'record'>>;
 
@@ -55,17 +52,27 @@ describe('OAuthController /oauth/token — audit log writes', () => {
       refreshAccessToken: jest.fn(),
       issueClientCredentialsToken: jest.fn(),
     };
-    const authSvc = { verifyToken: jest.fn() } as unknown as AuthService;
-    controller = new OAuthController(
+    const metrics = mockMetrics() as unknown as MetricsService;
+    const dpop = { validate: jest.fn() } as unknown as DpopService;
+    const deviceFlow = {
+      issue: jest.fn(),
+      findByUserCode: jest.fn(),
+      approve: jest.fn(),
+      deny: jest.fn(),
+      pollForApproval: jest.fn(),
+    } as unknown as DeviceFlowService;
+    const grants = new TokenGrantService(
       oauth as OAuthService,
-      authSvc,
       audit as unknown as OAuthAuditService,
-      mockMetrics() as unknown as MetricsService,
-      { fanOut: jest.fn().mockResolvedValue(0) } as unknown as BackchannelLogoutService,
-      { validate: jest.fn() } as unknown as DpopService,
-      { push: jest.fn(), consume: jest.fn() } as unknown as ParService,
-      { issue: jest.fn(), findByUserCode: jest.fn(), approve: jest.fn(), deny: jest.fn(), pollForApproval: jest.fn() } as unknown as DeviceFlowService,
-      new StepUpService(),
+      metrics,
+      dpop,
+      deviceFlow,
+    );
+    controller = new TokenController(
+      oauth as OAuthService,
+      audit as unknown as OAuthAuditService,
+      metrics,
+      grants,
     );
   });
 

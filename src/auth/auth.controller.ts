@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- TODO(god-file): decompose below 300 (pattern: federation/token/admin/email splits in this PR) */
 import {
   Controller,
   Post,

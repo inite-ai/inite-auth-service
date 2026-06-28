@@ -46,4 +46,12 @@ export interface TokenRequestBody {
   refresh_token?: string;
   scope?: string;
   audience?: string;
+  // RFC 8693 Token Exchange
+  subject_token?: string;
+  subject_token_type?: string;
+  actor_token?: string;
+  actor_token_type?: string;
+  requested_token_type?: string;
+  // RFC 8707 Resource Indicators
+  resource?: string;
 }

@@ -13,7 +13,7 @@ import globals from 'globals';
  * split the offender instead. Pre-existing violations carry a
  * grep-able `eslint-disable` + TODO so the debt is tracked, not hidden.
  *
- *   - max-lines (800)              — god-file ceiling.
+ *   - max-lines (300)              — god-file ceiling; split, don't grow.
  *   - max-lines-per-function (200) — god-function ceiling.
  *   - max-classes-per-file (1)     — one @Injectable per file (SRP).
  *   - max-params (3)               — past 3, pass a typed options object /
@@ -33,7 +33,7 @@ import globals from 'globals';
  */
 
 const sizeGates = {
-  'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
+  'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
   'max-lines-per-function': [
     'error',
     { max: 200, skipBlankLines: true, skipComments: true, IIFEs: true },

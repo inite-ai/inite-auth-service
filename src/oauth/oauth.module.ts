@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { OAuthService } from './oauth.service';
 import { OAuthController } from './oauth.controller';
+import { TokenController } from './token.controller';
+import { TokenGrantService } from './token-grant.service';
 import { PkceService } from './pkce.service';
 import { StepUpService } from './step-up.service';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
@@ -22,6 +24,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
   ],
   providers: [
     OAuthService,
+    TokenGrantService,
     PkceService,
     StepUpService,
     TokenEndpointThrottlerGuard,
@@ -32,7 +35,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     DeviceFlowService,
     SystemClientsSeeder,
   ],
-  controllers: [OAuthController],
+  controllers: [OAuthController, TokenController],
   exports: [
     OAuthService,
     StepUpService,

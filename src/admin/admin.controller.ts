@@ -8,16 +8,18 @@ import {
   Param,
   Query,
   Req,
+  Res,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AdminService } from './admin.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { resolveAdminScope, applyScopeFilter } from './admin-scope';
 import { AuditLogQuery } from './dto/audit-log-query';
+import { auditRowsToCsv } from './audit-csv';
 
 /** Pulls IP + UA off an admin request for audit-log enrichment. */
 function adminContext(req: Request): {
@@ -225,12 +227,46 @@ export class AdminController {
    */
   @Get('audit-log')
   async getAuditLog(@Query() q: AuditLogQuery, @Req() req: Request) {
+    return this.audit.list(this.buildScopedAuditFilters(q, req));
+  }
+
+  /**
+   * Bulk export of the (tenant-scoped) audit log as CSV or JSON for download.
+   * Same scoping as getAuditLog — a scoped admin can't widen visibility via
+   * ?companyId. `?format=csv` streams CSV; anything else returns JSON. The
+   * X-Export-Truncated header / `truncated` flag signals the row cap was hit.
+   */
+  @Get('audit-log/export')
+  async exportAuditLog(
+    @Query() q: AuditLogQuery,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const filters = this.buildScopedAuditFilters(q, req);
+    const { rows, truncated } = await this.audit.exportRows(filters);
+    const typedRows = rows as Array<Record<string, unknown>>;
+
+    if ((q.format ?? 'json').toLowerCase() === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
+      if (truncated) res.setHeader('X-Export-Truncated', 'true');
+      res.send(auditRowsToCsv(typedRows));
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="audit-log.json"');
+    res.json({ rows: typedRows, count: typedRows.length, truncated });
+  }
+
+  /**
+   * Resolve the operator's admin scope and translate query params into audit
+   * filters. companyId is overwritten by applyScopeFilter for scoped admins —
+   * a scoped admin cannot read another tenant's log by passing ?companyId=X.
+   */
+  private buildScopedAuditFilters(q: AuditLogQuery, req: Request) {
     const scope = resolveAdminScope((req as any).user);
     if (!scope) throw new ForbiddenException('Admin access required');
 
-    // Build filters. Note that companyId is overwritten by
-    // applyScopeFilter when the operator is scoped — a scoped admin
-    // cannot read another tenant's log by passing ?companyId=X.
     const filters: any = {
       clientId: q.clientId,
       event: q.event,
@@ -244,8 +280,7 @@ export class AdminController {
       filters.companyId = q.companyId;
     }
     applyScopeFilter(scope, filters);
-
-    return this.audit.list(filters);
+    return filters;
   }
 
   @Delete('oauth-clients/:clientId')

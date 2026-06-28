@@ -7,6 +7,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import * as signature from 'cookie-signature';
@@ -61,6 +62,9 @@ export class FederationController {
   }
 
   @Get(':provider/start')
+  // Per-IP cap on starting a federated login (cheap, but stops abuse of the
+  // redirect/state machinery). 20/min is generous for real users.
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Begin social login — redirects to the provider' })
   async start(
     @Param('provider') provider: string,
@@ -77,6 +81,9 @@ export class FederationController {
 
   // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
   @Get(':provider/callback')
+  // The provider redirect target: code exchange + a DB write. Cap per-IP so a
+  // flood of forged callbacks can't hammer the token endpoints.
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Provider redirect target — links/creates the user' })
   async callback(
     @Param('provider') provider: string,

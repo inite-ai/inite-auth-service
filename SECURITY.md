@@ -29,6 +29,28 @@ properties we know we have NOT yet bought.
 | Magic-link + password fallback | ✓ |
 | 2FA TOTP | ✓ |
 | GDPR delete cascade (user→sessions+tokens+passkeys+wallets) | ✓ |
+| Audit-log export (CSV/JSON) + signed webhook sink | ✓ |
+
+## Per-endpoint rate limits
+
+Global default is 60 req/min/IP (`ThrottlerModule`). Sensitive endpoints
+tighten this with an explicit `@Throttle` (per-IP unless noted):
+
+| Endpoint | Limit |
+|---|---|
+| `GET /v1/oauth/authorize` | 20 / min |
+| `POST /v1/oauth/token` | per-client (token-throttler.guard) + per-client_id guard |
+| `POST /v1/oauth/par` | 60 / min |
+| `POST /v1/oauth/device_authorization` | 30 / min |
+| `POST /v1/oauth/device/approve` | 10 / min |
+| `POST /v1/auth/otp/request` · `mfa/request` | 5 / min (+ email throttler guard) |
+| `POST /v1/auth/otp/verify` · `mfa/verify` | 10 / min |
+| `GET /v1/auth/oauth/:provider/{start,callback}` | 20 / min |
+| `POST /v1/auth/password/reset-request` | login-email throttler guard |
+| `GET /v1/auth/security/audit` | 20 / min |
+
+Password login additionally enforces per-account lockout with exponential
+backoff (1m → 5m → 15m → 1h → 24h) after 5 consecutive failures.
 
 ## Known limitations (SOTA gaps)
 

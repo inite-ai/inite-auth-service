@@ -13,7 +13,7 @@ import { Request } from "express";
 import { OAuthClient } from "@prisma/client";
 import { IdempotencyInterceptor } from "../common/idempotency.interceptor";
 import { TokenEndpointThrottlerGuard } from "./token-throttler.guard";
-import { OAuthService } from "./oauth.service";
+import { OAuthClientRegistryService } from "./oauth-client-registry.service";
 import { DeviceFlowService } from "./device-flow.service";
 import { OAuthAuditService } from "../audit/oauth-audit.service";
 import { MetricsService } from "../common/metrics.service";
@@ -34,7 +34,7 @@ export class TokenController {
 
   // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
-    private readonly oauthService: OAuthService,
+    private readonly clientRegistry: OAuthClientRegistryService,
     private readonly audit: OAuthAuditService,
     private readonly metrics: MetricsService,
     private readonly grants: TokenGrantService,
@@ -99,7 +99,7 @@ export class TokenController {
     grantType: string,
   ): Promise<OAuthClient> {
     try {
-      return await this.oauthService.validateClientWithSecret(
+      return await this.clientRegistry.validateClientWithSecret(
         body.client_id as string,
         body.client_secret as string,
       );
@@ -124,7 +124,7 @@ export class TokenController {
     ctx: AuditCtx,
   ): Promise<void> {
     try {
-      this.oauthService.validateGrantType(client, grantType);
+      this.clientRegistry.validateGrantType(client, grantType);
     } catch (e: any) {
       this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'unsupported_grant' });
       await this.audit.record({

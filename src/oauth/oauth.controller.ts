@@ -15,10 +15,12 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle } from '@nestjs/throttler';
-import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
 import { ClientIdThrottlerGuard } from './client-throttler.guard';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
+import { OAuthClientRegistryService } from './oauth-client-registry.service';
+import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
+import { OAuthOriginsService } from './oauth-origins.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
@@ -27,7 +29,6 @@ import { CreateCodeInput } from './dto/create-code.input';
 import {
   AuthorizeQuery,
   ResolvedAuthorizeParams,
-  TokenRequestBody,
 } from './dto/oauth-requests';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { MetricsService } from '../common/metrics.service';
@@ -36,7 +37,6 @@ import { DpopService } from './dpop.service';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { StepUpService } from './step-up.service';
-import { OAuthClient } from '@prisma/client';
 
 
 @ApiTags('oauth')
@@ -47,6 +47,9 @@ export class OAuthController {
   // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly oauthService: OAuthService,
+    private readonly clientRegistry: OAuthClientRegistryService,
+    private readonly tokenIssuer: OAuthTokenIssuerService,
+    private readonly origins: OAuthOriginsService,
     private readonly authService: AuthService,
     private readonly audit: OAuthAuditService,
     private readonly metrics: MetricsService,
@@ -80,11 +83,11 @@ export class OAuthController {
     // Order matters: validate the basics, then the client, then PKCE —
     // preserving the original error precedence.
     this.assertAuthorizeBasics(p);
-    const client = await this.oauthService.validateClient(p.clientId);
-    if (!this.oauthService.validateRedirectUri(client, p.redirectUri)) {
+    const client = await this.clientRegistry.validateClient(p.clientId);
+    if (!this.clientRegistry.validateRedirectUri(client, p.redirectUri)) {
       throw new BadRequestException('Invalid redirect_uri');
     }
-    this.oauthService.validateGrantType(client, 'authorization_code');
+    this.clientRegistry.validateGrantType(client, 'authorization_code');
     const grantedScope = this.oauthService.normalizeScope(p.scope || '');
     this.assertPkce(p);
 
@@ -323,7 +326,7 @@ export class OAuthController {
     const clientId = body.client_id;
     const clientSecret = body.client_secret;
     if (!clientId) throw new BadRequestException('client_id is required');
-    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+    await this.clientRegistry.validateClientWithSecret(clientId, clientSecret);
 
     return {
       request_uri: (
@@ -360,8 +363,8 @@ export class OAuthController {
     @Req() req: Request,
   ) {
     if (!clientId) throw new BadRequestException('client_id is required');
-    const client = await this.oauthService.validateClient(clientId);
-    this.oauthService.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
+    const client = await this.clientRegistry.validateClient(clientId);
+    this.clientRegistry.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
 
     const proto = (req.headers['x-forwarded-proto'] as string | undefined)
       ?? (req as any).protocol
@@ -458,8 +461,8 @@ export class OAuthController {
   ) {
     if (!token) throw new BadRequestException('token is required');
 
-    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
-    await this.oauthService.revokeToken(token, clientId);
+    await this.clientRegistry.validateClientWithSecret(clientId, clientSecret);
+    await this.tokenIssuer.revokeToken(token, clientId);
 
     this.logger.oauth('Token revoked', { clientId });
     return { success: true };
@@ -482,7 +485,7 @@ export class OAuthController {
   ) {
     if (!token) throw new BadRequestException('token is required');
 
-    await this.oauthService.validateClientWithSecret(clientId, clientSecret);
+    await this.clientRegistry.validateClientWithSecret(clientId, clientSecret);
 
     try {
       const payload = await this.authService.verifyToken(token);
@@ -566,7 +569,7 @@ export class OAuthController {
     if (postLogoutRedirectUri) {
       try {
         const url = new URL(postLogoutRedirectUri);
-        const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
+        const isAllowed = await this.origins.isAllowedOrigin(url.origin);
         if (isAllowed) {
           if (state) url.searchParams.set('state', state);
           return res.redirect(url.toString());
@@ -595,15 +598,15 @@ export class OAuthController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async clientInfo(@Query('client_id') clientId: string) {
     if (!clientId) throw new BadRequestException('client_id is required');
-    return await this.oauthService.getClientInfo(clientId);
+    return await this.clientRegistry.getClientInfo(clientId);
   }
 
   @Post('create-code')
   @UseGuards(JwtOrSessionGuard)
   async createCode(@Req() req: any, @Body() input: CreateCodeInput) {
-    const client = await this.oauthService.validateClient(input.clientId);
+    const client = await this.clientRegistry.validateClient(input.clientId);
 
-    if (!this.oauthService.validateRedirectUri(client, input.redirectUri)) {
+    if (!this.clientRegistry.validateRedirectUri(client, input.redirectUri)) {
       throw new BadRequestException('Invalid redirect_uri');
     }
 
@@ -667,7 +670,7 @@ export class OAuthController {
       if (redirect) {
         try {
           const url = new URL(redirect);
-          const isAllowed = await this.oauthService.isAllowedOrigin(url.origin);
+          const isAllowed = await this.origins.isAllowedOrigin(url.origin);
           if (isAllowed) return res.redirect(redirect);
         } catch { /* invalid URL, ignore redirect */ }
       }

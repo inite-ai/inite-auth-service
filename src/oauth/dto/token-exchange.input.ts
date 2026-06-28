@@ -1,6 +1,6 @@
 import { OAuthClient } from '@prisma/client';
 
-/** Input contract for OAuthService.exchangeToken (RFC 8693). */
+/** Input contract for OAuthM2mService.exchangeToken (RFC 8693). */
 export interface TokenExchangeInput {
   /** The authenticated calling client (the actor / requesting party). */
   client: OAuthClient;

@@ -3,6 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { OAuthService } from '../oauth.service';
+import { OAuthClientRegistryService } from '../oauth-client-registry.service';
+import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
+import { OAuthM2mService } from '../oauth-m2m.service';
+import { OAuthOriginsService } from '../oauth-origins.service';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
 import { EmailService } from '../../email/email.service';
@@ -11,6 +15,12 @@ import { OAuthClient } from '@prisma/client';
 
 describe('OAuthService', () => {
   let service: OAuthService;
+  let clientRegistry: OAuthClientRegistryService;
+  let tokenIssuer: OAuthTokenIssuerService;
+  let m2m: OAuthM2mService;
+  let origins: OAuthOriginsService;
+  let jwt: any;
+  let config: any;
   let mockPrisma: any;
 
   const mockClient: Partial<OAuthClient> = {
@@ -57,6 +67,10 @@ describe('OAuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OAuthService,
+        OAuthClientRegistryService,
+        OAuthTokenIssuerService,
+        OAuthM2mService,
+        OAuthOriginsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
@@ -70,23 +84,29 @@ describe('OAuthService', () => {
     }).compile();
 
     service = module.get<OAuthService>(OAuthService);
+    clientRegistry = module.get<OAuthClientRegistryService>(OAuthClientRegistryService);
+    tokenIssuer = module.get<OAuthTokenIssuerService>(OAuthTokenIssuerService);
+    m2m = module.get<OAuthM2mService>(OAuthM2mService);
+    origins = module.get<OAuthOriginsService>(OAuthOriginsService);
+    jwt = module.get<JwtService>(JwtService);
+    config = module.get<ConfigService>(ConfigService);
   });
 
   describe('validateClient', () => {
     it('should return client when valid clientId', async () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue(mockClient);
-      const result = await service.validateClient('test-app');
+      const result = await clientRegistry.validateClient('test-app');
       expect(result.clientId).toBe('test-app');
     });
 
     it('should throw when client not found', async () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue(null);
-      await expect(service.validateClient('nonexistent')).rejects.toThrow('Invalid client');
+      await expect(clientRegistry.validateClient('nonexistent')).rejects.toThrow('Invalid client');
     });
 
     it('should throw when client_secret is wrong', async () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue(mockClient);
-      await expect(service.validateClient('test-app', 'wrong-secret')).rejects.toThrow();
+      await expect(clientRegistry.validateClient('test-app', 'wrong-secret')).rejects.toThrow();
     });
   });
 
@@ -96,7 +116,7 @@ describe('OAuthService', () => {
         ...mockClient,
         isPublic: false,
       } as any);
-      await expect(service.validateClientWithSecret('test-app', '')).rejects.toThrow(
+      await expect(clientRegistry.validateClientWithSecret('test-app', '')).rejects.toThrow(
         'client_secret is required',
       );
     });
@@ -106,7 +126,7 @@ describe('OAuthService', () => {
         ...mockClient,
         isPublic: true,
       } as any);
-      const result = await service.validateClientWithSecret('test-app', '');
+      const result = await clientRegistry.validateClientWithSecret('test-app', '');
       expect(result).toBeDefined();
       expect((result as any).isPublic).toBe(true);
     });
@@ -114,11 +134,11 @@ describe('OAuthService', () => {
 
   describe('validateRedirectUri', () => {
     it('should return true for registered URI', () => {
-      expect(service.validateRedirectUri(mockClient as OAuthClient, 'https://app.example.com/callback')).toBe(true);
+      expect(clientRegistry.validateRedirectUri(mockClient as OAuthClient, 'https://app.example.com/callback')).toBe(true);
     });
 
     it('should return false for unregistered URI', () => {
-      expect(service.validateRedirectUri(mockClient as OAuthClient, 'https://evil.com/callback')).toBe(false);
+      expect(clientRegistry.validateRedirectUri(mockClient as OAuthClient, 'https://evil.com/callback')).toBe(false);
     });
 
     it('should ignore port for loopback redirects when 127.0.0.1 registered', () => {
@@ -126,10 +146,10 @@ describe('OAuthService', () => {
         redirectUris: ['http://127.0.0.1/callback'],
       };
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:54321/callback'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:54321/callback'),
       ).toBe(true);
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1/callback'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1/callback'),
       ).toBe(true);
     });
 
@@ -138,7 +158,7 @@ describe('OAuthService', () => {
         redirectUris: ['http://localhost/callback'],
       };
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'http://localhost:9999/callback'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'http://localhost:9999/callback'),
       ).toBe(true);
     });
 
@@ -147,7 +167,7 @@ describe('OAuthService', () => {
         redirectUris: ['https://app.example.com/callback'],
       };
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'https://app.example.com:8443/callback'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'https://app.example.com:8443/callback'),
       ).toBe(false);
     });
 
@@ -156,7 +176,7 @@ describe('OAuthService', () => {
         redirectUris: ['http://127.0.0.1/callback'],
       };
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1234/other'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'http://127.0.0.1:1234/other'),
       ).toBe(false);
     });
 
@@ -165,18 +185,18 @@ describe('OAuthService', () => {
         redirectUris: ['http://127.0.0.1/callback'],
       };
       expect(
-        service.validateRedirectUri(cli as OAuthClient, 'https://127.0.0.1:1234/callback'),
+        clientRegistry.validateRedirectUri(cli as OAuthClient, 'https://127.0.0.1:1234/callback'),
       ).toBe(false);
     });
   });
 
   describe('validateGrantType', () => {
     it('should not throw for allowed grant type', () => {
-      expect(() => service.validateGrantType(mockClient as OAuthClient, 'authorization_code')).not.toThrow();
+      expect(() => clientRegistry.validateGrantType(mockClient as OAuthClient, 'authorization_code')).not.toThrow();
     });
 
     it('should throw for disallowed grant type', () => {
-      expect(() => service.validateGrantType(mockClient as OAuthClient, 'client_credentials')).toThrow(
+      expect(() => clientRegistry.validateGrantType(mockClient as OAuthClient, 'client_credentials')).toThrow(
         'not allowed',
       );
     });
@@ -197,10 +217,9 @@ describe('OAuthService', () => {
 
     it('issues a token signed with sub=companyId when set', async () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
-      const jwt = (service as any).jwtService;
       jwt.sign = signSpy;
 
-      const result = await service.issueClientCredentialsToken(
+      const result = await m2m.issueClientCredentialsToken(
         m2mClient as OAuthClient,
         'brain:read brain:write brain:admin',
         'brain',
@@ -220,9 +239,9 @@ describe('OAuthService', () => {
 
     it('falls back to clientId as sub when companyId is unset', async () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
-      (service as any).jwtService.sign = signSpy;
+      jwt.sign = signSpy;
 
-      await service.issueClientCredentialsToken(
+      await m2m.issueClientCredentialsToken(
         { ...m2mClient, companyId: null } as OAuthClient,
         'brain:read',
         undefined,
@@ -234,9 +253,9 @@ describe('OAuthService', () => {
 
     it('grants ALL allowed scopes when none are explicitly requested', async () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
-      (service as any).jwtService.sign = signSpy;
+      jwt.sign = signSpy;
 
-      const result = await service.issueClientCredentialsToken(
+      const result = await m2m.issueClientCredentialsToken(
         m2mClient as OAuthClient,
         undefined,
         'brain',
@@ -247,7 +266,7 @@ describe('OAuthService', () => {
 
     it('rejects when the requested scope is not in allowedScopes', async () => {
       await expect(
-        service.issueClientCredentialsToken(
+        m2m.issueClientCredentialsToken(
           m2mClient as OAuthClient,
           'brain:admin admin',
           'brain',
@@ -257,7 +276,7 @@ describe('OAuthService', () => {
 
     it('rejects when the client has no scopes at all', async () => {
       await expect(
-        service.issueClientCredentialsToken(
+        m2m.issueClientCredentialsToken(
           { ...m2mClient, allowedScopes: [] } as OAuthClient,
           undefined,
           'brain',
@@ -268,9 +287,9 @@ describe('OAuthService', () => {
     describe('audience binding', () => {
       it('rejects audience not in allowedAudiences', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
-        (service as any).jwtService.sign = signSpy;
+        jwt.sign = signSpy;
         await expect(
-          service.issueClientCredentialsToken(
+          m2m.issueClientCredentialsToken(
             { ...m2mClient, allowedAudiences: ['brain'] } as OAuthClient,
             undefined,
             'admin-panel',
@@ -281,8 +300,8 @@ describe('OAuthService', () => {
 
       it('accepts audience present in allowedAudiences', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
-        (service as any).jwtService.sign = signSpy;
-        const result = await service.issueClientCredentialsToken(
+        jwt.sign = signSpy;
+        const result = await m2m.issueClientCredentialsToken(
           { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
           undefined,
           'inbox',
@@ -294,8 +313,8 @@ describe('OAuthService', () => {
 
       it('defaults to first allowedAudience when none requested', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
-        (service as any).jwtService.sign = signSpy;
-        const result = await service.issueClientCredentialsToken(
+        jwt.sign = signSpy;
+        const result = await m2m.issueClientCredentialsToken(
           { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
           undefined,
           undefined,
@@ -305,8 +324,8 @@ describe('OAuthService', () => {
 
       it('falls back to clientId as audience when allowList empty and none requested', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
-        (service as any).jwtService.sign = signSpy;
-        const result = await service.issueClientCredentialsToken(
+        jwt.sign = signSpy;
+        const result = await m2m.issueClientCredentialsToken(
           { ...m2mClient, allowedAudiences: [] } as OAuthClient,
           undefined,
           undefined,
@@ -378,7 +397,7 @@ describe('OAuthService', () => {
 
   describe('nonce in id_token', () => {
     const setHmacSecret = () => {
-      (service as any).configService.get = jest.fn((key: string) => {
+      config.get = jest.fn((key: string) => {
         if (key === 'REFRESH_TOKEN_HMAC_SECRET') return 'test-secret';
         if (key === 'JWT_SECRET') return 'test-secret';
         return '';
@@ -387,12 +406,12 @@ describe('OAuthService', () => {
 
     it('embeds nonce in id_token claims when present on the auth code', async () => {
       const signSpy = jest.fn().mockReturnValue('jwt');
-      (service as any).jwtService.sign = signSpy;
+      jwt.sign = signSpy;
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
       const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
-      await (service as any).generateTokens(user, 'test-app', 'openid', undefined, 'nonce-value');
+      await tokenIssuer.generateTokens(user, 'test-app', 'openid', undefined, 'nonce-value');
 
       // First sign call = access_token (no nonce). Second = id_token (with nonce).
       const accessClaims = signSpy.mock.calls[0][0];
@@ -403,12 +422,12 @@ describe('OAuthService', () => {
 
     it('omits nonce from id_token when not provided (back-compat)', async () => {
       const signSpy = jest.fn().mockReturnValue('jwt');
-      (service as any).jwtService.sign = signSpy;
+      jwt.sign = signSpy;
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
       const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
-      await (service as any).generateTokens(user, 'test-app', 'openid');
+      await tokenIssuer.generateTokens(user, 'test-app', 'openid');
 
       const idClaims = signSpy.mock.calls[1][0];
       expect('nonce' in idClaims).toBe(false);
@@ -431,7 +450,7 @@ describe('OAuthService', () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue(
         await buildClient('current-secret'),
       );
-      const result = await service.validateClient('test-app', 'current-secret');
+      const result = await clientRegistry.validateClient('test-app', 'current-secret');
       expect(result.clientId).toBe('test-app');
     });
 
@@ -441,7 +460,7 @@ describe('OAuthService', () => {
         await buildClient('current-secret', 'old-secret', future),
       );
 
-      const result = await service.validateClient('test-app', 'old-secret');
+      const result = await clientRegistry.validateClient('test-app', 'old-secret');
       expect(result.clientId).toBe('test-app');
     });
 
@@ -452,7 +471,7 @@ describe('OAuthService', () => {
       );
 
       await expect(
-        service.validateClient('test-app', 'old-secret'),
+        clientRegistry.validateClient('test-app', 'old-secret'),
       ).rejects.toThrow('Invalid client credentials');
     });
 
@@ -463,7 +482,7 @@ describe('OAuthService', () => {
       );
 
       await expect(
-        service.validateClient('test-app', 'random-junk'),
+        clientRegistry.validateClient('test-app', 'random-junk'),
       ).rejects.toThrow('Invalid client credentials');
     });
   });
@@ -475,10 +494,10 @@ describe('OAuthService', () => {
         { redirectUris: ['https://app3.com/callback'] },
       ]);
 
-      const origins = await service.getAllowedOrigins();
-      expect(origins.has('https://app1.com')).toBe(true);
-      expect(origins.has('https://app2.com')).toBe(true);
-      expect(origins.has('https://app3.com')).toBe(true);
+      const result = await origins.getAllowedOrigins();
+      expect(result.has('https://app1.com')).toBe(true);
+      expect(result.has('https://app2.com')).toBe(true);
+      expect(result.has('https://app3.com')).toBe(true);
     });
 
     it('should use cache on subsequent calls', async () => {
@@ -486,8 +505,8 @@ describe('OAuthService', () => {
         { redirectUris: ['https://app.com/callback'] },
       ]);
 
-      await service.getAllowedOrigins();
-      await service.getAllowedOrigins();
+      await origins.getAllowedOrigins();
+      await origins.getAllowedOrigins();
 
       expect(mockPrisma.oAuthClient.findMany).toHaveBeenCalledTimes(1);
     });
@@ -499,7 +518,7 @@ describe('OAuthService', () => {
         { redirectUris: ['https://app.com/callback'] },
       ]);
 
-      expect(await service.isAllowedOrigin('https://app.com')).toBe(true);
+      expect(await origins.isAllowedOrigin('https://app.com')).toBe(true);
     });
 
     it('should return false for unknown origin', async () => {
@@ -507,7 +526,7 @@ describe('OAuthService', () => {
         { redirectUris: ['https://app.com/callback'] },
       ]);
 
-      expect(await service.isAllowedOrigin('https://evil.com')).toBe(false);
+      expect(await origins.isAllowedOrigin('https://evil.com')).toBe(false);
     });
   });
 });

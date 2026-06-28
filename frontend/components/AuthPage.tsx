@@ -8,6 +8,7 @@ import {
   Mail,
   Lock,
   KeyRound,
+  Wallet,
   ChevronRight,
   Loader2,
   ArrowLeft,
@@ -16,13 +17,14 @@ import PasskeyAuth from '@/components/PasskeyAuth'
 import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
 import OtpAuth from '@/components/OtpAuth'
+import WalletAuth from '@/components/WalletAuth'
 import SocialLogin from '@/components/SocialLogin'
 import { AppHeader } from '@/components/AppHeader'
 import { authStorage } from '@/lib/authStorage'
 import { buildConsentUrl, isOAuthFlow, OAuthParams } from '@/lib/oauthHelpers'
 import { useT } from '@/lib/i18n'
 
-type AuthMethod = 'passkey' | 'magic-link' | 'password' | 'otp'
+type AuthMethod = 'passkey' | 'magic-link' | 'password' | 'otp' | 'wallet'
 type AuthVariant = 'login' | 'register'
 
 interface AuthPageProps {
@@ -200,6 +202,12 @@ export default function AuthPage({ variant }: AuthPageProps) {
       description: t('auth.method.password.hint'),
       icon: Lock,
     },
+    {
+      id: 'wallet',
+      name: 'Ethereum wallet',
+      description: 'Sign in with your Web3 wallet',
+      icon: Wallet,
+    },
   ]
 
   if (checkingAuth) return <AuthPageFallback />
@@ -328,6 +336,9 @@ export default function AuthPage({ variant }: AuthPageProps) {
               <MagicLinkAuth oauthParams={oauthParams} />
             )}
             {selectedMethod === 'otp' && <OtpAuth oauthParams={oauthParams} />}
+            {selectedMethod === 'wallet' && (
+              <WalletAuth oauthParams={oauthParams} />
+            )}
             {selectedMethod === 'password' && (
               <PasswordAuth
                 oauthParams={oauthParams}

@@ -68,40 +68,11 @@ export class OAuthAuditService {
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async record(input: AuditEventInput): Promise<void> {
     try {
       const companyId = await this.resolveCompanyId(input);
-      // Auto-attach correlation ID to audit metadata so an audit row
-      // can be cross-referenced with the corresponding log lines.
-      const requestId = requestContext.getRequestId();
-      const metadata =
-        requestId
-          ? { ...(input.metadata ?? {}), requestId }
-          : input.metadata ?? null;
-
-      const row = await this.prisma.oAuthAuditLog.create({
-        data: {
-          event: input.event,
-          clientId: input.clientId ?? null,
-          companyId,
-          sub: input.sub ?? null,
-          scopes: input.scopes ?? [],
-          audience: input.audience ?? null,
-          ip: input.ip ?? null,
-          userAgent: input.userAgent ?? null,
-          success: input.success,
-          errorMessage: input.errorMessage ?? null,
-          metadata: (metadata as any) ?? null,
-        },
-      });
-
-      // Fan out to the optional webhook sink. Fire-and-forget — deliver()
-      // never throws, and we don't await so a slow receiver can't tail-latency
-      // the audited request.
-      if (this.webhook?.enabled) {
-        void this.webhook.deliver(row as unknown as Record<string, unknown>);
-      }
+      const metadata = this.buildMetadata(input);
+      await this.persistAndFanOut(input, companyId, metadata);
     } catch (e: any) {
       // Audit log write failures must NEVER tail-latency the OAuth
       // flow — log and move on. Operators monitoring this log line
@@ -110,6 +81,48 @@ export class OAuthAuditService {
       this.logger.warn(
         `audit log write failed [${input.event}]: ${e?.message ?? 'unknown'}`,
       );
+    }
+  }
+
+  /**
+   * Auto-attach correlation ID to audit metadata so an audit row can be
+   * cross-referenced with the corresponding log lines.
+   */
+  private buildMetadata(
+    input: AuditEventInput,
+  ): Record<string, unknown> | null {
+    const requestId = requestContext.getRequestId();
+    return requestId
+      ? { ...(input.metadata ?? {}), requestId }
+      : input.metadata ?? null;
+  }
+
+  private async persistAndFanOut(
+    input: AuditEventInput,
+    companyId: string | null,
+    metadata: Record<string, unknown> | null,
+  ): Promise<void> {
+    const row = await this.prisma.oAuthAuditLog.create({
+      data: {
+        event: input.event,
+        clientId: input.clientId ?? null,
+        companyId,
+        sub: input.sub ?? null,
+        scopes: input.scopes ?? [],
+        audience: input.audience ?? null,
+        ip: input.ip ?? null,
+        userAgent: input.userAgent ?? null,
+        success: input.success,
+        errorMessage: input.errorMessage ?? null,
+        metadata: (metadata as any) ?? null,
+      },
+    });
+
+    // Fan out to the optional webhook sink. Fire-and-forget — deliver()
+    // never throws, and we don't await so a slow receiver can't tail-latency
+    // the audited request.
+    if (this.webhook?.enabled) {
+      void this.webhook.deliver(row as unknown as Record<string, unknown>);
     }
   }
 

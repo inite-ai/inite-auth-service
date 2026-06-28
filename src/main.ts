@@ -185,8 +185,11 @@ async function bootstrap() {
       const setCookie = res.getHeader('Set-Cookie');
       // Only log auth/oauth requests
       if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
-        logger.request(req.method, req.path, res.statusCode, {
-          hasCookie: !!setCookie,
+        logger.request({
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          data: { hasCookie: !!setCookie },
         });
       }
       return originalEnd.apply(this, args);

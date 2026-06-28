@@ -8,6 +8,13 @@ import { TokenExchangeInput } from './dto/token-exchange.input';
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
 const TOKEN_TYPE_JWT = 'urn:ietf:params:oauth:token-type:jwt';
 
+export interface ClientCredentialsTokenInput {
+  client: OAuthClient;
+  requestedScope?: string;
+  audience?: string;
+  dpopJkt?: string;
+}
+
 @Injectable()
 export class OAuthM2mService {
   constructor(
@@ -37,12 +44,8 @@ export class OAuthM2mService {
    * stateless by RFC; the caller re-fetches when the access token
    * nears expiry (see @inite/auth/machineToken for the SDK helper).
    */
-  // eslint-disable-next-line max-params, complexity -- TODO(par-max): options object; TODO(complexity): decompose
   async issueClientCredentialsToken(
-    client: OAuthClient,
-    requestedScope: string | undefined,
-    audience: string | undefined,
-    dpopJkt?: string,
+    input: ClientCredentialsTokenInput,
   ): Promise<{
     accessToken: string;
     expiresIn: number;
@@ -50,44 +53,17 @@ export class OAuthM2mService {
     audience: string;
     tokenType: 'Bearer' | 'DPoP';
   }> {
-    const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
-    const allowed = client.allowedScopes ?? [];
-    const grantedScopes =
-      requested.length === 0
-        ? allowed.slice()
-        : requested.filter((s) => allowed.includes(s));
-
-    if (requested.length > 0 && grantedScopes.length !== requested.length) {
-      const denied = requested.filter((s) => !allowed.includes(s));
-      throw new BadRequestException(
-        `Scope(s) not allowed for this client: ${denied.join(', ')}`,
-      );
-    }
-
-    if (grantedScopes.length === 0) {
-      throw new BadRequestException(
-        'No scopes available for this client_credentials grant',
-      );
-    }
+    const { client, requestedScope, audience, dpopJkt } = input;
+    const grantedScopes = this.resolveClientCredentialsScopes(
+      client,
+      requestedScope,
+    );
 
     // Audience binding — when the client has an explicit
     // allowedAudiences list, any requested audience must be in it.
     // Empty allow-list falls back to the legacy behaviour of using
     // clientId as the audience.
-    const allowedAud = client.allowedAudiences ?? [];
-    let effectiveAudience: string;
-    if (audience) {
-      if (allowedAud.length > 0 && !allowedAud.includes(audience)) {
-        throw new BadRequestException(
-          `Audience "${audience}" is not allowed for this client`,
-        );
-      }
-      effectiveAudience = audience;
-    } else if (allowedAud.length > 0) {
-      effectiveAudience = allowedAud[0];
-    } else {
-      effectiveAudience = client.clientId;
-    }
+    const effectiveAudience = this.resolveExchangeAudience(client, audience);
 
     const sub = client.companyId ?? client.clientId;
     // M2M tokens use a shorter TTL than user-flow tokens so a
@@ -202,6 +178,38 @@ export class OAuthM2mService {
       issuedTokenType: TOKEN_TYPE_ACCESS,
       tokenType: 'Bearer',
     };
+  }
+
+  /**
+   * Resolve the granted scopes for a client_credentials grant: an empty
+   * request defaults to ALL allowed scopes, otherwise every requested
+   * scope must be in the client's allow-list.
+   */
+  private resolveClientCredentialsScopes(
+    client: OAuthClient,
+    requestedScope: string | undefined,
+  ): string[] {
+    const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
+    const allowed = client.allowedScopes ?? [];
+    const grantedScopes =
+      requested.length === 0
+        ? allowed.slice()
+        : requested.filter((s) => allowed.includes(s));
+
+    if (requested.length > 0 && grantedScopes.length !== requested.length) {
+      const denied = requested.filter((s) => !allowed.includes(s));
+      throw new BadRequestException(
+        `Scope(s) not allowed for this client: ${denied.join(', ')}`,
+      );
+    }
+
+    if (grantedScopes.length === 0) {
+      throw new BadRequestException(
+        'No scopes available for this client_credentials grant',
+      );
+    }
+
+    return grantedScopes;
   }
 
   private verifyExchangeToken(token: string): Record<string, any> {

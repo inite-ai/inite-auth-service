@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.4.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.3.0...inite-auth-service-v1.4.0) (2026-06-28)
+
+
+### Features
+
+* Token Exchange (RFC 8693) + max-lines:300 gate + god-file splits ([#49](https://github.com/inite-ai/inite-auth-service/issues/49)) ([2413ab8](https://github.com/inite-ai/inite-auth-service/commit/2413ab83308b1548ee9d0a5697b8c54416cd79a7))
+
 ## [1.3.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.2.0...inite-auth-service-v1.3.0) (2026-06-28)
 
 

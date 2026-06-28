@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.2.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.1.0...inite-auth-service-v1.2.0) (2026-06-28)
+
+
+### Features
+
+* P0 SOTA floor — federation, OTP, step-up, audit export + strict gates + dep-security patches ([#44](https://github.com/inite-ai/inite-auth-service/issues/44)) ([5fe9e12](https://github.com/inite-ai/inite-auth-service/commit/5fe9e125042524eae0fae0229e993e3c31367495))
+
+
+### Bug Fixes
+
+* **ci:** run gitleaks via CLI and make dependabot titles conventional ([a648b54](https://github.com/inite-ai/inite-auth-service/commit/a648b54dcea8710291f1a3ff5a981b872cb4a316))
+
 ## [1.1.0] — 2026-05-20
 
 ### Added

@@ -110,5 +110,18 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.62.0"
+  },
+  "comments": {
+    "overrides": "Pin patched versions of transitive deps flagged by Dependabot (mostly build/test tooling). Patch-level bumps only — no API-breaking majors. picomatch is scoped under micromatch to keep the 2.x line patched without disturbing 4.x consumers."
+  },
+  "overrides": {
+    "multer": "^2.2.0",
+    "form-data": "^4.0.6",
+    "fast-uri": "^3.1.2",
+    "flatted": "^3.4.2",
+    "@babel/core": "^7.29.6",
+    "micromatch": {
+      "picomatch": "^2.3.2"
+    }
   }
 }

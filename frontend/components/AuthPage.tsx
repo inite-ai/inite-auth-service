@@ -7,6 +7,7 @@ import {
   Fingerprint,
   Mail,
   Lock,
+  KeyRound,
   ChevronRight,
   Loader2,
   ArrowLeft,
@@ -14,13 +15,14 @@ import {
 import PasskeyAuth from '@/components/PasskeyAuth'
 import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
+import OtpAuth from '@/components/OtpAuth'
 import SocialLogin from '@/components/SocialLogin'
 import { AppHeader } from '@/components/AppHeader'
 import { authStorage } from '@/lib/authStorage'
 import { buildConsentUrl, isOAuthFlow, OAuthParams } from '@/lib/oauthHelpers'
 import { useT } from '@/lib/i18n'
 
-type AuthMethod = 'passkey' | 'magic-link' | 'password'
+type AuthMethod = 'passkey' | 'magic-link' | 'password' | 'otp'
 type AuthVariant = 'login' | 'register'
 
 interface AuthPageProps {
@@ -187,6 +189,12 @@ export default function AuthPage({ variant }: AuthPageProps) {
       icon: Mail,
     },
     {
+      id: 'otp',
+      name: 'Email code',
+      description: 'Get a 6-digit one-time code by email',
+      icon: KeyRound,
+    },
+    {
       id: 'password',
       name: t('auth.method.password'),
       description: t('auth.method.password.hint'),
@@ -319,6 +327,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
             {selectedMethod === 'magic-link' && (
               <MagicLinkAuth oauthParams={oauthParams} />
             )}
+            {selectedMethod === 'otp' && <OtpAuth oauthParams={oauthParams} />}
             {selectedMethod === 'password' && (
               <PasswordAuth
                 oauthParams={oauthParams}

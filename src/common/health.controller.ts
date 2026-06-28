@@ -8,6 +8,7 @@ import { MetricsService } from './metrics.service';
 
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly configService: ConfigService,
     private readonly jwksService: JwksService,

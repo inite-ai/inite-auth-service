@@ -2,6 +2,8 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { requestContext } from '../common/request-context';
 import { MetricsService } from '../common/metrics.service';
+import { AuditWebhookService } from './audit-webhook.service';
+import { AuditQueryFilters } from './contracts/audit-query-filters';
 
 /**
  * Durable audit trail for OAuth + client-lifecycle events.
@@ -57,12 +59,16 @@ export class OAuthAuditService {
     { companyId: string | null; cachedAt: number }
   >();
   private static readonly COMPANY_CACHE_TTL_MS = 60_000;
+  /** Hard cap on a single bulk export (guards against unbounded result sets). */
+  private static readonly MAX_EXPORT_ROWS = 50_000;
 
   constructor(
     private readonly prisma: PrismaService,
+    @Optional() private readonly webhook?: AuditWebhookService,
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async record(input: AuditEventInput): Promise<void> {
     try {
       const companyId = await this.resolveCompanyId(input);
@@ -74,7 +80,7 @@ export class OAuthAuditService {
           ? { ...(input.metadata ?? {}), requestId }
           : input.metadata ?? null;
 
-      await this.prisma.oAuthAuditLog.create({
+      const row = await this.prisma.oAuthAuditLog.create({
         data: {
           event: input.event,
           clientId: input.clientId ?? null,
@@ -89,6 +95,13 @@ export class OAuthAuditService {
           metadata: (metadata as any) ?? null,
         },
       });
+
+      // Fan out to the optional webhook sink. Fire-and-forget — deliver()
+      // never throws, and we don't await so a slow receiver can't tail-latency
+      // the audited request.
+      if (this.webhook?.enabled) {
+        void this.webhook.deliver(row as unknown as Record<string, unknown>);
+      }
     } catch (e: any) {
       // Audit log write failures must NEVER tail-latency the OAuth
       // flow — log and move on. Operators monitoring this log line
@@ -199,19 +212,9 @@ export class OAuthAuditService {
     };
   }
 
-  async list(filters: {
-    companyId?: string;
-    clientId?: string;
-    event?: string;
-    success?: boolean;
-    since?: Date;
-    until?: Date;
-    page?: number;
-    limit?: number;
-  }) {
-    const page = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
-
+  /** Translate the public filter shape into a Prisma `where`. Shared by
+   *  list() and exportRows() so the scoping rules can't drift apart. */
+  private buildWhere(filters: AuditQueryFilters): Record<string, unknown> {
     const where: any = {};
     if (filters.companyId !== undefined) where.companyId = filters.companyId;
     if (filters.clientId) where.clientId = filters.clientId;
@@ -222,6 +225,13 @@ export class OAuthAuditService {
       if (filters.since) where.ts.gte = filters.since;
       if (filters.until) where.ts.lte = filters.until;
     }
+    return where;
+  }
+
+  async list(filters: AuditQueryFilters) {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const where = this.buildWhere(filters);
 
     const [rows, total] = await Promise.all([
       this.prisma.oAuthAuditLog.findMany({
@@ -241,6 +251,29 @@ export class OAuthAuditService {
         total,
         pages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  /**
+   * Bulk export of audit rows for the given (already scope-applied) filters.
+   * Returns up to MAX_EXPORT_ROWS most-recent rows in one shot — no pagination
+   * — for CSV/JSON download. The cap is a guardrail against unbounded result
+   * sets; `truncated` tells the caller whether more rows matched.
+   */
+  async exportRows(filters: AuditQueryFilters): Promise<{
+    rows: unknown[];
+    truncated: boolean;
+  }> {
+    const where = this.buildWhere(filters);
+    const rows = await this.prisma.oAuthAuditLog.findMany({
+      where,
+      orderBy: { ts: 'desc' },
+      take: OAuthAuditService.MAX_EXPORT_ROWS + 1,
+    });
+    const truncated = rows.length > OAuthAuditService.MAX_EXPORT_ROWS;
+    return {
+      rows: truncated ? rows.slice(0, OAuthAuditService.MAX_EXPORT_ROWS) : rows,
+      truncated,
     };
   }
 }

@@ -9,6 +9,7 @@ import {
   Response,
   Res,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Response as ExpressResponse } from 'express';
@@ -21,11 +22,13 @@ import { IpFloodGuard } from './guards/ip-flood.guard';
 import { LoggerService } from '../common/logger.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 
+@ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   private readonly logger = new LoggerService();
   private readonly sessionSecret: string;
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
@@ -495,6 +498,7 @@ export class AuthController {
    *
    * Matches on user.did via the audit log's `sub` column.
    */
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
   @Get('security/audit')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } })

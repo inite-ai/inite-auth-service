@@ -14,4 +14,6 @@ export interface AuditLogQuery {
   until?: string;
   page?: string;
   limit?: string;
+  /** For the export endpoint: 'csv' | 'json' (default json). */
+  format?: string;
 }

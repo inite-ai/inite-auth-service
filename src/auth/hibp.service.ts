@@ -63,6 +63,7 @@ export class HibpService {
    * trade-off is acceptable: HIBP is supplementary defence layered
    * on top of length/complexity rules.
    */
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async breachCount(password: string): Promise<number> {
     if (!this.enabled) return 0;
     if (!password) return 0;

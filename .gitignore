@@ -49,6 +49,9 @@ hardhat-state/
 
 /generated/prisma
 
+# OpenAPI spec — generated on boot (outside production); served live at /openapi.json
+openapi.json
+
 # Keys / certificates — never commit (belt-and-suspenders; secrets go in .env)
 *.pem
 *.key

@@ -330,10 +330,14 @@ describe('OAuthService', () => {
     it('should create and save authorization code', async () => {
       mockPrisma.authorizationCode.create.mockResolvedValue({ code: 'test-code' });
 
-      const code = await service.createAuthorizationCode(
-        'user-1', 'test-app', 'https://app.example.com/callback',
-        'openid profile', 'challenge', 'S256',
-      );
+      const code = await service.createAuthorizationCode({
+        userId: 'user-1',
+        clientId: 'test-app',
+        redirectUri: 'https://app.example.com/callback',
+        scope: 'openid profile',
+        codeChallenge: 'challenge',
+        codeChallengeMethod: 'S256',
+      });
 
       expect(code).toBeTruthy();
       expect(mockPrisma.authorizationCode.create).toHaveBeenCalledWith(
@@ -354,10 +358,15 @@ describe('OAuthService', () => {
     it('persists nonce when provided (OIDC core §3.1.2.1)', async () => {
       mockPrisma.authorizationCode.create.mockResolvedValue({ code: 'test-code' });
 
-      await service.createAuthorizationCode(
-        'user-1', 'test-app', 'https://app.example.com/callback',
-        'openid profile', 'challenge', 'S256', 'n-0S6_WzA2Mj',
-      );
+      await service.createAuthorizationCode({
+        userId: 'user-1',
+        clientId: 'test-app',
+        redirectUri: 'https://app.example.com/callback',
+        scope: 'openid profile',
+        codeChallenge: 'challenge',
+        codeChallengeMethod: 'S256',
+        nonce: 'n-0S6_WzA2Mj',
+      });
 
       expect(mockPrisma.authorizationCode.create).toHaveBeenCalledWith(
         expect.objectContaining({

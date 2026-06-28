@@ -169,13 +169,28 @@ my-app-one.example.com   my-app-two.example.com   my-app-three.example.com
 - [docs/NEXT-SESSION.md](docs/NEXT-SESSION.md) — tactical, executable next-session plan
 - [CHANGELOG.md](CHANGELOG.md) — release history
 
+### API reference (OpenAPI / Swagger)
+
+The full HTTP surface is documented as an OpenAPI 3 spec, generated from the
+running server:
+
+- **Interactive docs (Swagger UI):** [`/docs`](http://localhost:3002/docs)
+- **Raw spec:** [`/openapi.json`](http://localhost:3002/openapi.json) — feed it
+  to client codegen or contract tests.
+
+Outside production the spec is also written to `openapi.json` at the repo root on
+boot (gitignored) so tooling can pick it up without a running instance.
+
 ### Key endpoints
 
 OAuth2/OIDC: `/.well-known/openid-configuration`, `/.well-known/jwks.json`,
 `/v1/oauth/{authorize,token,userinfo,revoke,introspect,par,device_authorization,logout}`.
-Auth: `/v1/auth/{passkey,email,password}/*`. Identity: `/v1/auth/identity/*`
+Auth: `/v1/auth/{passkey,email,password}/*`. OTP: `/v1/auth/otp/{request,verify}`
++ `/v1/auth/otp/mfa/{request,verify}` (email/SMS code login + step-up). Social
+login: `/v1/auth/oauth/:provider/{start,callback}`
+(Google, GitHub, generic OIDC). Identity: `/v1/auth/identity/*`
 (DID, wallets, credentials, 2FA, export/delete). Sessions: `/v1/session/*`.
-Admin: `/v1/admin/*`.
+Admin: `/v1/admin/*` (incl. `/v1/admin/audit-log/export?format=csv|json`).
 
 ## Contributing
 
@@ -188,9 +203,10 @@ npm ci && npm run build && npm test && npm run lint
 
 ## Roadmap
 
-Tracked in [ROADMAP.md](ROADMAP.md). Highlights: social-login federation, SCIM,
-SAML, OpenAPI spec + more SDKs, token exchange (RFC 8693), step-up enforcement,
-WebAuthn conditional-UI autofill, and the Prisma 7 / TypeScript 6 upgrades.
+Tracked in [ROADMAP.md](ROADMAP.md). Highlights: SCIM, SAML, more SDKs,
+token exchange (RFC 8693), and the Prisma 7 / TypeScript 6 upgrades. Recently
+shipped: social-login federation (Google/GitHub/OIDC), email/SMS OTP, step-up
+enforcement (RFC 9470), OpenAPI spec, and WebAuthn conditional-UI autofill.
 
 ## License
 

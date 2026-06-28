@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
+import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -47,6 +48,7 @@ function isLoopbackHost(hostname: string): boolean {
 export class OAuthService {
   private readonly oauthLogger = new Logger(OAuthService.name);
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -269,14 +271,7 @@ export class OAuthService {
    * an unexpected claim.
    */
   async createAuthorizationCode(
-    userId: string,
-    clientId: string,
-    redirectUri: string,
-    scope: string,
-    codeChallenge?: string,
-    codeChallengeMethod?: string,
-    nonce?: string,
-    opts: { acrValues?: string; amr?: string[] } = {},
+    input: CreateAuthorizationCodeInput,
   ): Promise<string> {
     const code = crypto.randomBytes(32).toString('base64url');
 
@@ -287,23 +282,23 @@ export class OAuthService {
     // carries the tenant scope. A separate query keeps this cheap
     // even when the caller already validated the client elsewhere.
     const clientRow = await this.prisma.oAuthClient.findUnique({
-      where: { clientId },
+      where: { clientId: input.clientId },
       select: { companyId: true },
     });
 
     await this.prisma.authorizationCode.create({
       data: {
         code,
-        userId,
-        clientId,
+        userId: input.userId,
+        clientId: input.clientId,
         companyId: clientRow?.companyId ?? null,
-        redirectUri,
-        scope,
-        codeChallenge,
-        codeChallengeMethod,
-        nonce: nonce ?? null,
-        acrValues: opts.acrValues ?? null,
-        amr: opts.amr ?? [],
+        redirectUri: input.redirectUri,
+        scope: input.scope,
+        codeChallenge: input.codeChallenge,
+        codeChallengeMethod: input.codeChallengeMethod,
+        nonce: input.nonce ?? null,
+        acrValues: input.acrValues ?? null,
+        amr: input.amr ?? [],
         expiresAt,
         used: false,
       },
@@ -324,6 +319,7 @@ export class OAuthService {
    * used, treat it as theft and revoke the entire refresh-token family
    * issued from that code's user+client (RFC 6819 §4.4.1.1).
    */
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async exchangeAuthorizationCode(
     code: string,
     clientId: string,
@@ -463,6 +459,7 @@ export class OAuthService {
    * second updateMany after) is what fixes the previous silent-corruption
    * bug — bcrypt's salted hash made the post-create lookup never match.
    */
+  // eslint-disable-next-line max-params, complexity -- TODO(par-max): options object; TODO(complexity): decompose
   async generateTokens(
     user: User,
     clientId: string,
@@ -666,6 +663,7 @@ export class OAuthService {
    * stateless by RFC; the caller re-fetches when the access token
    * nears expiry (see @inite/auth/machineToken for the SDK helper).
    */
+  // eslint-disable-next-line max-params, complexity -- TODO(par-max): options object; TODO(complexity): decompose
   async issueClientCredentialsToken(
     client: OAuthClient,
     requestedScope: string | undefined,
@@ -825,6 +823,7 @@ export class OAuthService {
   /**
    * Register OAuth client
    */
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async registerClient(
     clientId: string,
     clientSecret: string,

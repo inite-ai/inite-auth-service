@@ -188,6 +188,7 @@ export class DidService {
   /**
    * Create a Verifiable Credential
    */
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async issueVerifiableCredential(
     issuerDid: string,
     issuerPrivateKey: string,

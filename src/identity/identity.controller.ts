@@ -9,10 +9,12 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@ApiTags('identity')
 @Controller({ path: 'auth/identity', version: '1' })
 export class IdentityController {
   constructor(private readonly identityService: IdentityService) {}

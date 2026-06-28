@@ -23,6 +23,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
  */
 @Injectable()
 export class AdminGuard extends JwtAuthGuard implements CanActivate {
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isAuthenticated = await super.canActivate(context);
     if (!isAuthenticated) {

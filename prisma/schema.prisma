@@ -42,8 +42,39 @@ model User {
   authorizationCodes AuthorizationCode[]
   magicLinks         MagicLink[]
   knownDevices       UserKnownDevice[]
+  oauthIdentities    OAuthIdentity[]
 
   @@map("users")
+}
+
+/// External IdP federation link (social login). One row per
+/// (provider, providerSubject) pair, pointing at a local user. JIT-creates
+/// or links a user on first federated login; subsequent logins resolve the
+/// same user via the unique (provider, providerSubject) index. See
+/// src/auth/federation. provider is a stable slug: "google", "github", or
+/// "oidc" for the generic connector.
+model OAuthIdentity {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("userId") @db.Uuid
+  provider        String
+  /// The IdP's stable subject identifier for this user (OIDC `sub`,
+  /// GitHub numeric id, etc.). Unique per provider.
+  providerSubject String   @map("providerSubject")
+  email           String?
+  emailVerified   Boolean  @default(false) @map("emailVerified")
+  displayName     String?  @map("displayName")
+  avatarUrl       String?  @map("avatarUrl")
+  /// Non-sensitive claims snapshot from the last login (name, picture,
+  /// locale, …). Never stores provider access/refresh tokens.
+  profile         Json?
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("oauth_identities")
 }
 
 model Passkey {

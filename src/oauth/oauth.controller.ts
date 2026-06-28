@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle } from '@nestjs/throttler';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
@@ -33,6 +34,7 @@ import { BackchannelLogoutService } from './backchannel-logout.service';
 import { DpopService } from './dpop.service';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
+import { StepUpService } from './step-up.service';
 import { OAuthClient } from '@prisma/client';
 
 /** IP + UA pulled off the request, threaded into audit records. */
@@ -57,10 +59,12 @@ function clientContext(req: Request): AuditCtx {
   };
 }
 
+@ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
 export class OAuthController {
   private readonly logger = new LoggerService();
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly oauthService: OAuthService,
     private readonly authService: AuthService,
@@ -70,6 +74,7 @@ export class OAuthController {
     private readonly dpop: DpopService,
     private readonly par: ParService,
     private readonly deviceFlow: DeviceFlowService,
+    private readonly stepUp: StepUpService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -112,13 +117,28 @@ export class OAuthController {
     });
 
     if (p.prompt === 'none') {
-      return this.handleSilentSso(res, req, p, grantedScope, userId);
+      return this.handleSilentSso(res, req, { params: p, grantedScope, userId });
     }
     if (!userId) {
-      return this.redirectToLogin(res, req, p);
+      return this.redirectToLogin(res, req, { params: p });
     }
+
+    // Step-up enforcement (RFC 9470 / OIDC acr_values). If the RP asked for an
+    // assurance level the current session doesn't meet, bounce back to login
+    // for a stronger factor instead of minting a code. The step_up hint stops
+    // the SPA from silently re-using the existing (too-weak) session.
+    const amr: string[] = (req.session as any)?.amr ?? [];
+    if (!this.stepUp.isSatisfied(amr, p.acrValues)) {
+      this.logger.oauth('Step-up required: session AAL below requested acr', {
+        clientId: p.clientId,
+        userId,
+        requested: p.acrValues,
+      });
+      return this.redirectToLogin(res, req, { params: p, stepUp: true });
+    }
+
     this.logger.oauth('Redirecting to consent', { clientId: p.clientId, userId });
-    return res.redirect(this.buildClientRedirect(req, '/consent', p));
+    return res.redirect(this.buildClientRedirect(req, '/consent', { params: p }));
   }
 
   /**
@@ -126,6 +146,7 @@ export class OAuthController {
    * ignored (other than client_id, which binds the PAR consumption) and the
    * pushed values take over. Returns the normalized, camelCase params.
    */
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   private async resolveAuthorizeParams(
     q: AuthorizeQuery,
   ): Promise<ResolvedAuthorizeParams> {
@@ -201,10 +222,13 @@ export class OAuthController {
   private async handleSilentSso(
     res: Response,
     req: Request,
-    p: ResolvedAuthorizeParams,
-    grantedScope: string,
-    userId?: string,
+    ctx: {
+      params: ResolvedAuthorizeParams;
+      grantedScope: string;
+      userId?: string;
+    },
   ) {
+    const { params: p, grantedScope, userId } = ctx;
     if (!userId) {
       const errorUrl = new URL(p.redirectUri);
       errorUrl.searchParams.set('error', 'login_required');
@@ -213,19 +237,35 @@ export class OAuthController {
       return res.redirect(errorUrl.toString());
     }
 
-    const code = await this.oauthService.createAuthorizationCode(
+    const amr: string[] = (req.session as any)?.amr ?? [];
+
+    // Step-up under prompt=none can't show UI, so we can't raise assurance
+    // silently — return interaction_required per OIDC so the RP retries
+    // interactively with the same acr_values.
+    if (!this.stepUp.isSatisfied(amr, p.acrValues)) {
+      const errorUrl = new URL(p.redirectUri);
+      errorUrl.searchParams.set('error', 'interaction_required');
+      errorUrl.searchParams.set(
+        'error_description',
+        'Requested acr_values cannot be satisfied without interaction',
+      );
+      if (p.state) errorUrl.searchParams.set('state', p.state);
+      return res.redirect(errorUrl.toString());
+    }
+
+    const code = await this.oauthService.createAuthorizationCode({
       userId,
-      p.clientId,
-      p.redirectUri,
-      grantedScope,
-      p.codeChallenge!,
-      p.codeChallengeMethod || 'S256',
-      p.nonce!,
-      {
-        acrValues: p.acrValues || undefined,
-        amr: (req.session as any)?.amr ?? [],
-      },
-    );
+      clientId: p.clientId,
+      redirectUri: p.redirectUri,
+      scope: grantedScope,
+      codeChallenge: p.codeChallenge!,
+      codeChallengeMethod: p.codeChallengeMethod || 'S256',
+      nonce: p.nonce!,
+      // Persist the acr actually achieved (so the id_token reflects reality),
+      // falling back to the requested value when we have no amr to derive it.
+      acrValues: this.stepUp.achievedAcr(amr) ?? p.acrValues ?? undefined,
+      amr,
+    });
 
     this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });
     const successUrl = new URL(p.redirectUri);
@@ -234,7 +274,12 @@ export class OAuthController {
     return res.redirect(successUrl.toString());
   }
 
-  private redirectToLogin(res: Response, req: Request, p: ResolvedAuthorizeParams) {
+  private redirectToLogin(
+    res: Response,
+    req: Request,
+    ctx: { params: ResolvedAuthorizeParams; stepUp?: boolean },
+  ) {
+    const p = ctx.params;
     if (!req.session) {
       req.session = {} as any;
     }
@@ -247,16 +292,25 @@ export class OAuthController {
       codeChallengeMethod: p.codeChallengeMethod,
       nonce: p.nonce,
     };
-    this.logger.oauth('Redirecting to login', { clientId: p.clientId });
-    return res.redirect(this.buildClientRedirect(req, '/login', p));
+    this.logger.oauth('Redirecting to login', {
+      clientId: p.clientId,
+      stepUp: !!ctx.stepUp,
+    });
+    return res.redirect(
+      this.buildClientRedirect(req, '/login', {
+        params: p,
+        stepUp: ctx.stepUp,
+      }),
+    );
   }
 
   /** Build a /login or /consent redirect carrying the OAuth params forward. */
   private buildClientRedirect(
     req: Request,
     path: string,
-    p: ResolvedAuthorizeParams,
+    ctx: { params: ResolvedAuthorizeParams; stepUp?: boolean },
   ): string {
+    const p = ctx.params;
     const url = new URL(path, process.env.FRONTEND_URL || `https://${req.headers.host}`);
     url.searchParams.set('client_id', p.clientId);
     url.searchParams.set('redirect_uri', p.redirectUri);
@@ -267,6 +321,10 @@ export class OAuthController {
       url.searchParams.set('code_challenge_method', p.codeChallengeMethod);
     }
     if (p.nonce) url.searchParams.set('nonce', p.nonce);
+    // Carry acr_values so the resumed /authorize re-checks the requirement,
+    // and step_up so the SPA forces a fresh, stronger factor.
+    if (p.acrValues) url.searchParams.set('acr_values', p.acrValues);
+    if (ctx.stepUp) url.searchParams.set('step_up', '1');
     return url.toString();
   }
 
@@ -553,6 +611,7 @@ export class OAuthController {
     return this.toTokenResponse(tokens);
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   private async grantDeviceCode(
     req: Request,
     body: TokenRequestBody,
@@ -596,6 +655,7 @@ export class OAuthController {
    * tokens. Returns the SHA-256(jwk) thumbprint to bind into `cnf.jkt`, or
    * undefined when no proof is presented.
    */
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   private async resolveDpopJkt(
     req: Request,
     client: OAuthClient,
@@ -630,6 +690,7 @@ export class OAuthController {
     }
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   private async grantClientCredentials(
     req: Request,
     body: TokenRequestBody,
@@ -772,6 +833,7 @@ export class OAuthController {
   /**
    * Logout endpoint
    */
+  // eslint-disable-next-line max-params, complexity -- NestJS route handler (param decorators); TODO(complexity): decompose
   @Get('logout')
   async logout(
     @Query('post_logout_redirect_uri') postLogoutRedirectUri: string,
@@ -877,19 +939,31 @@ export class OAuthController {
 
     const grantedScope = this.oauthService.normalizeScope(input.scope || '');
 
-    const code = await this.oauthService.createAuthorizationCode(
-      req.user.userId,
-      input.clientId,
-      input.redirectUri,
-      grantedScope,
-      input.codeChallenge,
-      input.codeChallengeMethod || 'S256',
-      input.nonce,
-      {
-        acrValues: input.acrValues,
-        amr: (req.session as any)?.amr ?? [],
-      },
-    );
+    // Step-up: record the acr the session ACTUALLY achieved (from amr), not the
+    // client-requested value — an RP requiring aal2 then rejects an id_token
+    // whose acr is only aal1. When acr_values is supplied and unmet, refuse the
+    // code outright so a client can't skip the /authorize step-up gate.
+    const amr: string[] = (req.session as any)?.amr ?? [];
+    if (!this.stepUp.isSatisfied(amr, input.acrValues)) {
+      throw new UnauthorizedException({
+        error: 'insufficient_user_authentication',
+        error_description:
+          'Requested acr_values exceeds the current session assurance level',
+        acr_values: input.acrValues,
+      });
+    }
+
+    const code = await this.oauthService.createAuthorizationCode({
+      userId: req.user.userId,
+      clientId: input.clientId,
+      redirectUri: input.redirectUri,
+      scope: grantedScope,
+      codeChallenge: input.codeChallenge,
+      codeChallengeMethod: input.codeChallengeMethod || 'S256',
+      nonce: input.nonce,
+      acrValues: this.stepUp.achievedAcr(amr) ?? input.acrValues,
+      amr,
+    });
 
     this.logger.oauth('Code created', { clientId: input.clientId, userId: req.user.userId });
     return { code };
@@ -898,6 +972,7 @@ export class OAuthController {
   /**
    * Set session from JWT token (SSO helper)
    */
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
   @Get('session')
   async setSession(
     @Query('token') token: string,

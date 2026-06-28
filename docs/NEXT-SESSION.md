@@ -19,6 +19,28 @@ criteria. Strategy & full gap analysis live in ROADMAP.md.
 - **Working convention:** every push to `main` triggers the prod deploy (`deploy.yml`,
   self-hosted runner). Batch commits; expect a deploy per push.
 
+## Progress — P0 floor SHIPPED (2026-06-28)
+
+All quick wins + P0 core (items 1–7) landed, build/lint(0 errors)/223 tests green:
+- ✅ OpenAPI/Swagger at `/docs` + `/openapi.json`
+- ✅ Dockerfile node 22 + `docker compose up` one-liner (`POSTGRES_PASSWORD` in `.env.example`)
+- ✅ WebAuthn conditional-UI autofill (+ fixed a latent v13 `{optionsJSON}` bug)
+- ✅ Social login federation — Google / GitHub / generic OIDC (`src/auth/federation`, `oauth_identity`, JIT+link+collision guard)
+- ✅ Email & SMS OTP factor (login + step-up; Twilio pluggable, `src/auth/otp`)
+- ✅ Step-up enforcement RFC 9470 (`StepUpService`, acr/AAL on `/authorize` + `create-code`, resource-server challenge helper)
+- ✅ Audit export CSV/JSON + signed webhook sink + documented per-endpoint rate limits (SECURITY.md)
+
+Also: **strict ESLint gates** per review — `max-params:3`, `complexity:12`; new code
+uses options objects + one-contract-per-file; only NestJS DI ctors / route handlers
+carry documented disables; legacy carries `TODO(par-max)`/`TODO(complexity)`.
+
+**Follow-ups for next session:**
+- Frontend: dedicated OTP login method + a step-up "enter code" widget (backend paths exist; UI minimal).
+- Pay down the ~33 legacy `TODO(par-max)`/`TODO(complexity)` disables (options objects / decompose).
+- Differentiators (items 8–9): OAuth-for-MCP bundle, Token Exchange (RFC 8693).
+- Infra debt: Prisma 7, TS 6, ESLint 10.
+- Commits are local/unpushed — pushing `main` triggers the prod deploy.
+
 ## Session goal
 
 Close the **P0 credibility floor** + bank quick wins. Target order below is by

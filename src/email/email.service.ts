@@ -192,6 +192,7 @@ export class EmailService {
     }
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   private async sendTemplatedEmail(
     templateName: string,
     to: string,
@@ -254,6 +255,31 @@ export class EmailService {
       '[INITE] Your sign-in link',
       context,
     );
+  }
+
+  /**
+   * One-time passcode (OTP) email. Inline HTML rather than a Handlebars layout
+   * — the body is a single prominent code, so the template machinery would be
+   * overkill. `ttlMinutes` is surfaced so the recipient knows the window.
+   */
+  async sendOtpCode(
+    email: string,
+    code: string,
+    opts: { ttlMinutes: number; name?: string } = { ttlMinutes: 10 },
+  ): Promise<boolean> {
+    const greeting = opts.name ? `Hi ${opts.name},` : 'Hi,';
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
+        <p style="font-size:14px;color:#334155">${greeting}</p>
+        <p style="font-size:14px;color:#334155">Use this code to continue signing in to INITE:</p>
+        <div style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;padding:16px;margin:16px 0;background:#f1f5f9;border-radius:8px">${code}</div>
+        <p style="font-size:13px;color:#64748b">This code expires in ${opts.ttlMinutes} minutes. If you didn't request it, you can safely ignore this email — someone may have mistyped their address.</p>
+      </div>`;
+    return await this.sendEmail({
+      to: email,
+      subject: `[INITE] Your verification code: ${code}`,
+      html,
+    });
   }
 
   async sendNewDeviceLogin(

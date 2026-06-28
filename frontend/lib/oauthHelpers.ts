@@ -10,6 +10,8 @@ export interface OAuthParams {
   state?: string | null
   codeChallenge?: string | null
   codeChallengeMethod?: string | null
+  /** Requested authentication assurance (OIDC acr_values / step-up). */
+  acrValues?: string | null
 }
 
 /**
@@ -31,7 +33,8 @@ export function buildConsentUrl(params: OAuthParams): string {
   if (params.state) url.searchParams.set('state', params.state)
   if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
-  
+  if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
+
   return url.pathname + url.search
 }
 
@@ -47,7 +50,8 @@ export function buildLoginUrl(params: OAuthParams): string {
   if (params.state) url.searchParams.set('state', params.state)
   if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
-  
+  if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
+
   return url.pathname + url.search
 }
 
@@ -82,6 +86,7 @@ export async function createAuthorizationCode(
       state: params.state,
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
+      acrValues: params.acrValues,
     }),
   })
 
@@ -105,6 +110,7 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     state: searchParams.get('state'),
     codeChallenge: searchParams.get('code_challenge'),
     codeChallengeMethod: searchParams.get('code_challenge_method'),
+    acrValues: searchParams.get('acr_values'),
   }
 }
 

@@ -2,6 +2,9 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { TokenController } from '../token.controller';
 import { TokenGrantService } from '../token-grant.service';
 import { OAuthService } from '../oauth.service';
+import { OAuthClientRegistryService } from '../oauth-client-registry.service';
+import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
+import { OAuthM2mService } from '../oauth-m2m.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { MetricsService } from '../../common/metrics.service';
 import { DpopService } from '../dpop.service';
@@ -67,9 +70,11 @@ describe('TokenController /oauth/token — audit log writes', () => {
       metrics,
       dpop,
       deviceFlow,
+      oauth as unknown as OAuthTokenIssuerService,
+      oauth as unknown as OAuthM2mService,
     );
     controller = new TokenController(
-      oauth as OAuthService,
+      oauth as unknown as OAuthClientRegistryService,
       audit as unknown as OAuthAuditService,
       metrics,
       grants,

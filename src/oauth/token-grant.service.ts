@@ -2,6 +2,8 @@ import { Injectable, BadRequestException } from "@nestjs/common";
 import { Request } from "express";
 import { OAuthClient } from "@prisma/client";
 import { OAuthService } from "./oauth.service";
+import { OAuthTokenIssuerService } from "./oauth-token-issuer.service";
+import { OAuthM2mService } from "./oauth-m2m.service";
 import { DeviceFlowService } from "./device-flow.service";
 import { DpopService } from "./dpop.service";
 import { OAuthAuditService } from "../audit/oauth-audit.service";
@@ -26,6 +28,8 @@ export class TokenGrantService {
     private readonly metrics: MetricsService,
     private readonly dpop: DpopService,
     private readonly deviceFlow: DeviceFlowService,
+    private readonly tokenIssuer: OAuthTokenIssuerService,
+    private readonly m2m: OAuthM2mService,
   ) {
     this.logger.setContext("TokenGrantService");
   }
@@ -78,7 +82,7 @@ export class TokenGrantService {
     const clientId = body.client_id;
     if (!body.refresh_token) throw new BadRequestException('refresh_token is required');
 
-    const tokens = await this.oauthService.refreshAccessToken(
+    const tokens = await this.tokenIssuer.refreshAccessToken(
       body.refresh_token, clientId as string,
     );
 
@@ -115,7 +119,7 @@ export class TokenGrantService {
     const user = await this.oauthService.findUserById(approved.userId!);
     if (!user) throw new BadRequestException({ error: 'invalid_grant' });
 
-    const tokens = await this.oauthService.generateTokens(
+    const tokens = await this.tokenIssuer.generateTokens(
       user,
       clientId as string,
       approved.scope ?? '',
@@ -186,7 +190,7 @@ export class TokenGrantService {
 
     let tokens;
     try {
-      tokens = await this.oauthService.issueClientCredentialsToken(
+      tokens = await this.m2m.issueClientCredentialsToken(
         client,
         body.scope as string,
         body.audience as string,
@@ -265,7 +269,7 @@ export class TokenGrantService {
 
     let result;
     try {
-      result = await this.oauthService.exchangeToken({
+      result = await this.m2m.exchangeToken({
         client,
         subjectToken: body.subject_token,
         subjectTokenType: body.subject_token_type,

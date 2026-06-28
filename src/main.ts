@@ -14,7 +14,7 @@ import session from 'express-session';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
 import { AppModule } from './app.module';
-import { OAuthService } from './oauth/oauth.service';
+import { OAuthOriginsService } from './oauth/oauth-origins.service';
 import { createLogger } from './common/logger.service';
 
 // Export for use in controllers
@@ -86,7 +86,7 @@ async function bootstrap() {
   // table, mirrored from the same source CORS uses. Iframe ancestors
   // are similarly scoped via frame-ancestors so we keep clickjacking
   // resistance for non-partners.
-  const oauthForCsp = app.get(OAuthService);
+  const oauthForCsp = app.get(OAuthOriginsService);
   // Warm the cache up front so the first request doesn't get an
   // empty allowlist for one cycle.
   await oauthForCsp.getAllowedOrigins();
@@ -138,8 +138,8 @@ async function bootstrap() {
   );
 
   // Dynamic CORS — check origin against OAuth client redirect URIs on every request
-  // Reuse OAuthService for allowed origins (cached, auto-refreshes every 60s)
-  const oauthService = app.get(OAuthService);
+  // Reuse OAuthOriginsService for allowed origins (cached, auto-refreshes every 60s)
+  const oauthService = app.get(OAuthOriginsService);
   const allowedOrigins = await oauthService.getAllowedOrigins();
   logger.log(`CORS Origins: ${[...allowedOrigins].join(', ')}`);
 

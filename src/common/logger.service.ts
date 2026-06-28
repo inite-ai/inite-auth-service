@@ -57,11 +57,13 @@ export class LoggerService implements NestLoggerService {
     this.log(`🍪 [Session] ${action}`, data);
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   request(method: string, path: string, status: number, data?: LogContext) {
     const emoji = status >= 400 ? '❌' : '✅';
     this.log(`${emoji} [${method}] ${path} - ${status}`, data);
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   private print(level: LogLevel, message: string, context?: LogContext | string, trace?: string) {
     const timestamp = new Date().toISOString();
     const ctxName = typeof context === 'string' ? context : this.context;

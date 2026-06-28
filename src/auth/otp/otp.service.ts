@@ -39,6 +39,7 @@ interface OtpRecord {
 export class OtpService {
   private readonly logger = new LoggerService();
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,

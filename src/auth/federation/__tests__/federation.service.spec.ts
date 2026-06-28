@@ -1,8 +1,6 @@
 import { FederationService } from '../federation.service';
-import {
-  FederationEmailConflictError,
-  NormalizedProfile,
-} from '../federation.types';
+import { FederationEmailConflictError } from '../contracts/federation-email-conflict.error';
+import { NormalizedProfile } from '../contracts/normalized-profile';
 
 /**
  * Unit coverage for the account-linking / JIT-create logic — the security-

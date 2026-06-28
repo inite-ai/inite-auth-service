@@ -37,13 +37,18 @@ function useOAuthParams(): OAuthParams {
       state: searchParams.get('state'),
       codeChallenge: searchParams.get('code_challenge'),
       codeChallengeMethod: searchParams.get('code_challenge_method'),
+      acrValues: searchParams.get('acr_values'),
       prompt: searchParams.get('prompt'),
     }),
     [searchParams],
   )
 }
 
-function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
+function useAuthGate(
+  variant: AuthVariant,
+  oauthParams: OAuthParams,
+  stepUp: boolean,
+) {
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(true)
 
@@ -52,6 +57,13 @@ function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
 
     const checkAuth = async () => {
       try {
+        // Step-up: the RP asked for a higher assurance than the current
+        // session holds. Don't silently continue on the existing (too-weak)
+        // session — force the user to pick a stronger factor.
+        if (stepUp) {
+          if (!cancelled) setCheckingAuth(false)
+          return
+        }
         if (variant === 'register') {
           const token = authStorage.getToken()
           if (token) {
@@ -103,7 +115,7 @@ function useAuthGate(variant: AuthVariant, oauthParams: OAuthParams) {
     return () => {
       cancelled = true
     }
-  }, [variant, oauthParams, router])
+  }, [variant, oauthParams, router, stepUp])
 
   return checkingAuth
 }
@@ -140,8 +152,12 @@ export function AuthPageFallback() {
 
 export default function AuthPage({ variant }: AuthPageProps) {
   const t = useT()
+  const searchParams = useSearchParams()
   const oauthParams = useOAuthParams()
-  const checkingAuth = useAuthGate(variant, oauthParams)
+  // RP-driven step-up: /authorize bounced here with step_up=1 because the
+  // session's assurance was below the requested acr_values.
+  const stepUp = searchParams.get('step_up') === '1'
+  const checkingAuth = useAuthGate(variant, oauthParams, stepUp)
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
 
   const isRegister = variant === 'register'
@@ -203,6 +219,15 @@ export default function AuthPage({ variant }: AuthPageProps) {
                   <span className="font-mono text-[var(--text-muted)]">
                     {oauthParams.clientId}
                   </span>
+                </p>
+              )}
+              {stepUp && (
+                <p
+                  role="status"
+                  className="mt-4 text-xs text-[var(--accent)] bg-[var(--accent-faint)] border border-[color:var(--accent)]/30 rounded-md px-3 py-2"
+                >
+                  This app needs a higher security level. Please re-authenticate
+                  with a passkey or a second factor to continue.
                 </p>
               )}
             </motion.div>

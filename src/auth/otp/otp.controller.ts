@@ -73,7 +73,7 @@ export class OtpController {
       body.code,
     );
 
-    await this.establishSession(req, res, user.id, ['otp']);
+    await this.establishSession(req, res, { userId: user.id, amr: ['otp'] });
     const accessToken = this.authService.generateTokenForUser(user);
 
     res.json({
@@ -125,16 +125,15 @@ export class OtpController {
   private async establishSession(
     req: Request,
     res: Response,
-    userId: string,
-    amr: string[],
+    bind: { userId: string; amr: string[] },
   ): Promise<void> {
     const session = (req as any).session;
     if (!session) return;
     await new Promise<void>((resolve, reject) => {
       session.regenerate((err: any) => {
         if (err) return reject(err);
-        session.userId = userId;
-        session.amr = amr;
+        session.userId = bind.userId;
+        session.amr = bind.amr;
         session.save((saveErr: any) => {
           if (saveErr) return reject(saveErr);
           const signed = 's:' + signature.sign(session.id, this.sessionSecret);

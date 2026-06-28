@@ -23,6 +23,7 @@ export type AdminScope =
   | { kind: 'superadmin' }
   | { kind: 'scoped'; companyId: string };
 
+// eslint-disable-next-line complexity -- TODO(complexity): decompose this function
 export function resolveAdminScope(user: any): AdminScope | null {
   // Machine principal (M2M token) — admin-scoped service. If the
   // calling OAuth client has a companyId stamped, treat the tool as

@@ -204,9 +204,9 @@ npm ci && npm run build && npm test && npm run lint
 ## Roadmap
 
 Tracked in [ROADMAP.md](ROADMAP.md). Highlights: SCIM, SAML, more SDKs,
-token exchange (RFC 8693), email/SMS OTP, and the Prisma 7 / TypeScript 6
-upgrades. Recently shipped: social-login federation (Google/GitHub/OIDC),
-OpenAPI spec, and WebAuthn conditional-UI autofill.
+token exchange (RFC 8693), and the Prisma 7 / TypeScript 6 upgrades. Recently
+shipped: social-login federation (Google/GitHub/OIDC), email/SMS OTP, step-up
+enforcement (RFC 9470), OpenAPI spec, and WebAuthn conditional-UI autofill.
 
 ## License
 

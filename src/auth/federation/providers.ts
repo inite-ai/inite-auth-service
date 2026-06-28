@@ -1,4 +1,5 @@
-import { NormalizedProfile, TokenResponse } from './federation.types';
+import { NormalizedProfile } from './contracts/normalized-profile';
+import { TokenResponse } from './contracts/token-response';
 
 /**
  * Static provider metadata for the built-in connectors. The generic "oidc"

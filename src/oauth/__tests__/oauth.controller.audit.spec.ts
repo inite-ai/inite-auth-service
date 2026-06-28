@@ -8,6 +8,7 @@ import { BackchannelLogoutService } from '../backchannel-logout.service';
 import { DpopService } from '../dpop.service';
 import { ParService } from '../par.service';
 import { DeviceFlowService } from '../device-flow.service';
+import { StepUpService } from '../step-up.service';
 
 const mockMetrics = (): any => ({
   tokensIssued: { inc: jest.fn() },
@@ -64,6 +65,7 @@ describe('OAuthController /oauth/token — audit log writes', () => {
       { validate: jest.fn() } as unknown as DpopService,
       { push: jest.fn(), consume: jest.fn() } as unknown as ParService,
       { issue: jest.fn(), findByUserCode: jest.fn(), approve: jest.fn(), deny: jest.fn(), pollForApproval: jest.fn() } as unknown as DeviceFlowService,
+      new StepUpService(),
     );
   });
 

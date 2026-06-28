@@ -192,6 +192,7 @@ export class EmailService {
     }
   }
 
+  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   private async sendTemplatedEmail(
     templateName: string,
     to: string,

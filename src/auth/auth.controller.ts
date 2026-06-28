@@ -28,6 +28,7 @@ export class AuthController {
   private readonly logger = new LoggerService();
   private readonly sessionSecret: string;
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
@@ -497,6 +498,7 @@ export class AuthController {
    *
    * Matches on user.did via the audit log's `sub` column.
    */
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
   @Get('security/audit')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } })

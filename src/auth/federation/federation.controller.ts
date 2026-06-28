@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import * as signature from 'cookie-signature';
 import { FederationService } from './federation.service';
-import { FederationEmailConflictError } from './federation.types';
+import { FederationEmailConflictError } from './contracts/federation-email-conflict.error';
 import { LoggerService } from '../../common/logger.service';
 
 /**
@@ -75,6 +75,7 @@ export class FederationController {
     res.redirect(url);
   }
 
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
   @Get(':provider/callback')
   @ApiOperation({ summary: 'Provider redirect target — links/creates the user' })
   async callback(

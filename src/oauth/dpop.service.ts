@@ -57,6 +57,7 @@ export class DpopService {
    * Throws BadRequestException on malformed / spec violations,
    * UnauthorizedException on replay or invalid signature.
    */
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async validate(
     proof: string,
     method: string,

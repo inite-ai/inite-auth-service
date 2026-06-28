@@ -63,6 +63,7 @@ export class OAuthAuditService {
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
+  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async record(input: AuditEventInput): Promise<void> {
     try {
       const companyId = await this.resolveCompanyId(input);

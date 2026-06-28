@@ -16,8 +16,13 @@ import globals from 'globals';
  *   - max-lines (800)              — god-file ceiling.
  *   - max-lines-per-function (200) — god-function ceiling.
  *   - max-classes-per-file (1)     — one @Injectable per file (SRP).
- *   - max-params (8)               — past 8, pass a typed config object.
- *   - complexity (25)              — cyclomatic complexity per fn.
+ *   - max-params (3)               — past 3, pass a typed options object /
+ *     contract (one per file). The ONLY exceptions are framework injection
+ *     points that can't be options objects — NestJS DI constructors and
+ *     decorated route handlers (@Body/@Req/@Res/@Param/@Query) — which carry a
+ *     grep-able `eslint-disable max-params` + reason. Pre-existing service-
+ *     method violations carry a `TODO(par-max)` disable until refactored.
+ *   - complexity (12)              — cyclomatic complexity per fn.
  *   - sonarjs/cognitive-complexity (30) — readability-weighted variant.
  *   - sonarjs/no-identical-functions / no-duplicated-branches — DRY.
  *   - import/no-restricted-paths   — controllers must not import the DB
@@ -34,8 +39,8 @@ const sizeGates = {
     { max: 200, skipBlankLines: true, skipComments: true, IIFEs: true },
   ],
   'max-classes-per-file': ['error', 1],
-  'max-params': ['error', 8],
-  complexity: ['error', 25],
+  'max-params': ['error', 3],
+  complexity: ['error', 12],
   'sonarjs/cognitive-complexity': ['error', 30],
 };
 

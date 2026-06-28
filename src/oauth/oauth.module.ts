@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { OAuthService } from './oauth.service';
 import { OAuthController } from './oauth.controller';
 import { PkceService } from './pkce.service';
+import { StepUpService } from './step-up.service';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
 import { BackchannelLogoutService } from './backchannel-logout.service';
 import { DpopService } from './dpop.service';
@@ -22,6 +23,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
   providers: [
     OAuthService,
     PkceService,
+    StepUpService,
     TokenEndpointThrottlerGuard,
     ClientIdThrottlerGuard,
     BackchannelLogoutService,
@@ -33,6 +35,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
   controllers: [OAuthController],
   exports: [
     OAuthService,
+    StepUpService,
     BackchannelLogoutService,
     DpopService,
     ParService,

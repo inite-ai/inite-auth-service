@@ -26,6 +26,7 @@ export interface PaginatedResult<T> {
   };
 }
 
+// eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
 export function paginate<T>(
   data: T[],
   total: number,

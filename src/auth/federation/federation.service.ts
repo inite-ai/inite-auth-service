@@ -10,15 +10,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../common/redis.service';
 import { IdentityService } from '../../identity/identity.service';
 import { LoggerService } from '../../common/logger.service';
-import {
-  ProviderConfig,
-  ProviderEndpoints,
-  TokenResponse,
-  NormalizedProfile,
-  FederationState,
-  FederationResult,
-  FederationEmailConflictError,
-} from './federation.types';
+import { ProviderConfig } from './contracts/provider-config';
+import { ProviderEndpoints } from './contracts/provider-endpoints';
+import { TokenResponse } from './contracts/token-response';
+import { NormalizedProfile } from './contracts/normalized-profile';
+import { FederationState } from './contracts/federation-state';
+import { FederationResult } from './contracts/federation-result';
+import { FederationEmailConflictError } from './contracts/federation-email-conflict.error';
 import {
   STATIC_PROVIDERS,
   normalizeGoogleProfile,
@@ -39,6 +37,7 @@ export class FederationService {
     { endpoints: ProviderEndpoints; expiresAt: number }
   >();
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -136,12 +135,10 @@ export class FederationService {
     }
 
     const endpoints = await this.getEndpoints(cfg);
-    const tokens = await this.exchangeCode(
-      cfg,
-      endpoints,
-      query.code,
-      stateData.codeVerifier,
-    );
+    const tokens = await this.exchangeCode(cfg, endpoints, {
+      code: query.code,
+      codeVerifier: stateData.codeVerifier,
+    });
     const profile = await this.fetchProfile(cfg, endpoints, tokens);
 
     const { user, isNewUser } = await this.resolveUser(profile);
@@ -261,17 +258,16 @@ export class FederationService {
   private async exchangeCode(
     cfg: ProviderConfig,
     endpoints: ProviderEndpoints,
-    code: string,
-    codeVerifier?: string,
+    grant: { code: string; codeVerifier?: string },
   ): Promise<TokenResponse> {
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
-      code,
+      code: grant.code,
       redirect_uri: this.redirectUri(cfg.id),
       client_id: cfg.clientId,
       client_secret: cfg.clientSecret,
     });
-    if (codeVerifier) body.set('code_verifier', codeVerifier);
+    if (grant.codeVerifier) body.set('code_verifier', grant.codeVerifier);
 
     const res = await fetch(endpoints.tokenEndpoint, {
       method: 'POST',

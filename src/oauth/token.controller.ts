@@ -32,6 +32,7 @@ import { AuditCtx, clientContext, TOKEN_EXCHANGE_GRANT } from "./token-support";
 export class TokenController {
   private readonly logger = new LoggerService();
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly oauthService: OAuthService,
     private readonly audit: OAuthAuditService,

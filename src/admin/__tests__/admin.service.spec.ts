@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from '../admin.service';
+import { AdminClientsService } from '../admin-clients.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('AdminService', () => {
@@ -47,6 +48,7 @@ describe('AdminService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
+        AdminClientsService,
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
@@ -66,7 +68,7 @@ describe('AdminService', () => {
 
       const audit = { record: jest.fn().mockResolvedValue(undefined) };
       const backchannel = { fanOut: jest.fn().mockResolvedValue(2) };
-      const s = new (AdminService as any)(mockPrisma, audit, backchannel);
+      const s = new (AdminService as any)(mockPrisma, {} as any, audit, backchannel);
 
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { reason: 'leaked' });
 
@@ -98,7 +100,7 @@ describe('AdminService', () => {
     it('throws 404 NotFoundException when user does not exist', async () => {
       const { NotFoundException } = await import('@nestjs/common');
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      const s = new (AdminService as any)(mockPrisma);
+      const s = new (AdminService as any)(mockPrisma, {} as any);
       await expect(
         s.revokeAllUserSessions('22222222-2222-4222-8222-222222222222'),
       ).rejects.toThrow(NotFoundException);
@@ -106,7 +108,7 @@ describe('AdminService', () => {
 
     it('throws 400 BadRequestException when userId is not a UUID', async () => {
       const { BadRequestException } = await import('@nestjs/common');
-      const s = new (AdminService as any)(mockPrisma);
+      const s = new (AdminService as any)(mockPrisma, {} as any);
       await expect(s.revokeAllUserSessions('not-a-uuid')).rejects.toThrow(
         BadRequestException,
       );
@@ -123,7 +125,7 @@ describe('AdminService', () => {
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.update.mockResolvedValue({});
 
-      const s = new (AdminService as any)(mockPrisma);
+      const s = new (AdminService as any)(mockPrisma, {} as any);
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111');
       expect(result.success).toBe(true);
       expect(result.backchannelLogoutRecipients).toBe(0);
@@ -133,7 +135,7 @@ describe('AdminService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', did: 'did:k', email: 'a@b.com' });
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.update.mockResolvedValue({});
-      const s = new (AdminService as any)(mockPrisma);
+      const s = new (AdminService as any)(mockPrisma, {} as any);
 
       const before = Date.now();
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { lockoutHours: 9999 });

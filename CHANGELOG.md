@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.3.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.2.0...inite-auth-service-v1.3.0) (2026-06-28)
+
+
+### Features
+
+* **frontend:** email OTP login method (completes P0-5 UI) ([#47](https://github.com/inite-ai/inite-auth-service/issues/47)) ([e915d00](https://github.com/inite-ai/inite-auth-service/commit/e915d00dd28106f202c440c268c285faa990b007))
+
 ## [1.2.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.1.0...inite-auth-service-v1.2.0) (2026-06-28)
 
 

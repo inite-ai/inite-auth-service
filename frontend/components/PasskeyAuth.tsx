@@ -1,9 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Fingerprint, CheckCircle } from 'lucide-react'
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import {
+  startAuthentication,
+  startRegistration,
+  browserSupportsWebAuthnAutofill,
+} from '@simplewebauthn/browser'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -21,45 +25,87 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
   const [email, setEmail] = useState('')
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const router = useRouter()
+  // Guards the conditional-UI ceremony so React Strict Mode's double-invoke
+  // (and mode toggles) don't kick off two concurrent autofill requests.
+  const conditionalStarted = useRef(false)
+
+  // Verify a WebAuthn assertion and complete the login. The challenge is
+  // intentionally NOT sent — the server stored it in Redis when /options was
+  // called and reads it back from there to prevent replay (older builds
+  // trusted the client-supplied challenge, which defeated WebAuthn). Shared by
+  // the explicit "Authenticate" button and the conditional-UI autofill path.
+  const completeAuthentication = async (
+    response: Awaited<ReturnType<typeof startAuthentication>>,
+  ) => {
+    const { data } = await api.post('/auth/passkey/authentication/verify', {
+      response,
+    })
+
+    toast.success('Authenticated successfully!')
+    authStorage.save({
+      accessToken: data.access_token,
+      userId: data.user?.id,
+    })
+
+    // window.location.href for OAuth to force a full reload + session check.
+    if (isOAuthFlow(oauthParams)) {
+      window.location.href = buildConsentUrl(oauthParams)
+    } else {
+      router.push('/account')
+    }
+  }
+
+  // Conditional UI / passkey autofill. When the browser supports it, we open a
+  // discoverable-credential ceremony with mediation:'conditional' (via
+  // useBrowserAutofill) that stays dormant until the user selects a passkey
+  // from the browser's autofill dropdown on the username field. It's
+  // best-effort: any rejection (unsupported, dismissed, or aborted because the
+  // user started an explicit flow) is swallowed. simplewebauthn's internal
+  // abort service cancels this ceremony when startAuthentication/Registration
+  // is called again, so the explicit buttons take over cleanly.
+  useEffect(() => {
+    if (mode !== 'login' || conditionalStarted.current) return
+    let cancelled = false
+    void (async () => {
+      try {
+        if (!(await browserSupportsWebAuthnAutofill())) return
+        conditionalStarted.current = true
+        const { data: options } = await api.post(
+          '/auth/passkey/authentication/options',
+          {},
+        )
+        const response = await startAuthentication({
+          optionsJSON: options,
+          useBrowserAutofill: true,
+        })
+        if (!cancelled) await completeAuthentication(response)
+      } catch (error) {
+        if (!cancelled) console.debug('Conditional passkey UI ended:', error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   const handlePasskeyLogin = async () => {
     setLoading(true)
     try {
-      // Get authentication options (always uses platform authenticator)
+      // Get authentication options. With an email we scope to that user's
+      // credentials; without one the server returns a discoverable-credential
+      // challenge (empty allowCredentials).
       const { data: options } = await api.post('/auth/passkey/authentication/options', {
         email: email || undefined,
       })
 
-      // Start WebAuthn authentication
-      const response = await startAuthentication(options)
-
-      // Verify authentication. The challenge is intentionally NOT sent —
-      // the server stored it in Redis when /options was called and reads it
-      // back from there to prevent replay (older builds trusted the
-      // client-supplied challenge, which defeated WebAuthn).
-      const { data } = await api.post('/auth/passkey/authentication/verify', {
-        response,
-      })
-
-      toast.success('Authenticated successfully!')
-
-      // Save auth data
-      authStorage.save({
-        accessToken: data.access_token,
-        userId: data.user?.id,
-      })
-
-      // Redirect based on flow
-      // Use window.location.href for OAuth to ensure full page reload and session check
-      if (isOAuthFlow(oauthParams)) {
-        window.location.href = buildConsentUrl(oauthParams)
-      } else {
-        router.push('/account')
-      }
+      // Start WebAuthn authentication (v13 signature: { optionsJSON }).
+      const response = await startAuthentication({ optionsJSON: options })
+      await completeAuthentication(response)
     } catch (error: any) {
       console.error('Passkey auth error:', error)
       const message = error.response?.data?.message || 'Authentication failed'
-      
+
       // If passkey not found, suggest registering
       if (message.includes('not found')) {
         toast.error('Passkey not found. Try registering a new passkey for your account.')
@@ -113,8 +159,8 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
         { headers: { Authorization: `Bearer ${checkData.access_token}` } }
       )
 
-      // Start WebAuthn registration
-      const response = await startRegistration(options)
+      // Start WebAuthn registration (v13 signature: { optionsJSON }).
+      const response = await startRegistration({ optionsJSON: options })
 
       // Verify registration. Server reads the expected challenge from
       // Redis (where /options stored it) — never trust the client to
@@ -164,6 +210,11 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       <div className="space-y-6">
         <Input
           type="email"
+          name="username"
+          // "username webauthn" lets supporting browsers surface saved
+          // passkeys in the autofill dropdown for this field, driving the
+          // conditional-UI ceremony started on mount.
+          autoComplete="username webauthn"
           label={mode === 'register' ? 'Email' : 'Email (optional)'}
           value={email}
           onChange={(e) => setEmail(e.target.value)}

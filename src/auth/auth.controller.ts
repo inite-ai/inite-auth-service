@@ -9,6 +9,7 @@ import {
   Response,
   Res,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Response as ExpressResponse } from 'express';
@@ -21,6 +22,7 @@ import { IpFloodGuard } from './guards/ip-flood.guard';
 import { LoggerService } from '../common/logger.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 
+@ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   private readonly logger = new LoggerService();

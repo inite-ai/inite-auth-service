@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle } from '@nestjs/throttler';
 import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
@@ -57,6 +58,7 @@ function clientContext(req: Request): AuditCtx {
   };
 }
 
+@ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
 export class OAuthController {
   private readonly logger = new LoggerService();

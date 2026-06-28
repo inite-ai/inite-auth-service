@@ -11,6 +11,7 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AdminService } from './admin.service';
@@ -34,6 +35,7 @@ function adminContext(req: Request): {
   };
 }
 
+@ApiTags('admin')
 @Controller({ path: 'admin', version: '1' })
 @UseGuards(AdminGuard)
 export class AdminController {

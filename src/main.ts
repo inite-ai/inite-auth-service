@@ -6,6 +6,8 @@ startTracing();
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { writeFileSync } from 'fs';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
@@ -34,6 +36,44 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI });
 
   const configService = app.get(ConfigService);
+
+  // OpenAPI / Swagger.
+  //
+  // Documents the HTTP surface for integrators. Interactive UI at /docs, the
+  // raw spec at /openapi.json. We also emit the spec to disk on boot (outside
+  // production, where the container FS may be read-only) so it can be committed
+  // and consumed by client codegen / contract tests. @ApiTags/@ApiOperation are
+  // added to controllers incrementally; untagged routes land under "default".
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('INITE Identity Provider')
+    .setDescription(
+      'OAuth 2.1 / OIDC authorization server + identity APIs. ' +
+        'Most routes are versioned under /v1; spec/discovery endpoints ' +
+        '(.well-known/*) are version-neutral per their RFCs.',
+    )
+    .setVersion(process.env.npm_package_version ?? '1.0.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'access-token',
+    )
+    .addTag('auth', 'Password, passkey, magic-link, MFA and session login flows')
+    .addTag('oauth', 'OAuth 2.1 / OIDC authorization, token and client endpoints')
+    .addTag('identity', 'DID and Verifiable Credential issuance')
+    .addTag('admin', 'Administrative client/user management (privileged)')
+    .addTag('health', 'Liveness, readiness, metrics and JWKS')
+    .build();
+  const openapiDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, openapiDocument, {
+    jsonDocumentUrl: 'openapi.json',
+    swaggerOptions: { persistAuthorization: true },
+  });
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    try {
+      writeFileSync('openapi.json', JSON.stringify(openapiDocument, null, 2));
+    } catch (err) {
+      logger.warn(`Could not write openapi.json: ${(err as Error).message}`);
+    }
+  }
 
   // Security headers
   //
@@ -98,7 +138,6 @@ async function bootstrap() {
   );
 
   // Dynamic CORS — check origin against OAuth client redirect URIs on every request
-  const frontendUrl = configService.get<string>('FRONTEND_URL', '');
   // Reuse OAuthService for allowed origins (cached, auto-refreshes every 60s)
   const oauthService = app.get(OAuthService);
   const allowedOrigins = await oauthService.getAllowedOrigins();

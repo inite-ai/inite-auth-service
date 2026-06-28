@@ -14,6 +14,7 @@ import {
 import PasskeyAuth from '@/components/PasskeyAuth'
 import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
+import SocialLogin from '@/components/SocialLogin'
 import { AppHeader } from '@/components/AppHeader'
 import { authStorage } from '@/lib/authStorage'
 import { buildConsentUrl, isOAuthFlow, OAuthParams } from '@/lib/oauthHelpers'
@@ -241,6 +242,8 @@ export default function AuthPage({ variant }: AuthPageProps) {
                 )
               })}
             </div>
+
+            <SocialLogin oauthParams={oauthParams} />
 
             <div className="mt-6 text-sm text-[var(--text-muted)]">
               {isRegister ? 'Already have an account? ' : "Don't have an account? "}

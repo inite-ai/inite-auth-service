@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { FederationModule } from './auth/federation/federation.module';
 import { IdentityModule } from './identity/identity.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
@@ -86,6 +87,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
 
     // Feature Modules
     AuthModule,
+    FederationModule,
     IdentityModule,
     OAuthModule,
     SessionModule,

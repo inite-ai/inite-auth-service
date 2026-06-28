@@ -185,7 +185,8 @@ boot (gitignored) so tooling can pick it up without a running instance.
 
 OAuth2/OIDC: `/.well-known/openid-configuration`, `/.well-known/jwks.json`,
 `/v1/oauth/{authorize,token,userinfo,revoke,introspect,par,device_authorization,logout}`.
-Auth: `/v1/auth/{passkey,email,password}/*`. Identity: `/v1/auth/identity/*`
+Auth: `/v1/auth/{passkey,email,password}/*`. Social login: `/v1/auth/oauth/:provider/{start,callback}`
+(Google, GitHub, generic OIDC). Identity: `/v1/auth/identity/*`
 (DID, wallets, credentials, 2FA, export/delete). Sessions: `/v1/session/*`.
 Admin: `/v1/admin/*`.
 
@@ -200,9 +201,10 @@ npm ci && npm run build && npm test && npm run lint
 
 ## Roadmap
 
-Tracked in [ROADMAP.md](ROADMAP.md). Highlights: social-login federation, SCIM,
-SAML, OpenAPI spec + more SDKs, token exchange (RFC 8693), step-up enforcement,
-WebAuthn conditional-UI autofill, and the Prisma 7 / TypeScript 6 upgrades.
+Tracked in [ROADMAP.md](ROADMAP.md). Highlights: SCIM, SAML, more SDKs,
+token exchange (RFC 8693), email/SMS OTP, and the Prisma 7 / TypeScript 6
+upgrades. Recently shipped: social-login federation (Google/GitHub/OIDC),
+OpenAPI spec, and WebAuthn conditional-UI autofill.
 
 ## License
 

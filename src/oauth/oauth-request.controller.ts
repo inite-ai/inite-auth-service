@@ -1,0 +1,152 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  Body,
+  Req,
+  UseGuards,
+  UseInterceptors,
+  BadRequestException,
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
+import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
+import { OAuthClientRegistryService } from './oauth-client-registry.service';
+import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
+import { ParService } from './par.service';
+import { DeviceFlowService } from './device-flow.service';
+
+
+@ApiTags('oauth')
+@Controller({ path: 'oauth', version: '1' })
+export class OAuthRequestController {
+  constructor(
+    private readonly clientRegistry: OAuthClientRegistryService,
+    private readonly par: ParService,
+    private readonly deviceFlow: DeviceFlowService,
+  ) {}
+
+  /**
+   * Pushed Authorization Requests (RFC 9126).
+   * POST /v1/oauth/par
+   *
+   * Confidential authentication via client_secret_post; on success
+   * returns a `request_uri` (single-use, 60 s TTL) which the client
+   * hands to the user agent on /authorize.
+   */
+  @Post('par')
+  @UseInterceptors(IdempotencyInterceptor)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async pushAuthorization(@Body() body: Record<string, any>) {
+    const clientId = body.client_id;
+    const clientSecret = body.client_secret;
+    if (!clientId) throw new BadRequestException('client_id is required');
+    await this.clientRegistry.validateClientWithSecret(clientId, clientSecret);
+
+    return {
+      request_uri: (
+        await this.par.push({
+          clientId,
+          redirectUri: body.redirect_uri,
+          responseType: body.response_type,
+          scope: body.scope,
+          state: body.state,
+          codeChallenge: body.code_challenge,
+          codeChallengeMethod: body.code_challenge_method,
+          nonce: body.nonce,
+          acrValues: body.acr_values,
+          prompt: body.prompt,
+        })
+      ).requestUri,
+      expires_in: 60,
+    };
+  }
+
+  /**
+   * Device Authorization Grant (RFC 8628) — step 1.
+   * POST /v1/oauth/device_authorization
+   *
+   * The device authenticates with its client_id (public clients
+   * skip client_secret per spec §3.1). We return device_code,
+   * user_code, and the verification URI to display.
+   */
+  @Post('device_authorization')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async deviceAuthorization(
+    @Body('client_id') clientId: string,
+    @Body('scope') scope: string,
+    @Req() req: Request,
+  ) {
+    if (!clientId) throw new BadRequestException('client_id is required');
+    const client = await this.clientRegistry.validateClient(clientId);
+    this.clientRegistry.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
+
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?? (req as any).protocol
+      ?? 'https';
+    const host = req.headers.host ?? '';
+    const verificationUri = `${proto}://${host}/v1/oauth/device`;
+    return await this.deviceFlow.issue({
+      client,
+      scope,
+      verificationUri,
+    });
+  }
+
+  /**
+   * Device verification — step 2.
+   * GET /v1/oauth/device?user_code=ABCD-EFGH
+   *
+   * The user lands here from the URL printed by the device. We
+   * resolve the user_code, then bounce the browser into the
+   * /authorize-style consent flow with a synthetic auth code.
+   *
+   * In this codebase the actual consent UI lives on the frontend;
+   * this endpoint returns the resolved client + scope so the SPA
+   * can render the consent screen + POST approval back.
+   */
+  @Get('device')
+  async deviceVerify(@Query('user_code') userCode: string) {
+    if (!userCode) throw new BadRequestException('user_code is required');
+    const row = await this.deviceFlow.findByUserCode(userCode);
+    if (!row) {
+      throw new BadRequestException('Invalid or expired user_code');
+    }
+    return {
+      user_code: row.userCode,
+      client_id: row.clientId,
+      scope: row.scope ?? null,
+      status: row.status,
+      expires_at: row.expiresAt,
+    };
+  }
+
+  /**
+   * Device verification — approval step.
+   * POST /v1/oauth/device/approve  body: { user_code, decision }
+   *
+   * Requires an authenticated browser session. decision = 'approve'
+   * flips the device row to approved, attaching the user; 'deny'
+   * marks denied so the device's next poll returns access_denied.
+   */
+  @Post('device/approve')
+  @UseGuards(JwtOrSessionGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async deviceApprove(
+    @Body() body: { user_code: string; decision: 'approve' | 'deny' },
+    @Req() req: any,
+  ) {
+    if (!body?.user_code) throw new BadRequestException('user_code is required');
+    if (body.decision === 'deny') {
+      await this.deviceFlow.deny(body.user_code);
+      return { status: 'denied' };
+    }
+    const updated = await this.deviceFlow.approve({
+      userCode: body.user_code,
+      userId: req.user.userId,
+    });
+    return { status: updated.status };
+  }
+}

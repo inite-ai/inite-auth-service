@@ -1,0 +1,19 @@
+name: Dependency review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # The action needs a public repo (or GitHub Advanced Security). Skip on
+    # private so PRs aren't blocked red until the repo is public.
+    if: ${{ github.event.repository.private == false }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

@@ -1,0 +1,103 @@
+# Local / self-host compose. Copy .env.example to .env first, then:
+#   docker compose up -d
+# For a production deployment behind a reverse proxy (Traefik + TLS), see
+# deploy/docker-compose.prod.yml.
+
+services:
+  auth-service:
+    build: .
+    image: inite-auth-service:local
+    container_name: inite-auth-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3002
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/auth
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=auth
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:-}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:-}
+      - REFRESH_TOKEN_HMAC_SECRET=${REFRESH_TOKEN_HMAC_SECRET:-${JWT_SECRET}}
+      - JWT_ISSUER=${JWT_ISSUER:-http://localhost:3002}
+      - OIDC_ISSUER=${OIDC_ISSUER:-http://localhost:3002}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - SMTP_HOST=${SMTP_HOST:-smtp.mailgun.org}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=false
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@example.com}
+      - RP_NAME=${RP_NAME:-INITE Identity}
+      - RP_ID=${RP_ID:-localhost}
+      - RP_ORIGIN=${RP_ORIGIN:-http://localhost:3000}
+      - DID_METHOD=key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - inite-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: inite-auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - inite-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: inite-auth-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - inite-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  inite-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

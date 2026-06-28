@@ -1,0 +1,33 @@
+# gitleaks config for inite-auth-service
+# Extends the default ruleset; adds an allowlist for known false positives so
+# CI stays green. Audited 2026-06-28: all entries below are documentation
+# examples, public identifiers, or test fixtures — NOT real secrets.
+#
+# Run locally:  gitleaks detect --source . --redact -v
+# Before adding a new allowlist entry, prove the finding is a non-secret.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Audited false positives — auth-service OSS release"
+
+# DIDs (did:key:z6Mk...) are PUBLIC identifiers by design — the key material
+# encoded in a did:key IS a public key. The generic-api-key rule captures the
+# bare multibase token (z6Mk...) after "key:", so match that form directly.
+# Appears in README, identity.service.ts examples, docs.
+regexes = [
+  '''z6Mk[1-9A-HJ-NP-Za-km-z]{20,}''',
+]
+
+paths = [
+  # Documentation showing example curl commands with placeholder -u / Bearer.
+  '''ADMIN-SETUP\.md''',
+  '''frontend/app/docs/.*\.mdx''',
+  # ENV-SETUP.md / .env.example contain PEM placeholders and dev dummy values,
+  # never real keys.
+  '''ENV-SETUP\.md''',
+  '''\.env\.example''',
+  # Test fixtures use literal 'test-key' / idempotency-key strings.
+  '''src/common/__tests__/idempotency\.interceptor\.spec\.ts''',
+]

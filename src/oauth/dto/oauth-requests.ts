@@ -1,0 +1,49 @@
+/**
+ * Loose request shapes for the OAuth authorize/token endpoints.
+ *
+ * Intentionally interfaces, NOT class DTOs: the global ValidationPipe runs
+ * with `forbidNonWhitelisted: true`, which would 400 on the extra query/body
+ * params that real OAuth clients send (display, login_hint, …). OAuth requires
+ * servers to ignore unknown params, so we type the raw object and read the
+ * fields we care about, leaving the pipe to skip validation (non-class metatype).
+ */
+
+export interface AuthorizeQuery {
+  response_type?: string;
+  client_id?: string;
+  redirect_uri?: string;
+  scope?: string;
+  state?: string;
+  code_challenge?: string;
+  code_challenge_method?: string;
+  prompt?: string;
+  nonce?: string;
+  acr_values?: string;
+  request_uri?: string;
+}
+
+/** Authorize params after PAR (request_uri) resolution, normalized to camelCase. */
+export interface ResolvedAuthorizeParams {
+  responseType?: string;
+  clientId: string;
+  redirectUri: string;
+  scope?: string;
+  state?: string;
+  codeChallenge?: string;
+  codeChallengeMethod?: string;
+  prompt?: string;
+  nonce?: string;
+  acrValues?: string;
+}
+
+export interface TokenRequestBody {
+  grant_type?: string;
+  code?: string;
+  redirect_uri?: string;
+  client_id?: string;
+  client_secret?: string;
+  code_verifier?: string;
+  refresh_token?: string;
+  scope?: string;
+  audience?: string;
+}

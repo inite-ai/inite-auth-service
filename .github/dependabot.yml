@@ -1,0 +1,54 @@
+version: 2
+updates:
+  # Backend service
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      nestjs:
+        patterns: ["@nestjs/*"]
+      backend-minor:
+        update-types: ["minor", "patch"]
+
+  # Client SDK (@inite/auth-sdk) — standalone npm package
+  - package-ecosystem: npm
+    directory: /packages/sdk
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "area: sdk"]
+    groups:
+      sdk-minor:
+        update-types: ["minor", "patch"]
+
+  # Frontend (Next.js admin UI + docs)
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "area: frontend"]
+    groups:
+      frontend-minor:
+        update-types: ["minor", "patch"]
+
+  # Docker base images
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies"]
+
+  # GitHub Actions — bumps the pinned versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      actions:
+        update-types: ["minor", "patch"]

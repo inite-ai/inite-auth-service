@@ -1,0 +1,131 @@
+export const metadata = {
+  title: 'Getting started · INITE Docs',
+  description: 'Three rapid-start recipes to sign INITE users into your app.',
+}
+
+# Getting started
+
+Three ways to sign users into your site through the INITE Identity Provider, in order of integration effort.
+
+| Recipe                            | Effort   | Brand   | Best for                                     |
+| --------------------------------- | -------- | ------- | -------------------------------------------- |
+| [Pure fetch](#1-pure-fetch)       | 15 lines | Yours   | Custom UI, no SDK in your bundle             |
+| [SDK](#2-inite-auth-sdk)          | 5 lines  | Yours   | Most apps; React or vanilla                  |
+| [Iframe drop-in](#3-iframe-drop-in) | 3 lines  | INITE's | Partner sites, fastest path                  |
+
+## Prerequisite — register your origin
+
+Your domain must be on an INITE OAuth client's `redirectUris` list. This populates the IdP's CORS allowlist **and** the CSP `connect-src` / `frame-ancestors` directives. Without it the browser blocks the cross-origin fetch or iframe before any token logic runs.
+
+Ask an INITE admin to add `https://your-domain.com` to the relevant client, or do it yourself at `https://auth.inite.ai/admin` → **OAuth Clients**.
+
+## 1. Pure fetch
+
+```html
+<form id="login">
+  <input name="email" type="email" required />
+  <input name="password" type="password" required />
+  <button>Sign in</button>
+</form>
+
+<script>
+  document.getElementById('login').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    const res = await fetch('https://auth.inite.ai/v1/auth/password/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        email: fd.get('email'),
+        password: fd.get('password'),
+      }),
+    })
+    if (!res.ok) return alert((await res.json()).message ?? 'failed')
+    const { access_token, user } = await res.json()
+    sessionStorage.setItem('inite.token', access_token)
+  })
+</script>
+```
+
+All public auth endpoints (`/v1/auth/password/login`, `/v1/auth/password/register`, `/v1/auth/email/send-magic-link`, `/v1/auth/passkey/authentication/verify`) return `{ access_token, user }` JSON **and** set a session cookie. Use whichever fits your trust model.
+
+## 2. @inite/auth-sdk
+
+```bash
+npm install @inite/auth-sdk
+```
+
+### Vanilla
+
+```ts
+import { IniteAuth } from '@inite/auth-sdk'
+
+const auth = new IniteAuth({ clientId: 'your-app-id' })
+const { user, accessToken } = await auth.loginWithPassword({ email, password })
+auth.onAuthStateChange((session) => render(session))
+```
+
+### React
+
+```tsx
+import { IniteAuthProvider, useAuth } from '@inite/auth-sdk/react'
+
+function App() {
+  return (
+    <IniteAuthProvider clientId="your-app-id">
+      <Profile />
+    </IniteAuthProvider>
+  )
+}
+
+function Profile() {
+  const { user, loading, logout } = useAuth()
+  if (loading) return null
+  if (!user) return <SignInForm />
+  return <button onClick={logout}>Sign out {user.email}</button>
+}
+```
+
+See the [SDK reference](/docs/sdk) for the complete API.
+
+## 3. Iframe drop-in
+
+```html
+<div id="auth"></div>
+<script type="module">
+  import { mountEmbed } from 'https://esm.sh/@inite/auth-sdk'
+
+  const { done } = mountEmbed({
+    clientId: 'your-app-id',
+    container: document.getElementById('auth'),
+  })
+
+  const { user, accessToken } = await done
+</script>
+```
+
+The SDK injects an `<iframe>` pointing at `/embed/login`, handshakes the parent origin via `postMessage`, and resolves the `done` promise once the user signs in.
+
+## Authenticated requests to your API
+
+Once you have the `accessToken`, send it as a bearer token to your own backend:
+
+```ts
+const res = await fetch('https://your-api/posts', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+})
+```
+
+The SDK exposes a helper that injects this automatically and refreshes once on 401:
+
+```ts
+const res = await auth.authedFetch('https://your-api/posts')
+```
+
+## Where to next
+
+- [SDK reference](/docs/sdk) — every method on `IniteAuth`.
+- [OAuth flows](/docs/oauth-flows) — when you need authorization code + PKCE, not the direct API.
+- [Service tokens](/docs/service-tokens) — backend-to-backend auth via `client_credentials`.
+- [Security model](/docs/security) — what's on by default (lockout, HIBP, IP flood, audit log).

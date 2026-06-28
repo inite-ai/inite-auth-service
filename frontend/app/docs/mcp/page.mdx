@@ -1,0 +1,222 @@
+export const metadata = {
+  title: 'MCP integration · INITE Docs',
+  description:
+    'Expose INITE auth-admin operations to AI assistants (Claude, Cursor, Goose, n8n) via the Model Context Protocol — using the signed-in admin\'s own session.',
+}
+
+# MCP integration
+
+INITE ships `@inite/auth-admin` — a package that turns six auth-administration operations into AI tools and three guided skills. Once mounted in a vertical's bootstrap, those tools become available to any Model Context Protocol client (Claude Desktop, Cursor, Goose, ChatGPT, n8n) connecting through the vertical's `/mcp/[companySlug]/route.ts`.
+
+> **TL;DR**: AI assistants register and rotate OAuth clients, mint debug tokens, investigate user audit trails, and revoke sessions — **acting as the signed-in admin**, not as a separate service identity. No shared secret to provision, no env var to manage.
+
+## Architecture
+
+```
+┌────────────────────┐   cookie-auth     ┌──────────────────────┐
+│  Claude / Cursor / │ ─────────────────▶│ /mcp/[slug]/route.ts │
+│  Goose / ChatGPT / │                   │  (per-vertical)      │
+│  n8n               │ ◀──────────────── │                      │
+└────────────────────┘                   └──────────┬───────────┘
+                                                    │
+                                       @inite/assistant.registerToolModule()
+                                       @inite/skills.registerSkill()
+                                                    │
+                                                    ▼
+                                         ┌────────────────────┐
+                                         │ @inite/auth-admin  │
+                                         │   tools + skills   │
+                                         └──────────┬─────────┘
+                                                    │ getAccessToken()
+                                                    │ (reads cookie)
+                                                    ▼
+                                         ┌────────────────────┐
+                                         │  inite-auth-service │
+                                         │   /v1/admin/*       │
+                                         │  AdminGuard ✓ user  │
+                                         │  metadata.isAdmin   │
+                                         └────────────────────┘
+```
+
+The MCP server is **not** a standalone process — every vertical (`carRental`, `figma`, `smart-chat`, …) already mounts an MCP route. Bootstrapping `@inite/auth-admin` adds six tools to that surface.
+
+The tools call /v1/admin/* using the **signed-in admin's session JWT** — read from the vertical's `access_token` cookie via `@inite/auth.getAccessToken()`. `AdminGuard` accepts the call because the user has `metadata.isAdmin=true`. No service client, no shared secret, no provisioning step.
+
+## Tools
+
+| Tool | Endpoint | Use when the user asks to… |
+| --- | --- | --- |
+| `provision_oauth_client` | `POST /v1/admin/oauth-clients` | "Register a new app", "set up SSO for X", "create M2M credentials" |
+| `list_oauth_clients` | `GET /v1/admin/oauth-clients` | "What apps do we have", "list registered clients" |
+| `rotate_client_secret` | `POST /v1/admin/oauth-clients/:cid/rotate-secret` | "Rotate this secret", "the secret leaked" |
+| `mint_service_token` | `POST /v1/oauth/token` | "Mint a debug token", "verify this client_credentials setup" |
+| `query_user_audit` | `GET /v1/admin/audit-log?sub=…` | "What happened to my account", "show this user's login history" |
+| `revoke_user_sessions` | `POST /v1/admin/users/:id/revoke-sessions` | "Kill all sessions for this user", "my account is compromised" |
+
+The audit log records every operation under the **admin's identity**, exactly as if they'd clicked through the UI. There's no "service principal" hop to untangle when investigating later.
+
+## Skills
+
+Skills are activation rules that bundle a focused subset of tools into the assistant's system prompt only when the user's intent matches — keeps the prompt cheap and the model focused.
+
+| Skill | Activates on (regex) | Tools |
+| --- | --- | --- |
+| `auth-client-provisioning` | `register`, `provision`, `set up SSO`, `new oauth client`, `rotate secret` | provision + list + rotate |
+| `auth-incident-response` | `compromised`, `hacked`, `lost device`, `leaked password`, `revoke sessions`, `incident` | audit + revoke |
+| `auth-debug-token` | `mint token`, `debug token`, `client_credentials`, `m2m`, `audience mismatch` | mint |
+
+Each skill's `instructions` tell the model how to *use* its tools — e.g. the incident-response skill instructs "investigate first with `query_user_audit`, confirm with the user, then call `revoke_user_sessions`."
+
+## Connecting an MCP client
+
+### Recommended — local CLI proxy (`@inite/cli`)
+
+For desktop clients (Claude Desktop, Cursor, Goose) the cleanest UX is the local proxy. It runs as a stdio MCP server, forwards every tool call to the remote vertical URL, and — the first time a call returns 401 — opens your browser, does the PKCE + loopback dance, caches the JWT in `~/.config/inite/auth.json`, and retries. One config block per vertical, no token paste, no manual restarts.
+
+```json
+{
+  "mcpServers": {
+    "inite-rent": {
+      "command": "npx",
+      "args": ["-y", "@inite/cli", "proxy", "https://inite.rent/mcp/inite-rent"]
+    }
+  }
+}
+```
+
+After the first authenticated call the cached token is reused for every subsequent vertical — same JWT works against `inite.rent`, `figma.inite.ai`, etc., because every vertical JWKS-verifies against the canonical `auth-api.inite.ai` issuer.
+
+### Terminal — `login.sh`
+
+For shell users / CI:
+
+```bash
+curl -fsSL https://auth.inite.ai/login.sh | bash
+# token cached at ~/.config/inite/auth.json (same file the proxy uses)
+
+export INITE_TOKEN=$(jq -r .access_token ~/.config/inite/auth.json)
+curl -H "Authorization: Bearer $INITE_TOKEN" https://inite.rent/mcp/inite-rent ...
+```
+
+`login.sh` defaults to authorization-code + PKCE with a loopback redirect; falls back to device flow when no browser is available (set `INITE_LOGIN_MODE=device` to force).
+
+### Self-recovery on 401
+
+If an MCP client connects to a vertical without a token, the 401 body now carries a `login_url` and a matching `WWW-Authenticate: Bearer realm="…"` header. Clients that understand the hint (or assistants that read the response) can route the user to `/docs/mcp` for setup.
+
+```json
+{
+  "error": "Unauthorized",
+  "login_url": "https://auth.inite.ai/docs/mcp",
+  "login_hint": "Install @inite/cli (npx) and configure it as the MCP server URL — it handles browser-based sign-in on first request."
+}
+```
+
+## Step 1 — bootstrap the package
+
+In your vertical's `instrumentation.ts` (or wherever it already calls `registerToolModule` / `registerSkill`):
+
+```ts
+import { registerAuthAdminTool, authAdminSkills } from '@inite/auth-admin'
+import { registerSkill } from '@inite/skills'
+
+registerAuthAdminTool()
+for (const s of authAdminSkills) registerSkill(s)
+```
+
+The tools become available to every assistant mode flagged `backoffice: true` or `mcp: true` — automatically picked up by `createMcpRoute()` in `app/mcp/[companySlug]/route.ts`.
+
+That's it. No env vars to set, no scripts to run, no clients to provision. If your vertical already wires `@inite/auth` (cookie-based session), `@inite/auth-admin` works on top of it.
+
+## Step 2 — connect from an MCP client
+
+The MCP client must talk to your vertical's `/mcp/[slug]/route` **with the user's session cookie**, because that's where the admin's `access_token` lives. The route's `authenticateMcpRequest` falls back to the session cookie when no bearer API key is present (see `src/lib/mcp/auth.ts` in each vertical).
+
+### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "your-vertical-admin": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch",
+        "https://your-vertical.example.com/mcp/<companySlug>/route"
+      ]
+    }
+  }
+}
+```
+
+For cookie-bearing requests, point Claude at the vertical via a session-forwarding proxy or use an MCP client that supports cookie auth directly. The fetch transport sends whatever cookies the URL host has — open the vertical in your browser first, then start Claude.
+
+### Cursor / Goose / n8n
+
+Same URL. These clients honor browser cookies for the host.
+
+## Security model
+
+The package itself enforces **no** role checks — the vertical does it via `ToolPermissionMap` passed to `createMcpRoute`. Recommended layering:
+
+```ts
+import { createMcpRoute } from '@inite/mcp'
+import { hasPermission } from '@/lib/rbac'
+
+export const { POST } = createMcpRoute({
+  resolvePermissions: async (ctx) => ({
+    revoke_user_sessions: await hasPermission(ctx, 'auth:admin'),
+    rotate_client_secret: await hasPermission(ctx, 'auth:admin'),
+    provision_oauth_client: await hasPermission(ctx, 'auth:write'),
+    list_oauth_clients: await hasPermission(ctx, 'auth:read'),
+    mint_service_token: await hasPermission(ctx, 'auth:debug'),
+    query_user_audit: await hasPermission(ctx, 'auth:read'),
+  }),
+})
+```
+
+Layer-by-layer guarantees:
+
+1. **MCP client** — must hit your vertical's `/mcp/[slug]` route, behind your existing auth (session cookie or bearer).
+2. **`ToolPermissionMap`** — vertical-side RBAC filters which tools the calling user can see / invoke at all.
+3. **Tool execution** — `@inite/auth-admin` reads the user's `access_token` cookie and forwards it as Bearer to inite-auth-service.
+4. **`AdminGuard`** in auth-service — verifies the user has `metadata.isAdmin=true`.
+5. **Audit log** — every action lands under the *user's* identity (their DID, their IP, their UA) — same trail as if they'd used the UI.
+
+If any layer says no, the call fails before touching data.
+
+## What happens without a session?
+
+If the MCP client connected with a per-tenant bearer API key (no user session cookie), the tools throw `AuthAdminUnauthenticatedError`:
+
+```
+@inite/auth-admin: no user session — sign in to the vertical before
+invoking auth-admin tools
+```
+
+This is by design — the API-key path doesn't carry an admin identity. Sign into the vertical first, then point the MCP client at the route.
+
+## Cost & latency
+
+- No token mint round-trip — the cookie JWT is already in the request.
+- Tool invocations: single HTTP call to `/v1/admin/*`.
+- Skill activation: regex on user input — sub-millisecond, no model call to *decide* whether to load the skill.
+- Per-call cost is < 1 KB of system prompt overhead.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `AuthAdminUnauthenticatedError` | MCP request had no `access_token` cookie | Sign into the vertical in your browser, then connect the MCP client; or supply a cookie-forwarding proxy |
+| `auth-admin request failed (403)` | Admin's user record lost `isAdmin` | Re-grant `metadata.isAdmin=true` on the user in `/admin → Users` |
+| `Tool not visible in Claude Desktop` | Vertical's MCP route filtered it via `ToolPermissionMap` | Grant the user `auth:read`/`auth:write`/`auth:admin` per the matrix above |
+| `revoke_user_sessions` returns `refreshTokensRevoked: 0` | User had no active sessions (already signed out) | Expected — short-lived access tokens may still live up to 10 min |
+
+## Related
+
+- [`@inite/auth-admin` README](https://github.com/inite-ai/inite-shared/tree/main/packages/auth-admin) — package source.
+- [Service tokens](/docs/service-tokens) — M2M auth (separate concern: backend-to-backend, no AI in the loop).
+- [Security model](/docs/security) — guard rails the assistant inherits.
+- [OIDC reference](/docs/oidc) — JWKS endpoint the receiving service uses to verify tokens.

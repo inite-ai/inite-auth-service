@@ -1,0 +1,138 @@
+'use client'
+
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { CheckCircle, Loader2, XCircle } from 'lucide-react'
+import api from '@/lib/api'
+import { authStorage } from '@/lib/authStorage'
+import { OAuthParams } from '@/lib/oauthHelpers'
+import toast from 'react-hot-toast'
+import { Card, Button } from '@/components/ui'
+
+type VerifyStatus = 'loading' | 'success' | 'error'
+
+function VerifyContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [status, setStatus] = useState<VerifyStatus>('loading')
+  const [message, setMessage] = useState('')
+
+  const verifyMagicLink = useCallback(async (token: string) => {
+    try {
+      const { data } = await api.get(`/auth/email/verify?token=${token}`)
+      
+      authStorage.save({
+        accessToken: data.access_token,
+        userId: data.user?.id,
+      })
+      
+      const params: OAuthParams | null = data.oauth_params
+      if (params?.clientId && params?.redirectUri && params?.state && params?.codeChallenge) {
+        // OAuth flow: сессия уже поднята (verify), сразу редирект на authorize → callback приложения с code → сессия в приложении
+        const authorizeUrl = new URL('/oauth/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('response_type', 'code')
+        authorizeUrl.searchParams.set('client_id', params.clientId)
+        authorizeUrl.searchParams.set('redirect_uri', params.redirectUri)
+        authorizeUrl.searchParams.set('scope', params.scope || 'openid profile email offline_access')
+        authorizeUrl.searchParams.set('state', params.state)
+        authorizeUrl.searchParams.set('code_challenge', params.codeChallenge)
+        authorizeUrl.searchParams.set('code_challenge_method', params.codeChallengeMethod || 'S256')
+        window.location.href = authorizeUrl.toString()
+        return
+      }
+      setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')
+      setStatus('success')
+      setTimeout(() => router.push('/account'), 2000)
+    } catch (error: any) {
+      console.error('Verify magic link error:', error)
+      setStatus('error')
+      setMessage(error.response?.data?.message || 'Verification failed')
+      toast.error('Magic link verification failed')
+    }
+  }, [router])
+
+  useEffect(() => {
+    const token = searchParams.get('token')
+    if (!token) {
+      setStatus('error')
+      setMessage('No verification token provided')
+      return
+    }
+    verifyMagicLink(token)
+  }, [searchParams, verifyMagicLink])
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <Card className="p-12 text-center max-w-md">
+          {status === 'loading' && (
+            <>
+              <Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Verifying...
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Please wait while we verify your magic link
+              </p>
+            </>
+          )}
+
+          {status === 'success' && (
+            <>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', duration: 0.5 }}
+              >
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              </motion.div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                {message}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Redirecting to your account...
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                You can add a passkey for faster login in your account settings.
+              </p>
+            </>
+          )}
+
+          {status === 'error' && (
+            <>
+              <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Verification Failed
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+              <Button onClick={() => router.push('/login')}>
+                Back to Login
+              </Button>
+            </>
+          )}
+        </Card>
+      </motion.div>
+    </div>
+  )
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Card className="p-12 text-center max-w-md">
+          <Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Loading...
+          </h2>
+        </Card>
+      </div>
+    }>
+      <VerifyContent />
+    </Suspense>
+  )
+}

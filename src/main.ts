@@ -1,0 +1,239 @@
+// MUST be first — OTel auto-instrumentations need to load before
+// http/express/pg/redis get pulled in by everything below.
+import { startTracing } from './tracing';
+startTracing();
+
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import { createClient } from 'redis';
+import { RedisStore } from 'connect-redis';
+import { AppModule } from './app.module';
+import { OAuthService } from './oauth/oauth.service';
+import { createLogger } from './common/logger.service';
+
+// Export for use in controllers
+export let sessionSecret: string;
+
+const logger = createLogger('Bootstrap');
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
+
+  // URI-based API versioning. Controllers are marked individually:
+  //   `@Controller({ path: 'oauth', version: '1' })`     → /v1/oauth/*
+  //   `@Controller({ path: '...', version: VERSION_NEUTRAL })` → unprefixed
+  //
+  // Spec endpoints (.well-known/*) stay neutral because RFC/OIDC
+  // discovery URLs are fixed by spec, not by us. Everything else
+  // hides behind /v1 so a v2 cutover later can ship side-by-side.
+  app.enableVersioning({ type: VersioningType.URI });
+
+  const configService = app.get(ConfigService);
+
+  // Security headers
+  //
+  // CSP is built from the synchronous origins cache so embed-registered
+  // partner origins can XHR to this API and load us in iframes. Without
+  // this, connectSrc='self' would block any cross-origin SDK call even
+  // when CORS itself allows it.
+  //
+  // We don't allow * — the allowlist is the OAuth-client redirectUris
+  // table, mirrored from the same source CORS uses. Iframe ancestors
+  // are similarly scoped via frame-ancestors so we keep clickjacking
+  // resistance for non-partners.
+  const oauthForCsp = app.get(OAuthService);
+  // Warm the cache up front so the first request doesn't get an
+  // empty allowlist for one cycle.
+  await oauthForCsp.getAllowedOrigins();
+  app.use((req: any, res: any, next: any) => {
+    const partners = [...oauthForCsp.getAllowedOriginsSync()];
+    res.locals = res.locals ?? {};
+    res.locals.allowedPartners = partners;
+    next();
+  });
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          // Build per-request: refresh the partner list every time.
+          // helmet calls the function with (req, res); the cache call
+          // is O(1) so this stays cheap.
+          connectSrc: [
+            "'self'",
+            (_req, res) =>
+              (res as any).locals?.allowedPartners?.join(' ') ?? '',
+          ] as any,
+          frameAncestors: [
+            "'self'",
+            (_req, res) =>
+              (res as any).locals?.allowedPartners?.join(' ') ?? '',
+          ] as any,
+        },
+      },
+      // Override the default X-Frame-Options=SAMEORIGIN — that header
+      // is older than CSP frame-ancestors and is now used by browsers
+      // as a hard fallback that overrides CSP. Disabling lets the
+      // (correctly-scoped) frame-ancestors directive be authoritative.
+      frameguard: false,
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    }),
+  );
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Dynamic CORS — check origin against OAuth client redirect URIs on every request
+  const frontendUrl = configService.get<string>('FRONTEND_URL', '');
+  // Reuse OAuthService for allowed origins (cached, auto-refreshes every 60s)
+  const oauthService = app.get(OAuthService);
+  const allowedOrigins = await oauthService.getAllowedOrigins();
+  logger.log(`CORS Origins: ${[...allowedOrigins].join(', ')}`);
+
+  app.enableCors({
+    origin: async (origin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, etc.)
+      if (!origin) return callback(null, true);
+      const allowed = await oauthService.getAllowedOrigins();
+      if (allowed.has(origin)) return callback(null, true);
+      callback(new Error(`CORS: ${origin} not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'],
+  });
+
+  // Redis client for sessions
+  const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
+  const redisPort = configService.get<number>('REDIS_PORT', 6379);
+  const redisPassword = configService.get<string>('REDIS_PASSWORD');
+
+  const redisConfig: any = {
+    socket: { host: redisHost, port: redisPort },
+  };
+  
+  if (redisPassword && redisPassword.trim().length > 0) {
+    redisConfig.password = redisPassword;
+  }
+
+  const redisClient = createClient(redisConfig);
+  redisClient.on('error', (err) => logger.error('Redis error', err.message));
+  await redisClient.connect();
+  logger.log('Redis session store connected');
+
+  // Cookie parser
+  app.use(cookieParser());
+
+  // Request logging middleware
+  app.use((req: any, res: any, next: any) => {
+    const originalEnd = res.end;
+    res.end = function(...args: any[]) {
+      const setCookie = res.getHeader('Set-Cookie');
+      // Only log auth/oauth requests
+      if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
+        logger.request(req.method, req.path, res.statusCode, {
+          hasCookie: !!setCookie,
+        });
+      }
+      return originalEnd.apply(this, args);
+    };
+    next();
+  });
+
+  // Session configuration
+  const configuredSecret = configService.get<string>('SESSION_SECRET') ||
+                           configService.get<string>('JWT_SECRET');
+  if (!configuredSecret) {
+    throw new Error('SESSION_SECRET or JWT_SECRET must be set in environment');
+  }
+  sessionSecret = configuredSecret;
+
+  // Dual session config: first-party flow gets `inite.sid` with
+  // SameSite=lax (CSRF protection for browser-driven OAuth), embed
+  // flow gets `inite.sid.embed` with SameSite=none so the cookie
+  // survives a cross-origin iframe POST.
+  //
+  // Choice is keyed on Origin: a partner whose origin is in the
+  // OAuth-client allowlist (and not equal to FRONTEND_URL) gets the
+  // embed cookie. Everything else (no Origin, FRONTEND_URL Origin,
+  // unknown Origin) gets the first-party cookie.
+  //
+  // CSRF on the embed surface is contained by the CORS Origin check —
+  // an unallowed origin can't reach the endpoint in the first place.
+  const sessionBase = {
+    store: new RedisStore({ client: redisClient }),
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+  } as const;
+  const firstPartySession = session({
+    ...sessionBase,
+    name: 'inite.sid',
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+      path: '/',
+    },
+  });
+  const embedSession = session({
+    ...sessionBase,
+    name: 'inite.sid.embed',
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'none',
+      path: '/',
+    },
+  });
+  const normalizedFrontendUrl = (
+    configService.get<string>('FRONTEND_URL', '') ?? ''
+  ).replace(/\/$/, '');
+  app.use((req: any, res: any, next: any) => {
+    const origin = req.headers.origin as string | undefined;
+    if (origin) {
+      const allowed = oauthForCsp.getAllowedOriginsSync();
+      if (allowed.has(origin) && origin !== normalizedFrontendUrl) {
+        return embedSession(req, res, next);
+      }
+    }
+    return firstPartySession(req, res, next);
+  });
+
+  // The session-store Redis client is created here, not through DI, so
+  // enableShutdownHooks() doesn't close it. Wire it to SIGTERM/SIGINT
+  // manually so containers don't drop sessions on rolling deploys.
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(sig, () => {
+      logger.log(`Received ${sig}, closing session redis client`);
+      redisClient.quit().catch((err) =>
+        logger.error('Redis quit error', err?.message ?? 'unknown'),
+      );
+    });
+  }
+
+  const port = configService.get<number>('PORT', 3002);
+  await app.listen(port);
+
+  logger.log(`INITE Identity Provider running on port ${port}`);
+  logger.log(`Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
+}
+
+bootstrap();

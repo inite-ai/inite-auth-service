@@ -1,0 +1,163 @@
+export const metadata = {
+  title: 'SDK reference · INITE Docs',
+  description: '@inite/auth-sdk — IniteAuth class, React adapter, mountEmbed.',
+}
+
+# SDK reference
+
+`@inite/auth-sdk` is a zero-runtime-dep browser package: ESM + CJS, types included. React adapter is opt-in via the `/react` subpath.
+
+```bash
+npm install @inite/auth-sdk
+```
+
+> **Inside INITE?** For verticals using Next.js RSC + Prisma, prefer `@inite/auth` from inite-shared instead — it provides server-side `getSession()`, role/permission helpers, `MachineTokenClient` for backend M2M, and `verifyAccessToken()` for verified JWT decoding. This browser SDK is for portable / external / pure-client scenarios. See [Service tokens](/docs/service-tokens) for the internal vs external split.
+
+## `new IniteAuth(options)`
+
+```ts
+import { IniteAuth } from '@inite/auth-sdk'
+
+const auth = new IniteAuth({
+  clientId: 'your-app-id',
+  baseUrl: 'https://auth.inite.ai',  // default
+  storage: 'memory',                  // 'memory' | 'session' | 'local'
+})
+```
+
+### Options
+
+| Option     | Type                                | Default                  | Notes                                            |
+| ---------- | ----------------------------------- | ------------------------ | ------------------------------------------------ |
+| `clientId` | `string`                            | — (required)             | OAuth client id registered with INITE.            |
+| `baseUrl`  | `string`                            | `https://auth.inite.ai`  | Override for self-hosted INITE.                   |
+| `storage`  | `'memory' \| 'session' \| 'local'`  | `'memory'`               | Where the access token persists between reloads. |
+| `fetch`    | `typeof fetch`                      | global `fetch`           | Override for SSR shims / tests.                  |
+
+### Storage modes
+
+- **`memory`** (default): forgotten on page reload. Most secure against XSS.
+- **`session`**: `sessionStorage`. Survives reload, dies with the tab.
+- **`local`**: `localStorage`. Survives tab close. Use only if no third-party scripts run on your origin.
+
+## Methods
+
+### `loginWithPassword({ email, password })`
+
+```ts
+const { user, accessToken } = await auth.loginWithPassword({
+  email: 'user@example.com',
+  password: '••••',
+})
+```
+
+Throws on failure with `{ message, status, body }` attached.
+
+### `registerWithPassword({ email, password, name? })`
+
+Same shape as `loginWithPassword` but creates the account first.
+
+### `sendMagicLink({ email })`
+
+```ts
+await auth.sendMagicLink({ email: 'user@example.com' })
+// User clicks the link in their inbox → redirected back to the IdP →
+// redirected to one of your registered redirectUris with the session.
+```
+
+Returns nothing. Call `getSession()` afterwards (or subscribe via `onAuthStateChange`) to hydrate.
+
+### `getSession()` / `getSessionSync()`
+
+```ts
+const session = await auth.getSession()  // round-trips to /session/me
+const cached  = auth.getSessionSync()    // local cache only, no I/O
+```
+
+`getSession()` is the canonical hydration call — works after a magic-link callback landed in a different tab via the shared session cookie.
+
+### `logout()`
+
+Clears the IdP session cookie + local cache.
+
+### `onAuthStateChange(listener)`
+
+```ts
+const unsubscribe = auth.onAuthStateChange((session) => {
+  console.log(session)  // { user, accessToken } | null
+})
+```
+
+Listener fires immediately with the current state (so subscribers don't need a separate read), and on every login / logout / hydration thereafter.
+
+### `authedFetch(url, init?)`
+
+Wraps `fetch` to inject the bearer token, and retries once after refreshing on 401:
+
+```ts
+const res = await auth.authedFetch('https://your-api/posts', {
+  method: 'POST',
+  body: JSON.stringify({ title: 'hi' }),
+})
+```
+
+## React adapter
+
+```tsx
+import { IniteAuthProvider, useAuth } from '@inite/auth-sdk/react'
+
+function App() {
+  return (
+    <IniteAuthProvider clientId="your-app-id" storage="session">
+      <Routes />
+    </IniteAuthProvider>
+  )
+}
+
+function Header() {
+  const {
+    user,
+    accessToken,
+    loading,
+    loginWithPassword,
+    sendMagicLink,
+    logout,
+  } = useAuth()
+
+  if (loading) return null
+  if (!user) return <SignInForm />
+  return (
+    <div>
+      Signed in as {user.email}
+      <button onClick={logout}>Sign out</button>
+    </div>
+  )
+}
+```
+
+`IniteAuthProvider` takes the same options as `IniteAuth` plus:
+
+- `autoHydrate?: boolean` (default `true`) — call `getSession()` on mount to revive a cookie-backed session.
+
+## `mountEmbed({ clientId, container? })`
+
+```ts
+import { mountEmbed } from '@inite/auth-sdk'
+
+const { iframe, done, destroy } = mountEmbed({
+  clientId: 'your-app-id',
+  container: document.getElementById('login')!,
+})
+
+const session = await done
+console.log(session.user, session.accessToken)
+destroy()  // remove the iframe
+```
+
+Drops an `<iframe>` pointing at the IdP's hosted `/embed/login`. Handshakes the parent origin via `postMessage` and resolves the `done` promise once the user signs in. The iframe verifies the parent origin against the OAuth client's allowlist server-side, so a hostile parent can't impersonate yours.
+
+## Browser support
+
+- Modern evergreen browsers (Chrome / Edge / Safari / Firefox).
+- Passkey methods require WebAuthn (97%+ of devices in 2026).
+- Embed mode requires `SameSite=None` cookies (already configured server-side for registered partner origins).

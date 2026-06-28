@@ -1,0 +1,21 @@
+{{#> layout
+    translations=translations
+    app=app
+    headerGradient="linear-gradient(135deg, #d97706 0%, #b45309 100%)"
+    headerIcon="📱"
+}}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+        <td style="padding-bottom:16px;font-size:17px;color:#111827;">{{{translations.message}}}</td>
+    </tr>
+    <tr>
+        <td style="padding-bottom:16px;color:#4b5563;line-height:1.6;">{{translations.description}}</td>
+    </tr>
+    <tr>
+        <td style="padding-bottom:8px;font-size:14px;color:#6b7280;"><strong>{{translations.deviceLabel}}</strong> {{deviceInfo}}</td>
+    </tr>
+    <tr>
+        <td style="padding-top:16px;font-size:14px;color:#b45309;">{{translations.warning}}</td>
+    </tr>
+</table>
+{{/layout}}

@@ -1,0 +1,51 @@
+{{#> layout
+    translations=translations
+    app=app
+    headerGradient="linear-gradient(135deg, #059669 0%, #047857 100%)"
+    headerIcon="🎉"
+}}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+        <td style="padding-bottom:16px;font-size:17px;color:#111827;">{{{translations.greeting}}}</td>
+    </tr>
+    <tr>
+        <td style="padding-bottom:20px;color:#4b5563;line-height:1.6;">{{{translations.message}}}</td>
+    </tr>
+    <tr>
+        <td style="padding-bottom:12px;color:#374151;font-weight:600;">{{translations.features.intro}}</td>
+    </tr>
+    <tr>
+        <td style="padding:20px 0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:0 12px;">
+                <tr>
+                    <td style="padding:16px;background:#f3f4f6;border-radius:8px;vertical-align:top;">
+                        <p style="margin:0 0 4px 0;font-size:24px;">🔐</p>
+                        <p style="margin:0 0 4px 0;font-weight:600;color:#111827;">{{translations.features.securityTitle}}</p>
+                        <p style="margin:0;font-size:14px;color:#6b7280;">{{translations.features.securityDesc}}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:16px;background:#f3f4f6;border-radius:8px;vertical-align:top;">
+                        <p style="margin:0 0 4px 0;font-size:24px;">🌐</p>
+                        <p style="margin:0 0 4px 0;font-weight:600;color:#111827;">{{translations.features.ecosystemTitle}}</p>
+                        <p style="margin:0;font-size:14px;color:#6b7280;">{{translations.features.ecosystemDesc}}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:16px;background:#f3f4f6;border-radius:8px;vertical-align:top;">
+                        <p style="margin:0 0 4px 0;font-size:24px;">🔑</p>
+                        <p style="margin:0 0 4px 0;font-weight:600;color:#111827;">{{translations.features.passkeyTitle}}</p>
+                        <p style="margin:0;font-size:14px;color:#6b7280;">{{translations.features.passkeyDesc}}</p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding:24px 0;text-align:center;">
+            <a href="{{app.url}}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#059669,#047857);color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;">{{translations.cta.button}}</a>
+            <p style="margin:12px 0 0 0;font-size:14px;color:#6b7280;">{{translations.cta.text}}</p>
+        </td>
+    </tr>
+</table>
+{{/layout}}

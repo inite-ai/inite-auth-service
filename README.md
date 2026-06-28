@@ -1,19 +1,38 @@
-# INITE Identity Provider (IdP)
+<p align="center">
+  <a href="https://github.com/inite-ai/inite-auth-service">
+    <img src="assets/banner.png" alt="INITE Identity Provider — OAuth2/OIDC, passkeys, Web3-native identity" width="100%">
+  </a>
+</p>
 
-<a href="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml"><img src="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-<a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
-<a href="https://github.com/inite-ai/inite-auth-service/stargazers"><img src="https://img.shields.io/github/stars/inite-ai/inite-auth-service?style=flat" alt="Stars"></a>
-<a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
-<img src="https://img.shields.io/badge/TypeScript-3178c6.svg" alt="TypeScript">
-<img src="https://img.shields.io/badge/OAuth2%2FOIDC-native-ffb938.svg" alt="OAuth2/OIDC">
+<h1 align="center">INITE Identity Provider</h1>
 
-A self-hostable OAuth2 / OIDC identity provider with passkeys, magic links, and
-Web3-native (DID / SIWE) identity. Originally built to provide unified single
-sign-on across the INITE ecosystem, now open source for anyone to run.
+<p align="center">
+  <b>Self-hostable OAuth2 / OIDC identity provider — passkeys, magic links, and Web3-native identity.</b><br>
+  Standards-deep (PKCE, refresh rotation + theft detection, PAR, DPoP, device flow),<br>
+  passwordless-first, and the only one that treats DIDs / verifiable credentials / wallet sign-in as first-class.<br>
+  Open-core: the server is AGPL-3.0; the client SDK is MIT.
+</p>
 
-> **Open-core:** the server is AGPL-3.0-or-later; a commercial license is also
-> available. The client SDK in [`packages/sdk/`](packages/sdk/) is MIT.
-> See [LICENSING.md](LICENSING.md).
+<p align="center">
+  <a href="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml"><img src="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="https://github.com/inite-ai/inite-auth-service/stargazers"><img src="https://img.shields.io/github/stars/inite-ai/inite-auth-service?style=flat" alt="Stars"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
+  <img src="https://img.shields.io/badge/TypeScript-3178c6.svg" alt="TypeScript">
+  <img src="https://img.shields.io/badge/OAuth2%2FOIDC-native-ffb938.svg" alt="OAuth2/OIDC">
+</p>
+
+<p align="center">
+  <a href="https://auth.inite.ai">Website</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#connect-an-app">Connect an app</a> ·
+  <a href="#standards--rfc-coverage">Standards</a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
 
 ## Why INITE Auth
 
@@ -147,6 +166,7 @@ my-app-one.example.com   my-app-two.example.com   my-app-three.example.com
 - [ADMIN-SETUP.md](ADMIN-SETUP.md) — admin panel & operations
 - [SECURITY.md](SECURITY.md) — security model, threat model & disclosure
 - [ROADMAP.md](ROADMAP.md) — what's next, toward SOTA parity
+- [docs/NEXT-SESSION.md](docs/NEXT-SESSION.md) — tactical, executable next-session plan
 - [CHANGELOG.md](CHANGELOG.md) — release history
 
 ### Key endpoints

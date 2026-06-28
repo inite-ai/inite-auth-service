@@ -7,6 +7,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies"]
+    commit-message:
+      prefix: "build"
+      prefix-development: "chore"
     groups:
       nestjs:
         patterns: ["@nestjs/*"]
@@ -20,6 +23,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "area: sdk"]
+    commit-message:
+      prefix: "build"
+      prefix-development: "chore"
     groups:
       sdk-minor:
         update-types: ["minor", "patch"]
@@ -31,6 +37,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "area: frontend"]
+    commit-message:
+      prefix: "build"
+      prefix-development: "chore"
     groups:
       frontend-minor:
         update-types: ["minor", "patch"]
@@ -41,6 +50,8 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies"]
+    commit-message:
+      prefix: "build"
 
   # GitHub Actions — bumps the pinned versions
   - package-ecosystem: github-actions
@@ -49,6 +60,8 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies"]
+    commit-message:
+      prefix: "ci"
     groups:
       actions:
         update-types: ["minor", "patch"]

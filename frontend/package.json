@@ -37,7 +37,7 @@
     "eslint-config-next": "^16.1.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "comments": {
     "overrides": "Pin patched transitive deps flagged by Dependabot. ws is split: the 8.x consumers get >=8.21.0, while @walletconnect/jsonrpc-ws-connection (which wants the 7.x line) is scoped to >=7.5.11 so it isn't force-upgraded to 8.x."

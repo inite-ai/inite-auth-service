@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { IdentityModule } from '../../identity/identity.module';
 import { FederationService } from './federation.service';
+import { FederationProviders } from './federation-providers.service';
 import { FederationController } from './federation.controller';
 
 /**
@@ -10,7 +11,7 @@ import { FederationController } from './federation.controller';
  */
 @Module({
   imports: [IdentityModule],
-  providers: [FederationService],
+  providers: [FederationService, FederationProviders],
   controllers: [FederationController],
   exports: [FederationService],
 })

@@ -39,10 +39,10 @@ function makeService() {
   };
   const prisma = { oAuthIdentity, user } as any;
   const identityService = { createIdentity: jest.fn() } as any;
-  const config = { get: jest.fn() } as any;
   const redis = {} as any;
+  const providers = {} as any; // resolveUser doesn't touch the provider client
 
-  const service = new FederationService(config, prisma, redis, identityService);
+  const service = new FederationService(prisma, redis, identityService, providers);
   return { service, prisma, identityService, oAuthIdentity, user };
 }
 

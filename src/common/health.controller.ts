@@ -116,7 +116,17 @@ export class HealthController {
         'refresh_token',
         'client_credentials',
         'urn:ietf:params:oauth:grant-type:device_code',
+        'urn:ietf:params:oauth:grant-type:token-exchange',
       ],
+      // RFC 8693 Token Exchange token types we accept/issue.
+      'token-exchange': {
+        subject_token_types_supported: [
+          'urn:ietf:params:oauth:token-type:access_token',
+          'urn:ietf:params:oauth:token-type:jwt',
+        ],
+      },
+      // OIDC acr the step-up enforcement understands (see StepUpService).
+      acr_values_supported: ['aal1', 'aal2', 'phr'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
       token_endpoint_auth_methods_supported: [

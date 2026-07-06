@@ -9,6 +9,15 @@ import { OAuthClient } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 
+/** Input contract for the programmatic registerClient (not public DCR). */
+export interface RegisterClientInput {
+  clientId: string;
+  clientSecret: string;
+  name: string;
+  redirectUris: string[];
+  allowedScopes?: string[];
+}
+
 // Grants an open (unauthenticated) RFC 7591 registration may request.
 // Deliberately EXCLUDES token-exchange and device_code — those are
 // privilege-escalating and must be provisioned by an operator.
@@ -193,16 +202,12 @@ export class OAuthClientRegistryService {
   }
 
   /**
-   * Register OAuth client
+   * Register an OAuth client (programmatic / seeder path — distinct from the
+   * public RFC 7591 registerDynamicClient).
    */
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  async registerClient(
-    clientId: string,
-    clientSecret: string,
-    name: string,
-    redirectUris: string[],
-    allowedScopes: string[] = ['openid', 'profile', 'email'],
-  ): Promise<OAuthClient> {
+  async registerClient(input: RegisterClientInput): Promise<OAuthClient> {
+    const { clientId, clientSecret, name, redirectUris } = input;
+    const allowedScopes = input.allowedScopes ?? ['openid', 'profile', 'email'];
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
 
     return await this.prisma.oAuthClient.create({

@@ -7,6 +7,17 @@ import { ethers } from 'ethers';
 import * as nacl from 'tweetnacl';
 import * as naclUtil from 'tweetnacl-util';
 
+/** Input contract for IdentityService.linkWallet. */
+export interface LinkWalletInput {
+  userId: string;
+  address: string;
+  chain: string;
+  message: string;
+  signature: string;
+  /** Required for TON wallet verification. */
+  publicKey?: string;
+}
+
 @Injectable()
 export class IdentityService {
   constructor(
@@ -77,15 +88,8 @@ export class IdentityService {
   /**
    * Link wallet to identity
    */
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  async linkWallet(
-    userId: string,
-    address: string,
-    chain: string,
-    message: string,
-    signature: string,
-    publicKey?: string,
-  ): Promise<Wallet> {
+  async linkWallet(input: LinkWalletInput): Promise<Wallet> {
+    const { userId, address, chain, message, signature, publicKey } = input;
     await this.getIdentityById(userId);
 
     let isValid = false;
@@ -169,13 +173,13 @@ export class IdentityService {
     const issuerDid = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
     const issuerPrivateKey = process.env.ISSUER_PRIVATE_KEY || '';
 
-    return await this.didService.issueVerifiableCredential(
+    return await this.didService.issueVerifiableCredential({
       issuerDid,
       issuerPrivateKey,
-      user.did,
+      subjectDid: user.did,
       claims,
       credentialType,
-    );
+    });
   }
 
   /**

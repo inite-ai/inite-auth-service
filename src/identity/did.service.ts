@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
+/** Input contract for DidService.issueVerifiableCredential (W3C VC). */
+export interface IssueVerifiableCredentialInput {
+  issuerDid: string;
+  issuerPrivateKey: string;
+  subjectDid: string;
+  claims: Record<string, any>;
+  credentialType: string;
+}
+
 @Injectable()
 export class DidService {
   constructor(private readonly configService: ConfigService) {}
@@ -186,16 +195,13 @@ export class DidService {
   }
 
   /**
-   * Create a Verifiable Credential
+   * Create a Verifiable Credential.
    */
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async issueVerifiableCredential(
-    issuerDid: string,
-    issuerPrivateKey: string,
-    subjectDid: string,
-    claims: Record<string, any>,
-    credentialType: string,
+    input: IssueVerifiableCredentialInput,
   ): Promise<any> {
+    const { issuerDid, issuerPrivateKey, subjectDid, claims, credentialType } =
+      input;
     const credential = {
       '@context': [
         'https://www.w3.org/2018/credentials/v1',

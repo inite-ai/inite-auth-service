@@ -102,55 +102,58 @@ export class OAuthController {
    * ignored (other than client_id, which binds the PAR consumption) and the
    * pushed values take over. Returns the normalized, camelCase params.
    */
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   private async resolveAuthorizeParams(
     q: AuthorizeQuery,
   ): Promise<ResolvedAuthorizeParams> {
-    let responseType = q.response_type;
-    const clientId = q.client_id ?? '';
-    let redirectUri = q.redirect_uri ?? '';
-    let scope = q.scope;
-    let state = q.state;
-    let codeChallenge = q.code_challenge;
-    let codeChallengeMethod = q.code_challenge_method;
-    let nonce = q.nonce;
-    let acrValues = q.acr_values;
-    let prompt = q.prompt;
-    // RFC 8707 — not part of the PAR request object round-trip below, so
-    // read verbatim from the raw query.
-    const resource = q.resource;
+    const base = this.queryToParams(q);
+    if (!q.request_uri) return base;
+    return this.applyPushedRequest(q.request_uri, base);
+  }
 
-    if (q.request_uri) {
-      if (!clientId) {
-        throw new BadRequestException('client_id is required with request_uri');
-      }
-      const pushed = await this.par.consume(q.request_uri, clientId);
-      if (!pushed) {
-        throw new BadRequestException('Invalid or expired request_uri');
-      }
-      responseType = pushed.responseType ?? responseType;
-      redirectUri = pushed.redirectUri;
-      scope = pushed.scope ?? scope;
-      state = pushed.state ?? state;
-      codeChallenge = pushed.codeChallenge ?? codeChallenge;
-      codeChallengeMethod = pushed.codeChallengeMethod ?? codeChallengeMethod;
-      nonce = pushed.nonce ?? nonce;
-      acrValues = pushed.acrValues ?? acrValues;
-      prompt = pushed.prompt ?? prompt;
-    }
-
+  /** Map the raw query to normalized params (before any PAR override). */
+  private queryToParams(q: AuthorizeQuery): ResolvedAuthorizeParams {
     return {
-      responseType,
-      clientId,
-      redirectUri,
-      scope,
-      state,
-      codeChallenge,
-      codeChallengeMethod,
-      nonce,
-      acrValues,
-      prompt,
-      resource,
+      responseType: q.response_type,
+      clientId: q.client_id ?? '',
+      redirectUri: q.redirect_uri ?? '',
+      scope: q.scope,
+      state: q.state,
+      codeChallenge: q.code_challenge,
+      codeChallengeMethod: q.code_challenge_method,
+      nonce: q.nonce,
+      acrValues: q.acr_values,
+      prompt: q.prompt,
+      // RFC 8707 — not part of the PAR request object round-trip.
+      resource: q.resource,
+    };
+  }
+
+  /**
+   * RFC 9126: consume the pushed request and let its values take over the
+   * inbound query (client_id already bound the PAR consumption).
+   */
+  private async applyPushedRequest(
+    requestUri: string,
+    base: ResolvedAuthorizeParams,
+  ): Promise<ResolvedAuthorizeParams> {
+    if (!base.clientId) {
+      throw new BadRequestException('client_id is required with request_uri');
+    }
+    const pushed = await this.par.consume(requestUri, base.clientId);
+    if (!pushed) {
+      throw new BadRequestException('Invalid or expired request_uri');
+    }
+    return {
+      ...base,
+      responseType: pushed.responseType ?? base.responseType,
+      redirectUri: pushed.redirectUri,
+      scope: pushed.scope ?? base.scope,
+      state: pushed.state ?? base.state,
+      codeChallenge: pushed.codeChallenge ?? base.codeChallenge,
+      codeChallengeMethod: pushed.codeChallengeMethod ?? base.codeChallengeMethod,
+      nonce: pushed.nonce ?? base.nonce,
+      acrValues: pushed.acrValues ?? base.acrValues,
+      prompt: pushed.prompt ?? base.prompt,
     };
   }
 

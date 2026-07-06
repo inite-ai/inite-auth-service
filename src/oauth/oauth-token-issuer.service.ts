@@ -28,6 +28,12 @@ export interface GenerateTokensInput {
   rotatedFrom?: string;
   nonce?: string;
   authnContext?: { amr?: string[]; acr?: string };
+  /**
+   * RFC 8707 resource-bound audience for the ACCESS token. When set, the
+   * access token's `aud` becomes this value instead of the clientId. The
+   * id_token `aud` is NOT affected — it stays the clientId per OIDC core.
+   */
+  audience?: string;
 }
 
 /** Issuer + access-token expiry resolved once per token issuance. */
@@ -133,7 +139,9 @@ export class OAuthTokenIssuerService {
       },
       {
         expiresIn: sctx.accessTokenExpiry as any,
-        audience: clientId,
+        // RFC 8707: bind the access-token audience to the requested
+        // resource when present; otherwise default to the clientId.
+        audience: input.audience ?? clientId,
         issuer: sctx.issuer,
       },
     );

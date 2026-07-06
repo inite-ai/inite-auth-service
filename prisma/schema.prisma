@@ -211,6 +211,10 @@ model AuthorizationCode {
   amr                 String[] @default([]) @map("amr")
   codeChallenge       String?  @map("codeChallenge")
   codeChallengeMethod String?  @map("codeChallengeMethod")
+  /// RFC 8707 Resource Indicator. The protected resource the RP requested
+  /// this code be exchanged for; at /token it binds the issued access
+  /// token's `aud` (validated against the client's allowedAudiences).
+  resource            String?
   expiresAt           DateTime @map("expiresAt")
   used                Boolean  @default(false)
   createdAt           DateTime @default(now()) @map("createdAt")

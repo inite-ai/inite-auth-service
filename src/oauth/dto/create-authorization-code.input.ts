@@ -16,4 +16,10 @@ export interface CreateAuthorizationCodeInput {
   acrValues?: string;
   /** RFC 8176 authentication methods used for this session. */
   amr?: string[];
+  /**
+   * RFC 8707 Resource Indicator captured at /authorize. Persisted on the
+   * code and, at /token, bound to the access token's `aud` (validated
+   * against the client's allowedAudiences).
+   */
+  resource?: string;
 }

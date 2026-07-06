@@ -1,4 +1,10 @@
-// MUST be first — OTel auto-instrumentations need to load before
+// Load .env into process.env before anything else. Prisma 7's driver adapter
+// reads DATABASE_URL in the PrismaService constructor (earlier than Prisma 6's
+// lazy $connect), so the env must be populated up front. No-op in production
+// where the container provides the vars; dotenv never overrides existing ones.
+import 'dotenv/config';
+
+// MUST be first (after env) — OTel auto-instrumentations need to load before
 // http/express/pg/redis get pulled in by everything below.
 import { startTracing } from './tracing';
 startTracing();

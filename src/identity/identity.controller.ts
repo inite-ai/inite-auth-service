@@ -76,14 +76,14 @@ export class IdentityController {
       publicKey?: string; // Required for TON
     },
   ) {
-    return await this.identityService.linkWallet(
-      req.user.userId,
-      body.address,
-      body.chain,
-      body.message,
-      body.signature,
-      body.publicKey,
-    );
+    return await this.identityService.linkWallet({
+      userId: req.user.userId,
+      address: body.address,
+      chain: body.chain,
+      message: body.message,
+      signature: body.signature,
+      publicKey: body.publicKey,
+    });
   }
 
   @Delete('wallet/:walletId')

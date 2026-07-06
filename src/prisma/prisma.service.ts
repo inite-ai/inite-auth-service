@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 // Build DATABASE_URL from individual DB_* env vars if not already set
 if (!process.env.DATABASE_URL) {
@@ -13,6 +14,15 @@ if (!process.env.DATABASE_URL) {
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor() {
+    // Prisma 7 ships the Rust-free client: the datasource URL no longer lives
+    // in schema.prisma; the runtime connects through a driver adapter
+    // (node-postgres pool) built from DATABASE_URL.
+    super({
+      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+    });
+  }
+
   async onModuleInit() {
     await this.$connect();
   }

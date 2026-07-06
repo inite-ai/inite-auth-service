@@ -9,6 +9,8 @@ import {
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/types';
 import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers';
 import { PrismaService } from '../prisma/prisma.service';
@@ -92,7 +94,9 @@ export class PasskeyService {
   /**
    * Generate registration options for WebAuthn
    */
-  async generateRegistrationOptions(userId: string) {
+  async generateRegistrationOptions(
+    userId: string,
+  ): Promise<PublicKeyCredentialCreationOptionsJSON> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
@@ -192,7 +196,9 @@ export class PasskeyService {
   /**
    * Generate authentication options for WebAuthn
    */
-  async generateAuthenticationOptions(email?: string) {
+  async generateAuthenticationOptions(
+    email?: string,
+  ): Promise<PublicKeyCredentialRequestOptionsJSON> {
     let allowCredentials = undefined;
 
     if (email) {

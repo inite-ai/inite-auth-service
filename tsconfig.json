@@ -9,7 +9,7 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
+    "rootDir": "./src",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
@@ -19,9 +19,10 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    // TS6 no longer auto-includes ambient @types globals the way TS5 did for
+    // this config; list the ones the code relies on globally. Explicitly
+    // imported @types (pg, express, …) still resolve normally.
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]

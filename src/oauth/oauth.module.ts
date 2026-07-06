@@ -8,6 +8,7 @@ import { OAuthController } from './oauth.controller';
 import { OAuthRequestController } from './oauth-request.controller';
 import { OAuthSessionController } from './oauth-session.controller';
 import { TokenController } from './token.controller';
+import { OAuthRegisterController } from './oauth-register.controller';
 import { TokenGrantService } from './token-grant.service';
 import { PkceService } from './pkce.service';
 import { StepUpService } from './step-up.service';
@@ -50,6 +51,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     OAuthRequestController,
     OAuthSessionController,
     TokenController,
+    OAuthRegisterController,
   ],
   exports: [
     OAuthService,

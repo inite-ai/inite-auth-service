@@ -121,7 +121,7 @@ export class OAuthSessionController {
   /**
    * Logout endpoint
    */
-  // eslint-disable-next-line max-params, complexity -- NestJS route handler (param decorators); TODO(complexity): decompose
+  // eslint-disable-next-line max-params -- NestJS route handler (param decorators)
   @Get('logout')
   async logout(
     @Query('post_logout_redirect_uri') postLogoutRedirectUri: string,
@@ -131,68 +131,78 @@ export class OAuthSessionController {
   ) {
     // Capture identity + session id BEFORE we destroy the session,
     // so back-channel logout has something to put in `sub`/`sid`.
-    let userDid: string | null = null;
     const sid: string | undefined = req.session?.id;
     const userId = req.session?.userId;
-    if (userId) {
-      try {
-        userDid = await this.oauthService.getUserDid(userId);
-      } catch (e: any) {
-        this.logger.warn(`Logout: could not resolve userDid: ${e?.message}`);
-      }
-    }
+    const userDid = userId ? await this.resolveUserDid(userId) : null;
 
-    // Destroy session
-    if (req.session) {
-      await new Promise<void>((resolve) => {
-        req.session.destroy((err) => {
-          if (err) this.logger.error('Session destroy error', err.message);
-          else this.logger.session('Destroyed on logout');
-          resolve();
-        });
-      });
-    }
-
-    // Clear session cookie
+    await this.destroySession(req);
     res.clearCookie('inite.sid');
+    if (userDid) this.fanOutBackchannel(userDid, sid);
 
-    // Best-effort fan-out to RPs with backchannel_logout_uri set.
-    // Bounded by per-call timeout in the service so a slow RP can't
-    // delay the user's redirect indefinitely.
-    if (userDid) {
-      this.backchannelLogout
-        .fanOut({ userDid, sid })
-        .then((count) =>
-          this.logger.session('Back-channel logout fan-out', {
-            recipients: count,
-            sub: userDid,
-          }),
-        )
-        .catch((e) =>
-          this.logger.warn(
-            `Back-channel fan-out error: ${e?.message ?? 'unknown'}`,
-          ),
-        );
+    const target = await this.resolveLogoutRedirect(postLogoutRedirectUri, state);
+    return res.redirect(target ?? (this.oauthService.getFrontendUrl() || '/'));
+  }
+
+  /** Best-effort user DID lookup (never throws — logout must always proceed). */
+  private async resolveUserDid(userId: string): Promise<string | null> {
+    try {
+      return await this.oauthService.getUserDid(userId);
+    } catch (e: any) {
+      this.logger.warn(`Logout: could not resolve userDid: ${e?.message}`);
+      return null;
     }
+  }
 
-    const frontendUrl = this.oauthService.getFrontendUrl();
+  /** Destroy the session (resolves even on error so logout can't hang). */
+  private async destroySession(req: Request): Promise<void> {
+    if (!req.session) return;
+    await new Promise<void>((resolve) => {
+      req.session.destroy((err) => {
+        if (err) this.logger.error('Session destroy error', err.message);
+        else this.logger.session('Destroyed on logout');
+        resolve();
+      });
+    });
+  }
 
-    if (postLogoutRedirectUri) {
-      try {
-        const url = new URL(postLogoutRedirectUri);
-        const isAllowed = await this.origins.isAllowedOrigin(url.origin);
-        if (isAllowed) {
-          if (state) url.searchParams.set('state', state);
-          return res.redirect(url.toString());
-        }
-        this.logger.warn('Logout redirect blocked', {
-          uri: postLogoutRedirectUri,
-          origin: url.origin,
-        });
-      } catch { /* invalid URL */ }
+  /**
+   * Fire-and-forget back-channel logout to RPs with backchannel_logout_uri.
+   * Bounded by a per-call timeout in the service so a slow RP can't delay
+   * the user's redirect.
+   */
+  private fanOutBackchannel(userDid: string, sid: string | undefined): void {
+    this.backchannelLogout
+      .fanOut({ userDid, sid })
+      .then((count) =>
+        this.logger.session('Back-channel logout fan-out', {
+          recipients: count,
+          sub: userDid,
+        }),
+      )
+      .catch((e) =>
+        this.logger.warn(
+          `Back-channel fan-out error: ${e?.message ?? 'unknown'}`,
+        ),
+      );
+  }
+
+  /** Validate the post-logout redirect against the allow-list; null if unsafe. */
+  private async resolveLogoutRedirect(
+    uri: string,
+    state: string,
+  ): Promise<string | null> {
+    if (!uri) return null;
+    try {
+      const url = new URL(uri);
+      if (!(await this.origins.isAllowedOrigin(url.origin))) {
+        this.logger.warn('Logout redirect blocked', { uri, origin: url.origin });
+        return null;
+      }
+      if (state) url.searchParams.set('state', state);
+      return url.toString();
+    } catch {
+      return null;
     }
-
-    return res.redirect(frontendUrl || '/');
   }
 
   /**

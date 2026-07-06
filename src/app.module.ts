@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { FederationModule } from './auth/federation/federation.module';
 import { OtpModule } from './auth/otp/otp.module';
+import { WalletModule } from './auth/wallet/wallet.module';
 import { IdentityModule } from './identity/identity.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
@@ -90,6 +91,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     AuthModule,
     FederationModule,
     OtpModule,
+    WalletModule,
     IdentityModule,
     OAuthModule,
     SessionModule,

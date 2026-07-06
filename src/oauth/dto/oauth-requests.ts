@@ -20,6 +20,8 @@ export interface AuthorizeQuery {
   nonce?: string;
   acr_values?: string;
   request_uri?: string;
+  /** RFC 8707 Resource Indicator — target resource for the issued token. */
+  resource?: string;
 }
 
 /** Authorize params after PAR (request_uri) resolution, normalized to camelCase. */
@@ -34,6 +36,8 @@ export interface ResolvedAuthorizeParams {
   prompt?: string;
   nonce?: string;
   acrValues?: string;
+  /** RFC 8707 Resource Indicator — target resource for the issued token. */
+  resource?: string;
 }
 
 export interface TokenRequestBody {

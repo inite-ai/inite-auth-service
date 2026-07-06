@@ -47,13 +47,16 @@ describe('OAuthService', () => {
       },
       authorizationCode: {
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
         delete: jest.fn(),
         deleteMany: jest.fn(),
       },
       refreshToken: {
         findMany: jest.fn(),
+        count: jest.fn().mockResolvedValue(1),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -392,6 +395,70 @@ describe('OAuthService', () => {
           data: expect.objectContaining({ nonce: 'n-0S6_WzA2Mj' }),
         }),
       );
+    });
+  });
+
+  describe('exchangeAuthorizationCode — RFC 8707 resource audience', () => {
+    const user = {
+      id: 'u', did: 'did:k:1', email: 'e', emailVerified: true,
+      name: 'N', avatarUrl: null, metadata: null,
+    } as any;
+
+    const setup = (resource: string | null, allowedAudiences: string[]) => {
+      config.get = jest.fn((key: string) => {
+        if (key === 'REFRESH_TOKEN_HMAC_SECRET') return 'test-secret';
+        if (key === 'JWT_SECRET') return 'test-secret';
+        return '';
+      });
+      mockPrisma.authorizationCode.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.authorizationCode.findUnique.mockResolvedValue({
+        code: 'code-1', userId: 'u', clientId: 'test-app',
+        redirectUri: 'https://app.example.com/callback',
+        scope: 'openid', nonce: null, acrValues: null, amr: [],
+        codeChallenge: null, resource, user,
+      });
+      mockPrisma.oAuthClient.findUnique.mockResolvedValue({
+        allowedAudiences, companyId: null,
+      });
+      mockPrisma.refreshToken.create.mockResolvedValue({});
+      const signSpy = jest.fn().mockReturnValue('jwt');
+      jwt.sign = signSpy;
+      return signSpy;
+    };
+
+    const exchange = () =>
+      service.exchangeAuthorizationCode({
+        code: 'code-1', clientId: 'test-app',
+        redirectUri: 'https://app.example.com/callback',
+      });
+
+    it('binds the access-token audience to a resource in allowedAudiences', async () => {
+      const signSpy = setup('https://api.example.com', ['https://api.example.com']);
+      await exchange();
+      // First sign call = access_token.
+      const [, accessOpts] = signSpy.mock.calls[0];
+      expect(accessOpts.audience).toBe('https://api.example.com');
+    });
+
+    it('rejects a resource not in a non-empty allowedAudiences', async () => {
+      const signSpy = setup('https://evil.example.com', ['https://api.example.com']);
+      await expect(exchange()).rejects.toThrow(/Resource ".*" is not allowed/);
+      expect(signSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps the audience as clientId when no resource is requested', async () => {
+      const signSpy = setup(null, ['https://api.example.com']);
+      await exchange();
+      const [, accessOpts] = signSpy.mock.calls[0];
+      expect(accessOpts.audience).toBe('test-app');
+    });
+
+    it('leaves the id_token aud as the clientId even when a resource is set', async () => {
+      const signSpy = setup('https://api.example.com', ['https://api.example.com']);
+      await exchange();
+      // Second sign call = id_token; its aud MUST stay the clientId (OIDC core).
+      const [, idOpts] = signSpy.mock.calls[1];
+      expect(idOpts.audience).toBe('test-app');
     });
   });
 

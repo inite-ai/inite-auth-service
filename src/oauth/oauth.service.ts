@@ -93,6 +93,7 @@ export class OAuthService {
         codeChallengeMethod: input.codeChallengeMethod,
         nonce: input.nonce ?? null,
         acrValues: input.acrValues ?? null,
+        resource: input.resource ?? null,
         amr: input.amr ?? [],
         expiresAt,
         used: false,
@@ -176,11 +177,17 @@ export class OAuthService {
       }
     }
 
+    // RFC 8707: if the code carries a requested resource, bind the issued
+    // access token's audience to it (validated against the client's
+    // allowedAudiences). Undefined result → audience stays the clientId.
+    const audience = await this.resolveCodeAudience(clientId, authCode.resource);
+
     const tokens = await this.tokenIssuer.generateTokens({
       user: authCode.user,
       clientId,
       scope: authCode.scope,
       nonce: authCode.nonce ?? undefined,
+      audience,
       authnContext: {
         amr: authCode.amr ?? [],
         acr: authCode.acrValues ?? undefined,
@@ -199,6 +206,33 @@ export class OAuthService {
     );
 
     return tokens;
+  }
+
+  /**
+   * RFC 8707 audience resolution for the authorization_code flow. Mirrors
+   * the M2M `resolveExchangeAudience` rule: when the client restricts
+   * `allowedAudiences`, the requested resource MUST be in that list or the
+   * request is rejected — a restricted client can never mint a token for an
+   * arbitrary audience. Returns `undefined` when the code carried no
+   * resource, so the token issuer keeps its default (clientId) audience.
+   */
+  private async resolveCodeAudience(
+    clientId: string,
+    resource: string | null,
+  ): Promise<string | undefined> {
+    if (!resource) return undefined;
+
+    const client = await this.prisma.oAuthClient.findUnique({
+      where: { clientId },
+      select: { allowedAudiences: true },
+    });
+    const allowedAud = client?.allowedAudiences ?? [];
+    if (allowedAud.length > 0 && !allowedAud.includes(resource)) {
+      throw new BadRequestException(
+        `Resource "${resource}" is not allowed for this client`,
+      );
+    }
+    return resource;
   }
 
   /**

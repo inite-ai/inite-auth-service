@@ -32,6 +32,11 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   acrValues?: string;
+
+  /** RFC 8707 Resource Indicator — target resource for the issued token. */
+  @IsString()
+  @IsOptional()
+  resource?: string;
 }
 
 

@@ -116,6 +116,9 @@ export class OAuthController {
     let nonce = q.nonce;
     let acrValues = q.acr_values;
     let prompt = q.prompt;
+    // RFC 8707 — not part of the PAR request object round-trip below, so
+    // read verbatim from the raw query.
+    const resource = q.resource;
 
     if (q.request_uri) {
       if (!clientId) {
@@ -147,6 +150,7 @@ export class OAuthController {
       nonce,
       acrValues,
       prompt,
+      resource,
     };
   }
 
@@ -221,6 +225,7 @@ export class OAuthController {
       // falling back to the requested value when we have no amr to derive it.
       acrValues: this.stepUp.achievedAcr(amr) ?? p.acrValues ?? undefined,
       amr,
+      resource: p.resource,
     });
 
     this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });

@@ -63,7 +63,6 @@ export class HibpService {
    * trade-off is acceptable: HIBP is supplementary defence layered
    * on top of length/complexity rules.
    */
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async breachCount(password: string): Promise<number> {
     if (!this.enabled) return 0;
     if (!password) return 0;
@@ -72,6 +71,16 @@ export class HibpService {
     const prefix = sha1.slice(0, 5);
     const suffix = sha1.slice(5);
 
+    const body = await this.fetchRange(prefix);
+    if (body === null) return 0;
+    return this.findSuffixCount(body, suffix);
+  }
+
+  /**
+   * Fetch the HIBP range body for a 5-char prefix, or null when the
+   * request fails / returns non-OK (caller treats null as not breached).
+   */
+  private async fetchRange(prefix: string): Promise<string | null> {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -86,25 +95,29 @@ export class HibpService {
       });
       if (!res.ok) {
         this.logger.warn(`HIBP returned ${res.status}; treating as not breached`);
-        return 0;
+        return null;
       }
-      const body = await res.text();
-      for (const line of body.split('\n')) {
-        const [hashSuffix, countStr] = line.trim().split(':');
-        if (hashSuffix === suffix) {
-          const count = parseInt(countStr ?? '0', 10);
-          return Number.isFinite(count) ? count : 0;
-        }
-      }
-      return 0;
+      return await res.text();
     } catch (err: any) {
       this.logger.warn(
         `HIBP request failed (${err?.name ?? 'err'}): ${err?.message ?? 'unknown'}`,
       );
-      return 0;
+      return null;
     } finally {
       clearTimeout(t);
     }
+  }
+
+  /** Scan a HIBP range body for the hash suffix, returning its count (0 if absent). */
+  private findSuffixCount(body: string, suffix: string): number {
+    for (const line of body.split('\n')) {
+      const [hashSuffix, countStr] = line.trim().split(':');
+      if (hashSuffix === suffix) {
+        const count = parseInt(countStr ?? '0', 10);
+        return Number.isFinite(count) ? count : 0;
+      }
+    }
+    return 0;
   }
 
   /**

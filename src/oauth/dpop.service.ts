@@ -57,22 +57,31 @@ export class DpopService {
    * Throws BadRequestException on malformed / spec violations,
    * UnauthorizedException on replay or invalid signature.
    */
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async validate(
     proof: string,
     method: string,
     url: string,
   ): Promise<DpopProofResult> {
-    let header: any;
-    let payload: any;
+    const { header, payload } = this.decodeProof(proof);
+    const { alg, jwk } = this.validateProofHeader(header);
+    await this.verifyProofSignature(proof, jwk, alg);
+    this.assertBindings(payload, method, url);
+    const jkt = await this.assertNotReplayed(payload, jwk);
+    return { jkt, alg };
+  }
+
+  private decodeProof(proof: string): { header: any; payload: any } {
     try {
-      const decoded = jose.decodeProtectedHeader(proof);
-      header = decoded;
-      payload = jose.decodeJwt(proof);
+      return {
+        header: jose.decodeProtectedHeader(proof),
+        payload: jose.decodeJwt(proof),
+      };
     } catch {
       throw new BadRequestException('Malformed DPoP proof');
     }
+  }
 
+  private validateProofHeader(header: any): { alg: string; jwk: any } {
     if (header.typ !== 'dpop+jwt') {
       throw new BadRequestException('DPoP proof: typ must be dpop+jwt');
     }
@@ -90,7 +99,14 @@ export class DpopService {
         'DPoP proof: jwk must not contain private parameters',
       );
     }
+    return { alg, jwk };
+  }
 
+  private async verifyProofSignature(
+    proof: string,
+    jwk: any,
+    alg: string,
+  ): Promise<void> {
     const key = await jose.importJWK(jwk, alg);
     try {
       await jose.jwtVerify(proof, key, { algorithms: [alg] });
@@ -99,7 +115,9 @@ export class DpopService {
         `DPoP proof signature invalid: ${e?.code ?? e?.message ?? 'unknown'}`,
       );
     }
+  }
 
+  private assertBindings(payload: any, method: string, url: string): void {
     // htm / htu binding — defeats proof reuse on a different
     // endpoint with the same key.
     if (typeof payload.htm !== 'string' || payload.htm.toUpperCase() !== method.toUpperCase()) {
@@ -115,7 +133,9 @@ export class DpopService {
     if (!Number.isFinite(iat) || Math.abs(now - iat) > IAT_TOLERANCE_S) {
       throw new BadRequestException('DPoP proof: iat outside freshness window');
     }
+  }
 
+  private async assertNotReplayed(payload: any, jwk: any): Promise<string> {
     // Replay protection — single-use jti within the freshness window.
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
       throw new BadRequestException('DPoP proof: jti required');
@@ -128,7 +148,7 @@ export class DpopService {
     }
     await this.redis.set(jtiKey, '1', JTI_TTL_S);
 
-    return { jkt: jktForKey, alg };
+    return jktForKey;
   }
 
   /**

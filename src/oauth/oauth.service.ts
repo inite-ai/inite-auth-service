@@ -10,6 +10,13 @@ import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 
+export interface ExchangeAuthorizationCodeInput {
+  code: string;
+  clientId: string;
+  redirectUri: string;
+  codeVerifier?: string;
+}
+
 @Injectable()
 export class OAuthService {
   private readonly oauthLogger = new Logger(OAuthService.name);
@@ -107,12 +114,8 @@ export class OAuthService {
    * used, treat it as theft and revoke the entire refresh-token family
    * issued from that code's user+client (RFC 6819 §4.4.1.1).
    */
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async exchangeAuthorizationCode(
-    code: string,
-    clientId: string,
-    redirectUri: string,
-    codeVerifier?: string,
+    input: ExchangeAuthorizationCodeInput,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -120,6 +123,7 @@ export class OAuthService {
     expiresIn: number;
     scope: string;
   }> {
+    const { code, clientId, redirectUri, codeVerifier } = input;
     const claim = await this.prisma.authorizationCode.updateMany({
       where: {
         code,
@@ -172,17 +176,16 @@ export class OAuthService {
       }
     }
 
-    const tokens = await this.tokenIssuer.generateTokens(
-      authCode.user,
+    const tokens = await this.tokenIssuer.generateTokens({
+      user: authCode.user,
       clientId,
-      authCode.scope,
-      undefined,
-      authCode.nonce ?? undefined,
-      {
+      scope: authCode.scope,
+      nonce: authCode.nonce ?? undefined,
+      authnContext: {
         amr: authCode.amr ?? [],
         acr: authCode.acrValues ?? undefined,
       },
-    );
+    });
 
     // Best-effort: if this is the first successful token exchange
     // between this user and this client, notify the user so they

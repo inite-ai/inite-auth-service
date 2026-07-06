@@ -23,7 +23,6 @@ import { JwtAuthGuard } from './jwt-auth.guard';
  */
 @Injectable()
 export class AdminGuard extends JwtAuthGuard implements CanActivate {
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isAuthenticated = await super.canActivate(context);
     if (!isAuthenticated) {
@@ -34,23 +33,30 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
     const user = request.user;
 
     if (user?.kind === 'machine') {
-      const scope = user.scope instanceof Set ? user.scope : new Set<string>();
-      if (!scope.has('admin')) {
-        throw new ForbiddenException('Admin scope required');
-      }
-      return true;
+      return this.assertMachineAdmin(user);
     }
 
-    const isAdmin =
-      user?.metadata?.isAdmin === true ||
-      user?.metadata?.roles?.includes('admin') ||
-      user?.metadata?.roles?.includes('superadmin');
-
-    if (!isAdmin) {
+    if (!this.isUserAdmin(user)) {
       throw new ForbiddenException('Admin access required');
     }
 
     return true;
+  }
+
+  private assertMachineAdmin(user: any): boolean {
+    const scope = user.scope instanceof Set ? user.scope : new Set<string>();
+    if (!scope.has('admin')) {
+      throw new ForbiddenException('Admin scope required');
+    }
+    return true;
+  }
+
+  private isUserAdmin(user: any): boolean {
+    return (
+      user?.metadata?.isAdmin === true ||
+      user?.metadata?.roles?.includes('admin') ||
+      user?.metadata?.roles?.includes('superadmin')
+    );
   }
 }
 

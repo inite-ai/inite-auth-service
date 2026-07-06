@@ -2,7 +2,7 @@
 import tseslint from 'typescript-eslint';
 import eslintPluginPrettier from 'eslint-plugin-prettier/recommended';
 import sonarjs from 'eslint-plugin-sonarjs';
-import importPlugin from 'eslint-plugin-import';
+import importPlugin from 'eslint-plugin-import-x';
 import globals from 'globals';
 
 /**
@@ -25,7 +25,7 @@ import globals from 'globals';
  *   - complexity (12)              — cyclomatic complexity per fn.
  *   - sonarjs/cognitive-complexity (30) — readability-weighted variant.
  *   - sonarjs/no-identical-functions / no-duplicated-branches — DRY.
- *   - import/no-restricted-paths   — controllers must not import the DB
+ *   - import-x/no-restricted-paths — controllers must not import the DB
  *     layer (src/prisma) directly; business logic lives in services.
  *
  * Test files are exempt from size/complexity gates (Arrange/Act/Assert
@@ -63,7 +63,7 @@ export default tseslint.config(
   {
     plugins: {
       sonarjs: sonarjs,
-      import: importPlugin,
+      'import-x': importPlugin,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -76,7 +76,7 @@ export default tseslint.config(
       },
     },
     settings: {
-      'import/resolver': {
+      'import-x/resolver': {
         node: { extensions: ['.ts', '.js'] },
       },
     },
@@ -95,7 +95,7 @@ export default tseslint.config(
       // is HTTP plumbing; queries belong in a service so the next caller
       // (cron / MCP / another controller) can reuse them. Existing
       // violations carry a per-line disable + TODO.
-      'import/no-restricted-paths': [
+      'import-x/no-restricted-paths': [
         'error',
         {
           zones: [

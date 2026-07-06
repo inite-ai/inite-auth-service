@@ -5,6 +5,8 @@ import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 import { OAuthM2mService } from './oauth-m2m.service';
 import { OAuthOriginsService } from './oauth-origins.service';
 import { OAuthController } from './oauth.controller';
+import { OAuthRequestController } from './oauth-request.controller';
+import { OAuthSessionController } from './oauth-session.controller';
 import { TokenController } from './token.controller';
 import { OAuthRegisterController } from './oauth-register.controller';
 import { TokenGrantService } from './token-grant.service';
@@ -44,7 +46,13 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     DeviceFlowService,
     SystemClientsSeeder,
   ],
-  controllers: [OAuthController, TokenController, OAuthRegisterController],
+  controllers: [
+    OAuthController,
+    OAuthRequestController,
+    OAuthSessionController,
+    TokenController,
+    OAuthRegisterController,
+  ],
   exports: [
     OAuthService,
     OAuthOriginsService,

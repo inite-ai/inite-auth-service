@@ -11,8 +11,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
-import * as signature from 'cookie-signature';
 import { OtpService } from './otp.service';
+import { establishSession } from '../session/establish-session';
 import { AuthService } from '../auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { LoginEmailThrottlerGuard } from '../guards/login-throttler.guard';
@@ -127,26 +127,9 @@ export class OtpController {
     res: Response,
     bind: { userId: string; amr: string[] },
   ): Promise<void> {
-    const session = (req as any).session;
-    if (!session) return;
-    await new Promise<void>((resolve, reject) => {
-      session.regenerate((err: any) => {
-        if (err) return reject(err);
-        session.userId = bind.userId;
-        session.amr = bind.amr;
-        session.save((saveErr: any) => {
-          if (saveErr) return reject(saveErr);
-          const signed = 's:' + signature.sign(session.id, this.sessionSecret);
-          res.cookie('inite.sid', signed, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-          });
-          resolve();
-        });
-      });
+    return establishSession(req, res, {
+      sessionSecret: this.sessionSecret,
+      ...bind,
     });
   }
 }

@@ -28,12 +28,12 @@ export class EmailService {
     };
 
     const context = EMAIL_TEMPLATES.welcome.getContext({ user, app });
-    return await this.transport.sendTemplatedEmail(
-      'welcome-layout',
-      user.email,
-      '[INITE] Welcome — your account has been created',
+    return await this.transport.sendTemplatedEmail({
+      templateName: 'welcome-layout',
+      to: user.email,
+      subject: '[INITE] Welcome — your account has been created',
       context,
-    );
+    });
   }
 
   async sendMagicLink(email: string, magicLink: string, name?: string): Promise<boolean> {
@@ -48,12 +48,12 @@ export class EmailService {
       magicLink,
       app,
     });
-    return await this.transport.sendTemplatedEmail(
-      'magic-link-layout',
-      email,
-      '[INITE] Your sign-in link',
+    return await this.transport.sendTemplatedEmail({
+      templateName: 'magic-link-layout',
+      to: email,
+      subject: '[INITE] Your sign-in link',
       context,
-    );
+    });
   }
 
   /**
@@ -92,12 +92,12 @@ export class EmailService {
     };
 
     const context = EMAIL_TEMPLATES.newDeviceLogin.getContext({ user, app, deviceInfo });
-    return await this.transport.sendTemplatedEmail(
-      'new-device-layout',
-      user.email,
-      '[INITE] Sign-in from new device',
+    return await this.transport.sendTemplatedEmail({
+      templateName: 'new-device-layout',
+      to: user.email,
+      subject: '[INITE] Sign-in from new device',
       context,
-    );
+    });
   }
 
   async sendPasswordReset(
@@ -115,12 +115,12 @@ export class EmailService {
       resetUrl,
       app,
     });
-    return await this.transport.sendTemplatedEmail(
-      'password-reset-layout',
-      user.email,
-      '[INITE] Reset your password',
+    return await this.transport.sendTemplatedEmail({
+      templateName: 'password-reset-layout',
+      to: user.email,
+      subject: '[INITE] Reset your password',
       context,
-    );
+    });
   }
 
   async sendEmailVerification(email: string, verificationLink: string): Promise<boolean> {

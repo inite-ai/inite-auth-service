@@ -12,12 +12,21 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
+import { IdentityMfaService } from './identity-mfa.service';
+import { IdentityAccountService } from './identity-account.service';
+import { IdentityEmailService } from './identity-email.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('identity')
 @Controller({ path: 'auth/identity', version: '1' })
 export class IdentityController {
-  constructor(private readonly identityService: IdentityService) {}
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
+  constructor(
+    private readonly identityService: IdentityService,
+    private readonly mfaService: IdentityMfaService,
+    private readonly accountService: IdentityAccountService,
+    private readonly emailService: IdentityEmailService,
+  ) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -135,7 +144,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { name?: string; avatarUrl?: string; bio?: string; location?: string; profession?: string },
   ) {
-    return await this.identityService.updateProfile(req.user.userId, body);
+    return await this.accountService.updateProfile(req.user.userId, body);
   }
 
   @Post('email/change')
@@ -145,7 +154,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { newEmail: string; password: string },
   ) {
-    await this.identityService.requestEmailChange(req.user.userId, body.newEmail, body.password);
+    await this.emailService.requestEmailChange(req.user.userId, body.newEmail, body.password);
     return { success: true, message: 'Verification email sent to new address' };
   }
 
@@ -153,13 +162,13 @@ export class IdentityController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async resendEmailVerification(@Request() req: any) {
-    await this.identityService.resendEmailVerification(req.user.userId);
+    await this.emailService.resendEmailVerification(req.user.userId);
     return { success: true, message: 'Verification email sent' };
   }
 
   @Post('email/verify')
   async verifyEmail(@Body() body: { token: string }) {
-    return await this.identityService.verifyEmail(body.token);
+    return await this.emailService.verifyEmail(body.token);
   }
 
   @Post('change-password')
@@ -169,7 +178,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { currentPassword: string; newPassword: string },
   ) {
-    await this.identityService.changePassword(
+    await this.accountService.changePassword(
       req.user.userId,
       body.currentPassword,
       body.newPassword,
@@ -180,7 +189,7 @@ export class IdentityController {
   @Get('security-status')
   @UseGuards(JwtAuthGuard)
   async getSecurityStatus(@Request() req: any) {
-    return await this.identityService.getSecurityStatus(req.user.userId);
+    return await this.mfaService.getSecurityStatus(req.user.userId);
   }
 
   // ==================== 2FA Management ====================
@@ -188,7 +197,7 @@ export class IdentityController {
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
   async setup2FA(@Request() req: any) {
-    return await this.identityService.setup2FA(req.user.userId);
+    return await this.mfaService.setup2FA(req.user.userId);
   }
 
   @Post('2fa/enable')
@@ -197,7 +206,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { code: string },
   ) {
-    return await this.identityService.enable2FA(req.user.userId, body.code);
+    return await this.mfaService.enable2FA(req.user.userId, body.code);
   }
 
   @Post('2fa/disable')
@@ -206,7 +215,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { code: string; password: string },
   ) {
-    return await this.identityService.disable2FA(req.user.userId, body.code, body.password);
+    return await this.mfaService.disable2FA(req.user.userId, body.code, body.password);
   }
 
   @Post('2fa/verify')
@@ -216,7 +225,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { code: string },
   ) {
-    return await this.identityService.verify2FA(req.user.userId, body.code);
+    return await this.mfaService.verify2FA(req.user.userId, body.code);
   }
 
   // ==================== Data Export & Account Deletion ====================
@@ -224,7 +233,7 @@ export class IdentityController {
   @Get('export')
   @UseGuards(JwtAuthGuard)
   async exportData(@Request() req: any) {
-    return await this.identityService.exportUserData(req.user.userId);
+    return await this.accountService.exportUserData(req.user.userId);
   }
 
   @Delete('account')
@@ -233,7 +242,7 @@ export class IdentityController {
     @Request() req: any,
     @Body() body: { password: string },
   ) {
-    await this.identityService.deleteAccount(req.user.userId, body.password);
+    await this.accountService.deleteAccount(req.user.userId, body.password);
     return { success: true, message: 'Account deleted successfully' };
   }
 }

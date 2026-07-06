@@ -6,6 +6,13 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { EmailTemplateContext } from "./email.config";
 
+export interface SendTemplatedEmailInput {
+  templateName: string;
+  to: string;
+  subject: string;
+  context: EmailTemplateContext;
+}
+
 /**
  * SMTP transport + Handlebars template engine for outbound mail. Split out of
  * EmailService so the per-message send* helpers (which stay in EmailService)
@@ -197,13 +204,10 @@ export class EmailTransport {
     }
   }
 
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
   async sendTemplatedEmail(
-    templateName: string,
-    to: string,
-    subject: string,
-    context: EmailTemplateContext,
+    input: SendTemplatedEmailInput,
   ): Promise<boolean> {
+    const { templateName, to, subject, context } = input;
     try {
       const template = this.templatesCache.get(templateName);
       if (!template) {

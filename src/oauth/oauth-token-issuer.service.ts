@@ -21,6 +21,21 @@ function hashRefreshToken(token: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(token).digest('base64url');
 }
 
+export interface GenerateTokensInput {
+  user: User;
+  clientId: string;
+  scope: string;
+  rotatedFrom?: string;
+  nonce?: string;
+  authnContext?: { amr?: string[]; acr?: string };
+}
+
+/** Issuer + access-token expiry resolved once per token issuance. */
+interface SigningContext {
+  issuer: string;
+  accessTokenExpiry: string;
+}
+
 @Injectable()
 export class OAuthTokenIssuerService {
   private readonly logger = new Logger(OAuthTokenIssuerService.name);
@@ -66,29 +81,46 @@ export class OAuthTokenIssuerService {
    * second updateMany after) is what fixes the previous silent-corruption
    * bug — bcrypt's salted hash made the post-create lookup never match.
    */
-  // eslint-disable-next-line max-params, complexity -- TODO(par-max): options object; TODO(complexity): decompose
-  async generateTokens(
-    user: User,
-    clientId: string,
-    scope: string,
-    rotatedFrom?: string,
-    nonce?: string,
-    authnContext: { amr?: string[]; acr?: string } = {},
-  ): Promise<{
+  async generateTokens(input: GenerateTokensInput): Promise<{
     accessToken: string;
     refreshToken: string;
     idToken: string;
     expiresIn: number;
     scope: string;
   }> {
-    const issuer = this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002');
+    const sctx = this.signingContext();
 
-    const accessTokenExpiry = this.configService.get<string>(
-      'JWT_ACCESS_TOKEN_EXPIRY',
-      '10m',
-    );
+    const accessToken = this.buildAccessToken(input, sctx);
+    const idToken = this.buildIdToken(input, sctx);
 
-    const accessToken = this.jwtService.sign(
+    const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
+    await this.persistRefreshToken(input, refreshTokenValue);
+
+    return {
+      accessToken,
+      refreshToken: refreshTokenValue,
+      idToken,
+      expiresIn: 600,
+      scope: input.scope,
+    };
+  }
+
+  private signingContext(): SigningContext {
+    return {
+      issuer: this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002'),
+      accessTokenExpiry: this.configService.get<string>(
+        'JWT_ACCESS_TOKEN_EXPIRY',
+        '10m',
+      ),
+    };
+  }
+
+  private buildAccessToken(
+    input: GenerateTokensInput,
+    sctx: SigningContext,
+  ): string {
+    const { user, clientId, scope } = input;
+    return this.jwtService.sign(
       {
         sub: user.did,
         userId: user.id,
@@ -100,12 +132,19 @@ export class OAuthTokenIssuerService {
         scope,
       },
       {
-        expiresIn: accessTokenExpiry as any,
+        expiresIn: sctx.accessTokenExpiry as any,
         audience: clientId,
-        issuer,
+        issuer: sctx.issuer,
       },
     );
+  }
 
+  private buildIdToken(
+    input: GenerateTokensInput,
+    sctx: SigningContext,
+  ): string {
+    const { user, clientId, nonce } = input;
+    const authnContext = input.authnContext ?? {};
     // nonce goes ONLY into the id_token per OIDC core §2 — access_token
     // does not carry it because RPs validate nonces on the id_token side.
     const idTokenClaims: Record<string, any> = {
@@ -125,13 +164,19 @@ export class OAuthTokenIssuerService {
     }
     if (authnContext.acr) idTokenClaims.acr = authnContext.acr;
 
-    const idToken = this.jwtService.sign(idTokenClaims, {
-      expiresIn: accessTokenExpiry as any,
+    return this.jwtService.sign(idTokenClaims, {
+      expiresIn: sctx.accessTokenExpiry as any,
       audience: clientId,
-      issuer,
+      issuer: sctx.issuer,
     });
+  }
 
-    const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
+  private async persistRefreshToken(
+    input: GenerateTokensInput,
+    refreshTokenValue: string,
+  ): Promise<void> {
+    const { user, clientId, scope, nonce, rotatedFrom } = input;
+    const authnContext = input.authnContext ?? {};
     const tokenLookup = hashRefreshToken(
       refreshTokenValue,
       this.getRefreshTokenSecret(),
@@ -162,14 +207,6 @@ export class OAuthTokenIssuerService {
         rotatedFrom: rotatedFrom ?? null,
       },
     });
-
-    return {
-      accessToken,
-      refreshToken: refreshTokenValue,
-      idToken,
-      expiresIn: 600,
-      scope,
-    };
   }
 
   /**
@@ -238,14 +275,14 @@ export class OAuthTokenIssuerService {
       throw new UnauthorizedException('Refresh token already rotated');
     }
 
-    return this.generateTokens(
-      matchedToken.user,
+    return this.generateTokens({
+      user: matchedToken.user,
       clientId,
-      matchedToken.scope ?? '',
-      matchedToken.id,
-      matchedToken.nonce ?? undefined,
-      { amr: matchedToken.amr ?? [] },
-    );
+      scope: matchedToken.scope ?? '',
+      rotatedFrom: matchedToken.id,
+      nonce: matchedToken.nonce ?? undefined,
+      authnContext: { amr: matchedToken.amr ?? [] },
+    });
   }
 
   /**

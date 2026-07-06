@@ -7,6 +7,20 @@ interface LogContext {
   [key: string]: any;
 }
 
+export interface RequestLogInput {
+  method: string;
+  path: string;
+  status: number;
+  data?: LogContext;
+}
+
+interface PrintInput {
+  level: LogLevel;
+  message: string;
+  context?: LogContext | string;
+  trace?: string;
+}
+
 /**
  * Centralized logger service with structured logging
  * Follows Single Responsibility Principle - handles all logging logic
@@ -21,26 +35,26 @@ export class LoggerService implements NestLoggerService {
   }
 
   log(message: string, context?: LogContext | string) {
-    this.print('log', message, context);
+    this.print({ level: 'log', message, context });
   }
 
   error(message: string, trace?: string, context?: LogContext | string) {
-    this.print('error', message, context, trace);
+    this.print({ level: 'error', message, context, trace });
   }
 
   warn(message: string, context?: LogContext | string) {
-    this.print('warn', message, context);
+    this.print({ level: 'warn', message, context });
   }
 
   debug(message: string, context?: LogContext | string) {
     if (this.isDev) {
-      this.print('debug', message, context);
+      this.print({ level: 'debug', message, context });
     }
   }
 
   verbose(message: string, context?: LogContext | string) {
     if (this.isDev) {
-      this.print('verbose', message, context);
+      this.print({ level: 'verbose', message, context });
     }
   }
 
@@ -57,14 +71,14 @@ export class LoggerService implements NestLoggerService {
     this.log(`🍪 [Session] ${action}`, data);
   }
 
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  request(method: string, path: string, status: number, data?: LogContext) {
+  request(input: RequestLogInput) {
+    const { method, path, status, data } = input;
     const emoji = status >= 400 ? '❌' : '✅';
     this.log(`${emoji} [${method}] ${path} - ${status}`, data);
   }
 
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  private print(level: LogLevel, message: string, context?: LogContext | string, trace?: string) {
+  private print(input: PrintInput) {
+    const { level, message, context, trace } = input;
     const timestamp = new Date().toISOString();
     const ctxName = typeof context === 'string' ? context : this.context;
     const requestId = requestContext.getRequestId();

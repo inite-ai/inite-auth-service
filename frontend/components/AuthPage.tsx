@@ -18,6 +18,7 @@ import MagicLinkAuth from '@/components/MagicLinkAuth'
 import PasswordAuth from '@/components/PasswordAuth'
 import OtpAuth from '@/components/OtpAuth'
 import WalletAuth from '@/components/WalletAuth'
+import StepUpMfa from '@/components/StepUpMfa'
 import SocialLogin from '@/components/SocialLogin'
 import { AppHeader } from '@/components/AppHeader'
 import { authStorage } from '@/lib/authStorage'
@@ -163,6 +164,15 @@ export default function AuthPage({ variant }: AuthPageProps) {
   const stepUp = searchParams.get('step_up') === '1'
   const checkingAuth = useAuthGate(variant, oauthParams, stepUp)
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
+  // Step-up MFA fast path: when the RP demands higher assurance but the user
+  // still holds a valid session, offer the emailed-code widget (raises the
+  // session amr) instead of forcing a full re-login. Computed client-side to
+  // avoid touching localStorage during SSR.
+  const [mfaEligible, setMfaEligible] = useState(false)
+  const [showAllMethods, setShowAllMethods] = useState(false)
+  useEffect(() => {
+    if (stepUp) setMfaEligible(!!authStorage.getValidToken())
+  }, [stepUp])
 
   const isRegister = variant === 'register'
   const heroTitle = isRegister ? 'Create your INITE account' : 'Sign in to INITE'
@@ -216,7 +226,22 @@ export default function AuthPage({ variant }: AuthPageProps) {
     <div className="min-h-screen bg-[var(--bg)]">
       <AppHeader hideUserMenu />
       <main className="max-w-md mx-auto px-4 py-12 sm:py-16">
-        {!selectedMethod ? (
+        {stepUp && mfaEligible && !showAllMethods && !selectedMethod ? (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <StepUpMfa oauthParams={oauthParams} />
+            <button
+              type="button"
+              onClick={() => setShowAllMethods(true)}
+              className="mt-6 w-full inline-flex items-center justify-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+            >
+              Use another sign-in method
+            </button>
+          </motion.div>
+        ) : !selectedMethod ? (
           <>
             <motion.div
               initial={{ opacity: 0, y: 4 }}

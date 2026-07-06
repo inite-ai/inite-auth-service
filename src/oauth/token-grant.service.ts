@@ -12,6 +12,14 @@ import { LoggerService } from "../common/logger.service";
 import { TokenRequestBody } from "./dto/oauth-requests";
 import { AuditCtx, IssuedTokens } from "./token-support";
 
+/** Grant handlers that need the raw request (DPoP proof / device_code). */
+export interface GrantWithRequestInput {
+  req: Request;
+  body: TokenRequestBody;
+  client: OAuthClient;
+  ctx: AuditCtx;
+}
+
 /**
  * OAuth 2.0 grant handlers (authorization_code, refresh_token, device_code,
  * client_credentials, token-exchange) + DPoP binding, split out of
@@ -56,9 +64,12 @@ export class TokenGrantService {
     if (!redirectUri) throw new BadRequestException('redirect_uri is required');
     if (!codeVerifier) throw new BadRequestException('code_verifier is required (PKCE)');
 
-    const tokens = await this.oauthService.exchangeAuthorizationCode(
-      code, clientId as string, redirectUri, codeVerifier,
-    );
+    const tokens = await this.oauthService.exchangeAuthorizationCode({
+      code,
+      clientId: clientId as string,
+      redirectUri,
+      codeVerifier,
+    });
 
     this.metrics.tokensIssued.inc({ grant_type: 'authorization_code' });
     this.logger.oauth('Token issued', { clientId, grantType: 'authorization_code' });
@@ -100,13 +111,8 @@ export class TokenGrantService {
     return this.toTokenResponse(tokens);
   }
 
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  async grantDeviceCode(
-    req: Request,
-    body: TokenRequestBody,
-    client: OAuthClient,
-    ctx: AuditCtx,
-  ) {
+  async grantDeviceCode(input: GrantWithRequestInput) {
+    const { req, body, client, ctx } = input;
     const clientId = body.client_id;
     const deviceCode = (req.body as any)?.device_code as string | undefined;
     if (!deviceCode) throw new BadRequestException('device_code is required');
@@ -119,11 +125,11 @@ export class TokenGrantService {
     const user = await this.oauthService.findUserById(approved.userId!);
     if (!user) throw new BadRequestException({ error: 'invalid_grant' });
 
-    const tokens = await this.tokenIssuer.generateTokens(
+    const tokens = await this.tokenIssuer.generateTokens({
       user,
-      clientId as string,
-      approved.scope ?? '',
-    );
+      clientId: clientId as string,
+      scope: approved.scope ?? '',
+    });
 
     this.metrics.tokensIssued.inc({ grant_type: 'device_code' });
     await this.audit.record({
@@ -144,7 +150,16 @@ export class TokenGrantService {
    * tokens. Returns the SHA-256(jwk) thumbprint to bind into `cnf.jkt`, or
    * undefined when no proof is presented.
    */
-  // eslint-disable-next-line complexity -- TODO(complexity): decompose this function
+  /** Reconstruct the full request URL (no query) for DPoP htu binding. */
+  private buildRequestUrl(req: Request): string {
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?? (req as any).protocol
+      ?? 'https';
+    const host = req.headers.host ?? '';
+    const path = req.path ?? req.url?.split('?')[0] ?? '';
+    return `${proto}://${host}${path}`;
+  }
+
   private async resolveDpopJkt(
     req: Request,
     client: OAuthClient,
@@ -153,11 +168,7 @@ export class TokenGrantService {
     const dpopHeader = (req.headers['dpop'] as string | undefined) ?? null;
     if (!dpopHeader) return undefined;
 
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?? (req as any).protocol
-      ?? 'https';
-    const host = req.headers.host ?? '';
-    const fullUrl = `${proto}://${host}${req.path ?? req.url?.split('?')[0] ?? ''}`;
+    const fullUrl = this.buildRequestUrl(req);
     try {
       const result = await this.dpop.validate(dpopHeader, 'POST', fullUrl);
       return result.jkt;
@@ -179,23 +190,18 @@ export class TokenGrantService {
     }
   }
 
-  // eslint-disable-next-line max-params -- TODO(par-max): pass an options object / contract
-  async grantClientCredentials(
-    req: Request,
-    body: TokenRequestBody,
-    client: OAuthClient,
-    ctx: AuditCtx,
-  ) {
+  async grantClientCredentials(input: GrantWithRequestInput) {
+    const { req, body, client, ctx } = input;
     const dpopJkt = await this.resolveDpopJkt(req, client, ctx);
 
     let tokens;
     try {
-      tokens = await this.m2m.issueClientCredentialsToken(
+      tokens = await this.m2m.issueClientCredentialsToken({
         client,
-        body.scope as string,
-        body.audience as string,
+        requestedScope: body.scope as string,
+        audience: body.audience as string,
         dpopJkt,
-      );
+      });
     } catch (e: any) {
       // Scope or audience violation — both surface as BadRequestException
       // from the service. Distinguish via the message for clearer replay.

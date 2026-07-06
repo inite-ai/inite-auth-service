@@ -75,9 +75,9 @@ export class TokenController {
         case 'refresh_token':
           return await this.grants.grantRefreshToken(body, client, ctx);
         case DeviceFlowService.GRANT_TYPE:
-          return await this.grants.grantDeviceCode(req, body, client, ctx);
+          return await this.grants.grantDeviceCode({ req, body, client, ctx });
         case 'client_credentials':
-          return await this.grants.grantClientCredentials(req, body, client, ctx);
+          return await this.grants.grantClientCredentials({ req, body, client, ctx });
         case TOKEN_EXCHANGE_GRANT:
           return await this.grants.grantTokenExchange(body, client, ctx);
         default:

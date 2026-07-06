@@ -219,11 +219,11 @@ describe('OAuthService', () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
       jwt.sign = signSpy;
 
-      const result = await m2m.issueClientCredentialsToken(
-        m2mClient as OAuthClient,
-        'brain:read brain:write brain:admin',
-        'brain',
-      );
+      const result = await m2m.issueClientCredentialsToken({
+        client: m2mClient as OAuthClient,
+        requestedScope: 'brain:read brain:write brain:admin',
+        audience: 'brain',
+      });
 
       expect(result.accessToken).toBe('m2m-jwt');
       expect(result.scope).toBe('brain:read brain:write brain:admin');
@@ -241,11 +241,11 @@ describe('OAuthService', () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
       jwt.sign = signSpy;
 
-      await m2m.issueClientCredentialsToken(
-        { ...m2mClient, companyId: null } as OAuthClient,
-        'brain:read',
-        undefined,
-      );
+      await m2m.issueClientCredentialsToken({
+        client: { ...m2mClient, companyId: null } as OAuthClient,
+        requestedScope: 'brain:read',
+        audience: undefined,
+      });
 
       const [payload] = signSpy.mock.calls[0];
       expect(payload.sub).toBe('smart-chat-brain');
@@ -255,32 +255,32 @@ describe('OAuthService', () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
       jwt.sign = signSpy;
 
-      const result = await m2m.issueClientCredentialsToken(
-        m2mClient as OAuthClient,
-        undefined,
-        'brain',
-      );
+      const result = await m2m.issueClientCredentialsToken({
+        client: m2mClient as OAuthClient,
+        requestedScope: undefined,
+        audience: 'brain',
+      });
 
       expect(result.scope).toBe('brain:read brain:write brain:admin');
     });
 
     it('rejects when the requested scope is not in allowedScopes', async () => {
       await expect(
-        m2m.issueClientCredentialsToken(
-          m2mClient as OAuthClient,
-          'brain:admin admin',
-          'brain',
-        ),
+        m2m.issueClientCredentialsToken({
+          client: m2mClient as OAuthClient,
+          requestedScope: 'brain:admin admin',
+          audience: 'brain',
+        }),
       ).rejects.toThrow(/not allowed/);
     });
 
     it('rejects when the client has no scopes at all', async () => {
       await expect(
-        m2m.issueClientCredentialsToken(
-          { ...m2mClient, allowedScopes: [] } as OAuthClient,
-          undefined,
-          'brain',
-        ),
+        m2m.issueClientCredentialsToken({
+          client: { ...m2mClient, allowedScopes: [] } as OAuthClient,
+          requestedScope: undefined,
+          audience: 'brain',
+        }),
       ).rejects.toThrow(/No scopes available/);
     });
 
@@ -289,11 +289,11 @@ describe('OAuthService', () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
         jwt.sign = signSpy;
         await expect(
-          m2m.issueClientCredentialsToken(
-            { ...m2mClient, allowedAudiences: ['brain'] } as OAuthClient,
-            undefined,
-            'admin-panel',
-          ),
+          m2m.issueClientCredentialsToken({
+            client: { ...m2mClient, allowedAudiences: ['brain'] } as OAuthClient,
+            requestedScope: undefined,
+            audience: 'admin-panel',
+          }),
         ).rejects.toThrow(/Audience "admin-panel" is not allowed/);
         expect(signSpy).not.toHaveBeenCalled();
       });
@@ -301,11 +301,11 @@ describe('OAuthService', () => {
       it('accepts audience present in allowedAudiences', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
         jwt.sign = signSpy;
-        const result = await m2m.issueClientCredentialsToken(
-          { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
-          undefined,
-          'inbox',
-        );
+        const result = await m2m.issueClientCredentialsToken({
+          client: { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
+          requestedScope: undefined,
+          audience: 'inbox',
+        });
         expect(result.audience).toBe('inbox');
         const [, opts] = signSpy.mock.calls[0];
         expect(opts.audience).toBe('inbox');
@@ -314,22 +314,22 @@ describe('OAuthService', () => {
       it('defaults to first allowedAudience when none requested', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
         jwt.sign = signSpy;
-        const result = await m2m.issueClientCredentialsToken(
-          { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
-          undefined,
-          undefined,
-        );
+        const result = await m2m.issueClientCredentialsToken({
+          client: { ...m2mClient, allowedAudiences: ['brain', 'inbox'] } as OAuthClient,
+          requestedScope: undefined,
+          audience: undefined,
+        });
         expect(result.audience).toBe('brain');
       });
 
       it('falls back to clientId as audience when allowList empty and none requested', async () => {
         const signSpy = jest.fn().mockReturnValue('jwt');
         jwt.sign = signSpy;
-        const result = await m2m.issueClientCredentialsToken(
-          { ...m2mClient, allowedAudiences: [] } as OAuthClient,
-          undefined,
-          undefined,
-        );
+        const result = await m2m.issueClientCredentialsToken({
+          client: { ...m2mClient, allowedAudiences: [] } as OAuthClient,
+          requestedScope: undefined,
+          audience: undefined,
+        });
         expect(result.audience).toBe('smart-chat-brain');
       });
     });
@@ -411,7 +411,7 @@ describe('OAuthService', () => {
       setHmacSecret();
 
       const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
-      await tokenIssuer.generateTokens(user, 'test-app', 'openid', undefined, 'nonce-value');
+      await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid', nonce: 'nonce-value' });
 
       // First sign call = access_token (no nonce). Second = id_token (with nonce).
       const accessClaims = signSpy.mock.calls[0][0];
@@ -427,7 +427,7 @@ describe('OAuthService', () => {
       setHmacSecret();
 
       const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
-      await tokenIssuer.generateTokens(user, 'test-app', 'openid');
+      await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid' });
 
       const idClaims = signSpy.mock.calls[1][0];
       expect('nonce' in idClaims).toBe(false);

@@ -12,6 +12,8 @@ export interface OAuthParams {
   codeChallengeMethod?: string | null
   /** Requested authentication assurance (OIDC acr_values / step-up). */
   acrValues?: string | null
+  /** RFC 8707 resource indicator — binds the issued access-token audience. */
+  resource?: string | null
 }
 
 /**
@@ -34,6 +36,7 @@ export function buildConsentUrl(params: OAuthParams): string {
   if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
   if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
+  if (params.resource) url.searchParams.set('resource', params.resource)
 
   return url.pathname + url.search
 }
@@ -51,6 +54,7 @@ export function buildLoginUrl(params: OAuthParams): string {
   if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
   if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
+  if (params.resource) url.searchParams.set('resource', params.resource)
 
   return url.pathname + url.search
 }
@@ -87,6 +91,7 @@ export async function createAuthorizationCode(
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
       acrValues: params.acrValues,
+      resource: params.resource,
     }),
   })
 
@@ -111,6 +116,7 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     codeChallenge: searchParams.get('code_challenge'),
     codeChallengeMethod: searchParams.get('code_challenge_method'),
     acrValues: searchParams.get('acr_values'),
+    resource: searchParams.get('resource'),
   }
 }
 

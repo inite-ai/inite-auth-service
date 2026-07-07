@@ -6,6 +6,7 @@
     "lib": ["DOM", "ES2020"],
     "jsx": "react-jsx",
     "declaration": true,
+    "ignoreDeprecations": "6.0",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,

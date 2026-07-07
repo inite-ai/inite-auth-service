@@ -6,8 +6,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { Optional } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -46,10 +49,12 @@ interface SigningContext {
 export class OAuthTokenIssuerService {
   private readonly logger = new Logger(OAuthTokenIssuerService.name);
 
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Optional() private readonly ssf?: SsfEmitterService,
   ) {}
 
   /**
@@ -266,6 +271,7 @@ export class OAuthTokenIssuerService {
         },
         data: { revoked: true, revokedAt: new Date() },
       });
+      await this.signalTokenRevoked(matchedToken.user?.did, matchedToken.companyId);
       throw new UnauthorizedException('Refresh token revoked');
     }
 
@@ -300,9 +306,27 @@ export class OAuthTokenIssuerService {
    */
   async revokeToken(token: string, clientId: string): Promise<void> {
     const tokenLookup = hashRefreshToken(token, this.getRefreshTokenSecret());
+    const row = await this.prisma.refreshToken.findFirst({
+      where: { tokenLookup, clientId },
+      select: { companyId: true, user: { select: { did: true } } },
+    });
     await this.prisma.refreshToken.updateMany({
       where: { tokenLookup, clientId, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    if (row) await this.signalTokenRevoked(row.user?.did, row.companyId);
+  }
+
+  /**
+   * CAEP token-claims-change (token-revoked) signal (fire-and-forget) so
+   * subscribed receivers can drop the revoked token. No-op without SSF.
+   */
+  private async signalTokenRevoked(did: string | undefined, companyId: string | null): Promise<void> {
+    if (!this.ssf || !did) return;
+    await this.ssf.emit({
+      eventType: CAEP_EVENTS.tokenClaimsChange,
+      subject: did,
+      companyId,
     });
   }
 }

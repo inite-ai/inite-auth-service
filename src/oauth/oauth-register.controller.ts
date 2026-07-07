@@ -30,12 +30,14 @@ export class OAuthRegisterController {
       client_secret_expires_at: 0,
       redirect_uris: client.redirectUris,
       grant_types: client.allowedGrants,
-      token_endpoint_auth_method: client.isPublic
-        ? 'none'
-        : 'client_secret_post',
+      token_endpoint_auth_method: client.tokenEndpointAuthMethod,
       client_name: client.name,
       scope: client.allowedScopes.join(' '),
     };
+
+    // Echo registered key material for private_key_jwt / JAR clients.
+    if (client.jwks) response.jwks = client.jwks;
+    if (client.jwksUri) response.jwks_uri = client.jwksUri;
 
     // Never echo a secret for public clients — omit the field entirely
     // (RFC 7591 §3.2.1: client_secret only present for confidential).

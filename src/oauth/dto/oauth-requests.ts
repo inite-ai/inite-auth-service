@@ -20,6 +20,8 @@ export interface AuthorizeQuery {
   nonce?: string;
   acr_values?: string;
   request_uri?: string;
+  /** JAR (RFC 9101) — a signed JWT carrying the authorize params. */
+  request?: string;
   /** RFC 8707 Resource Indicator — target resource for the issued token. */
   resource?: string;
 }
@@ -46,6 +48,9 @@ export interface TokenRequestBody {
   redirect_uri?: string;
   client_id?: string;
   client_secret?: string;
+  // RFC 7523 private_key_jwt client authentication
+  client_assertion?: string;
+  client_assertion_type?: string;
   code_verifier?: string;
   refresh_token?: string;
   scope?: string;

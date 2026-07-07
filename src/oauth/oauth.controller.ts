@@ -17,6 +17,7 @@ import {
   ResolvedAuthorizeParams,
 } from './dto/oauth-requests';
 import { ParService } from './par.service';
+import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 
 
@@ -31,6 +32,7 @@ export class OAuthController {
     private readonly clientRegistry: OAuthClientRegistryService,
     private readonly par: ParService,
     private readonly stepUp: StepUpService,
+    private readonly requestObject: RequestObjectService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -105,9 +107,19 @@ export class OAuthController {
   private async resolveAuthorizeParams(
     q: AuthorizeQuery,
   ): Promise<ResolvedAuthorizeParams> {
-    const base = this.queryToParams(q);
-    if (!q.request_uri) return base;
-    return this.applyPushedRequest(q.request_uri, base);
+    // JAR (RFC 9101): a signed request object's claims take precedence over
+    // the query. Mutually exclusive with request_uri (PAR).
+    let effective = q;
+    if (q.request) {
+      if (q.request_uri) {
+        throw new BadRequestException('request and request_uri are mutually exclusive');
+      }
+      const merged = await this.requestObject.resolve({ request: q.request, clientId: q.client_id });
+      effective = { ...q, ...merged };
+    }
+    const base = this.queryToParams(effective);
+    if (!effective.request_uri) return base;
+    return this.applyPushedRequest(effective.request_uri, base);
   }
 
   /** Map the raw query to normalized params (before any PAR override). */

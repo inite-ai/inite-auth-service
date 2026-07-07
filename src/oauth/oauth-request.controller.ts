@@ -14,6 +14,8 @@ import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
+import { ClientAuthService } from './client-auth.service';
+import { RequestObjectService } from './request-object.service';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
@@ -22,10 +24,13 @@ import { DeviceFlowService } from './device-flow.service';
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
 export class OAuthRequestController {
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly clientRegistry: OAuthClientRegistryService,
     private readonly par: ParService,
     private readonly deviceFlow: DeviceFlowService,
+    private readonly clientAuth: ClientAuthService,
+    private readonly requestObject: RequestObjectService,
   ) {}
 
   /**
@@ -41,27 +46,40 @@ export class OAuthRequestController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   async pushAuthorization(@Body() body: Record<string, any>) {
     const clientId = body.client_id;
-    const clientSecret = body.client_secret;
     if (!clientId) throw new BadRequestException('client_id is required');
-    await this.clientRegistry.validateClientWithSecret(clientId, clientSecret);
+    // Supports client_secret_post and private_key_jwt (RFC 7523).
+    await this.clientAuth.authenticate({
+      body,
+      audiences: this.clientAuth.parAudiences(),
+    });
+
+    // JAR (RFC 9101): a signed request object's claims take precedence over
+    // the form params. Verified against the authenticated client's keys.
+    const p = body.request
+      ? { ...body, ...(await this.resolveRequestObject(body.request, clientId)) }
+      : body;
 
     return {
       request_uri: (
         await this.par.push({
           clientId,
-          redirectUri: body.redirect_uri,
-          responseType: body.response_type,
-          scope: body.scope,
-          state: body.state,
-          codeChallenge: body.code_challenge,
-          codeChallengeMethod: body.code_challenge_method,
-          nonce: body.nonce,
-          acrValues: body.acr_values,
-          prompt: body.prompt,
+          redirectUri: p.redirect_uri,
+          responseType: p.response_type,
+          scope: p.scope,
+          state: p.state,
+          codeChallenge: p.code_challenge,
+          codeChallengeMethod: p.code_challenge_method,
+          nonce: p.nonce,
+          acrValues: p.acr_values,
+          prompt: p.prompt,
         })
       ).requestUri,
       expires_in: 60,
     };
+  }
+
+  private async resolveRequestObject(request: string, clientId: string): Promise<Record<string, any>> {
+    return this.requestObject.resolve({ request, clientId });
   }
 
   /**

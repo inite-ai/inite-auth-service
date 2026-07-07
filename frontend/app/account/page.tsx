@@ -90,7 +90,7 @@ export default function AccountPage() {
       await api.get('/oauth/logout', { withCredentials: true }).catch(() => {})
       // Optionally revoke tokens
       if (accessToken) {
-        await api.delete('/session', {
+        await api.delete('/auth/session', {
           headers: { Authorization: `Bearer ${accessToken}` },
         }).catch(() => {})
       }

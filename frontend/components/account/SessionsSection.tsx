@@ -43,7 +43,7 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
   const handleRevokeSession = async (sessionId: string) => {
     setDeletingId(sessionId)
     try {
-      await api.delete(`/session/${sessionId}`, {
+      await api.delete(`/auth/session/${sessionId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       toast.success('Session revoked')
@@ -58,7 +58,7 @@ export default function SessionsSection({ accessToken }: SessionsSectionProps) {
   const handleRevokeAllSessions = async () => {
     setRevokingAll(true)
     try {
-      await api.delete('/session', {
+      await api.delete('/auth/session', {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       toast.success('All sessions revoked')

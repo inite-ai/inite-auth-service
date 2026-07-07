@@ -44,6 +44,7 @@ function useOAuthParams(): OAuthParams {
       codeChallengeMethod: searchParams.get('code_challenge_method'),
       acrValues: searchParams.get('acr_values'),
       prompt: searchParams.get('prompt'),
+      resource: searchParams.get('resource'),
     }),
     [searchParams],
   )

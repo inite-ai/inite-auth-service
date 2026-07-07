@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.5.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.4.0...inite-auth-service-v1.5.0) (2026-07-07)
+
+
+### Features
+
+* **frontend:** forward RFC 8707 resource through the interactive OAuth flow ([#81](https://github.com/inite-ai/inite-auth-service/issues/81)) ([03962e0](https://github.com/inite-ai/inite-auth-service/commit/03962e0e9c608936214661844451a66427bd0eae))
+* **oauth:** reaper for stale unused DCR clients (anti-abuse) ([#83](https://github.com/inite-ai/inite-auth-service/issues/83)) ([f02924c](https://github.com/inite-ai/inite-auth-service/commit/f02924c2f448a345ee77df27c5d21165177a7250))
+
 ## [1.4.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.3.0...inite-auth-service-v1.4.0) (2026-07-07)
 
 

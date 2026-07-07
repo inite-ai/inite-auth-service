@@ -43,17 +43,26 @@ CREATE TABLE IF NOT EXISTS "org_roles" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "org_roles_organizationId_slug_key" ON "org_roles" ("organizationId", "slug");
 
--- Backfill an organization per existing tenant string.
-INSERT INTO "organizations" ("companyId", "slug", "name")
-  SELECT DISTINCT "companyId", "companyId", "companyId"
-  FROM "oauth_clients"
-  WHERE "companyId" IS NOT NULL
+-- Backfill an organization per existing tenant string. id is generated
+-- explicitly (gen_random_uuid) so the seed does not depend on a column default
+-- — the table may have been created by `prisma db push`, which puts the uuid
+-- default in the query engine, not the DB.
+INSERT INTO "organizations" ("id", "companyId", "slug", "name")
+  SELECT gen_random_uuid(), "companyId", "companyId", "companyId"
+  FROM (SELECT DISTINCT "companyId" FROM "oauth_clients" WHERE "companyId" IS NOT NULL) AS t
   ON CONFLICT ("companyId") DO NOTHING;
 
--- Seed built-in system roles (organizationId = NULL).
-INSERT INTO "org_roles" ("slug", "name", "permissions") VALUES
-  ('owner',  'Owner',  ARRAY['org:*']),
-  ('admin',  'Admin',  ARRAY['org:read','org:members:manage','org:roles:manage']),
-  ('member', 'Member', ARRAY['org:read']),
-  ('viewer', 'Viewer', ARRAY['org:read'])
-  ON CONFLICT DO NOTHING;
+-- Seed built-in system roles (organizationId = NULL). Idempotent via
+-- WHERE NOT EXISTS: the (organizationId, slug) unique index treats NULL org as
+-- distinct, so ON CONFLICT cannot dedupe system roles across re-runs.
+INSERT INTO "org_roles" ("id", "slug", "name", "permissions")
+  SELECT gen_random_uuid(), v.slug, v.name, v.permissions
+  FROM (VALUES
+    ('owner',  'Owner',  ARRAY['org:*']),
+    ('admin',  'Admin',  ARRAY['org:read','org:members:manage','org:roles:manage']),
+    ('member', 'Member', ARRAY['org:read']),
+    ('viewer', 'Viewer', ARRAY['org:read'])
+  ) AS v(slug, name, permissions)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM "org_roles" r WHERE r."organizationId" IS NULL AND r.slug = v.slug
+  );

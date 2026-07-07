@@ -18,6 +18,7 @@ import { DpopService } from './dpop.service';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { SystemClientsSeeder } from './system-clients.seeder';
+import { DcrReaperService } from './dcr-reaper.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
@@ -45,6 +46,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     ParService,
     DeviceFlowService,
     SystemClientsSeeder,
+    DcrReaperService,
   ],
   controllers: [
     OAuthController,

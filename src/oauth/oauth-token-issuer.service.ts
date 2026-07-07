@@ -42,6 +42,13 @@ interface SigningContext {
   accessTokenExpiry: string;
 }
 
+/** Resolved org/role context for token claims (union of relational RBAC + legacy metadata.roles). */
+interface OrgContext {
+  roles: string[];
+  org?: string;
+  orgId?: string;
+}
+
 @Injectable()
 export class OAuthTokenIssuerService {
   private readonly logger = new Logger(OAuthTokenIssuerService.name);
@@ -95,9 +102,10 @@ export class OAuthTokenIssuerService {
     scope: string;
   }> {
     const sctx = this.signingContext();
+    const orgCtx = await this.resolveOrgContext(input);
 
-    const accessToken = this.buildAccessToken(input, sctx);
-    const idToken = this.buildIdToken(input, sctx);
+    const accessToken = this.buildAccessToken(input, sctx, orgCtx);
+    const idToken = this.buildIdToken(input, sctx, orgCtx);
 
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
     await this.persistRefreshToken(input, refreshTokenValue);
@@ -124,6 +132,7 @@ export class OAuthTokenIssuerService {
   private buildAccessToken(
     input: GenerateTokensInput,
     sctx: SigningContext,
+    orgCtx: OrgContext,
   ): string {
     const { user, clientId, scope } = input;
     return this.jwtService.sign(
@@ -134,7 +143,8 @@ export class OAuthTokenIssuerService {
         email_verified: user.emailVerified,
         name: user.name,
         picture: user.avatarUrl,
-        roles: (user.metadata as any)?.roles || ['user'],
+        roles: orgCtx.roles,
+        ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
         scope,
       },
       {
@@ -150,6 +160,7 @@ export class OAuthTokenIssuerService {
   private buildIdToken(
     input: GenerateTokensInput,
     sctx: SigningContext,
+    orgCtx: OrgContext,
   ): string {
     const { user, clientId, nonce } = input;
     const authnContext = input.authnContext ?? {};
@@ -161,7 +172,8 @@ export class OAuthTokenIssuerService {
       email_verified: user.emailVerified,
       name: user.name,
       picture: user.avatarUrl,
-      roles: (user.metadata as any)?.roles || ['user'],
+      roles: orgCtx.roles,
+      ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
     };
     if (nonce) idTokenClaims.nonce = nonce;
     // amr is RFC 8176 — list of methods that authenticated the user
@@ -177,6 +189,41 @@ export class OAuthTokenIssuerService {
       audience: clientId,
       issuer: sctx.issuer,
     });
+  }
+
+  /**
+   * Resolve the roles + org context to stamp on issued tokens. Backward
+   * compatible: by default (RBAC_TOKEN_CLAIMS_ENABLED unset) it returns just
+   * the legacy metadata.roles so existing consumers are unchanged. When
+   * enabled, roles become the UNION of metadata.roles and the user's active
+   * membership roles, and org/org_id claims are added for the org matching the
+   * client's tenant (companyId) — falling back to the user's first membership.
+   */
+  private async resolveOrgContext(input: GenerateTokensInput): Promise<OrgContext> {
+    const metaRoles: string[] = (input.user.metadata as any)?.roles ?? [];
+    const legacy = { roles: metaRoles.length ? metaRoles : ['user'] };
+    if (this.configService.get<string>('RBAC_TOKEN_CLAIMS_ENABLED') !== 'true') {
+      return legacy;
+    }
+
+    const memberships = await this.prisma.membership.findMany({
+      where: { userId: input.user.id, status: 'active' },
+      include: { organization: true },
+    });
+    if (memberships.length === 0) return legacy;
+
+    const clientRow = await this.prisma.oAuthClient.findUnique({
+      where: { clientId: input.clientId },
+      select: { companyId: true },
+    });
+    const chosen =
+      memberships.find((m) => m.organization.companyId === clientRow?.companyId) ?? memberships[0];
+    const roles = [...new Set([...metaRoles, ...memberships.map((m) => m.role)])];
+    return {
+      roles: roles.length ? roles : ['user'],
+      org: chosen.organization.companyId,
+      orgId: chosen.organizationId,
+    };
   }
 
   private async persistRefreshToken(

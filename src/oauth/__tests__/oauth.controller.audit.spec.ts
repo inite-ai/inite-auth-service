@@ -73,11 +73,19 @@ describe('TokenController /oauth/token — audit log writes', () => {
       oauth as unknown as OAuthTokenIssuerService,
       oauth as unknown as OAuthM2mService,
     );
+    // Dispatcher stub delegating to the client-registry mock, mirroring the
+    // shared-secret path so the existing audit assertions still hold.
+    const clientAuth = {
+      authenticate: (input: any) =>
+        oauth.validateClientWithSecret(input.body.client_id, input.body.client_secret),
+      tokenAudiences: () => [],
+    };
     controller = new TokenController(
       oauth as unknown as OAuthClientRegistryService,
       audit as unknown as OAuthAuditService,
       metrics,
       grants,
+      clientAuth as any,
     );
   });
 

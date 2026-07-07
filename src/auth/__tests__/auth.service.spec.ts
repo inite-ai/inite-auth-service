@@ -8,6 +8,7 @@ import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HibpService } from '../hibp.service';
 import { LoginSecurityService } from '../login-security.service';
+import { JwksService } from '../../common/jwks.service';
 import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
@@ -62,6 +63,7 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.example.com') } },
         { provide: HibpService, useValue: { isEnabled: () => false, assertNotBreached: jest.fn() } },
         { provide: LoginSecurityService, useValue: loginSecurity },
+        { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
       ],
     }).compile();
 

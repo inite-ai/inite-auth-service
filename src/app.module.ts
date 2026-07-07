@@ -14,6 +14,8 @@ import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
+import { RbacModule } from './rbac/rbac.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { SsfModule } from './ssf/ssf.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
@@ -66,7 +68,10 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
             signOptions: {
               algorithm: 'RS256',
               issuer,
-              keyid: 'auth-rs256-key-1',
+              // The kid stamped on issued tokens. Defaults to the historical
+              // auth-rs256-key-1; set JWT_ACTIVE_KID when rotating so the
+              // header matches the newly-active JWKS entry (see JwksService).
+              keyid: configService.get<string>('JWT_ACTIVE_KID', 'auth-rs256-key-1'),
             },
             verifyOptions: {
               algorithms: ['RS256'],
@@ -98,6 +103,8 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     SessionModule,
     EmailModule,
     AdminModule,
+    RbacModule,
+    OrganizationsModule,
     SsfModule,
   ],
   controllers: [HealthController],

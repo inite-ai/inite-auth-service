@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsIn,
+  IsObject,
   IsOptional,
   IsString,
   IsUrl,
@@ -38,8 +39,19 @@ export class RegisterClientDto {
   response_types?: string[];
 
   @IsOptional()
-  @IsIn(['client_secret_post', 'none'])
+  @IsIn(['client_secret_post', 'none', 'private_key_jwt'])
   token_endpoint_auth_method?: string;
+
+  // RFC 7591 client key material for private_key_jwt / JAR. Exactly one of
+  // jwks (inline JWK Set) or jwks_uri (remote https). The registry rejects
+  // both-set and enforces https on jwks_uri (see validateDcrClientKeys).
+  @IsOptional()
+  @IsObject()
+  jwks?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false, protocols: ['https'] })
+  jwks_uri?: string;
 
   @IsOptional()
   @IsString()

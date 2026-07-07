@@ -42,8 +42,63 @@ model User {
   magicLinks         MagicLink[]
   knownDevices       UserKnownDevice[]
   oauthIdentities    OAuthIdentity[]
+  memberships        Membership[]
 
   @@map("users")
+}
+
+/// A tenant/organization. `companyId` bridges to the existing free-form
+/// tenant string denormalized on OAuthClient/RefreshToken/AuthorizationCode/
+/// OAuthAuditLog, so every existing companyId-scoped query keeps working.
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @unique @map("companyId")
+  slug        String   @unique
+  name        String
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  memberships Membership[]
+  roles       OrgRole[]
+
+  @@map("organizations")
+}
+
+/// A user's membership in an organization, carrying a role slug.
+model Membership {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("userId") @db.Uuid
+  organizationId String   @map("organizationId") @db.Uuid
+  role           String
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+/// A role and its permission set. `organizationId = null` denotes a built-in
+/// system role (owner/admin/member/viewer). `permissions` mirrors the
+/// existing String[] convention (allowedScopes) and supports `org:*` wildcard.
+model OrgRole {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organizationId") @db.Uuid
+  slug           String
+  name           String
+  permissions    String[] @default([])
+  createdAt      DateTime @default(now()) @map("createdAt")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@map("org_roles")
 }
 
 /// External IdP federation link (social login). One row per
@@ -140,6 +195,20 @@ model OAuthClient {
   /// instead of a shared secret. Set true for CLIs, native apps,
   /// and other zero-trust environments.
   isPublic          Boolean  @default(false) @map("isPublic")
+  /// Confidential-client authentication method (RFC 7591
+  /// token_endpoint_auth_method). "client_secret_post" (default) uses the
+  /// shared secret; "private_key_jwt" (RFC 7523) authenticates with a signed
+  /// JWT assertion verified against the client's registered keys below;
+  /// "none" is a public client.
+  tokenEndpointAuthMethod String @default("client_secret_post") @map("tokenEndpointAuthMethod")
+  /// RFC 7591 client key material used to verify private_key_jwt client
+  /// assertions AND signed request objects (JAR, RFC 9101). Exactly one of
+  /// jwks (inline JWK Set) / jwksUri (remote) is set for a private_key_jwt
+  /// client.
+  jwks              Json?    @map("jwks")
+  jwksUri           String?  @map("jwksUri")
+  /// Optional pin for the alg a JAR request object must be signed with.
+  requestObjectSigningAlg String? @map("requestObjectSigningAlg")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")
@@ -203,6 +272,21 @@ model SetDelivery {
   @@index([streamId, status])
   @@index([status, nextAttemptAt])
   @@map("set_deliveries")
+}
+
+/// Single-use guard for private_key_jwt client assertions (RFC 7523). Each
+/// accepted assertion's (clientId, jti) is recorded so a replay of the same
+/// assertion within its lifetime is rejected. Rows are reaped after expiry.
+model ClientAssertionJti {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("clientId")
+  jti       String   @map("jti")
+  expiresAt DateTime @map("expiresAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  @@unique([clientId, jti], map: "client_assertion_jti_clientId_jti_key")
+  @@index([expiresAt], map: "client_assertion_jti_expiresAt_idx")
+  @@map("client_assertion_jti")
 }
 
 /// Durable audit trail for OAuth + client lifecycle events.

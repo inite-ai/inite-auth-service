@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdentityService } from './identity.service';
+import { FieldCrypto } from '../common/field-crypto';
 import * as bcrypt from 'bcryptjs';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
@@ -11,6 +12,7 @@ export class IdentityMfaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly identityService: IdentityService,
+    private readonly fieldCrypto: FieldCrypto,
   ) {}
 
   /**
@@ -66,7 +68,7 @@ export class IdentityMfaService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret.base32 },
+      data: { twoFactorSecret: this.fieldCrypto.encrypt(secret.base32) },
     });
 
     const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
@@ -96,7 +98,7 @@ export class IdentityMfaService {
     }
 
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: this.fieldCrypto.decrypt(user.twoFactorSecret),
       encoding: 'base32',
       token: code,
       window: 2,
@@ -149,7 +151,7 @@ export class IdentityMfaService {
     }
 
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret!,
+      secret: this.fieldCrypto.decrypt(user.twoFactorSecret!),
       encoding: 'base32',
       token: code,
       window: 2,
@@ -181,13 +183,14 @@ export class IdentityMfaService {
     }
 
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: this.fieldCrypto.decrypt(user.twoFactorSecret),
       encoding: 'base32',
       token: code,
       window: 2,
     });
 
     if (verified) {
+      await this.reencryptIfLegacy(userId, user.twoFactorSecret);
       return { verified: true };
     }
 
@@ -204,5 +207,18 @@ export class IdentityMfaService {
     }
 
     throw new BadRequestException('Invalid verification code');
+  }
+
+  /**
+   * Lazy at-rest migration: a legacy plaintext 2FA secret gets re-written
+   * encrypted the first time the user successfully verifies. No-op once the
+   * value is already in the v1 envelope format.
+   */
+  private async reencryptIfLegacy(userId: string, stored: string): Promise<void> {
+    if (FieldCrypto.isEncrypted(stored)) return;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: this.fieldCrypto.encrypt(stored) },
+    });
   }
 }

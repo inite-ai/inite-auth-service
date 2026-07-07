@@ -30,4 +30,10 @@ paths = [
   '''\.env\.example''',
   # Test fixtures use literal 'test-key' / idempotency-key strings.
   '''src/common/__tests__/idempotency\.interceptor\.spec\.ts''',
+  # normalizePem() rebuilds a PEM from an env-supplied key, so the source
+  # contains the literal header "-----BEGIN PRIVATE KEY-----". gitleaks 8.21's
+  # private-key rule matches the bare header (8.30+ requires real key entropy
+  # and does not flag it). No key material is ever committed here — the key
+  # comes from JWT_PRIVATE_KEY at runtime.
+  '''src/ssf/set-builder\.service\.ts''',
 ]

@@ -191,6 +191,8 @@ export class HealthController {
         'name',
         'picture',
         'roles',
+        'org',
+        'org_id',
         'nonce',
         'amr',
         'acr',

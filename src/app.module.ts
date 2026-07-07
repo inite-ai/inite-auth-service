@@ -14,6 +14,8 @@ import { OAuthModule } from './oauth/oauth.module';
 import { SessionModule } from './session/session.module';
 import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
+import { RbacModule } from './rbac/rbac.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
@@ -100,6 +102,8 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     SessionModule,
     EmailModule,
     AdminModule,
+    RbacModule,
+    OrganizationsModule,
   ],
   controllers: [HealthController],
   providers: [

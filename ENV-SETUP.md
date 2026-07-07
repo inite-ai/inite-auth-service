@@ -49,6 +49,20 @@ Value: <your-secure-jwt-secret>
 ```
 **Generate with:** `openssl rand -base64 64`
 
+### At-rest field encryption (2FA/TOTP secrets)
+```
+Name: FIELD_ENCRYPTION_KEY
+Value: <32-byte key, base64 or hex>
+```
+**Generate with:** `openssl rand -base64 32`
+
+AES-256-GCM key encrypting sensitive columns at rest — currently TOTP 2FA
+secrets. **Required once any user enables 2FA.** A 32-byte base64/hex value is
+used verbatim; anything else is SHA-256'd to 32 bytes. Keep it independent of
+`JWT_SECRET`. Rotating the key strands existing 2FA secrets (they can't be
+decrypted) — plan a re-enrollment. Existing plaintext rows are encrypted lazily
+on next successful verify, or in bulk via `npm run encrypt-totp-secrets`.
+
 ### 3a. Refresh-Token HMAC Secret (REQUIRED in prod)
 ```
 Name: REFRESH_TOKEN_HMAC_SECRET

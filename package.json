@@ -26,6 +26,7 @@
     "register-auth-admin-tools-client": "ts-node -r tsconfig-paths/register scripts/register-auth-admin-tools-client.ts",
     "register-all-clients": "npm run register-auth-admin-tools-client",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin-user.ts",
+    "encrypt-totp-secrets": "ts-node -r tsconfig-paths/register scripts/encrypt-totp-secrets.ts",
     "backfill-memberships": "ts-node -r tsconfig-paths/register scripts/backfill-memberships.ts"
   },
   "dependencies": {

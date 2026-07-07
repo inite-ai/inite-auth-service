@@ -19,6 +19,12 @@ import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { SystemClientsSeeder } from './system-clients.seeder';
 import { DcrReaperService } from './dcr-reaper.service';
+import { ClientJwksService } from './client-jwks.service';
+import { ClientAssertionService } from './client-assertion.service';
+import { ClientAssertionJtiStore } from './client-assertion-jti.store';
+import { ClientAssertionJtiReaperService } from './client-assertion-jti-reaper.service';
+import { ClientAuthService } from './client-auth.service';
+import { RequestObjectService } from './request-object.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
@@ -47,6 +53,12 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     DeviceFlowService,
     SystemClientsSeeder,
     DcrReaperService,
+    ClientJwksService,
+    ClientAssertionService,
+    ClientAssertionJtiStore,
+    ClientAssertionJtiReaperService,
+    ClientAuthService,
+    RequestObjectService,
   ],
   controllers: [
     OAuthController,

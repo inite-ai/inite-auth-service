@@ -5,9 +5,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { OAuthClient } from '@prisma/client';
+import { OAuthClient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterClientDto } from './dto/register-client.dto';
+import { validateDcrClientKeys } from './dcr-jwks.util';
 
 /** Input contract for the programmatic registerClient (not public DCR). */
 export interface RegisterClientInput {
@@ -18,9 +19,8 @@ export interface RegisterClientInput {
   allowedScopes?: string[];
 }
 
-// Grants an open (unauthenticated) RFC 7591 registration may request.
-// Deliberately EXCLUDES token-exchange and device_code — those are
-// privilege-escalating and must be provisioned by an operator.
+// Grants open RFC 7591 registration may request. Excludes token-exchange and
+// device_code (privilege-escalating — operator-provisioned only).
 const DCR_ALLOWED_GRANTS = [
   'authorization_code',
   'refresh_token',
@@ -233,12 +233,17 @@ export class OAuthClientRegistryService {
   async registerDynamicClient(
     meta: RegisterClientDto,
   ): Promise<{ client: OAuthClient; clientSecret: string | null }> {
-    const isPublic = meta.token_endpoint_auth_method === 'none';
+    const method = meta.token_endpoint_auth_method ?? 'client_secret_post';
+    const isPublic = method === 'none';
+    validateDcrClientKeys({ method, jwks: meta.jwks, jwksUri: meta.jwks_uri });
     const allowedGrants = this.sanitizeGrants(meta.grant_types, isPublic);
     const allowedScopes = this.sanitizeScopes(meta.scope);
     const redirectUris = this.sanitizeRedirectUris(meta.redirect_uris, allowedGrants);
     const clientId = 'dcr_' + crypto.randomBytes(16).toString('hex');
-    const { clientSecret, clientSecretHash } = await this.buildSecret(isPublic);
+    // private_key_jwt clients are confidential but authenticate by key, so
+    // they get no usable plaintext secret (keyless like public clients).
+    const keyless = isPublic || method === 'private_key_jwt';
+    const { clientSecret, clientSecretHash } = await this.buildSecret(keyless);
     const client = await this.prisma.oAuthClient.create({
       data: {
         clientId,
@@ -248,6 +253,9 @@ export class OAuthClientRegistryService {
         allowedScopes,
         allowedGrants,
         isPublic,
+        tokenEndpointAuthMethod: method,
+        jwks: (meta.jwks as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        jwksUri: meta.jwks_uri ?? null,
         active: true,
         logoUrl: meta.logo_uri ?? null,
         privacyPolicyUrl: meta.policy_uri ?? null,
@@ -283,13 +291,13 @@ export class OAuthClientRegistryService {
     return list;
   }
 
-  // Public clients store a random unusable hash (column never empty) but
-  // discard the plaintext — they authenticate via PKCE, not a secret.
+  // Keyless clients (public via PKCE, or private_key_jwt) store a random
+  // unusable hash but discard the plaintext — no shared-secret auth.
   private async buildSecret(
-    isPublic: boolean,
+    keyless: boolean,
   ): Promise<{ clientSecret: string | null; clientSecretHash: string }> {
     const raw = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(raw, 10);
-    return { clientSecret: isPublic ? null : raw, clientSecretHash };
+    return { clientSecret: keyless ? null : raw, clientSecretHash };
   }
 }

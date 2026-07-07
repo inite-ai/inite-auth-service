@@ -12,6 +12,7 @@ import { EmailService } from '../email/email.service';
 import { LoggerService } from '../common/logger.service';
 import { HibpService } from './hibp.service';
 import { LoginSecurityService } from './login-security.service';
+import { JwksService } from '../common/jwks.service';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly hibp: HibpService,
     private readonly loginSecurity: LoginSecurityService,
+    private readonly jwksService: JwksService,
   ) {
     this.logger.setContext('AuthService');
   }
@@ -353,6 +355,13 @@ export class AuthService {
    */
   async verifyToken(token: string): Promise<any> {
     try {
+      // Resolve the verification key by the token's kid so tokens signed by
+      // any published key verify during a rotation overlap (RS256 mode).
+      if (this.jwksService.isRs256Enabled()) {
+        return this.jwtService.verify(token, {
+          publicKey: this.jwksService.verificationKeyForToken(token),
+        });
+      }
       return this.jwtService.verify(token);
     } catch {
       throw new UnauthorizedException('Invalid token');

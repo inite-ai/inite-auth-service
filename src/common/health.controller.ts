@@ -168,6 +168,19 @@ export class HealthController {
       id_token_signing_alg_values_supported: ['RS256'],
       token_endpoint_auth_methods_supported: [
         'client_secret_post',
+        'private_key_jwt',
+        'none',
+      ],
+      // Asymmetric algs accepted for a private_key_jwt client assertion.
+      token_endpoint_auth_signing_alg_values_supported: [
+        'RS256', 'PS256', 'ES256', 'EdDSA',
+      ],
+      // JAR (RFC 9101) — signed request objects on /authorize + /par.
+      request_parameter_supported: true,
+      request_uri_parameter_supported: true,
+      require_request_uri_registration: false,
+      request_object_signing_alg_values_supported: [
+        'RS256', 'PS256', 'ES256', 'EdDSA',
       ],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['openid', 'profile', 'email', 'offline_access'],

@@ -3,12 +3,14 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
+import { JwksService } from '../../common/jwks.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly jwksService: JwksService,
   ) {
     const publicKey = configService.get<string>('JWT_PUBLIC_KEY');
     const secret = configService.get<string>('JWT_SECRET');
@@ -26,12 +28,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: publicKey || secret,
       // Explicit allow-list — passport-jwt rejects any other alg
       // including "none". Single-entry list per environment so a
       // downgrade attack (RS256-token-presented-as-HS256) can't sign
       // with the public key as if it were a shared secret.
       algorithms: publicKey ? ['RS256'] : ['HS256'],
+      // RS256: resolve the verification key by the token's kid header, so a
+      // token signed by any published (active/next/prev) key validates during
+      // a rotation overlap. HS256 dev mode uses the static shared secret.
+      ...(publicKey
+        ? {
+            secretOrKeyProvider: (
+              _req: unknown,
+              rawJwt: string,
+              done: (err: unknown, key?: string) => void,
+            ) => done(null, jwksService.verificationKeyForToken(rawJwt) ?? publicKey),
+          }
+        : { secretOrKey: secret }),
     });
   }
 

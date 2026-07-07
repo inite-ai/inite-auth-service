@@ -14,6 +14,7 @@ import { OAuthClient } from "@prisma/client";
 import { IdempotencyInterceptor } from "../common/idempotency.interceptor";
 import { TokenEndpointThrottlerGuard } from "./token-throttler.guard";
 import { OAuthClientRegistryService } from "./oauth-client-registry.service";
+import { ClientAuthService } from "./client-auth.service";
 import { DeviceFlowService } from "./device-flow.service";
 import { OAuthAuditService } from "../audit/oauth-audit.service";
 import { MetricsService } from "../common/metrics.service";
@@ -38,6 +39,7 @@ export class TokenController {
     private readonly audit: OAuthAuditService,
     private readonly metrics: MetricsService,
     private readonly grants: TokenGrantService,
+    private readonly clientAuth: ClientAuthService,
   ) {
     this.logger.setContext("TokenController");
   }
@@ -99,10 +101,12 @@ export class TokenController {
     grantType: string,
   ): Promise<OAuthClient> {
     try {
-      return await this.clientRegistry.validateClientWithSecret(
-        body.client_id as string,
-        body.client_secret as string,
-      );
+      // Dispatches to private_key_jwt (RFC 7523) when a client_assertion is
+      // present, else the shared-secret path.
+      return await this.clientAuth.authenticate({
+        body,
+        audiences: this.clientAuth.tokenAudiences(),
+      });
     } catch (e: any) {
       this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'invalid_credentials' });
       await this.audit.record({

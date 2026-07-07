@@ -65,7 +65,10 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
             signOptions: {
               algorithm: 'RS256',
               issuer,
-              keyid: 'auth-rs256-key-1',
+              // The kid stamped on issued tokens. Defaults to the historical
+              // auth-rs256-key-1; set JWT_ACTIVE_KID when rotating so the
+              // header matches the newly-active JWKS entry (see JwksService).
+              keyid: configService.get<string>('JWT_ACTIVE_KID', 'auth-rs256-key-1'),
             },
             verifyOptions: {
               algorithms: ['RS256'],

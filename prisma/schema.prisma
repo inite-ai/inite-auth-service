@@ -227,6 +227,53 @@ model OAuthClient {
   @@map("oauth_clients")
 }
 
+/// OpenID Shared Signals Framework (SSF) stream — one row per registered
+/// receiver. The transmitter fans out Security Event Tokens (SET, RFC 8417)
+/// for CAEP/RISC events to the streams whose tenant + subscribed event types
+/// match. Push (RFC 8935) or poll (RFC 8936) delivery.
+model SsfStream {
+  id              String   @id @default(uuid()) @db.Uuid
+  streamId        String   @unique @map("streamId")
+  /// Tenant scope — only events for subjects in this org are delivered. Null
+  /// means all tenants (operator/global receiver).
+  companyId       String?  @map("companyId")
+  status          String   @default("enabled")
+  deliveryMethod  String   @map("deliveryMethod")
+  pushEndpointUrl String?  @map("pushEndpointUrl")
+  pushAuthHeader  String?  @map("pushAuthHeader")
+  eventsRequested String[] @default([]) @map("eventsRequested")
+  aud             String[] @default([])
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+
+  deliveries SetDelivery[]
+
+  @@index([companyId])
+  @@map("ssf_streams")
+}
+
+/// Outbox / poll queue for a single Security Event Token addressed to a stream.
+model SetDelivery {
+  id            String    @id @default(uuid()) @db.Uuid
+  streamId      String    @map("streamId") @db.Uuid
+  jti           String    @unique
+  eventType     String    @map("eventType")
+  sub           String
+  setJwt        String    @map("setJwt") @db.Text
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime? @map("nextAttemptAt")
+  lastError     String?   @map("lastError")
+  createdAt     DateTime  @default(now()) @map("createdAt")
+  deliveredAt   DateTime? @map("deliveredAt")
+
+  stream SsfStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, status])
+  @@index([status, nextAttemptAt])
+  @@map("set_deliveries")
+}
+
 /// Single-use guard for private_key_jwt client assertions (RFC 7523). Each
 /// accepted assertion's (clientId, jti) is recorded so a replay of the same
 /// assertion within its lifetime is rejected. Rows are reaped after expiry.

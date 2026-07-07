@@ -105,6 +105,26 @@ export class HealthController {
   }
 
   /**
+   * OpenID Shared Signals Framework — transmitter configuration. Receivers
+   * discover how to configure a stream and how SETs are signed (our JWKS).
+   */
+  @Get('.well-known/ssf-configuration')
+  @Header('Content-Type', 'application/json')
+  ssfConfiguration() {
+    const issuer = this.issuer();
+    return {
+      issuer,
+      jwks_uri: `${issuer}/.well-known/jwks.json`,
+      configuration_endpoint: `${issuer}/v1/ssf/streams`,
+      status_endpoint: `${issuer}/v1/ssf/streams`,
+      delivery_methods_supported: [
+        'urn:ietf:rfc:8935', // push
+        'urn:ietf:rfc:8936', // poll
+      ],
+    };
+  }
+
+  /**
    * RFC 9728 — Protected Resource Metadata. Tells MCP clients which
    * authorization server protects this resource and how to present
    * bearer tokens.

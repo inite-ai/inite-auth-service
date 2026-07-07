@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly ssf?: SsfEmitterService,
+  ) {}
 
   /**
    * Get active (non-expired, non-revoked) sessions for user
@@ -31,10 +36,15 @@ export class SessionService {
    * Revoke session
    */
   async revokeSession(userId: string, sessionId: string): Promise<void> {
+    const token = await this.prisma.refreshToken.findFirst({
+      where: { id: sessionId, userId },
+      select: { companyId: true },
+    });
     await this.prisma.refreshToken.updateMany({
       where: { id: sessionId, userId },
       data: { revoked: true, revokedAt: new Date() },
     });
+    await this.signalSessionRevoked(userId, token?.companyId ?? null);
   }
 
   /**
@@ -44,6 +54,22 @@ export class SessionService {
     await this.prisma.refreshToken.updateMany({
       where: { userId, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    await this.signalSessionRevoked(userId, null);
+  }
+
+  /**
+   * CAEP session-revoked signal (fire-and-forget) so subscribed receivers can
+   * drop their local session immediately. No-op when SSF is not configured.
+   */
+  private async signalSessionRevoked(userId: string, companyId: string | null): Promise<void> {
+    if (!this.ssf) return;
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { did: true } });
+    if (!user) return;
+    await this.ssf.emit({
+      eventType: CAEP_EVENTS.sessionRevoked,
+      subject: user.did,
+      companyId,
     });
   }
 }

@@ -10,10 +10,12 @@ describe('SessionService', () => {
     mockPrisma = {
       refreshToken: {
         findMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
       },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
     };
 
     const module: TestingModule = await Test.createTestingModule({

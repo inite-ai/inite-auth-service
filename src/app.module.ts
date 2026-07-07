@@ -16,6 +16,7 @@ import { EmailModule } from './email/email.module';
 import { AdminModule } from './admin/admin.module';
 import { RbacModule } from './rbac/rbac.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { SsfModule } from './ssf/ssf.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './common/health.controller';
@@ -104,6 +105,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     AdminModule,
     RbacModule,
     OrganizationsModule,
+    SsfModule,
   ],
   controllers: [HealthController],
   providers: [

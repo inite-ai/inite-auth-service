@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
+import { JwksService } from '../common/jwks.service';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -20,6 +21,7 @@ export class OAuthM2mService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly jwksService: JwksService,
   ) {}
 
   /**
@@ -214,6 +216,13 @@ export class OAuthM2mService {
 
   private verifyExchangeToken(token: string): Record<string, any> {
     try {
+      // kid-aware verify so a subject/actor token signed by any published
+      // key still validates during a signing-key rotation overlap.
+      if (this.jwksService.isRs256Enabled()) {
+        return this.jwtService.verify(token, {
+          publicKey: this.jwksService.verificationKeyForToken(token),
+        });
+      }
       return this.jwtService.verify(token);
     } catch {
       throw new BadRequestException(

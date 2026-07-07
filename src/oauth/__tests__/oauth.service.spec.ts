@@ -11,6 +11,7 @@ import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
 import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwksService } from '../../common/jwks.service';
 import { OAuthClient } from '@prisma/client';
 
 describe('OAuthService', () => {
@@ -77,6 +78,7 @@ describe('OAuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+        { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
         { provide: PkceService, useValue: { verifyCodeChallenge: jest.fn() } },
         { provide: IdentityService, useValue: { getWallets: jest.fn().mockResolvedValue([]) } },
         {

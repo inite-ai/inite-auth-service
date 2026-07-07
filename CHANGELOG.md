@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.4.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.3.0...inite-auth-service-v1.4.0) (2026-07-07)
+
+
+### Features
+
+* **auth:** Sign-In With Ethereum (EIP-4361) wallet login ([#71](https://github.com/inite-ai/inite-auth-service/issues/71)) ([b60ee57](https://github.com/inite-ai/inite-auth-service/commit/b60ee57ad085ddee5b168b9bc45d6813ca265d2e))
+* **frontend:** step-up MFA "enter code" widget (P0-5 follow-up) ([#67](https://github.com/inite-ai/inite-auth-service/issues/67)) ([2066810](https://github.com/inite-ai/inite-auth-service/commit/206681098d128e2b2c6392f60d877e8445c1f9be))
+* **oauth:** OAuth-for-MCP bundle — RFC 8414 + 9728 metadata + RFC 7591 DCR ([#68](https://github.com/inite-ai/inite-auth-service/issues/68)) ([91943d4](https://github.com/inite-ai/inite-auth-service/commit/91943d417db28c941f50e09e1bd854e109d52bab))
+* **oauth:** RFC 8707 Resource Indicators for authorization_code ([#72](https://github.com/inite-ai/inite-auth-service/issues/72)) ([c6d6f5c](https://github.com/inite-ai/inite-auth-service/commit/c6d6f5cc7dff9afb9e1efef6a760fbbd0983c959))
+* Token Exchange (RFC 8693) + max-lines:300 gate + god-file splits ([#49](https://github.com/inite-ai/inite-auth-service/issues/49)) ([2413ab8](https://github.com/inite-ai/inite-auth-service/commit/2413ab83308b1548ee9d0a5697b8c54416cd79a7))
+
 ## [1.3.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.2.0...inite-auth-service-v1.3.0) (2026-06-28)
 
 

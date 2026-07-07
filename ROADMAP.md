@@ -15,8 +15,15 @@ Already shipped, and competitive or ahead on protocol depth:
 - **OAuth2/OIDC core** — authorization_code + PKCE (S256 *enforced*), refresh-token
   rotation **with reuse/theft detection** (family revocation), client_credentials
   with audience binding, device flow (RFC 8628), PAR (RFC 9126), **DPoP (RFC 9449)**,
-  revocation/introspection, discovery, RS256 JWKS, back-channel + front-channel logout.
+  **Token Exchange (RFC 8693)**, **private_key_jwt (RFC 7523)** + **signed request
+  objects / JAR (RFC 9101)**, revocation/introspection, discovery, RS256 JWKS **with
+  overlapping-kid rotation**, back-channel + front-channel logout.
   DPoP + PAR + theft-detection put us ahead of much of the field on the OSS side.
+- **Continuous access evaluation** — **CAEP / OpenID Shared Signals** transmitter
+  (RFC 8417 SETs, push/poll) so receivers drop revoked sessions/tokens in near
+  real time. Rare in OSS IdPs.
+- **Enterprise foundation** — organizations/teams with a **relational RBAC** model
+  (per-org roles + permissions, delegated admin), the base for SCIM/SAML.
 - **Auth methods** — passkeys/WebAuthn, magic links, email/password with
   exponential-backoff lockout, TOTP 2FA, backup codes, HIBP breach checks.
 - **Web3-native identity** — `did:key` per user, SIWE (EIP-4361) + TON wallet
@@ -57,9 +64,11 @@ What unlocks enterprise adoption. Notably, most competitors **paywall** several 
 these (Ory/Logto gate SCIM+SAML behind Enterprise) — shipping them in OSS is a
 genuine differentiator.
 
-- **Organizations / teams + first-class RBAC** — **L**. We have flat roles; add an
-  org/tenant model with per-org roles, membership, and delegated admin (Zitadel's
-  Project-Grant model is the reference). Foundation for B2B SaaS customers.
+- ✅ **Organizations / teams + first-class RBAC** — **L**. *Shipped.* Relational
+  Organization/Membership/OrgRole model (bridged to the existing companyId tenant
+  string), `org:*` permission sets, an OrgRbacGuard + `@RequirePermissions`, a
+  tenant-scoped org admin API, and union `roles` + `org`/`org_id` token claims
+  gated behind `RBAC_TOKEN_CLAIMS_ENABLED`. Foundation for SCIM/SAML.
 - **SCIM 2.0 inbound provisioning** — **L**. User/group sync from Okta/Entra/Google.
   Paywalled by Ory & Logto; Zitadel's is preview/user-only. OSS SCIM is a real edge.
 - **SAML 2.0 (SP + IdP)** — **L**. Accept enterprise SAML and issue assertions.
@@ -70,9 +79,9 @@ genuine differentiator.
 - **Multi-language SDKs + migration tooling** — **M each**. We ship TS/React;
   add Python and Go SDKs (generated from the OpenAPI spec) and an Auth0/Keycloak
   user-import path.
-- **Self-service session/device management UI** — **S**. We have the session APIs
-  and an admin view; add an end-user "your devices / active sessions" screen
-  (competitors mostly leave this build-it-yourself).
+- ✅ **Self-service session/device management UI** — **S**. *Shipped.* The
+  end-user "active sessions" screen lists and revokes sessions (the revoke calls
+  were pointing at the wrong path and silently 404'ing — now fixed).
 
 ## P1 — Developer experience (the #1 adoption lever)
 
@@ -99,9 +108,19 @@ it's our weakest area today.
 Where we can lead rather than follow, anchored on our two unique strengths:
 **Web3-native identity** and **AI-agent / MCP authorization**.
 
-- **Token Exchange (RFC 8693)** — **M**. Broadly supported (Ory, Zitadel, Keycloak
-  GA, Auth0, Logto) and central to agent/MCP delegation. Add the
+- ✅ **Token Exchange (RFC 8693)** — **M**. *Shipped.* The
   `urn:ietf:params:oauth:grant-type:token-exchange` grant with `act`-claim delegation.
+- ✅ **private_key_jwt client authentication (RFC 7523/7521)** — **M**. *Shipped.*
+  Asymmetric confidential-client auth at the token + PAR endpoints (client JWKS /
+  jwks_uri, alg allowlist, iss=sub=client_id, single-use jti), advertised in AS
+  metadata. Stronger than client_secret; matters for MCP DCR + FAPI runway.
+- ✅ **Signed request objects — JAR (RFC 9101)** — **M**. *Shipped.* A signed
+  `request` JWT on `/authorize` + `/par`, verified against the client's keys.
+- ✅ **CAEP / OpenID Shared Signals (RFC 8417 / 8935 / 8936)** — **L**. *Shipped.*
+  A Security Event Token transmitter: session-revoked / token-revoked events pushed
+  or polled to registered receivers for near-real-time revocation propagation —
+  increasingly table-stakes for MCP/enterprise. Discovery at
+  `/.well-known/ssf-configuration`.
 - **Rich Authorization Requests (RFC 9396)** — **L**. *Only Auth0 ships this in
   production.* MCP is pulling it forward for fine-grained agent permissions. Adding
   `authorization_details` (on top of our existing PAR) would put us in rare company.
@@ -152,16 +171,18 @@ Where we can lead rather than follow, anchored on our two unique strengths:
   bump together when it lands.
 - **Continue de-godifying** — the OAuth controller/service were split to pass the
   size/complexity gates; keep extracting per-grant/service logic as the surface grows.
-- **HTTPS enforcement + automated key rotation** — **M**. Runtime HSTS/secure-cookie
-  hardening is in place; add explicit prod HTTPS enforcement and an automated JWKS
-  key-rotation schedule with **overlapping `kid`s** (we already publish `kid`) so
-  rollover never invalidates in-flight tokens.
-- **Secrets at rest + Vault/KMS hooks** — **M**. Client secrets are hashed; add
-  encryption-at-rest for sensitive config and optional HashiCorp Vault / cloud-KMS
+- ✅ **JWKS rotation with overlapping `kid`s** — **M**. *Shipped.* A multi-key
+  signing set (active/next/prev) is published at `/.well-known/jwks.json` and
+  verification resolves by the token's `kid`, so rollover never invalidates
+  in-flight tokens (see `docs/KEY-ROTATION.md`). *Still open:* app-level HTTPS
+  enforcement (currently proxy-terminated).
+- **Secrets at rest + Vault/KMS hooks** — **M**. 🟡 *Partial.* 2FA/TOTP secrets are
+  now AES-256-GCM encrypted at rest (`FieldCrypto`, keyed by `FIELD_ENCRYPTION_KEY`)
+  — reusable for other sensitive fields. *Still open:* HashiCorp Vault / cloud-KMS
   integration (Keycloak's Vault SPI is the reference).
-- **RFC 9700 self-audit** — **S**. Confirm we meet the finalized OAuth Security BCP
-  (mandatory PKCE+S256 ✓, exact redirect match ✓, no implicit/ROPC ✓, refresh
-  rotation/sender-constraining ✓) and document the compliance posture.
+- ✅ **RFC 9700 self-audit** — **S**. *Shipped* as `docs/SECURITY-RFC9700.md` — an
+  evidence-cited checklist against the OAuth Security BCP. Tracked gaps: the `iss`
+  authz-response param (RFC 9207), mTLS (RFC 8705), and app-level HTTPS enforcement.
 
 > **Note on GDPR:** export + hard-delete endpoints already ship (`/v1/auth/identity/
 > export` and account deletion) — a gap in some competitors, not for us.

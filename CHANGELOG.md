@@ -4,6 +4,30 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.6.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.5.0...inite-auth-service-v1.6.0) (2026-07-07)
+
+
+### Features
+
+* **jwks:** signing-key rotation with overlapping kids ([0de91aa](https://github.com/inite-ai/inite-auth-service/commit/0de91aa0bc6bd40f66f47ecd29ee950a643150bd))
+* **jwks:** support signing-key rotation with overlapping kids ([57e4cab](https://github.com/inite-ai/inite-auth-service/commit/57e4cabc8e619479123d268a3fced0d971878538))
+* **oauth:** private_key_jwt client auth (RFC 7523) + signed request objects (RFC 9101) ([acdd640](https://github.com/inite-ai/inite-auth-service/commit/acdd6407224b7878532ef62f609ac73a0785692e))
+* **oauth:** private_key_jwt client auth (RFC 7523) + signed request objects (RFC 9101) ([b20a563](https://github.com/inite-ai/inite-auth-service/commit/b20a56319c0688e4b74081727b56d17f46820045))
+* **rbac:** organizations, memberships & relational RBAC ([0b9ce60](https://github.com/inite-ai/inite-auth-service/commit/0b9ce60eed48fd2d15509dc4be203470c515e67d))
+* **rbac:** organizations, memberships & relational RBAC ([8e1b560](https://github.com/inite-ai/inite-auth-service/commit/8e1b560fbe529f4c8b6d1238efdc3cfe08795449))
+* **security:** encrypt TOTP 2FA secrets at rest (AES-256-GCM) ([825c7fd](https://github.com/inite-ai/inite-auth-service/commit/825c7fdf6b42ad8d88340c4923184726adc09962))
+* **security:** encrypt TOTP 2FA secrets at rest (AES-256-GCM) ([daf8840](https://github.com/inite-ai/inite-auth-service/commit/daf88406147ee32d8f7f1cea4423e8a81689e1f8))
+* **ssf:** CAEP / OpenID Shared Signals transmitter ([3851866](https://github.com/inite-ai/inite-auth-service/commit/38518664e7b64be8bba3718a76aa43a5bb644489))
+* **ssf:** CAEP / OpenID Shared Signals transmitter ([aea0cf2](https://github.com/inite-ai/inite-auth-service/commit/aea0cf2d213dad88b22bf2185acb92f103d997c0))
+
+
+### Bug Fixes
+
+* **migration:** make 0015 org-role seed robust + idempotent ([eb0869f](https://github.com/inite-ai/inite-auth-service/commit/eb0869febdad0bcd48c497b4f47a6538d4096031))
+* **migration:** make 0015 org-role seed robust + idempotent ([e2fd4d8](https://github.com/inite-ai/inite-auth-service/commit/e2fd4d8b27d8df3e93d4b52925d7b9e74ab6de18))
+* **sessions:** correct revoke endpoint paths; add RFC 9700 self-audit ([89243ed](https://github.com/inite-ai/inite-auth-service/commit/89243edcbe2304ba9fc0b7fb1cf541d970a5d78d))
+* **sessions:** correct revoke endpoint paths; add RFC 9700 self-audit ([e2e73fe](https://github.com/inite-ai/inite-auth-service/commit/e2e73fe4a773c7107d4efbc4953d29b826d67597))
+
 ## [1.5.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.4.0...inite-auth-service-v1.5.0) (2026-07-07)
 
 

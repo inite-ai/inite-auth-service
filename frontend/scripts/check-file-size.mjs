@@ -22,17 +22,10 @@ const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const DIRS = ['app', 'components', 'lib']
 const MAX = 300
 
-// TODO(god-file): pre-existing files over the ceiling, grandfathered when the
-// gate was introduced (mirrors the backend's legacy eslint-disable banners).
-// Split each and delete its entry; do NOT add new files here.
-const ALLOWLIST = new Set([
-  'components/admin/UsersSection.tsx',
-  'components/admin/AuditLogSection.tsx',
-  'components/account/SecuritySection.tsx',
-  'components/account/WalletsSection.tsx',
-  'components/account/ProfileSection.tsx',
-  'components/AuthPage.tsx',
-])
+// No grandfathered files — every source file must stay under the ceiling.
+// If a legacy exception is ever unavoidable, add it here WITH a TODO and split
+// it promptly (mirrors the backend's tracked eslint-disable banners).
+const ALLOWLIST = new Set([])
 
 function walk(dir) {
   const out = []

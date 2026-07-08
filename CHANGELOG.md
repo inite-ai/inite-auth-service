@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.7.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.6.0...inite-auth-service-v1.7.0) (2026-07-08)
+
+
+### Features
+
+* **admin-ui:** Federation connections section (E-frontend) ([b87773e](https://github.com/inite-ai/inite-auth-service/commit/b87773e46d17a87ca6414f1e1ba11179f17a6e90))
+* **admin-ui:** OAuth client token-endpoint auth method (B) ([3c5ff98](https://github.com/inite-ai/inite-auth-service/commit/3c5ff985fc25ef0344205800381fa378a7a30870))
+* **admin-ui:** Organizations & RBAC section (C) ([6ce3ed5](https://github.com/inite-ai/inite-auth-service/commit/6ce3ed5634d8c3f372f3f8709e4ddb8fe285c583))
+* **admin-ui:** Organizations, Shared Signals, Connections tabs + client auth method + god-file gate ([c0dc3ef](https://github.com/inite-ai/inite-auth-service/commit/c0dc3ef81d3ff4348237a382d6ebec088dc21363))
+* **admin-ui:** Shared Signals (SSF/CAEP) streams section (D) ([bba28e8](https://github.com/inite-ai/inite-auth-service/commit/bba28e8d40e7fa085ecd3b7a1c9a0de6ebaf7910))
+* **admin:** accept token_endpoint_auth_method + jwks on admin client CRUD ([3d250f4](https://github.com/inite-ai/inite-auth-service/commit/3d250f48d926f732f78da028b5d21f9861e1b74a))
+* **admin:** accept token_endpoint_auth_method + jwks on admin client CRUD ([cf484b0](https://github.com/inite-ai/inite-auth-service/commit/cf484b02375ead87b3cf84d1b498613a7f7e158d))
+* **federation:** DB-backed provider config + admin CRUD (E-backend) ([2cc08ab](https://github.com/inite-ai/inite-auth-service/commit/2cc08ab1356c81ea490bcf3ab1d9fad72ec3c0b8))
+* **federation:** DB-backed provider config + admin CRUD (E-backend) ([de5c66a](https://github.com/inite-ai/inite-auth-service/commit/de5c66a8478de8fe755ab6f5a0c8b804a7f68ee2))
+
 ## [1.6.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.5.0...inite-auth-service-v1.6.0) (2026-07-07)
 
 

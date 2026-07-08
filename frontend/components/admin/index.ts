@@ -1,4 +1,7 @@
 export { default as StatsSection } from './StatsSection'
 export { default as UsersSection } from './UsersSection'
 export { default as OAuthClientsSection } from './OAuthClientsSection'
+export { default as OrganizationsSection } from './OrganizationsSection'
+export { default as SsfStreamsSection } from './SsfStreamsSection'
+export { default as FederationSection } from './FederationSection'
 export { default as AuditLogSection } from './AuditLogSection'

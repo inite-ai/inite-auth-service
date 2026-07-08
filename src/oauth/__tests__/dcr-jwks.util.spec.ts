@@ -16,7 +16,24 @@ describe('validateDcrClientKeys', () => {
   });
 
   it('accepts private_key_jwt with inline jwks', () => {
-    expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: { keys: [] }, jwksUri: undefined })).not.toThrow();
+    expect(() => validateDcrClientKeys({
+      method: 'private_key_jwt',
+      jwks: { keys: [{ kty: 'RSA', n: 'abc', e: 'AQAB' }] },
+      jwksUri: undefined,
+    })).not.toThrow();
+  });
+
+  it('rejects an empty jwks keys array', () => {
+    expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: { keys: [] }, jwksUri: undefined }))
+      .toThrow(/non-empty keys array/);
+  });
+
+  it('rejects a jwks containing private key material', () => {
+    expect(() => validateDcrClientKeys({
+      method: 'private_key_jwt',
+      jwks: { keys: [{ kty: 'RSA', n: 'abc', e: 'AQAB', d: 'secret' }] },
+      jwksUri: undefined,
+    })).toThrow(/only public keys/);
   });
 
   it('rejects a non-https jwks_uri', () => {

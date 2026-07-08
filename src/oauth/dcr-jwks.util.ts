@@ -31,4 +31,23 @@ export function validateDcrClientKeys(input: {
       throw new BadRequestException('jwks_uri must use https');
     }
   }
+  if (jwks) assertPublicJwks(jwks);
+}
+
+/**
+ * Reject a JWK Set that contains private key material — only public keys may
+ * be registered to verify a client's assertions/request objects. A JWK with a
+ * `d` parameter (RSA/EC private exponent) or an `oct` symmetric key is private.
+ */
+export function assertPublicJwks(jwks: unknown): void {
+  const keys = (jwks as { keys?: unknown })?.keys;
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new BadRequestException('jwks must be a JWK Set with a non-empty keys array');
+  }
+  for (const key of keys) {
+    const jwk = key as { d?: unknown; kty?: unknown };
+    if (jwk && (jwk.d !== undefined || jwk.kty === 'oct')) {
+      throw new BadRequestException('jwks must contain only public keys (found private key material)');
+    }
+  }
 }

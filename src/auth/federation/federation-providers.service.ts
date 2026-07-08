@@ -17,6 +17,7 @@ import {
   normalizeOidcProfile,
   tokenResponseOk,
 } from './providers';
+import { FederationConfigStore, FederationDbEntry } from './federation-config.store';
 
 const DISCOVERY_TTL_MS = 60 * 60 * 1000; // cache OIDC discovery for 1h
 
@@ -34,8 +35,26 @@ export class FederationProviders {
     { endpoints: ProviderEndpoints; expiresAt: number }
   >();
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly store: FederationConfigStore,
+  ) {
     this.logger.setContext('FederationProviders');
+  }
+
+  /** Public read of the pure-env config for a provider (admin source detection). */
+  envConfig(providerId: string): ProviderConfig | null {
+    return this.fromEnv(providerId);
+  }
+
+  /**
+   * Resolve a provider's config for an admin connectivity test, ignoring the
+   * enabled flag (operators test before enabling). DB row wins over env.
+   */
+  resolveForTest(providerId: string): ProviderConfig | null {
+    const db = this.store.getEntry(providerId);
+    if (db) return this.fromDbEntry(providerId, { ...db, enabled: true });
+    return this.fromEnv(providerId);
   }
 
   /** Providers with credentials configured, for the login UI. */
@@ -171,8 +190,50 @@ export class FederationProviders {
     return res.json();
   }
 
-  /** Build provider config from env, or null when credentials are absent. */
+  /**
+   * Resolve a provider's config. A DB row wins over env (hot-reloadable admin
+   * config); an explicitly-disabled DB row suppresses the provider even when
+   * env credentials exist. With no DB row we fall back to env (back-compat).
+   */
   private tryResolveConfig(providerId: string): ProviderConfig | null {
+    const db = this.store.getEntry(providerId);
+    if (db) return db.enabled ? this.fromDbEntry(providerId, db) : null;
+    return this.fromEnv(providerId);
+  }
+
+  /** Build provider config from a DB entry, merged with static metadata. */
+  private fromDbEntry(id: string, db: FederationDbEntry): ProviderConfig | null {
+    if (!db.clientId || !db.clientSecret) return null;
+    if (id === 'google' || id === 'github') {
+      const meta = STATIC_PROVIDERS[id];
+      return {
+        id,
+        displayName: db.displayName || meta.displayName,
+        clientId: db.clientId,
+        clientSecret: db.clientSecret,
+        scopes: db.scopes.length ? db.scopes : meta.scopes,
+        usesPkce: meta.usesPkce,
+        endpoints: meta.endpoints,
+      };
+    }
+    if (id === 'oidc') {
+      if (!db.issuer) return null;
+      return {
+        id: 'oidc',
+        displayName: db.displayName || 'Single Sign-On',
+        clientId: db.clientId,
+        clientSecret: db.clientSecret,
+        scopes: db.scopes.length ? db.scopes : ['openid', 'email', 'profile'],
+        usesPkce: true,
+        endpoints: null,
+        issuer: db.issuer,
+      };
+    }
+    return null;
+  }
+
+  /** Build provider config from env, or null when credentials are absent. */
+  private fromEnv(providerId: string): ProviderConfig | null {
     if (providerId === 'google' || providerId === 'github') {
       const prefix = providerId.toUpperCase();
       const clientId = this.config.get<string>(`${prefix}_CLIENT_ID`);

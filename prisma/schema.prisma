@@ -455,3 +455,22 @@ model UserKnownDevice {
   @@unique([userId, fingerprint])
   @@map("user_known_devices")
 }
+
+/// DB-backed social/OIDC federation provider config. Overrides env when a row
+/// exists (hot-reloadable admin editor); an explicitly-disabled row suppresses
+/// the provider even when env credentials are present. The client secret is
+/// stored FieldCrypto-encrypted (never plaintext); env stays the fallback.
+model FederationProvider {
+  id              String   @id @default(uuid()) @db.Uuid
+  slug            String   @unique
+  displayName     String   @map("displayName")
+  enabled         Boolean  @default(false)
+  clientId        String   @map("clientId")
+  clientSecretEnc String?  @map("clientSecretEnc")
+  scopes          String[] @default([])
+  issuer          String?
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+
+  @@map("federation_providers")
+}

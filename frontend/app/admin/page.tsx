@@ -5,6 +5,7 @@ import {
   BarChart3,
   Users,
   AppWindow,
+  Building2,
   FileSearch,
   Loader2,
 } from 'lucide-react'
@@ -17,15 +18,17 @@ import {
   StatsSection,
   UsersSection,
   OAuthClientsSection,
+  OrganizationsSection,
   AuditLogSection,
 } from '@/components/admin'
 
-type Tab = 'stats' | 'users' | 'clients' | 'audit'
+type Tab = 'stats' | 'users' | 'clients' | 'orgs' | 'audit'
 
 const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'stats', label: 'Dashboard', icon: BarChart3 },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'clients', label: 'OAuth Clients', icon: AppWindow },
+  { key: 'orgs', label: 'Organizations', icon: Building2 },
   { key: 'audit', label: 'Audit Log', icon: FileSearch },
 ]
 
@@ -118,7 +121,7 @@ export default function AdminPage() {
             Admin
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Users, OAuth clients, and audit log.
+            Users, OAuth clients, organizations, and audit log.
           </p>
         </div>
 
@@ -152,6 +155,9 @@ export default function AdminPage() {
           {activeTab === 'users' && <UsersSection accessToken={accessToken} />}
           {activeTab === 'clients' && (
             <OAuthClientsSection accessToken={accessToken} />
+          )}
+          {activeTab === 'orgs' && (
+            <OrganizationsSection accessToken={accessToken} />
           )}
           {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}
         </div>

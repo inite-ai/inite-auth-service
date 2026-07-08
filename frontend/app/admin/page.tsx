@@ -7,6 +7,7 @@ import {
   AppWindow,
   Building2,
   Radio,
+  Plug,
   FileSearch,
   Loader2,
 } from 'lucide-react'
@@ -21,10 +22,11 @@ import {
   OAuthClientsSection,
   OrganizationsSection,
   SsfStreamsSection,
+  FederationSection,
   AuditLogSection,
 } from '@/components/admin'
 
-type Tab = 'stats' | 'users' | 'clients' | 'orgs' | 'signals' | 'audit'
+type Tab = 'stats' | 'users' | 'clients' | 'orgs' | 'signals' | 'connections' | 'audit'
 
 const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'stats', label: 'Dashboard', icon: BarChart3 },
@@ -32,6 +34,7 @@ const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'clients', label: 'OAuth Clients', icon: AppWindow },
   { key: 'orgs', label: 'Organizations', icon: Building2 },
   { key: 'signals', label: 'Shared Signals', icon: Radio },
+  { key: 'connections', label: 'Connections', icon: Plug },
   { key: 'audit', label: 'Audit Log', icon: FileSearch },
 ]
 
@@ -164,6 +167,9 @@ export default function AdminPage() {
           )}
           {activeTab === 'signals' && (
             <SsfStreamsSection accessToken={accessToken} />
+          )}
+          {activeTab === 'connections' && (
+            <FederationSection accessToken={accessToken} />
           )}
           {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}
         </div>

@@ -133,6 +133,9 @@ export class AdminController {
       allowedGrants?: string[];
       companyId?: string | null;
       allowedAudiences?: string[];
+      tokenEndpointAuthMethod?: string;
+      jwks?: unknown;
+      jwksUri?: string | null;
     },
     @Req() req: Request,
   ) {
@@ -170,6 +173,9 @@ export class AdminController {
       logoUrl: string;
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
+      tokenEndpointAuthMethod: string;
+      jwks: unknown;
+      jwksUri: string | null;
     }>,
     @Req() req: Request,
   ) {

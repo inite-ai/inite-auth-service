@@ -1,7 +1,18 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, BadRequestException } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import * as crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { validateDcrClientKeys } from "../oauth/dcr-jwks.util";
+
+const AUTH_METHODS = ['client_secret_post', 'private_key_jwt', 'none'];
+
+/** Input shape for the token-endpoint auth method + key material. */
+export interface ClientAuthMethodInput {
+  tokenEndpointAuthMethod?: string;
+  jwks?: unknown;
+  jwksUri?: string | null;
+}
 
 /**
  * OAuth-client lifecycle management (list / read / create / update / rotate /
@@ -43,6 +54,27 @@ export class AdminClientsService {
     };
   }
 
+  /**
+   * Resolve + validate the token-endpoint auth method into Prisma fields.
+   * Returns {} when no method is supplied so callers leave the columns
+   * untouched. `private_key_jwt` requires public jwks/jwks_uri (validated),
+   * `none` marks the client public.
+   */
+  private authMethodFields(input: ClientAuthMethodInput): Prisma.OAuthClientUncheckedCreateInput | Record<string, never> {
+    const method = input.tokenEndpointAuthMethod;
+    if (!method) return {};
+    if (!AUTH_METHODS.includes(method)) {
+      throw new BadRequestException(`Unsupported token_endpoint_auth_method: ${method}`);
+    }
+    validateDcrClientKeys({ method, jwks: input.jwks, jwksUri: input.jwksUri ?? undefined });
+    return {
+      tokenEndpointAuthMethod: method,
+      isPublic: method === 'none',
+      jwks: input.jwks != null ? (input.jwks as Prisma.InputJsonValue) : Prisma.JsonNull,
+      jwksUri: input.jwksUri ?? null,
+    } as Prisma.OAuthClientUncheckedCreateInput;
+  }
+
   async createOAuthClient(data: {
     name: string;
     clientId: string;
@@ -52,7 +84,7 @@ export class AdminClientsService {
     companyId?: string | null;
     allowedAudiences?: string[];
     backchannelLogoutUri?: string | null;
-  }) {
+  } & ClientAuthMethodInput) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
 
@@ -71,6 +103,7 @@ export class AdminClientsService {
         allowedAudiences: data.allowedAudiences ?? [],
         companyId: data.companyId ?? null,
         backchannelLogoutUri: data.backchannelLogoutUri ?? null,
+        ...this.authMethodFields(data),
       },
     });
 
@@ -96,12 +129,16 @@ export class AdminClientsService {
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
       backchannelLogoutUri: string | null;
-    }>,
+    }> & ClientAuthMethodInput,
   ) {
+    // Separate the auth-method inputs (validated + mapped) from the plain
+    // column updates so the raw jwks/method values aren't written unchecked.
+    const { tokenEndpointAuthMethod, jwks, jwksUri, ...rest } = data;
+    const authFields = this.authMethodFields({ tokenEndpointAuthMethod, jwks, jwksUri });
     try {
       const client = await this.prisma.oAuthClient.update({
         where: { clientId },
-        data,
+        data: { ...rest, ...authFields },
       });
       const { clientSecretHash, ...safeClient } = client;
       return safeClient;

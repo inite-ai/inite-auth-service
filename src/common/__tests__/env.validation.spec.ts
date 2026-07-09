@@ -59,15 +59,9 @@ describe('validateEnv', () => {
     expect(() => validateEnv(rest)).toThrow(/REFRESH_TOKEN_HMAC_SECRET.*production/s);
   });
 
-  it('warns but does NOT fail boot when FIELD_ENCRYPTION_KEY is missing in production', () => {
+  it('requires FIELD_ENCRYPTION_KEY in production (provisioned in #108)', () => {
     const { FIELD_ENCRYPTION_KEY: _b, ...rest } = prodBase;
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      expect(() => validateEnv(rest)).not.toThrow();
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('FIELD_ENCRYPTION_KEY'));
-    } finally {
-      warn.mockRestore();
-    }
+    expect(() => validateEnv(rest)).toThrow(/FIELD_ENCRYPTION_KEY.*production/s);
   });
 
   it('does not require those secrets in development', () => {

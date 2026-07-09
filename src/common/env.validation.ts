@@ -13,22 +13,21 @@ function present(value: unknown): value is string {
 
 // key → reason, FATAL when missing in production. Only secrets on the core
 // token path belong here — every login/refresh needs them, so booting without
-// one is never correct.
+// one is never correct. FIELD_ENCRYPTION_KEY rejoined this set once it was
+// provisioned in the prod env (#108): now that at-rest 2FA/federation secrets
+// depend on it, silently booting without it would let those writes fail at
+// runtime instead of at deploy — so we fail fast again.
 const PROD_REQUIRED: ReadonlyArray<readonly [string, string]> = [
   ['JWT_PRIVATE_KEY', 'RS256 token signing; the HS256 fallback is dev-only'],
   ['REFRESH_TOKEN_HMAC_SECRET', 'refresh-token hashing'],
+  ['FIELD_ENCRYPTION_KEY', 'at-rest encryption of 2FA + federation secrets'],
 ];
 
 // key → reason, WARN (not fatal) when missing in production. FieldCrypto is
-// intentionally lazy: a missing FIELD_ENCRYPTION_KEY yields a disabled instance
-// that only throws if an at-rest secret (2FA / federation) is actually written,
-// and legacy plaintext still decrypts. Making it a boot-blocker contradicted
-// that contract and could take the whole auth server down over an unused
-// feature — so it's a startup warning instead. Set the key to enable those
-// features (and consider promoting it back to required once provisioned).
-const PROD_RECOMMENDED: ReadonlyArray<readonly [string, string]> = [
-  ['FIELD_ENCRYPTION_KEY', 'at-rest encryption of 2FA + federation secrets'],
-];
+// intentionally lazy: a missing key yields a disabled instance that only throws
+// if an at-rest secret is actually written. Keep this list as the home for any
+// future feature-gated secret that must not block boot when its feature is off.
+const PROD_RECOMMENDED: ReadonlyArray<readonly [string, string]> = [];
 
 // key → predicate → message, checked only when the value is present.
 const FORMAT_RULES: ReadonlyArray<

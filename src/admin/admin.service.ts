@@ -10,6 +10,7 @@ import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { BackchannelLogoutService } from '../oauth/backchannel-logout.service';
 import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
+import { stripUserSecrets } from '../common/sanitize';
 import { AdminClientsService } from './admin-clients.service';
 
 @Injectable()
@@ -38,7 +39,7 @@ export class AdminService {
     ]);
 
     return {
-      users: users.map(({ passwordHash, ...user }) => user),
+      users: users.map(stripUserSecrets),
       pagination: {
         page,
         limit,
@@ -66,9 +67,8 @@ export class AdminService {
       }),
     ]);
 
-    const { passwordHash, ...safeUser } = user;
     return {
-      ...safeUser,
+      ...stripUserSecrets(user),
       passkeys,
       wallets,
       stats: {
@@ -115,8 +115,7 @@ export class AdminService {
       where: { id: userId },
       data: updateData,
     });
-    const { passwordHash, ...safeUser } = updated;
-    return safeUser;
+    return stripUserSecrets(updated);
   }
 
   async updateUserRoles(userId: string, roles: string[]) {
@@ -133,8 +132,7 @@ export class AdminService {
         } as Prisma.InputJsonValue,
       },
     });
-    const { passwordHash, ...safeUser } = updated;
-    return safeUser;
+    return stripUserSecrets(updated);
   }
 
   async deleteUser(userId: string) {

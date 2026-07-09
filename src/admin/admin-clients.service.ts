@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { validateDcrClientKeys } from "../oauth/dcr-jwks.util";
+import { stripClientSecret } from "../common/sanitize";
 
 const AUTH_METHODS = ['client_secret_post', 'private_key_jwt', 'none'];
 
@@ -27,7 +28,7 @@ export class AdminClientsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return clients.map(({ clientSecretHash, ...client }) => client);
+    return clients.map(stripClientSecret);
   }
 
   async getOAuthClientById(clientId: string) {
@@ -43,9 +44,8 @@ export class AdminClientsService {
       this.prisma.refreshToken.count({ where: { clientId, revoked: false } }),
     ]);
 
-    const { clientSecretHash, ...safeClient } = client;
     return {
-      ...safeClient,
+      ...stripClientSecret(client),
       stats: {
         totalAuthCodes: totalCodes,
         totalTokens,
@@ -107,9 +107,8 @@ export class AdminClientsService {
       },
     });
 
-    const { clientSecretHash: _, ...safeClient } = client;
     return {
-      ...safeClient,
+      ...stripClientSecret(client),
       clientSecret,
       message: 'Save this client secret - it will not be shown again!',
     };
@@ -140,8 +139,7 @@ export class AdminClientsService {
         where: { clientId },
         data: { ...rest, ...authFields },
       });
-      const { clientSecretHash, ...safeClient } = client;
-      return safeClient;
+      return stripClientSecret(client);
     } catch {
       return null;
     }

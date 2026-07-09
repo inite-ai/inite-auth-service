@@ -49,9 +49,25 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...prodBase })).not.toThrow();
   });
 
-  it('requires production security secrets', () => {
-    const { JWT_PRIVATE_KEY: _a, FIELD_ENCRYPTION_KEY: _b, ...rest } = prodBase;
+  it('requires core token secrets (JWT_PRIVATE_KEY) in production', () => {
+    const { JWT_PRIVATE_KEY: _a, ...rest } = prodBase;
     expect(() => validateEnv(rest)).toThrow(/JWT_PRIVATE_KEY.*production/s);
+  });
+
+  it('requires REFRESH_TOKEN_HMAC_SECRET in production', () => {
+    const { REFRESH_TOKEN_HMAC_SECRET: _a, ...rest } = prodBase;
+    expect(() => validateEnv(rest)).toThrow(/REFRESH_TOKEN_HMAC_SECRET.*production/s);
+  });
+
+  it('warns but does NOT fail boot when FIELD_ENCRYPTION_KEY is missing in production', () => {
+    const { FIELD_ENCRYPTION_KEY: _b, ...rest } = prodBase;
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(() => validateEnv(rest)).not.toThrow();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('FIELD_ENCRYPTION_KEY'));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('does not require those secrets in development', () => {

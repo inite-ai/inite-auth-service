@@ -1,6 +1,10 @@
 import { FederationService } from '../federation.service';
+import { FederationProviders } from '../federation-providers.service';
 import { FederationEmailConflictError } from '../contracts/federation-email-conflict.error';
 import { NormalizedProfile } from '../contracts/normalized-profile';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { RedisService } from '../../../common/redis.service';
+import { IdentityService } from '../../../identity/identity.service';
 
 /**
  * Unit coverage for the account-linking / JIT-create logic — the security-
@@ -37,12 +41,18 @@ function makeService() {
     findUnique: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { oAuthIdentity, user } as any;
-  const identityService = { createIdentity: jest.fn() } as any;
-  const redis = {} as any;
-  const providers = {} as any; // resolveUser doesn't touch the provider client
+  const prisma = { oAuthIdentity, user };
+  const identityService = { createIdentity: jest.fn() };
+  const redis = {};
+  // resolveUser doesn't touch the provider client
+  const providers = {};
 
-  const service = new FederationService(prisma, redis, identityService, providers);
+  const service = new FederationService(
+    prisma as unknown as PrismaService,
+    redis as unknown as RedisService,
+    identityService as unknown as IdentityService,
+    providers as unknown as FederationProviders,
+  );
   return { service, prisma, identityService, oAuthIdentity, user };
 }
 

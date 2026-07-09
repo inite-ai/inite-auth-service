@@ -96,10 +96,16 @@ export class FederationProviders {
     if (cached && cached.expiresAt > Date.now()) return cached.endpoints;
 
     const url = `${cfg.issuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
-    const doc = await this.getJson(url, { Accept: 'application/json' });
+    const doc = (await this.getJson(url, { Accept: 'application/json' })) as {
+      authorization_endpoint?: string;
+      token_endpoint?: string;
+      userinfo_endpoint?: string;
+    };
     const endpoints: ProviderEndpoints = {
-      authorizationEndpoint: doc.authorization_endpoint,
-      tokenEndpoint: doc.token_endpoint,
+      // Coerce to '' so the incompleteness guard below fires the same way it
+      // did when a discovery field was missing (undefined).
+      authorizationEndpoint: doc.authorization_endpoint ?? '',
+      tokenEndpoint: doc.token_endpoint ?? '',
       userinfoEndpoint: doc.userinfo_endpoint,
     };
     if (!endpoints.authorizationEndpoint || !endpoints.tokenEndpoint) {
@@ -163,9 +169,12 @@ export class FederationProviders {
           ...authHeader,
           Accept: 'application/vnd.github+json',
           'User-Agent': 'inite-auth-service',
-        }).catch(() => [] as any),
+        }).catch((): unknown => []),
       ]);
-      return normalizeGithubProfile(user, Array.isArray(emails) ? emails : []);
+      const emailList: Array<Record<string, unknown>> = Array.isArray(emails)
+        ? (emails as Array<Record<string, unknown>>)
+        : [];
+      return normalizeGithubProfile(user as Record<string, unknown>, emailList);
     }
 
     const data = await this.getJson(
@@ -173,14 +182,14 @@ export class FederationProviders {
       authHeader,
     );
     return cfg.id === 'google'
-      ? normalizeGoogleProfile(data)
-      : normalizeOidcProfile(data);
+      ? normalizeGoogleProfile(data as Record<string, unknown>)
+      : normalizeOidcProfile(data as Record<string, unknown>);
   }
 
   private async getJson(
     url: string,
     headers: Record<string, string>,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const res = await fetch(url, { headers });
     if (!res.ok) {
       throw new UnauthorizedException(
@@ -206,6 +215,7 @@ export class FederationProviders {
     if (!db.clientId || !db.clientSecret) return null;
     if (id === 'google' || id === 'github') {
       const meta = STATIC_PROVIDERS[id];
+      if (!meta) return null;
       return {
         id,
         displayName: db.displayName || meta.displayName,
@@ -240,6 +250,7 @@ export class FederationProviders {
       const clientSecret = this.config.get<string>(`${prefix}_CLIENT_SECRET`);
       if (!clientId || !clientSecret) return null;
       const meta = STATIC_PROVIDERS[providerId];
+      if (!meta) return null;
       return {
         id: providerId,
         displayName: meta.displayName,

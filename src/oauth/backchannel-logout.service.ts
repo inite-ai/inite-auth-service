@@ -89,7 +89,7 @@ export class BackchannelLogoutService {
     sub: string;
     sid?: string;
   }): string {
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       sub: opts.sub,
       events: {
         'http://schemas.openid.net/event/backchannel-logout': {},
@@ -131,9 +131,11 @@ export class BackchannelLogoutService {
           `backchannel logout: ${clientId} returned ${res.status}`,
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const name = err instanceof Error ? err.name : 'err';
+      const message = err instanceof Error ? err.message : 'unknown';
       this.logger.warn(
-        `backchannel logout: ${clientId} delivery failed (${err?.name ?? 'err'}: ${err?.message ?? 'unknown'})`,
+        `backchannel logout: ${clientId} delivery failed (${name}: ${message})`,
       );
     } finally {
       clearTimeout(t);

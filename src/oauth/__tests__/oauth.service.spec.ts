@@ -12,7 +12,7 @@ import { IdentityService } from '../../identity/identity.service';
 import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwksService } from '../../common/jwks.service';
-import { OAuthClient } from '@prisma/client';
+import { OAuthClient, User } from '@prisma/client';
 
 describe('OAuthService', () => {
   let service: OAuthService;
@@ -20,9 +20,37 @@ describe('OAuthService', () => {
   let tokenIssuer: OAuthTokenIssuerService;
   let m2m: OAuthM2mService;
   let origins: OAuthOriginsService;
-  let jwt: any;
-  let config: any;
-  let mockPrisma: any;
+  let jwt: { sign: jest.Mock };
+  let config: { get: jest.Mock };
+  let mockPrisma: {
+    oAuthClient: {
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+    authorizationCode: {
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+      delete: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+    refreshToken: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+    user: { findUnique: jest.Mock };
+  };
 
   const mockClient: Partial<OAuthClient> = {
     id: 'uuid-1',
@@ -93,8 +121,10 @@ describe('OAuthService', () => {
     tokenIssuer = module.get<OAuthTokenIssuerService>(OAuthTokenIssuerService);
     m2m = module.get<OAuthM2mService>(OAuthM2mService);
     origins = module.get<OAuthOriginsService>(OAuthOriginsService);
-    jwt = module.get<JwtService>(JwtService);
-    config = module.get<ConfigService>(ConfigService);
+    jwt = module.get<JwtService>(JwtService) as unknown as { sign: jest.Mock };
+    config = module.get<ConfigService>(ConfigService) as unknown as {
+      get: jest.Mock;
+    };
   });
 
   describe('validateClient', () => {
@@ -120,7 +150,7 @@ describe('OAuthService', () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue({
         ...mockClient,
         isPublic: false,
-      } as any);
+      } as unknown as OAuthClient);
       await expect(clientRegistry.validateClientWithSecret('test-app', '')).rejects.toThrow(
         'client_secret is required',
       );
@@ -130,10 +160,10 @@ describe('OAuthService', () => {
       mockPrisma.oAuthClient.findFirst.mockResolvedValue({
         ...mockClient,
         isPublic: true,
-      } as any);
+      } as unknown as OAuthClient);
       const result = await clientRegistry.validateClientWithSecret('test-app', '');
       expect(result).toBeDefined();
-      expect((result as any).isPublic).toBe(true);
+      expect(result.isPublic).toBe(true);
     });
   });
 
@@ -404,7 +434,7 @@ describe('OAuthService', () => {
     const user = {
       id: 'u', did: 'did:k:1', email: 'e', emailVerified: true,
       name: 'N', avatarUrl: null, metadata: null,
-    } as any;
+    } as unknown as User;
 
     const setup = (resource: string | null, allowedAudiences: string[]) => {
       config.get = jest.fn((key: string) => {
@@ -479,7 +509,7 @@ describe('OAuthService', () => {
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
-      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
+      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as unknown as User;
       await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid', nonce: 'nonce-value' });
 
       // First sign call = access_token (no nonce). Second = id_token (with nonce).
@@ -495,7 +525,7 @@ describe('OAuthService', () => {
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
-      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as any;
+      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as unknown as User;
       await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid' });
 
       const idClaims = signSpy.mock.calls[1][0];

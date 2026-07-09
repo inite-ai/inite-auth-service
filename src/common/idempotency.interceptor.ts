@@ -39,9 +39,10 @@ interface CachedResponse {
   bodyHash: string;
 }
 
-function hashBody(body: any): string {
+function hashBody(body: unknown): string {
   try {
-    const serial = JSON.stringify(body ?? {}, Object.keys(body ?? {}).sort());
+    const obj = (body ?? {}) as Record<string, unknown>;
+    const serial = JSON.stringify(obj, Object.keys(obj).sort());
     return Buffer.from(serial).toString('base64url').slice(0, 64);
   } catch {
     return 'unhashable';
@@ -54,7 +55,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   constructor(private readonly redis: RedisService) {}
 
-  intercept(ctx: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = ctx.switchToHttp().getRequest();
     const res = ctx.switchToHttp().getResponse();
     const key = req.headers?.['idempotency-key'] as string | undefined;

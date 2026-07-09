@@ -53,12 +53,12 @@ export class AuthService {
   private async enforceHibp(password: string): Promise<void> {
     try {
       await this.hibp.assertNotBreached(password);
-    } catch (err: any) {
-      if (err?.code === 'password_breached') {
+    } catch (err: unknown) {
+      if ((err as { code?: unknown })?.code === 'password_breached') {
         throw new BadRequestException({
           error: 'password_breached',
-          message: err.message,
-          breach_count: err.breachCount,
+          message: (err as { message?: string }).message,
+          breach_count: (err as { breachCount?: number }).breachCount,
         });
       }
       throw err;
@@ -93,14 +93,15 @@ export class AuthService {
     });
 
     try {
-      const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+      // `email` is set for every persisted user in these flows; `name` is optional.
+      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
       if (emailSent) {
         this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
       } else {
         this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
       }
-    } catch (error: any) {
-      this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
+    } catch (error: unknown) {
+      this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
     const accessToken = this.generateAccessToken(user);
@@ -133,14 +134,15 @@ export class AuthService {
     });
 
     try {
-      const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+      // `email` is set for every persisted user in these flows; `name` is optional.
+      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
       if (emailSent) {
         this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
       } else {
         this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
       }
-    } catch (error: any) {
-      this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
+    } catch (error: unknown) {
+      this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
     }
 
     const accessToken = this.generateAccessToken(user);
@@ -206,8 +208,10 @@ export class AuthService {
 
     this.loginSecurity.recordAttempt('success');
     this.loginSecurity.auditLoginSuccess(user.did);
-    const accessToken = this.generateAccessToken(user as any);
-    return { user: user as any, accessToken };
+    const accessToken = this.generateAccessToken(user);
+    // `user` is a selected subset but structurally satisfies the User contract
+    // callers rely on (id/did/email/name/…); the omitted columns are unused here.
+    return { user: user as User, accessToken };
   }
 
   /**
@@ -222,7 +226,7 @@ export class AuthService {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
     const magicLinkUrl = `${frontendUrl}/verify?token=${token}`;
 
-    await this.emailService.sendMagicLink(email, magicLinkUrl, existingUser?.name);
+    await this.emailService.sendMagicLink(email, magicLinkUrl, existingUser?.name ?? undefined);
   }
 
   /**
@@ -238,14 +242,15 @@ export class AuthService {
 
     if (isNewUser) {
       try {
-        const emailSent = await this.emailService.sendWelcome({ email: user.email, name: user.name });
+        // `email` is set for every persisted user in these flows; `name` is optional.
+      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
         if (emailSent) {
           this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
         } else {
           this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
         }
-      } catch (error: any) {
-        this.logger.error('Failed to send welcome email', error?.message || 'Unknown error', { email: user.email, userId: user.id, error });
+      } catch (error: unknown) {
+        this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
       }
     }
 
@@ -278,7 +283,8 @@ export class AuthService {
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     await this.emailService.sendPasswordReset(
-      { email: user.email, name: user.name },
+      // `user` was just loaded by its email, so `email` is present; `name` is optional.
+      { email: user.email!, name: user.name ?? undefined },
       resetUrl,
     );
   }
@@ -353,16 +359,16 @@ export class AuthService {
   /**
    * Verify JWT token
    */
-  async verifyToken(token: string): Promise<any> {
+  async verifyToken(token: string): Promise<Record<string, unknown>> {
     try {
       // Resolve the verification key by the token's kid so tokens signed by
       // any published key verify during a rotation overlap (RS256 mode).
       if (this.jwksService.isRs256Enabled()) {
-        return this.jwtService.verify(token, {
+        return this.jwtService.verify<Record<string, unknown>>(token, {
           publicKey: this.jwksService.verificationKeyForToken(token),
         });
       }
-      return this.jwtService.verify(token);
+      return this.jwtService.verify<Record<string, unknown>>(token);
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
@@ -401,14 +407,14 @@ export class AuthService {
 
     try {
       const sent = await this.emailService.sendNewDeviceLogin(
-        { email: user.email, name: user.name },
+        { email: user.email, name: user.name ?? undefined },
         deviceInfo,
       );
       if (sent) {
         this.logger.auth('New device login email sent', { userId, email: user.email });
       }
-    } catch (error: any) {
-      this.logger.error('Failed to send new device email', error?.message, { userId });
+    } catch (error: unknown) {
+      this.logger.error('Failed to send new device email', error instanceof Error ? error.message : undefined, { userId });
     }
   }
 }

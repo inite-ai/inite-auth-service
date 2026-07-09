@@ -1,7 +1,11 @@
 import { RbacService } from '../rbac.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 describe('RbacService', () => {
-  let prisma: any;
+  let prisma: {
+    membership: { findUnique: jest.Mock; findMany: jest.Mock };
+    orgRole: { findFirst: jest.Mock };
+  };
   let service: RbacService;
 
   beforeEach(() => {
@@ -9,7 +13,7 @@ describe('RbacService', () => {
       membership: { findUnique: jest.fn(), findMany: jest.fn() },
       orgRole: { findFirst: jest.fn().mockResolvedValue(null) },
     };
-    service = new RbacService(prisma);
+    service = new RbacService(prisma as unknown as PrismaService);
   });
 
   it('resolves system-role permissions from the static catalog', async () => {

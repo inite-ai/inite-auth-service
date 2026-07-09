@@ -7,8 +7,43 @@ export interface IssueVerifiableCredentialInput {
   issuerDid: string;
   issuerPrivateKey: string;
   subjectDid: string;
-  claims: Record<string, any>;
+  claims: Record<string, unknown>;
   credentialType: string;
+}
+
+/** W3C DID document (did:key), as returned by resolveDidDocument. */
+export interface DidDocument {
+  '@context': string[];
+  id: string;
+  verificationMethod: Array<{
+    id: string;
+    type: string;
+    controller: string;
+    publicKeyBase58: string;
+  }>;
+  authentication: string[];
+  assertionMethod: string[];
+  capabilityDelegation: string[];
+  capabilityInvocation: string[];
+}
+
+/** Ed25519 proof block attached to an issued Verifiable Credential. */
+export interface VerifiableCredentialProof {
+  type: string;
+  created: string;
+  verificationMethod: string;
+  proofPurpose: string;
+  proofValue: string;
+}
+
+/** W3C Verifiable Credential produced by issueVerifiableCredential. */
+export interface VerifiableCredential {
+  '@context': string[];
+  type: string[];
+  issuer: string;
+  issuanceDate: string;
+  credentialSubject: { id: string } & Record<string, unknown>;
+  proof: VerifiableCredentialProof;
 }
 
 @Injectable()
@@ -110,7 +145,7 @@ export class DidService {
   /**
    * Create a DID document (for did:key, it's derived from the DID itself)
    */
-  async resolveDidDocument(did: string): Promise<any> {
+  async resolveDidDocument(did: string): Promise<DidDocument> {
     if (!did.startsWith('did:key:')) {
       throw new Error('Only did:key method is supported');
     }
@@ -199,7 +234,7 @@ export class DidService {
    */
   async issueVerifiableCredential(
     input: IssueVerifiableCredentialInput,
-  ): Promise<any> {
+  ): Promise<VerifiableCredential> {
     const { issuerDid, issuerPrivateKey, subjectDid, claims, credentialType } =
       input;
     const credential = {
@@ -238,7 +273,12 @@ export class DidService {
   /**
    * Verify a Verifiable Credential
    */
-  async verifyVerifiableCredential(credential: any): Promise<boolean> {
+  async verifyVerifiableCredential(
+    credential: {
+      proof?: VerifiableCredentialProof;
+      issuer?: string;
+    } & Record<string, unknown>,
+  ): Promise<boolean> {
     if (!credential.proof || !credential.issuer) {
       return false;
     }
@@ -248,10 +288,11 @@ export class DidService {
 
     // Verify the signature
     const credentialString = JSON.stringify(credentialWithoutProof);
+    // proof + issuer presence guaranteed by the guard above.
     return this.verifySignature(
       credential.issuer,
       credentialString,
-      proof.proofValue,
+      proof!.proofValue,
     );
   }
 

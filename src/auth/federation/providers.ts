@@ -43,18 +43,23 @@ export const STATIC_PROVIDERS: Record<
   },
 };
 
+/** Coerce a dynamic JSON value to a string, or null when it isn't one. */
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
 /** Normalize Google's OIDC UserInfo response. */
 export function normalizeGoogleProfile(
-  data: Record<string, any>,
+  data: Record<string, unknown>,
 ): NormalizedProfile {
   return {
     provider: 'google',
     subject: String(data.sub),
-    email: data.email ?? null,
+    email: asString(data.email),
     // Google returns email_verified as a boolean (or "true"/"false" string).
     emailVerified: data.email_verified === true || data.email_verified === 'true',
-    displayName: data.name ?? null,
-    avatarUrl: data.picture ?? null,
+    displayName: asString(data.name),
+    avatarUrl: asString(data.picture),
     raw: pickClaims(data, ['sub', 'name', 'given_name', 'family_name', 'picture', 'locale']),
   };
 }
@@ -65,8 +70,8 @@ export function normalizeGoogleProfile(
  * the /user/emails payload to resolve the primary verified address.
  */
 export function normalizeGithubProfile(
-  user: Record<string, any>,
-  emails: Array<Record<string, any>>,
+  user: Record<string, unknown>,
+  emails: Array<Record<string, unknown>>,
 ): NormalizedProfile {
   const primary = emails.find((e) => e.primary && e.verified)
     ?? emails.find((e) => e.verified)
@@ -74,32 +79,32 @@ export function normalizeGithubProfile(
   return {
     provider: 'github',
     subject: String(user.id),
-    email: primary?.email ?? user.email ?? null,
+    email: asString(primary?.email) ?? asString(user.email),
     emailVerified: !!primary?.verified,
-    displayName: user.name || user.login || null,
-    avatarUrl: user.avatar_url ?? null,
+    displayName: asString(user.name) || asString(user.login) || null,
+    avatarUrl: asString(user.avatar_url),
     raw: pickClaims(user, ['id', 'login', 'name', 'avatar_url', 'html_url']),
   };
 }
 
 /** Normalize a generic OIDC UserInfo response. */
 export function normalizeOidcProfile(
-  data: Record<string, any>,
+  data: Record<string, unknown>,
 ): NormalizedProfile {
   return {
     provider: 'oidc',
     subject: String(data.sub),
-    email: data.email ?? null,
+    email: asString(data.email),
     emailVerified: data.email_verified === true || data.email_verified === 'true',
-    displayName: data.name ?? data.preferred_username ?? null,
-    avatarUrl: data.picture ?? null,
+    displayName: asString(data.name) ?? asString(data.preferred_username),
+    avatarUrl: asString(data.picture),
     raw: pickClaims(data, ['sub', 'name', 'preferred_username', 'picture', 'locale']),
   };
 }
 
 /** Keep only known, non-sensitive claims for the persisted snapshot. */
 function pickClaims(
-  data: Record<string, any>,
+  data: Record<string, unknown>,
   keys: string[],
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};

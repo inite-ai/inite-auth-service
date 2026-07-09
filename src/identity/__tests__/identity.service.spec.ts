@@ -11,7 +11,23 @@ import * as bcrypt from 'bcryptjs';
 describe('IdentityService', () => {
   let accountService: IdentityAccountService;
   let emailService: IdentityEmailService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    user: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+    wallet: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
     mockPrisma = {
@@ -88,7 +104,7 @@ describe('IdentityService', () => {
     it('should strip isAdmin and roles from metadata update', async () => {
       const user = { id: '1', metadata: { existing: true }, wallets: [], passkeys: [] };
       mockPrisma.user.findUnique.mockResolvedValue(user);
-      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+      mockPrisma.user.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ ...user, metadata: data.metadata }),
       );
 
@@ -98,10 +114,10 @@ describe('IdentityService', () => {
         customField: 'value',
       });
 
-      expect((result.metadata as any).isAdmin).toBeUndefined();
-      expect((result.metadata as any).roles).toBeUndefined();
-      expect((result.metadata as any).customField).toBe('value');
-      expect((result.metadata as any).existing).toBe(true);
+      expect((result.metadata as Record<string, unknown>).isAdmin).toBeUndefined();
+      expect((result.metadata as Record<string, unknown>).roles).toBeUndefined();
+      expect((result.metadata as Record<string, unknown>).customField).toBe('value');
+      expect((result.metadata as Record<string, unknown>).existing).toBe(true);
     });
   });
 

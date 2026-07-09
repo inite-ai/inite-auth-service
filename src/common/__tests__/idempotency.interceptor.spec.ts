@@ -1,12 +1,21 @@
-import { BadRequestException, ExecutionContext } from '@nestjs/common';
+import {
+  BadRequestException,
+  CallHandler,
+  ExecutionContext,
+} from '@nestjs/common';
 import { of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 import { IdempotencyInterceptor } from '../idempotency.interceptor';
+import { RedisService } from '../redis.service';
+
+type MockHandler = { handle: jest.Mock };
 
 describe('IdempotencyInterceptor', () => {
   let interceptor: IdempotencyInterceptor;
   let store: Map<string, string>;
-  let redis: any;
+  let redis: { get: jest.Mock; set: jest.Mock };
+
+  const asHandler = (h: MockHandler): CallHandler => h as unknown as CallHandler;
 
   beforeEach(() => {
     store = new Map();
@@ -16,27 +25,28 @@ describe('IdempotencyInterceptor', () => {
         store.set(k, v);
       }),
     };
-    interceptor = new IdempotencyInterceptor(redis as any);
+    interceptor = new IdempotencyInterceptor(redis as unknown as RedisService);
   });
 
   const mkCtx = (
     headers: Record<string, string>,
-    body: any = {},
-    user?: any,
-  ): ExecutionContext => ({
-    switchToHttp: () => ({
-      getRequest: () => ({ headers, body, ip: '10.0.0.1', user }),
-      getResponse: () => ({
-        status: jest.fn(),
-        statusCode: 200,
+    body: Record<string, unknown> = {},
+    user?: { userId?: string; sub?: string },
+  ): ExecutionContext =>
+    ({
+      switchToHttp: () => ({
+        getRequest: () => ({ headers, body, ip: '10.0.0.1', user }),
+        getResponse: () => ({
+          status: jest.fn(),
+          statusCode: 200,
+        }),
       }),
-    }),
-  }) as any;
+    }) as unknown as ExecutionContext;
 
   it('no-ops when Idempotency-Key header is absent', async () => {
     const handler = { handle: jest.fn().mockReturnValue(of({ ok: 1 })) };
     const ctx = mkCtx({});
-    const result = await firstValueFrom(interceptor.intercept(ctx, handler as any));
+    const result = await firstValueFrom(interceptor.intercept(ctx, asHandler(handler)));
     expect(result).toEqual({ ok: 1 });
     expect(redis.get).not.toHaveBeenCalled();
   });
@@ -44,7 +54,7 @@ describe('IdempotencyInterceptor', () => {
   it('rejects keys shorter than 16 chars', () => {
     const handler = { handle: jest.fn() };
     const ctx = mkCtx({ 'idempotency-key': 'short' });
-    expect(() => interceptor.intercept(ctx, handler as any)).toThrow(
+    expect(() => interceptor.intercept(ctx, asHandler(handler))).toThrow(
       BadRequestException,
     );
   });
@@ -55,7 +65,7 @@ describe('IdempotencyInterceptor', () => {
       { 'idempotency-key': 'a-long-enough-idempotency-key-1' },
       { grant_type: 'client_credentials', client_id: 'app' },
     );
-    const result = await firstValueFrom(interceptor.intercept(ctx, handler as any));
+    const result = await firstValueFrom(interceptor.intercept(ctx, asHandler(handler)));
     expect(result).toEqual({ token: 'jwt' });
     expect(handler.handle).toHaveBeenCalledTimes(1);
     expect(redis.set).toHaveBeenCalled();
@@ -71,7 +81,7 @@ describe('IdempotencyInterceptor', () => {
     await firstValueFrom(
       interceptor.intercept(
         mkCtx({ 'idempotency-key': key }, body),
-        firstHandler as any,
+        asHandler(firstHandler),
       ),
     );
 
@@ -82,7 +92,7 @@ describe('IdempotencyInterceptor', () => {
     const result = await firstValueFrom(
       interceptor.intercept(
         mkCtx({ 'idempotency-key': key }, body),
-        replayHandler as any,
+        asHandler(replayHandler),
       ),
     );
     expect(result).toEqual({ token: 'jwt' });
@@ -98,7 +108,7 @@ describe('IdempotencyInterceptor', () => {
     await firstValueFrom(
       interceptor.intercept(
         mkCtx({ 'idempotency-key': key }, { grant_type: 'client_credentials' }),
-        handler as any,
+        asHandler(handler),
       ),
     );
 
@@ -106,12 +116,12 @@ describe('IdempotencyInterceptor', () => {
       handle: jest.fn().mockReturnValue(of({ token: 'whatever' })),
     };
 
-    let caught: any;
+    let caught: unknown;
     try {
       await firstValueFrom(
         interceptor.intercept(
           mkCtx({ 'idempotency-key': key }, { grant_type: 'refresh_token' }),
-          replayHandler as any,
+          asHandler(replayHandler),
         ),
       );
     } catch (e) {
@@ -131,7 +141,7 @@ describe('IdempotencyInterceptor', () => {
     await firstValueFrom(
       interceptor.intercept(
         mkCtx({ 'idempotency-key': key }, body, { userId: 'A' }),
-        userAHandler as any,
+        asHandler(userAHandler),
       ),
     );
 
@@ -141,7 +151,7 @@ describe('IdempotencyInterceptor', () => {
     const result = await firstValueFrom(
       interceptor.intercept(
         mkCtx({ 'idempotency-key': key }, body, { userId: 'B' }),
-        userBHandler as any,
+        asHandler(userBHandler),
       ),
     );
     // User B sees their own response — no leak from A.

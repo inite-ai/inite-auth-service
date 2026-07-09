@@ -1,6 +1,7 @@
 import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { createLogger } from '../../common/logger.service';
+import type { AuthenticatedUser } from '../authenticated-user';
 
 const logger = createLogger('JwtOrSessionGuard');
 
@@ -10,7 +11,7 @@ const logger = createLogger('JwtOrSessionGuard');
  */
 @Injectable()
 export class JwtOrSessionGuard extends AuthGuard('jwt') {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  override async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     
     logger.debug('Checking auth', {
@@ -38,7 +39,10 @@ export class JwtOrSessionGuard extends AuthGuard('jwt') {
     }
   }
   
-  handleRequest(err: any, user: any) {
+  override handleRequest<TUser = AuthenticatedUser>(
+    err: unknown,
+    user: TUser | false | null,
+  ): TUser {
     if (err || !user) {
       throw err || new UnauthorizedException('Authentication required');
     }

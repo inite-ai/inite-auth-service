@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdentityService } from './identity.service';
 import { FieldCrypto } from '../common/field-crypto';
@@ -117,9 +118,9 @@ export class IdentityMfaService {
       data: {
         twoFactorEnabled: true,
         metadata: {
-          ...user.metadata as any,
+          ...(user.metadata as Record<string, unknown>),
           backupCodes: backupCodes.map(c => bcrypt.hashSync(c, 10)),
-        },
+        } as Prisma.InputJsonValue,
       },
     });
 
@@ -194,13 +195,21 @@ export class IdentityMfaService {
       return { verified: true };
     }
 
-    const backupCodes = (user.metadata as any)?.backupCodes || [];
+    const meta = user.metadata as Record<string, unknown> | null;
+    const rawCodes = meta?.['backupCodes'];
+    const backupCodes: string[] = Array.isArray(rawCodes) ? rawCodes : [];
     for (let i = 0; i < backupCodes.length; i++) {
-      if (bcrypt.compareSync(code.toUpperCase(), backupCodes[i])) {
+      const hashed = backupCodes[i];
+      if (hashed && bcrypt.compareSync(code.toUpperCase(), hashed)) {
         backupCodes.splice(i, 1);
         await this.prisma.user.update({
           where: { id: userId },
-          data: { metadata: { ...user.metadata as any, backupCodes } },
+          data: {
+            metadata: {
+              ...(meta ?? {}),
+              backupCodes,
+            } as Prisma.InputJsonValue,
+          },
         });
         return { verified: true };
       }

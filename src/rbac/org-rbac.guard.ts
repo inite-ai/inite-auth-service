@@ -26,7 +26,7 @@ export class OrgRbacGuard extends JwtAuthGuard implements CanActivate {
     super();
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  override async canActivate(context: ExecutionContext): Promise<boolean> {
     const authed = await super.canActivate(context);
     if (!authed) return false;
 
@@ -56,7 +56,13 @@ export class OrgRbacGuard extends JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private resolveOrgId(request: any, user: any): string | null {
+  private resolveOrgId(
+    request: {
+      params?: Record<string, string | undefined>;
+      headers?: Record<string, string | undefined>;
+    },
+    user: { org_id?: string } | undefined,
+  ): string | null {
     return request.params?.orgId ?? request.headers?.['x-org-id'] ?? user?.org_id ?? null;
   }
 }

@@ -20,6 +20,8 @@ import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { resolveAdminScope, applyScopeFilter } from './admin-scope';
 import { AuditLogQuery } from './dto/audit-log-query';
 import { auditRowsToCsv } from './audit-csv';
+import { AuthenticatedUser } from '../auth/authenticated-user';
+import { AuditQueryFilters } from '../audit/contracts/audit-query-filters';
 
 /** Pulls IP + UA off an admin request for audit-log enrichment. */
 function adminContext(req: Request): {
@@ -29,7 +31,13 @@ function adminContext(req: Request): {
 } {
   const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
   const ip = fwd.split(',')[0]?.trim() || req.ip || '';
-  const operatorSub = (req as any).user?.userId ?? (req as any).user?.sub ?? null;
+  const user = (req as Request & { user?: AuthenticatedUser }).user;
+  const operatorSub =
+    user?.kind === 'user'
+      ? user.userId
+      : user?.kind === 'machine'
+        ? user.sub
+        : null;
   return {
     ip,
     userAgent: (req.headers['user-agent'] as string | undefined) ?? '',
@@ -76,7 +84,7 @@ export class AdminController {
       bio: string;
       location: string;
       profession: string;
-      metadata: Record<string, any>;
+      metadata: Record<string, unknown>;
     }>,
   ) {
     return this.adminService.updateUser(userId, body);
@@ -270,10 +278,15 @@ export class AdminController {
    * a scoped admin cannot read another tenant's log by passing ?companyId=X.
    */
   private buildScopedAuditFilters(q: AuditLogQuery, req: Request) {
-    const scope = resolveAdminScope((req as any).user);
+    const scope = resolveAdminScope(
+      (req as Request & { user?: AuthenticatedUser }).user,
+    );
     if (!scope) throw new ForbiddenException('Admin access required');
 
-    const filters: any = {
+    // Intersect with an index signature so the mutating applyScopeFilter
+    // (typed Record<string, unknown>) accepts it while list() still sees the
+    // AuditQueryFilters contract.
+    const filters: AuditQueryFilters & Record<string, unknown> = {
       clientId: q.clientId,
       event: q.event,
       success: q.success === undefined ? undefined : q.success === 'true',

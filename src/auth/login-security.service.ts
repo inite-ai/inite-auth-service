@@ -136,9 +136,9 @@ export class LoginSecurityService {
         { email: user.email, name: user.name ?? undefined },
         lockedUntil,
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.logger.warn(
-        `account-locked notification failed: ${e?.message ?? 'unknown'}`,
+        `account-locked notification failed: ${e instanceof Error ? e.message : 'unknown'}`,
       );
     }
   }
@@ -169,9 +169,9 @@ export class LoginSecurityService {
         { email: user.email, name: user.name ?? undefined },
         attemptCount,
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.logger.warn(
-        `failed-login-threshold notification failed: ${e?.message ?? 'unknown'}`,
+        `failed-login-threshold notification failed: ${e instanceof Error ? e.message : 'unknown'}`,
       );
     }
   }

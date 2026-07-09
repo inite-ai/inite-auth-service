@@ -85,7 +85,7 @@ export class OAuthController {
     // assurance level the current session doesn't meet, bounce back to login
     // for a stronger factor instead of minting a code. The step_up hint stops
     // the SPA from silently re-using the existing (too-weak) session.
-    const amr: string[] = (req.session as any)?.amr ?? [];
+    const amr: string[] = req.session?.amr ?? [];
     if (!this.stepUp.isSatisfied(amr, p.acrValues)) {
       this.logger.oauth('Step-up required: session AAL below requested acr', {
         clientId: p.clientId,
@@ -212,7 +212,7 @@ export class OAuthController {
       return res.redirect(errorUrl.toString());
     }
 
-    const amr: string[] = (req.session as any)?.amr ?? [];
+    const amr: string[] = req.session?.amr ?? [];
 
     // Step-up under prompt=none can't show UI, so we can't raise assurance
     // silently — return interaction_required per OIDC so the RP retries
@@ -257,15 +257,18 @@ export class OAuthController {
   ) {
     const p = ctx.params;
     if (!req.session) {
-      req.session = {} as any;
+      req.session = {} as typeof req.session;
     }
     req.session.oauthParams = {
       clientId: p.clientId,
       redirectUri: p.redirectUri,
       scope: p.scope,
       state: p.state,
-      codeChallenge: p.codeChallenge,
-      codeChallengeMethod: p.codeChallengeMethod,
+      // assertPkce() ran before we reach the login redirect, so codeChallenge
+      // is present; codeChallengeMethod defaults to '' when the client omitted
+      // it (the stored session copy is never read back — set at /authorize only).
+      codeChallenge: p.codeChallenge ?? '',
+      codeChallengeMethod: p.codeChallengeMethod ?? '',
       nonce: p.nonce,
     };
     this.logger.oauth('Redirecting to login', {

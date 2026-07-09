@@ -13,9 +13,22 @@ import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let mockPrisma: any;
-  let jwtService: any;
-  let loginSecurity: any;
+  let mockPrisma: {
+    user: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
+    userKnownDevice: { findUnique: jest.Mock; create: jest.Mock };
+  };
+  let jwtService: { sign: jest.Mock; verify: jest.Mock };
+  let loginSecurity: {
+    recordAttempt: jest.Mock;
+    auditLoginFailed: jest.Mock;
+    auditLoginSuccess: jest.Mock;
+    recordFailedLogin: jest.Mock;
+  };
 
   const mockUser = {
     id: 'user-1',
@@ -156,7 +169,7 @@ describe('AuthService', () => {
 
   describe('generateTokenForUser', () => {
     it('should generate JWT with user claims', () => {
-      service.generateTokenForUser(mockUser as any);
+      service.generateTokenForUser(mockUser);
       expect(jwtService.sign).toHaveBeenCalledWith(
         expect.objectContaining({
           sub: mockUser.did,
@@ -168,7 +181,7 @@ describe('AuthService', () => {
     });
 
     it('should not include metadata in token', () => {
-      service.generateTokenForUser(mockUser as any);
+      service.generateTokenForUser(mockUser);
       const payload = jwtService.sign.mock.calls[0][0];
       expect(payload.metadata).toBeUndefined();
     });

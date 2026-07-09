@@ -1,8 +1,9 @@
 import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 import { AuditWebhookService } from '../audit-webhook.service';
 
 function svc(env: Record<string, string | undefined>) {
-  const config = { get: (k: string) => env[k] } as any;
+  const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   return new AuditWebhookService(config);
 }
 
@@ -10,7 +11,7 @@ describe('AuditWebhookService', () => {
   it('is disabled and a no-op when no URL is configured', async () => {
     const s = svc({});
     expect(s.enabled).toBe(false);
-    const fetchSpy = jest.spyOn(global, 'fetch' as any);
+    const fetchSpy = jest.spyOn(global, 'fetch');
     await expect(s.deliver({ event: 'x' })).resolves.toBeUndefined();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
@@ -28,13 +29,16 @@ describe('AuditWebhookService', () => {
   it('POSTs to the URL with the signature header and never throws on failure', async () => {
     const s = svc({ AUDIT_WEBHOOK_URL: 'https://hook.example', AUDIT_WEBHOOK_SECRET: 'sek' });
     const fetchSpy = jest
-      .spyOn(global, 'fetch' as any)
-      .mockResolvedValue({ ok: true, status: 200 } as any);
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true, status: 200 } as unknown as Response);
 
     await s.deliver({ event: 'token.issued' });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, opts] = fetchSpy.mock.calls[0] as [string, any];
+    const [url, opts] = fetchSpy.mock.calls[0] as unknown as [
+      string,
+      { method: string; headers: Record<string, string>; body: string },
+    ];
     expect(url).toBe('https://hook.example');
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-INITE-Signature']).toMatch(/^sha256=/);

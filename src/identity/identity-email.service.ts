@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { IdentityService } from './identity.service';
@@ -50,19 +51,20 @@ export class IdentityEmailService {
       where: { id: userId },
       data: {
         metadata: {
-          ...fullUser.metadata as any,
+          ...(fullUser.metadata as Record<string, unknown>),
           pendingEmailChange: {
             newEmail,
             token,
             expires: expires.toISOString(),
           },
-        },
+        } as Prisma.InputJsonValue,
       },
     });
 
     const rpOrigin = this.configService.get('RP_ORIGIN') || 'http://localhost:3000';
     const verificationLink = `${rpOrigin}/verify-email?token=${token}&type=change`;
-    await this.emailService.sendEmailChangeVerification(newEmail, user.email, verificationLink);
+    // A user requesting an email change always has a current email on file.
+    await this.emailService.sendEmailChangeVerification(newEmail, user.email!, verificationLink);
   }
 
   /**
@@ -89,7 +91,8 @@ export class IdentityEmailService {
 
     const rpOrigin = this.configService.get('RP_ORIGIN') || 'http://localhost:3000';
     const verificationLink = `${rpOrigin}/verify-email?token=${token}`;
-    await this.emailService.sendEmailVerification(user.email, verificationLink);
+    // An account with an unverified email necessarily has an email on file.
+    await this.emailService.sendEmailVerification(user.email!, verificationLink);
   }
 
   /**
@@ -129,7 +132,11 @@ export class IdentityEmailService {
     });
 
     if (emailChangeUser) {
-      const pending = (emailChangeUser.metadata as any)?.pendingEmailChange;
+      const changeMeta = emailChangeUser.metadata as Record<string, unknown> | null;
+      // Written by requestEmailChange() with string newEmail/expires fields.
+      const pending = changeMeta?.['pendingEmailChange'] as
+        | { newEmail: string; expires: string }
+        | undefined;
       if (pending && new Date(pending.expires) < new Date()) {
         throw new BadRequestException('Verification link has expired');
       }
@@ -137,12 +144,12 @@ export class IdentityEmailService {
       await this.prisma.user.update({
         where: { id: emailChangeUser.id },
         data: {
-          email: pending.newEmail,
+          email: pending!.newEmail,
           emailVerified: true,
           metadata: {
-            ...emailChangeUser.metadata as any,
+            ...(changeMeta ?? {}),
             pendingEmailChange: null,
-          },
+          } as Prisma.InputJsonValue,
         },
       });
 

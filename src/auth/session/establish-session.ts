@@ -12,14 +12,14 @@ export async function establishSession(
   res: Response,
   bind: { sessionSecret: string; userId: string; amr: string[] },
 ): Promise<void> {
-  const session = (req as any).session;
+  const session = req.session;
   if (!session) return;
   await new Promise<void>((resolve, reject) => {
-    session.regenerate((err: any) => {
+    session.regenerate((err: unknown) => {
       if (err) return reject(err);
       session.userId = bind.userId;
       session.amr = bind.amr;
-      session.save((saveErr: any) => {
+      session.save((saveErr: unknown) => {
         if (saveErr) return reject(saveErr);
         const signed = 's:' + signature.sign(session.id, bind.sessionSecret);
         res.cookie('inite.sid', signed, {

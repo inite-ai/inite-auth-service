@@ -4,6 +4,14 @@ import { OAuthClient } from '@prisma/client';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { ClientAssertionService, CLIENT_ASSERTION_TYPE } from './client-assertion.service';
 
+/** The client-authentication fields read off a token / PAR request body. */
+export interface ClientAuthBody {
+  client_id?: string;
+  client_secret?: string;
+  client_assertion?: string;
+  client_assertion_type?: string;
+}
+
 /**
  * Dispatches client authentication at the token + PAR endpoints. A
  * `client_assertion` takes the private_key_jwt path (RFC 7523); otherwise the
@@ -19,7 +27,7 @@ export class ClientAuthService {
   ) {}
 
   async authenticate(input: {
-    body: Record<string, any>;
+    body: ClientAuthBody;
     audiences: string[];
   }): Promise<OAuthClient> {
     const { client_assertion, client_assertion_type, client_id, client_secret } = input.body;
@@ -38,7 +46,10 @@ export class ClientAuthService {
       });
     }
 
-    const client = await this.registry.validateClientWithSecret(client_id, client_secret);
+    const client = await this.registry.validateClientWithSecret(
+      client_id ?? '',
+      client_secret ?? '',
+    );
     if (client.tokenEndpointAuthMethod === 'private_key_jwt') {
       throw new UnauthorizedException('client must authenticate with private_key_jwt');
     }

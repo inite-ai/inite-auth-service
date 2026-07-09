@@ -152,9 +152,9 @@ export class OAuthClientRegistryService {
   async getClientInfo(clientId: string): Promise<{
     clientId: string;
     name: string;
-    logoUrl?: string;
-    privacyPolicyUrl?: string;
-    termsOfServiceUrl?: string;
+    logoUrl?: string | null;
+    privacyPolicyUrl?: string | null;
+    termsOfServiceUrl?: string | null;
   }> {
     const client = await this.validateClient(clientId);
     return {

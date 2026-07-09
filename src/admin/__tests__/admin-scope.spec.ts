@@ -49,7 +49,7 @@ describe('admin-scope', () => {
 
   describe('applyScopeFilter', () => {
     it('does not touch the where-clause for superadmin', () => {
-      const where: any = { event: 'token.issued.client_credentials' };
+      const where: Record<string, unknown> = { event: 'token.issued.client_credentials' };
       applyScopeFilter({ kind: 'superadmin' }, where);
       expect(where).toEqual({ event: 'token.issued.client_credentials' });
     });
@@ -57,14 +57,14 @@ describe('admin-scope', () => {
     it('overrides any pre-set companyId for scoped admin', () => {
       // URL tampering test — a scoped admin must not be able to widen
       // visibility by passing a different companyId in the query.
-      const where: any = { companyId: 'co_other', event: 'X' };
+      const where: Record<string, unknown> = { companyId: 'co_other', event: 'X' };
       applyScopeFilter({ kind: 'scoped', companyId: 'co_mine' }, where);
       expect(where.companyId).toBe('co_mine');
       expect(where.event).toBe('X');
     });
 
     it('adds companyId when not present', () => {
-      const where: any = {};
+      const where: Record<string, unknown> = {};
       applyScopeFilter({ kind: 'scoped', companyId: 'co_x' }, where);
       expect(where).toEqual({ companyId: 'co_x' });
     });

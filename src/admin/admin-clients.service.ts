@@ -176,7 +176,7 @@ export class AdminClientsService {
     const requested = opts.graceWindowSeconds ?? 24 * 60 * 60;
     const graceSeconds = Math.min(Math.max(requested, 0), maxGraceSeconds);
 
-    const data: any = {
+    const data: Prisma.OAuthClientUpdateInput = {
       clientSecretHash: newSecretHash,
     };
     if (opts.force || graceSeconds === 0) {

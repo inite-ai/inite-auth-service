@@ -114,7 +114,7 @@ export class TokenGrantService {
   async grantDeviceCode(input: GrantWithRequestInput) {
     const { req, body, client, ctx } = input;
     const clientId = body.client_id;
-    const deviceCode = (req.body as any)?.device_code as string | undefined;
+    const deviceCode = (req.body as { device_code?: string }).device_code;
     if (!deviceCode) throw new BadRequestException('device_code is required');
 
     const approved = await this.deviceFlow.pollForApproval({
@@ -153,7 +153,7 @@ export class TokenGrantService {
   /** Reconstruct the full request URL (no query) for DPoP htu binding. */
   private buildRequestUrl(req: Request): string {
     const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?? (req as any).protocol
+      ?? req.protocol
       ?? 'https';
     const host = req.headers.host ?? '';
     const path = req.path ?? req.url?.split('?')[0] ?? '';
@@ -172,7 +172,7 @@ export class TokenGrantService {
     try {
       const result = await this.dpop.validate(dpopHeader, 'POST', fullUrl);
       return result.jkt;
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.metrics.tokenFailures.inc({
         grant_type: 'client_credentials',
         reason: 'dpop_invalid',
@@ -184,7 +184,7 @@ export class TokenGrantService {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         success: false,
-        errorMessage: e?.message ?? 'unknown',
+        errorMessage: e instanceof Error ? e.message : 'unknown',
       });
       throw e;
     }
@@ -202,10 +202,10 @@ export class TokenGrantService {
         audience: body.audience as string,
         dpopJkt,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Scope or audience violation — both surface as BadRequestException
       // from the service. Distinguish via the message for clearer replay.
-      const msg = e?.message ?? '';
+      const msg = e instanceof Error ? e.message : '';
       const isAudience = msg.includes('Audience');
       const event = isAudience
         ? 'token.failed.audience_violation'
@@ -285,7 +285,7 @@ export class TokenGrantService {
         resource: body.resource,
         audience: body.audience,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.metrics.tokenFailures.inc({
         grant_type: 'token_exchange',
         reason: 'exchange_denied',
@@ -296,7 +296,7 @@ export class TokenGrantService {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         success: false,
-        errorMessage: e?.message ?? 'unknown',
+        errorMessage: e instanceof Error ? e.message : 'unknown',
       });
       throw e;
     }

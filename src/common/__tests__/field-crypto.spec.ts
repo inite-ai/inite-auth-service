@@ -30,8 +30,9 @@ describe('FieldCrypto', () => {
   it('throws on a tampered ciphertext (GCM auth tag)', () => {
     const enc = fc.encrypt('secret');
     const parts = enc.split('.');
-    const ctBuf = Buffer.from(parts[3], 'base64url');
-    ctBuf[0] ^= 0xff;
+    // encrypt() always emits the 4-part v1 envelope, so parts[3]/byte 0 exist.
+    const ctBuf = Buffer.from(parts[3]!, 'base64url');
+    ctBuf[0] = (ctBuf[0] ?? 0) ^ 0xff;
     parts[3] = ctBuf.toString('base64url');
     expect(() => fc.decrypt(parts.join('.'))).toThrow();
   });

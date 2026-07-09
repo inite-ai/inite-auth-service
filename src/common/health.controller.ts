@@ -42,16 +42,16 @@ export class HealthController {
     try {
       await this.dbHealth.ping();
       checks.db = { ok: true, latencyMs: Date.now() - start };
-    } catch (err: any) {
-      checks.db = { ok: false, error: err?.message ?? 'unknown' };
+    } catch (err: unknown) {
+      checks.db = { ok: false, error: err instanceof Error ? err.message : 'unknown' };
     }
 
     const redisStart = Date.now();
     try {
       const pong = await this.redis.ping();
       checks.redis = { ok: pong === 'PONG', latencyMs: Date.now() - redisStart };
-    } catch (err: any) {
-      checks.redis = { ok: false, error: err?.message ?? 'unknown' };
+    } catch (err: unknown) {
+      checks.redis = { ok: false, error: err instanceof Error ? err.message : 'unknown' };
     }
 
     const allOk = Object.values(checks).every((c) => c.ok);

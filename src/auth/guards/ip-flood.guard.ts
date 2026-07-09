@@ -75,8 +75,10 @@ export class IpFloodGuard implements CanActivate {
             limit: IpFloodGuard.MAX_UNIQUE_EMAILS,
           },
         })
-        .catch((e: any) =>
-          this.logger.warn(`audit write failed: ${e?.message ?? 'unknown'}`),
+        .catch((e: unknown) =>
+          this.logger.warn(
+            `audit write failed: ${e instanceof Error ? e.message : 'unknown'}`,
+          ),
         );
 
       this.logger.warn(
@@ -96,9 +98,13 @@ export class IpFloodGuard implements CanActivate {
     return true;
   }
 
-  private extractIp(req: any): string {
+  private extractIp(req: {
+    headers?: Record<string, unknown>;
+    ip?: unknown;
+  }): string {
     const fwd =
       (req?.headers?.['x-forwarded-for'] as string | undefined) ?? '';
-    return fwd.split(',')[0]?.trim() || req?.ip || 'unknown';
+    const ip = typeof req?.ip === 'string' ? req.ip : undefined;
+    return fwd.split(',')[0]?.trim() || ip || 'unknown';
   }
 }

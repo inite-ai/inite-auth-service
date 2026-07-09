@@ -62,11 +62,11 @@ function setup(opts: { smsEnabled?: boolean } = {}) {
   const identityService = { createIdentity: jest.fn() };
 
   const service = new OtpService(
-    prisma as any,
-    redis as any,
-    email as any,
-    identityService as any,
-    sms as any,
+    prisma as unknown as ConstructorParameters<typeof OtpService>[0],
+    redis as unknown as ConstructorParameters<typeof OtpService>[1],
+    email as unknown as ConstructorParameters<typeof OtpService>[2],
+    identityService as unknown as ConstructorParameters<typeof OtpService>[3],
+    sms as unknown as ConstructorParameters<typeof OtpService>[4],
   );
   return { service, redis, email, sms, prisma, getCode: () => captured };
 }

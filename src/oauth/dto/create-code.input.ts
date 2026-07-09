@@ -1,13 +1,15 @@
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateCodeInput {
+  // Definite-assignment: populated by the global ValidationPipe from the
+  // request body; @IsNotEmpty guarantees presence at runtime.
   @IsString()
   @IsNotEmpty()
-  clientId: string;
+  clientId!: string;
 
   @IsString()
   @IsNotEmpty()
-  redirectUri: string;
+  redirectUri!: string;
 
   @IsString()
   @IsOptional()

@@ -7,11 +7,11 @@ describe('HibpService', () => {
 
   beforeEach(() => {
     fetchMock = jest.fn();
-    (global as any).fetch = fetchMock;
+    (global as unknown as { fetch: unknown }).fetch = fetchMock;
   });
 
   afterEach(() => {
-    delete (global as any).fetch;
+    delete (global as unknown as { fetch?: unknown }).fetch;
   });
 
   const build = async (envOverrides: Record<string, string> = {}) => {

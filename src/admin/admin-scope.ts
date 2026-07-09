@@ -23,7 +23,21 @@ export type AdminScope =
   | { kind: 'superadmin' }
   | { kind: 'scoped'; companyId: string };
 
-export function resolveAdminScope(user: any): AdminScope | null {
+/**
+ * Loose shape of the authenticated principal (JWT `req.user`) that scope
+ * resolution reads. Kept permissive — both the `user` and `machine` token
+ * variants (and test fixtures) satisfy it — so every field is optional.
+ */
+export interface AdminScopePrincipal {
+  kind?: string;
+  scope?: unknown;
+  companyId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export function resolveAdminScope(
+  user: AdminScopePrincipal | null | undefined,
+): AdminScope | null {
   if (user?.kind === 'machine') {
     return resolveMachineScope(user);
   }
@@ -36,7 +50,7 @@ export function resolveAdminScope(user: any): AdminScope | null {
  * tenant; otherwise it's a cross-tenant admin service (rare, used by
  * INITE's own automation).
  */
-function resolveMachineScope(user: any): AdminScope | null {
+function resolveMachineScope(user: AdminScopePrincipal): AdminScope | null {
   const scope = user.scope instanceof Set ? user.scope : new Set<string>();
   if (!scope.has('admin')) return null;
   if (typeof user.companyId === 'string' && user.companyId.length > 0) {
@@ -45,8 +59,10 @@ function resolveMachineScope(user: any): AdminScope | null {
   return { kind: 'superadmin' };
 }
 
-function resolveUserScope(user: any): AdminScope | null {
-  const metadata = user?.metadata ?? {};
+function resolveUserScope(
+  user: AdminScopePrincipal | null | undefined,
+): AdminScope | null {
+  const metadata: Record<string, unknown> = user?.metadata ?? {};
   const roles: string[] = Array.isArray(metadata.roles) ? metadata.roles : [];
 
   const isSuperadmin =
@@ -75,7 +91,7 @@ function resolveUserScope(user: any): AdminScope | null {
  */
 export function applyScopeFilter(
   scope: AdminScope,
-  where: Record<string, any>,
+  where: Record<string, unknown>,
 ): void {
   if (scope.kind === 'scoped') {
     where.companyId = scope.companyId;

@@ -64,7 +64,7 @@ export class PasskeyService {
     ).toLowerCase();
     const normalised = configured === 'indirect' ? 'direct' : configured;
     this.attestationType = (
-      (['none', 'direct', 'enterprise'] as const).includes(normalised as any)
+      (['none', 'direct', 'enterprise'] as readonly string[]).includes(normalised)
         ? normalised
         : 'direct'
     ) as AttestationConveyancePreference;
@@ -131,7 +131,7 @@ export class PasskeyService {
       CHALLENGE_TTL_SECONDS,
     );
 
-    (options as any).hints = ['client-device'];
+    (options as { hints?: string[] }).hints = ['client-device'];
 
     return options;
   }
@@ -240,7 +240,7 @@ export class PasskeyService {
       CHALLENGE_TTL_SECONDS,
     );
 
-    (options as any).hints = ['client-device'];
+    (options as { hints?: string[] }).hints = ['client-device'];
 
     return options;
   }

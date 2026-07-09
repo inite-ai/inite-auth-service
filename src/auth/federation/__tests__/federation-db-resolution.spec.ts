@@ -1,5 +1,9 @@
+import { ConfigService } from '@nestjs/config';
 import { FederationProviders } from '../federation-providers.service';
-import { FederationDbEntry } from '../federation-config.store';
+import {
+  FederationConfigStore,
+  FederationDbEntry,
+} from '../federation-config.store';
 
 /**
  * DB-over-env resolution: a FederationProvider row wins over env, and an
@@ -9,8 +13,12 @@ function build(
   env: Record<string, string | undefined>,
   entries: Record<string, FederationDbEntry>,
 ): FederationProviders {
-  const config = { get: (k: string) => env[k] } as any;
-  const store = { getEntry: (slug: string) => entries[slug] } as any;
+  const config = {
+    get: (k: string) => env[k],
+  } as unknown as ConfigService;
+  const store = {
+    getEntry: (slug: string) => entries[slug],
+  } as unknown as FederationConfigStore;
   return new FederationProviders(config, store);
 }
 

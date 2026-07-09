@@ -21,6 +21,7 @@ import { RequestOtpLoginDto } from './dto/request-otp-login.dto';
 import { VerifyOtpLoginDto } from './dto/verify-otp-login.dto';
 import { RequestMfaOtpDto } from './dto/request-mfa-otp.dto';
 import { VerifyMfaOtpDto } from './dto/verify-mfa-otp.dto';
+import { CurrentUserId } from '../decorators/current-user.decorator';
 
 /**
  * Email/SMS one-time-passcode endpoints.
@@ -93,8 +94,11 @@ export class OtpController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Send a step-up code to the current user' })
-  async requestMfa(@Body() body: RequestMfaOtpDto, @Req() req: any) {
-    await this.otp.requestMfaCode(req.user.userId, body.channel, body.phone);
+  async requestMfa(
+    @Body() body: RequestMfaOtpDto,
+    @CurrentUserId() userId: string,
+  ) {
+    await this.otp.requestMfaCode(userId, body.channel, body.phone);
     return { sent: true };
   }
 
@@ -103,8 +107,12 @@ export class OtpController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Verify a step-up code; raises the session amr' })
-  async verifyMfa(@Body() body: VerifyMfaOtpDto, @Req() req: any) {
-    await this.otp.verifyMfaCode(req.user.userId, body.code);
+  async verifyMfa(
+    @Body() body: VerifyMfaOtpDto,
+    @CurrentUserId() userId: string,
+    @Req() req: Request,
+  ) {
+    await this.otp.verifyMfaCode(userId, body.code);
 
     // Record the satisfied factor on the session so step-up enforcement can
     // see the raised assurance level (see RFC 9470 / acr handling).

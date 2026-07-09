@@ -21,6 +21,7 @@ import { OAuthOriginsService } from './oauth-origins.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
+import { CurrentUserId } from '../auth/decorators/current-user.decorator';
 import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 import { BackchannelLogoutService } from './backchannel-logout.service';
@@ -50,8 +51,8 @@ export class OAuthSessionController {
    */
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
-  async userinfo(@Req() req: any) {
-    return await this.oauthService.getUserInfo(req.user.userId);
+  async userinfo(@CurrentUserId() userId: string) {
+    return await this.oauthService.getUserInfo(userId);
   }
 
   /**
@@ -224,7 +225,10 @@ export class OAuthSessionController {
    */
   @Post('create-code')
   @UseGuards(JwtOrSessionGuard)
-  async createCode(@Req() req: any, @Body() input: CreateCodeInput) {
+  async createCode(@Req() req: Request, @Body() input: CreateCodeInput) {
+    // JwtOrSessionGuard populates req.user from either the JWT principal or a
+    // bare { userId } derived from the session, so we read only userId here.
+    const userId = (req.user as { userId?: string }).userId;
     const client = await this.clientRegistry.validateClient(input.clientId);
 
     if (!this.clientRegistry.validateRedirectUri(client, input.redirectUri)) {
@@ -241,7 +245,7 @@ export class OAuthSessionController {
     // client-requested value — an RP requiring aal2 then rejects an id_token
     // whose acr is only aal1. When acr_values is supplied and unmet, refuse the
     // code outright so a client can't skip the /authorize step-up gate.
-    const amr: string[] = (req.session as any)?.amr ?? [];
+    const amr: string[] = req.session?.amr ?? [];
     if (!this.stepUp.isSatisfied(amr, input.acrValues)) {
       throw new UnauthorizedException({
         error: 'insufficient_user_authentication',
@@ -252,7 +256,7 @@ export class OAuthSessionController {
     }
 
     const code = await this.oauthService.createAuthorizationCode({
-      userId: req.user.userId,
+      userId,
       clientId: input.clientId,
       redirectUri: input.redirectUri,
       scope: grantedScope,
@@ -264,7 +268,7 @@ export class OAuthSessionController {
       resource: input.resource,
     });
 
-    this.logger.oauth('Code created', { clientId: input.clientId, userId: req.user.userId });
+    this.logger.oauth('Code created', { clientId: input.clientId, userId });
     return { code };
   }
 

@@ -102,7 +102,7 @@ export class OAuthRequestController {
     this.clientRegistry.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
 
     const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?? (req as any).protocol
+      ?? req.protocol
       ?? 'https';
     const host = req.headers.host ?? '';
     const verificationUri = `${proto}://${host}/v1/oauth/device`;
@@ -154,16 +154,18 @@ export class OAuthRequestController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async deviceApprove(
     @Body() body: { user_code: string; decision: 'approve' | 'deny' },
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     if (!body?.user_code) throw new BadRequestException('user_code is required');
     if (body.decision === 'deny') {
       await this.deviceFlow.deny(body.user_code);
       return { status: 'denied' };
     }
+    // JwtOrSessionGuard sets req.user from either the JWT principal or a bare
+    // { userId } derived from the session; we read only userId here.
     const updated = await this.deviceFlow.approve({
       userCode: body.user_code,
-      userId: req.user.userId,
+      userId: (req.user as { userId?: string }).userId,
     });
     return { status: updated.status };
   }

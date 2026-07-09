@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -16,6 +15,17 @@ import { IdentityMfaService } from './identity-mfa.service';
 import { IdentityAccountService } from './identity-account.service';
 import { IdentityEmailService } from './identity-email.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUserId } from '../auth/decorators/current-user.decorator';
+import { LinkWalletDto } from './dto/link-wallet.dto';
+import { IssueCredentialDto } from './dto/issue-credential.dto';
+import { WalletMessageDto } from './dto/wallet-message.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
+import { Disable2faDto } from './dto/disable-2fa.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 
 @ApiTags('identity')
 @Controller({ path: 'auth/identity', version: '1' })
@@ -30,8 +40,8 @@ export class IdentityController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async getMe(@Request() req: any) {
-    const user = await this.identityService.getIdentityById(req.user.userId);
+  async getMe(@CurrentUserId() userId: string) {
+    const user = await this.identityService.getIdentityById(userId);
     return {
       id: user.id,
       did: user.did,
@@ -46,38 +56,31 @@ export class IdentityController {
 
   @Get('did')
   @UseGuards(JwtAuthGuard)
-  async getDid(@Request() req: any) {
-    const user = await this.identityService.getIdentityById(req.user.userId);
+  async getDid(@CurrentUserId() userId: string) {
+    const user = await this.identityService.getIdentityById(userId);
     return { did: user.did };
   }
 
   @Get('did-document')
   @UseGuards(JwtAuthGuard)
-  async getDidDocument(@Request() req: any) {
-    return await this.identityService.getDidDocument(req.user.userId);
+  async getDidDocument(@CurrentUserId() userId: string) {
+    return await this.identityService.getDidDocument(userId);
   }
 
   @Get('wallets')
   @UseGuards(JwtAuthGuard)
-  async getWallets(@Request() req: any) {
-    return await this.identityService.getWallets(req.user.userId);
+  async getWallets(@CurrentUserId() userId: string) {
+    return await this.identityService.getWallets(userId);
   }
 
   @Post('wallet/link')
   @UseGuards(JwtAuthGuard)
   async linkWallet(
-    @Request() req: any,
-    @Body()
-    body: {
-      address: string;
-      chain: string;
-      message: string;
-      signature: string;
-      publicKey?: string; // Required for TON
-    },
+    @CurrentUserId() userId: string,
+    @Body() body: LinkWalletDto,
   ) {
     return await this.identityService.linkWallet({
-      userId: req.user.userId,
+      userId,
       address: body.address,
       chain: body.chain,
       message: body.message,
@@ -88,19 +91,22 @@ export class IdentityController {
 
   @Delete('wallet/:walletId')
   @UseGuards(JwtAuthGuard)
-  async unlinkWallet(@Request() req: any, @Param('walletId') walletId: string) {
-    await this.identityService.unlinkWallet(req.user.userId, walletId);
+  async unlinkWallet(
+    @CurrentUserId() userId: string,
+    @Param('walletId') walletId: string,
+  ) {
+    await this.identityService.unlinkWallet(userId, walletId);
     return { success: true };
   }
 
   @Post('credentials/issue')
   @UseGuards(JwtAuthGuard)
   async issueCredential(
-    @Request() req: any,
-    @Body() body: { type: string; claims: Record<string, any> },
+    @CurrentUserId() userId: string,
+    @Body() body: IssueCredentialDto,
   ) {
     return await this.identityService.issueCredential(
-      req.user.userId,
+      userId,
       body.type,
       body.claims,
     );
@@ -109,10 +115,10 @@ export class IdentityController {
   @Post('wallet/siwe-message')
   @UseGuards(JwtAuthGuard)
   async generateSiweMessage(
-    @Request() req: any,
-    @Body() body: { address: string; nonce: string },
+    @CurrentUserId() userId: string,
+    @Body() body: WalletMessageDto,
   ) {
-    const user = await this.identityService.getIdentityById(req.user.userId);
+    const user = await this.identityService.getIdentityById(userId);
     const message = this.identityService.generateSiweMessage(
       body.address,
       user.did,
@@ -124,10 +130,10 @@ export class IdentityController {
   @Post('wallet/ton-message')
   @UseGuards(JwtAuthGuard)
   async generateTonMessage(
-    @Request() req: any,
-    @Body() body: { address: string; nonce: string },
+    @CurrentUserId() userId: string,
+    @Body() body: WalletMessageDto,
   ) {
-    const user = await this.identityService.getIdentityById(req.user.userId);
+    const user = await this.identityService.getIdentityById(userId);
     const { message, payload } = this.identityService.generateTonMessage(
       body.address,
       user.did,
@@ -141,33 +147,33 @@ export class IdentityController {
   @Put('profile')
   @UseGuards(JwtAuthGuard)
   async updateProfile(
-    @Request() req: any,
-    @Body() body: { name?: string; avatarUrl?: string; bio?: string; location?: string; profession?: string },
+    @CurrentUserId() userId: string,
+    @Body() body: UpdateProfileDto,
   ) {
-    return await this.accountService.updateProfile(req.user.userId, body);
+    return await this.accountService.updateProfile(userId, body);
   }
 
   @Post('email/change')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async changeEmail(
-    @Request() req: any,
-    @Body() body: { newEmail: string; password: string },
+    @CurrentUserId() userId: string,
+    @Body() body: ChangeEmailDto,
   ) {
-    await this.emailService.requestEmailChange(req.user.userId, body.newEmail, body.password);
+    await this.emailService.requestEmailChange(userId, body.newEmail, body.password);
     return { success: true, message: 'Verification email sent to new address' };
   }
 
   @Post('email/resend-verification')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async resendEmailVerification(@Request() req: any) {
-    await this.emailService.resendEmailVerification(req.user.userId);
+  async resendEmailVerification(@CurrentUserId() userId: string) {
+    await this.emailService.resendEmailVerification(userId);
     return { success: true, message: 'Verification email sent' };
   }
 
   @Post('email/verify')
-  async verifyEmail(@Body() body: { token: string }) {
+  async verifyEmail(@Body() body: VerifyEmailDto) {
     return await this.emailService.verifyEmail(body.token);
   }
 
@@ -175,11 +181,11 @@ export class IdentityController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async changePassword(
-    @Request() req: any,
-    @Body() body: { currentPassword: string; newPassword: string },
+    @CurrentUserId() userId: string,
+    @Body() body: ChangePasswordDto,
   ) {
     await this.accountService.changePassword(
-      req.user.userId,
+      userId,
       body.currentPassword,
       body.newPassword,
     );
@@ -188,64 +194,61 @@ export class IdentityController {
 
   @Get('security-status')
   @UseGuards(JwtAuthGuard)
-  async getSecurityStatus(@Request() req: any) {
-    return await this.mfaService.getSecurityStatus(req.user.userId);
+  async getSecurityStatus(@CurrentUserId() userId: string) {
+    return await this.mfaService.getSecurityStatus(userId);
   }
 
   // ==================== 2FA Management ====================
 
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
-  async setup2FA(@Request() req: any) {
-    return await this.mfaService.setup2FA(req.user.userId);
+  async setup2FA(@CurrentUserId() userId: string) {
+    return await this.mfaService.setup2FA(userId);
   }
 
   @Post('2fa/enable')
   @UseGuards(JwtAuthGuard)
   async enable2FA(
-    @Request() req: any,
-    @Body() body: { code: string },
+    @CurrentUserId() userId: string,
+    @Body() body: TwoFactorCodeDto,
   ) {
-    return await this.mfaService.enable2FA(req.user.userId, body.code);
+    return await this.mfaService.enable2FA(userId, body.code);
   }
 
   @Post('2fa/disable')
   @UseGuards(JwtAuthGuard)
   async disable2FA(
-    @Request() req: any,
-    @Body() body: { code: string; password: string },
+    @CurrentUserId() userId: string,
+    @Body() body: Disable2faDto,
   ) {
-    return await this.mfaService.disable2FA(req.user.userId, body.code, body.password);
+    return await this.mfaService.disable2FA(userId, body.code, body.password);
   }
 
   @Post('2fa/verify')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verify2FA(
-    @Request() req: any,
-    @Body() body: { code: string },
+    @CurrentUserId() userId: string,
+    @Body() body: TwoFactorCodeDto,
   ) {
-    return await this.mfaService.verify2FA(req.user.userId, body.code);
+    return await this.mfaService.verify2FA(userId, body.code);
   }
 
   // ==================== Data Export & Account Deletion ====================
 
   @Get('export')
   @UseGuards(JwtAuthGuard)
-  async exportData(@Request() req: any) {
-    return await this.accountService.exportUserData(req.user.userId);
+  async exportData(@CurrentUserId() userId: string) {
+    return await this.accountService.exportUserData(userId);
   }
 
   @Delete('account')
   @UseGuards(JwtAuthGuard)
   async deleteAccount(
-    @Request() req: any,
-    @Body() body: { password: string },
+    @CurrentUserId() userId: string,
+    @Body() body: DeleteAccountDto,
   ) {
-    await this.accountService.deleteAccount(req.user.userId, body.password);
+    await this.accountService.deleteAccount(userId, body.password);
     return { success: true, message: 'Account deleted successfully' };
   }
 }
-
-
-

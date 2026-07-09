@@ -5,12 +5,13 @@ import {
   Delete,
   Body,
   Param,
-  Req,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../auth/authenticated-user';
 import { resolveAdminScope, AdminScope } from '../admin/admin-scope';
 import { SsfStreamService } from './ssf-stream.service';
 import { SsfDeliveryService } from './ssf-delivery.service';
@@ -32,43 +33,43 @@ export class SsfController {
     private readonly emitter: SsfEmitterService,
   ) {}
 
-  private scope(req: any): AdminScope {
-    const scope = resolveAdminScope(req.user);
+  private scope(user: AuthenticatedUser): AdminScope {
+    const scope = resolveAdminScope(user);
     if (!scope) throw new ForbiddenException('admin access required');
     return scope;
   }
 
   @Post('streams')
-  create(@Req() req: any, @Body() dto: CreateStreamDto) {
-    return this.streams.create(this.scope(req), dto);
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateStreamDto) {
+    return this.streams.create(this.scope(user), dto);
   }
 
   @Get('streams')
-  list(@Req() req: any) {
-    return this.streams.list(this.scope(req));
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.streams.list(this.scope(user));
   }
 
   @Get('streams/:streamId')
-  get(@Req() req: any, @Param('streamId') streamId: string) {
-    return this.streams.get(this.scope(req), streamId);
+  get(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
+    return this.streams.get(this.scope(user), streamId);
   }
 
   @Delete('streams/:streamId')
-  async remove(@Req() req: any, @Param('streamId') streamId: string) {
-    await this.streams.remove(this.scope(req), streamId);
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
+    await this.streams.remove(this.scope(user), streamId);
     return { success: true };
   }
 
   @Post('streams/:streamId/verification')
-  async verify(@Req() req: any, @Param('streamId') streamId: string) {
-    const stream = await this.streams.get(this.scope(req), streamId);
+  async verify(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
+    const stream = await this.streams.get(this.scope(user), streamId);
     await this.emitter.verify(stream);
     return { status: 'sent' };
   }
 
   @Post('streams/:streamId/poll')
-  async poll(@Req() req: any, @Param('streamId') streamId: string, @Body() dto: PollRequestDto) {
-    const stream = await this.streams.get(this.scope(req), streamId);
+  async poll(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string, @Body() dto: PollRequestDto) {
+    const stream = await this.streams.get(this.scope(user), streamId);
     const sets = await this.delivery.poll(stream.id, dto.acks ?? [], dto.maxEvents ?? 20);
     return { sets };
   }

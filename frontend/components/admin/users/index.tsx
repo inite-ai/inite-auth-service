@@ -30,6 +30,8 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
   const [details, setDetails] = useState<UserDetails | null>(null)
   const [editing, setEditing] = useState<UserRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<UserDetails | null>(null)
+  const [revoking, setRevoking] = useState(false)
 
   const config = useMemo(
     () => ({ headers: { Authorization: `Bearer ${accessToken}` } }),
@@ -103,6 +105,34 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
     }
   }
 
+  const revokeSessions = async () => {
+    if (!revokeTarget) return
+    setRevoking(true)
+    try {
+      const res = await api.post(
+        `/admin/users/${revokeTarget.id}/revoke-sessions`,
+        {},
+        config,
+      )
+      const { refreshTokensRevoked = 0, backchannelLogoutRecipients = 0 } =
+        res.data ?? {}
+      toast.success(
+        `Revoked ${refreshTokensRevoked} session${refreshTokensRevoked === 1 ? '' : 's'}` +
+          ` · locked out 24h` +
+          (backchannelLogoutRecipients
+            ? ` · notified ${backchannelLogoutRecipients} RP${backchannelLogoutRecipients === 1 ? '' : 's'}`
+            : ''),
+      )
+      setRevokeTarget(null)
+      setDetails(null)
+      loadUsers(pagination.page)
+    } catch {
+      toast.error('Failed to revoke sessions')
+    } finally {
+      setRevoking(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -153,6 +183,7 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
           setDetails(null)
           setDeleteTarget(u)
         }}
+        onRevokeSessions={(u) => setRevokeTarget(u)}
       />
 
       {/* Edit panel */}
@@ -174,6 +205,17 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
         confirmLabel="Delete user"
         onConfirm={deleteUser}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        intent="danger"
+        busy={revoking}
+        title={`Revoke sessions for ${revokeTarget?.name || revokeTarget?.email || 'user'}?`}
+        description="Revokes every active refresh token, locks the account for 24h so password login can't immediately reissue, and fans out back-channel logout to relying parties. Use for a compromised or lost-device incident. Active access tokens expire on their own (minutes)."
+        confirmLabel="Revoke sessions"
+        onConfirm={revokeSessions}
+        onCancel={() => setRevokeTarget(null)}
       />
     </div>
   )

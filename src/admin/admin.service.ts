@@ -7,10 +7,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { BackchannelLogoutService } from '../oauth/backchannel-logout.service';
+import { LoggerService } from '../common/logger.service';
+import { swallow } from '../common/fire-and-forget';
 import { AdminClientsService } from './admin-clients.service';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new LoggerService();
+
   // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly prisma: PrismaService,
@@ -218,7 +222,7 @@ export class AdminService {
           reason: opts.reason ?? null,
         },
       })
-      .catch(() => {});
+      .catch(swallow(this.logger, 'audit admin.user.sessions_revoked'));
 
     return {
       success: true,

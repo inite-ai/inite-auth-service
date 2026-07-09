@@ -5,6 +5,7 @@ import { MetricsService } from '../common/metrics.service';
 import { RedisService } from '../common/redis.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { LoggerService } from '../common/logger.service';
+import { swallow } from '../common/fire-and-forget';
 
 type AttemptResult = 'success' | 'invalid' | 'locked';
 
@@ -43,7 +44,7 @@ export class LoginSecurityService {
         success: false,
         errorMessage: 'invalid_credentials',
       })
-      .catch(() => {});
+      .catch(swallow(this.logger, 'audit auth.login.failed'));
   }
 
   /** Fire-and-forget audit of a successful password login. */
@@ -54,7 +55,7 @@ export class LoginSecurityService {
         sub,
         success: true,
       })
-      .catch(() => {});
+      .catch(swallow(this.logger, 'audit auth.login.password'));
   }
 
   /**
@@ -93,7 +94,9 @@ export class LoginSecurityService {
       });
       // Notify the user — debounced so the email isn't re-sent on
       // every additional failure that just extends the lock.
-      this.notifyAccountLocked(userId, lockoutUntil).catch(() => {});
+      this.notifyAccountLocked(userId, lockoutUntil).catch(
+        swallow(this.logger, 'account-locked notification'),
+      );
     }
 
     // Heads-up at the third consecutive miss, BEFORE the lock kicks
@@ -101,7 +104,9 @@ export class LoginSecurityService {
     // password, enable 2FA) instead of finding their account already
     // locked. One notification per pre-lockout window per user.
     if (next === 3) {
-      this.notifyFailedLoginThreshold(userId, next).catch(() => {});
+      this.notifyFailedLoginThreshold(userId, next).catch(
+        swallow(this.logger, 'failed-login-threshold notification'),
+      );
     }
   }
 

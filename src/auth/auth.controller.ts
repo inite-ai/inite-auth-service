@@ -18,6 +18,7 @@ import { AuthService } from './auth.service';
 import { LoginEmailThrottlerGuard } from './guards/login-throttler.guard';
 import { IpFloodGuard } from './guards/ip-flood.guard';
 import { LoggerService } from '../common/logger.service';
+import { swallow } from '../common/fire-and-forget';
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -144,7 +145,7 @@ export class AuthController {
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
       userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
       ip: req.ip || (req as any).connection?.remoteAddress,
-    }).catch(() => {});
+    }).catch(swallow(this.logger, 'new-device notification'));
 
     return {
       access_token: result.accessToken,
@@ -230,7 +231,7 @@ export class AuthController {
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
       userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
       ip: req.ip || (req as any).connection?.remoteAddress,
-    }).catch(() => {});
+    }).catch(swallow(this.logger, 'new-device notification'));
 
     return res.json({
       access_token: result.accessToken,

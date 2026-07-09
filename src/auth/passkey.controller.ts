@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoggerService } from '../common/logger.service';
+import { swallow } from '../common/fire-and-forget';
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -141,7 +142,7 @@ export class PasskeyController {
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
       userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
       ip: req.ip || (req as any).connection?.remoteAddress,
-    }).catch(() => {});
+    }).catch(swallow(this.logger, 'new-device notification'));
 
     this.logger.auth('Passkey authentication success', { userId: result.user.id });
 

@@ -202,7 +202,10 @@ export class OAuthService {
     // new one we just minted will be present too, so we exclude it
     // by created_at ordering rather than count.
     this.notifyFirstTimeConsent(authCode.user, clientId, authCode.scope).catch(
-      () => {},
+      (err) =>
+        this.oauthLogger.warn(
+          `first-time-consent notification failed: ${err instanceof Error ? err.message : String(err)}`,
+        ),
     );
 
     return tokens;

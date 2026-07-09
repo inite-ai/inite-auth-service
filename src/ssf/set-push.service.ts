@@ -48,10 +48,18 @@ export class SetPushService {
     await this.prisma.setDelivery.update({
       where: { id: deliveryId },
       data: { status: 'failed', lastError: error, attempts: { increment: 1 }, nextAttemptAt: new Date(Date.now() + 60_000) },
-    }).catch(() => undefined);
+    }).catch((e) =>
+      this.logger.warn(
+        `SET delivery status write failed (${deliveryId}): ${e instanceof Error ? e.message : String(e)}`,
+      ),
+    );
   }
 
   private async mark(deliveryId: string, data: Record<string, unknown>): Promise<void> {
-    await this.prisma.setDelivery.update({ where: { id: deliveryId }, data }).catch(() => undefined);
+    await this.prisma.setDelivery.update({ where: { id: deliveryId }, data }).catch((e) =>
+      this.logger.warn(
+        `SET delivery status write failed (${deliveryId}): ${e instanceof Error ? e.message : String(e)}`,
+      ),
+    );
   }
 }

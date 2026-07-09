@@ -284,4 +284,27 @@ async function bootstrap() {
   logger.log(`Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
 }
 
-bootstrap();
+// A rejected promise anywhere in the process must not vanish: log it. These are
+// last-resort nets — real handlers still belong at the call site.
+process.on('unhandledRejection', (reason) => {
+  logger.error(
+    'Unhandled promise rejection',
+    reason instanceof Error ? reason.stack ?? reason.message : String(reason),
+  );
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', err.stack ?? err.message);
+  // An uncaught exception leaves the process in an undefined state — exit so
+  // the orchestrator restarts a clean instance rather than serving corrupt.
+  process.exit(1);
+});
+
+// If bootstrap rejects (Prisma/Redis/config), fail loudly and exit non-zero so
+// the deploy's health check catches it instead of a silent, dead process.
+bootstrap().catch((err) => {
+  logger.error(
+    'Fatal: application bootstrap failed',
+    err instanceof Error ? err.stack ?? err.message : String(err),
+  );
+  process.exit(1);
+});

@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { validateEnv } from './common/env.validation';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -28,6 +29,9 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      // Fail fast at boot on missing/malformed critical config instead of at
+      // the first token mint / DB query / crypto op. See env.validation.ts.
+      validate: validateEnv,
     }),
 
     // Rate limiting (global default: 60 req/min)

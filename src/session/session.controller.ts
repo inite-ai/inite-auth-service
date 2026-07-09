@@ -4,11 +4,11 @@ import {
   Delete,
   Param,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUserId } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('auth')
 @Controller({ path: 'auth/session', version: '1' })
@@ -17,19 +17,22 @@ export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
   @Get('active')
-  async getActiveSessions(@Request() req: any) {
-    return await this.sessionService.getActiveSessions(req.user.userId);
+  async getActiveSessions(@CurrentUserId() userId: string) {
+    return await this.sessionService.getActiveSessions(userId);
   }
 
   @Delete(':sessionId')
-  async revokeSession(@Request() req: any, @Param('sessionId') sessionId: string) {
-    await this.sessionService.revokeSession(req.user.userId, sessionId);
+  async revokeSession(
+    @CurrentUserId() userId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    await this.sessionService.revokeSession(userId, sessionId);
     return { success: true };
   }
 
   @Delete()
-  async revokeAllSessions(@Request() req: any) {
-    await this.sessionService.revokeAllSessions(req.user.userId);
+  async revokeAllSessions(@CurrentUserId() userId: string) {
+    await this.sessionService.revokeAllSessions(userId);
     return { success: true };
   }
 }

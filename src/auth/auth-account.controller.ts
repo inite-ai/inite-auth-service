@@ -3,14 +3,16 @@ import {
   Get,
   Query,
   UseGuards,
-  Request,
+  Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoggerService } from '../common/logger.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { CurrentUserId } from './decorators/current-user.decorator';
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -28,8 +30,8 @@ export class AuthAccountController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async getMe(@Request() req: any) {
-    const user = await this.authService.validateUser(req.user.userId);
+  async getMe(@CurrentUserId() userId: string) {
+    const user = await this.authService.validateUser(userId);
     return {
       id: user.id,
       did: user.did,
@@ -45,7 +47,7 @@ export class AuthAccountController {
    * Returns user data and access token if session is valid
    */
   @Get('session/me')
-  async getSessionUser(@Request() req: any) {
+  async getSessionUser(@Req() req: Request) {
     const userId = req.session?.userId;
 
     if (!userId) {
@@ -90,14 +92,14 @@ export class AuthAccountController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async getSecurityAudit(
-    @Request() req: any,
+    @CurrentUserId() userId: string,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('event') event?: string,
     @Query('success') success?: string,
     @Query('since') since?: string,
   ) {
-    const did = await this.authService.getUserDid(req.user.userId);
+    const did = await this.authService.getUserDid(userId);
     if (!did) {
       return { rows: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } };
     }

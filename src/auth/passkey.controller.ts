@@ -4,15 +4,25 @@ import {
   Get,
   Body,
   UseGuards,
-  Request,
+  Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
+import type {
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+} from '@simplewebauthn/types';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
+import { CurrentUserId } from './decorators/current-user.decorator';
+import { PreparePasskeyRegistrationDto } from './dto/prepare-passkey-registration.dto';
+import { PasskeyResponseDto } from './dto/passkey-response.dto';
+import { PasskeyAuthenticationOptionsDto } from './dto/passkey-authentication-options.dto';
+import { DeletePasskeyDto } from './dto/delete-passkey.dto';
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -31,8 +41,8 @@ export class PasskeyController {
   @Post('passkey/prepare-registration')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async preparePasskeyRegistration(
-    @Body() body: { email: string; name?: string },
-    @Request() req: any,
+    @Body() body: PreparePasskeyRegistrationDto,
+    @Req() req: Request,
   ) {
     // SECURITY: this endpoint is unauthenticated. Existing users CANNOT be
     // logged in here (would be account takeover by email enumeration) — the
@@ -90,31 +100,33 @@ export class PasskeyController {
 
   @Post('passkey/registration/options')
   @UseGuards(JwtAuthGuard)
-  async generateRegistrationOptions(@Request() req: any) {
-    this.logger.auth('Passkey registration options requested', { userId: req.user.userId });
-    return await this.passkeyService.generateRegistrationOptions(req.user.userId);
+  async generateRegistrationOptions(@CurrentUserId() userId: string) {
+    this.logger.auth('Passkey registration options requested', { userId });
+    return await this.passkeyService.generateRegistrationOptions(userId);
   }
 
   @Post('passkey/registration/verify')
   @UseGuards(JwtAuthGuard)
   async verifyRegistration(
-    @Request() req: any,
-    @Body() body: { response: any },
+    @CurrentUserId() userId: string,
+    @Body() body: PasskeyResponseDto,
   ) {
     // body.challenge is intentionally ignored — the expected challenge is
     // read from server-side Redis where it was stored by the options
     // endpoint. Trusting client-supplied challenge defeats WebAuthn replay
     // protection.
     const result = await this.passkeyService.verifyRegistrationResponse(
-      req.user.userId,
-      body.response,
+      userId,
+      body.response as unknown as RegistrationResponseJSON,
     );
-    this.logger.auth('Passkey registered', { userId: req.user.userId, verified: result.verified });
+    this.logger.auth('Passkey registered', { userId, verified: result.verified });
     return result;
   }
 
   @Post('passkey/authentication/options')
-  async generateAuthenticationOptions(@Body() body: { email?: string }) {
+  async generateAuthenticationOptions(
+    @Body() body: PasskeyAuthenticationOptionsDto,
+  ) {
     this.logger.auth('Passkey auth options requested', { email: body.email });
     return await this.passkeyService.generateAuthenticationOptions(body.email);
   }
@@ -122,12 +134,12 @@ export class PasskeyController {
   @Post('passkey/authentication/verify')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verifyAuthentication(
-    @Body() body: { response: any },
-    @Request() req: any,
+    @Body() body: PasskeyResponseDto,
+    @Req() req: Request,
   ) {
     // body.challenge ignored — see verifyRegistration for rationale.
     const result = await this.passkeyService.verifyAuthenticationResponse(
-      body.response,
+      body.response as unknown as AuthenticationResponseJSON,
     );
 
     const accessToken = await this.authService['generateAccessToken'](result.user);
@@ -140,8 +152,8 @@ export class PasskeyController {
     }
 
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
-      ip: req.ip || (req as any).connection?.remoteAddress,
+      userAgent: req.get('user-agent') || req.headers['user-agent'],
+      ip: req.ip || req.socket?.remoteAddress,
     }).catch(swallow(this.logger, 'new-device notification'));
 
     this.logger.auth('Passkey authentication success', { userId: result.user.id });
@@ -160,15 +172,18 @@ export class PasskeyController {
 
   @Get('passkey/list')
   @UseGuards(JwtAuthGuard)
-  async listPasskeys(@Request() req: any) {
-    return await this.passkeyService.getUserPasskeys(req.user.userId);
+  async listPasskeys(@CurrentUserId() userId: string) {
+    return await this.passkeyService.getUserPasskeys(userId);
   }
 
   @Post('passkey/delete')
   @UseGuards(JwtAuthGuard)
-  async deletePasskey(@Request() req: any, @Body() body: { passkeyId: string }) {
-    await this.passkeyService.deletePasskey(req.user.userId, body.passkeyId);
-    this.logger.auth('Passkey deleted', { userId: req.user.userId, passkeyId: body.passkeyId });
+  async deletePasskey(
+    @CurrentUserId() userId: string,
+    @Body() body: DeletePasskeyDto,
+  ) {
+    await this.passkeyService.deletePasskey(userId, body.passkeyId);
+    this.logger.auth('Passkey deleted', { userId, passkeyId: body.passkeyId });
     return { success: true };
   }
 }

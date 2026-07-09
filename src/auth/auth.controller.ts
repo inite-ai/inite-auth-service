@@ -5,20 +5,24 @@ import {
   Body,
   Query,
   UseGuards,
-  Request,
-  Response,
+  Req,
   Res,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
-import { Response as ExpressResponse } from 'express';
+import { Request, Response as ExpressResponse } from 'express';
 import * as signature from 'cookie-signature';
 import { AuthService } from './auth.service';
 import { LoginEmailThrottlerGuard } from './guards/login-throttler.guard';
 import { IpFloodGuard } from './guards/ip-flood.guard';
 import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
+import { RegisterWithPasswordDto } from './dto/register-with-password.dto';
+import { LoginWithPasswordDto } from './dto/login-with-password.dto';
+import { SendMagicLinkDto } from './dto/send-magic-link.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -40,8 +44,8 @@ export class AuthController {
   @Post('password/register')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async registerWithPassword(
-    @Body() body: { email: string; password: string; name?: string },
-    @Request() req: any,
+    @Body() body: RegisterWithPasswordDto,
+    @Req() req: Request,
   ) {
     const result = await this.authService.registerWithPassword(
       body.email,
@@ -86,8 +90,8 @@ export class AuthController {
   @UseGuards(LoginEmailThrottlerGuard, IpFloodGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async loginWithPassword(
-    @Body() body: { email: string; password: string },
-    @Request() req: any,
+    @Body() body: LoginWithPasswordDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: ExpressResponse,
   ) {
     const result = await this.authService.loginWithPassword(
@@ -143,8 +147,8 @@ export class AuthController {
     }
 
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
-      ip: req.ip || (req as any).connection?.remoteAddress,
+      userAgent: req.get('user-agent') || req.headers['user-agent'],
+      ip: req.ip || req.socket?.remoteAddress,
     }).catch(swallow(this.logger, 'new-device notification'));
 
     return {
@@ -162,17 +166,7 @@ export class AuthController {
 
   @Post('email/send-magic-link')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async sendMagicLink(@Body() body: {
-    email: string;
-    oauthParams?: {
-      clientId?: string;
-      redirectUri?: string;
-      scope?: string;
-      state?: string;
-      codeChallenge?: string;
-      codeChallengeMethod?: string;
-    };
-  }) {
+  async sendMagicLink(@Body() body: SendMagicLinkDto) {
     await this.authService.sendMagicLink(body.email, body.oauthParams);
     this.logger.auth('Magic link sent', {
       email: body.email,
@@ -187,8 +181,8 @@ export class AuthController {
   @Get('email/verify')
   async verifyMagicLink(
     @Query('token') token: string,
-    @Request() req: any,
-    @Response() res: ExpressResponse,
+    @Req() req: Request,
+    @Res() res: ExpressResponse,
   ) {
     const result = await this.authService.verifyMagicLink(token);
 
@@ -229,8 +223,8 @@ export class AuthController {
     }
 
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get?.('user-agent') || (req as any).headers?.['user-agent'],
-      ip: req.ip || (req as any).connection?.remoteAddress,
+      userAgent: req.get('user-agent') || req.headers['user-agent'],
+      ip: req.ip || req.socket?.remoteAddress,
     }).catch(swallow(this.logger, 'new-device notification'));
 
     return res.json({
@@ -251,7 +245,7 @@ export class AuthController {
   @Post('password/reset-request')
   @UseGuards(LoginEmailThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async requestPasswordReset(@Body() body: { email: string }) {
+  async requestPasswordReset(@Body() body: RequestPasswordResetDto) {
     await this.authService.requestPasswordReset(body.email);
     this.logger.auth('Password reset requested', { email: body.email });
     return {
@@ -262,8 +256,8 @@ export class AuthController {
 
   @Post('password/reset')
   async resetPassword(
-    @Body() body: { token: string; password: string },
-    @Request() req: any,
+    @Body() body: ResetPasswordDto,
+    @Req() req: Request,
   ) {
     const result = await this.authService.resetPassword(body.token, body.password);
 

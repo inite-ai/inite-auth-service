@@ -20,14 +20,14 @@ describe('requestContext', () => {
   it('keeps separate scopes isolated', async () => {
     await Promise.all([
       new Promise<void>((resolve) => {
-        requestContext.run({ requestId: 'A' }, async () => {
+        void requestContext.run({ requestId: 'A' }, async () => {
           await new Promise((r) => setTimeout(r, 5));
           expect(requestContext.getRequestId()).toBe('A');
           resolve();
         });
       }),
       new Promise<void>((resolve) => {
-        requestContext.run({ requestId: 'B' }, async () => {
+        void requestContext.run({ requestId: 'B' }, async () => {
           await new Promise((r) => setTimeout(r, 5));
           expect(requestContext.getRequestId()).toBe('B');
           resolve();

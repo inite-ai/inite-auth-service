@@ -5,6 +5,20 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { JwksService } from '../../common/jwks.service';
 
+/**
+ * The claims we read off an incoming access token. Both user and machine
+ * tokens flow through here; fields are optional because the two shapes differ.
+ */
+interface JwtPayload {
+  userId?: string;
+  scope?: unknown;
+  scopes?: unknown;
+  sub: string;
+  aud?: string | string[];
+  client_id?: string;
+  companyId?: string;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -44,11 +58,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
               done: (err: unknown, key?: string) => void,
             ) => done(null, jwksService.verificationKeyForToken(rawJwt) ?? publicKey),
           }
-        : { secretOrKey: secret }),
+        : // `secret` is provably present here: the constructor throws above
+          // when both `publicKey` and `secret` are missing, and this branch
+          // only runs when `publicKey` is falsy.
+          { secretOrKey: secret! }),
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: JwtPayload) {
     // M2M (client_credentials) tokens don't carry a userId — they
     // represent a backend service, not a person. Surface them as a
     // distinct `kind: 'machine'` principal so downstream guards

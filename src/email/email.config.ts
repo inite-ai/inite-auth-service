@@ -1,15 +1,22 @@
+export interface EmailUser {
+  name?: string;
+  email: string;
+}
+
+export interface EmailApp {
+  name: string;
+  url: string;
+  supportEmail: string;
+  logoUrl?: string;
+}
+
+/** Nested, template-specific i18n strings — shape varies per template. */
+export type EmailTranslations = Record<string, unknown>;
+
 export interface EmailTemplateContext {
-  user?: {
-    name?: string;
-    email: string;
-  };
-  app: {
-    name: string;
-    url: string;
-    supportEmail: string;
-    logoUrl?: string;
-  };
-  translations: Record<string, any>;
+  user?: EmailUser;
+  app: EmailApp;
+  translations: EmailTranslations;
   resetUrl?: string;
   magicLink?: string;
   headerGradient?: string;
@@ -18,13 +25,20 @@ export interface EmailTemplateContext {
 
 export interface EmailTemplateConfig {
   templateName: string;
-  getContext: (params: any) => EmailTemplateContext;
+  getContext: (params: EmailTemplateParams) => EmailTemplateContext;
 }
+
+/** Union of the per-template context inputs accepted by getContext(). */
+export type EmailTemplateParams =
+  | { user: EmailUser; app: EmailApp }
+  | { user: EmailUser; resetUrl: string; app: EmailApp }
+  | { user: EmailUser; magicLink: string; app: EmailApp }
+  | { user: EmailUser; app: EmailApp; deviceInfo?: string };
 
 export const EMAIL_TEMPLATES = {
   welcome: {
     templateName: 'welcome-layout',
-    getContext: (params: { user: any; app: any }) => ({
+    getContext: (params: { user: EmailUser; app: EmailApp }) => ({
       user: params.user,
       app: params.app,
       translations: {
@@ -59,9 +73,9 @@ export const EMAIL_TEMPLATES = {
   passwordReset: {
     templateName: 'password-reset-layout',
     getContext: (params: {
-      user: any;
+      user: EmailUser;
       resetUrl: string;
-      app: any;
+      app: EmailApp;
     }) => ({
       user: params.user,
       resetUrl: params.resetUrl,
@@ -88,9 +102,9 @@ export const EMAIL_TEMPLATES = {
   magicLink: {
     templateName: 'magic-link-layout',
     getContext: (params: {
-      user: any;
+      user: EmailUser;
       magicLink: string;
-      app: any;
+      app: EmailApp;
     }) => ({
       user: params.user,
       magicLink: params.magicLink,
@@ -115,7 +129,7 @@ export const EMAIL_TEMPLATES = {
   },
   newDeviceLogin: {
     templateName: 'new-device-layout',
-    getContext: (params: { user: any; app: any; deviceInfo?: string }) => ({
+    getContext: (params: { user: EmailUser; app: EmailApp; deviceInfo?: string }) => ({
       user: params.user,
       app: params.app,
       deviceInfo: params.deviceInfo || 'new device or browser',

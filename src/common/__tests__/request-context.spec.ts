@@ -1,3 +1,4 @@
+import type { Request, Response } from 'express';
 import { requestContext } from '../request-context';
 import { RequestContextMiddleware } from '../request-context.middleware';
 
@@ -43,10 +44,11 @@ describe('RequestContextMiddleware', () => {
     return middleware;
   };
 
-  const mkReq = (headers: any = {}, ip = '10.0.0.1') => ({
-    headers,
-    ip,
-  }) as any;
+  const mkReq = (headers: Record<string, string> = {}, ip = '10.0.0.1') =>
+    ({
+      headers,
+      ip,
+    }) as unknown as Request;
 
   const mkRes = () => {
     const headers: Record<string, string> = {};
@@ -55,7 +57,7 @@ describe('RequestContextMiddleware', () => {
         headers[k] = v;
       }),
       _headers: headers,
-    } as any;
+    } as unknown as Response & { _headers: Record<string, string> };
   };
 
   it('generates a UUID when X-Request-Id absent', (done) => {

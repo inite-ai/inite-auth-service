@@ -3,7 +3,7 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { Optional } from '@nestjs/common';
@@ -153,7 +153,7 @@ export class OAuthTokenIssuerService {
         scope,
       },
       {
-        expiresIn: sctx.accessTokenExpiry as any,
+        expiresIn: sctx.accessTokenExpiry as JwtSignOptions['expiresIn'],
         // RFC 8707: bind the access-token audience to the requested
         // resource when present; otherwise default to the clientId.
         audience: input.audience ?? clientId,
@@ -171,7 +171,7 @@ export class OAuthTokenIssuerService {
     const authnContext = input.authnContext ?? {};
     // nonce goes ONLY into the id_token per OIDC core §2 — access_token
     // does not carry it because RPs validate nonces on the id_token side.
-    const idTokenClaims: Record<string, any> = {
+    const idTokenClaims: Record<string, unknown> = {
       sub: user.did,
       email: user.email,
       email_verified: user.emailVerified,
@@ -190,7 +190,7 @@ export class OAuthTokenIssuerService {
     if (authnContext.acr) idTokenClaims.acr = authnContext.acr;
 
     return this.jwtService.sign(idTokenClaims, {
-      expiresIn: sctx.accessTokenExpiry as any,
+      expiresIn: sctx.accessTokenExpiry as JwtSignOptions['expiresIn'],
       audience: clientId,
       issuer: sctx.issuer,
     });
@@ -205,7 +205,8 @@ export class OAuthTokenIssuerService {
    * client's tenant (companyId) — falling back to the user's first membership.
    */
   private async resolveOrgContext(input: GenerateTokensInput): Promise<OrgContext> {
-    const metaRoles: string[] = (input.user.metadata as any)?.roles ?? [];
+    const metadata = input.user.metadata as { roles?: string[] } | null;
+    const metaRoles: string[] = metadata?.roles ?? [];
     const legacy = { roles: metaRoles.length ? metaRoles : ['user'] };
     if (this.configService.get<string>('RBAC_TOKEN_CLAIMS_ENABLED') !== 'true') {
       return legacy;
@@ -222,7 +223,8 @@ export class OAuthTokenIssuerService {
       select: { companyId: true },
     });
     const chosen =
-      memberships.find((m) => m.organization.companyId === clientRow?.companyId) ?? memberships[0];
+      memberships.find((m) => m.organization.companyId === clientRow?.companyId)
+      ?? memberships[0]!; // memberships is non-empty (checked above)
     const roles = [...new Set([...metaRoles, ...memberships.map((m) => m.role)])];
     return {
       roles: roles.length ? roles : ['user'],

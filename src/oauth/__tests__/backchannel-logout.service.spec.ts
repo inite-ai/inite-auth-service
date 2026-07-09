@@ -6,8 +6,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('BackchannelLogoutService', () => {
   let svc: BackchannelLogoutService;
-  let prisma: any;
-  let jwt: any;
+  let prisma: { oAuthClient: { findMany: jest.Mock } };
+  let jwt: { sign: jest.Mock };
   let fetchMock: jest.Mock;
 
   beforeEach(async () => {
@@ -20,7 +20,8 @@ describe('BackchannelLogoutService', () => {
       sign: jest.fn().mockReturnValue('logout-jwt'),
     };
     fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 204 });
-    (global as any).fetch = fetchMock;
+    (global as typeof globalThis & { fetch?: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,7 +39,7 @@ describe('BackchannelLogoutService', () => {
   });
 
   afterEach(() => {
-    delete (global as any).fetch;
+    delete (global as { fetch?: unknown }).fetch;
   });
 
   it('returns 0 when no clients have a backchannel uri', async () => {

@@ -1,21 +1,41 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { OAuthClient } from '@prisma/client';
 import { DeviceFlowService } from '../device-flow.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('DeviceFlowService', () => {
   let svc: DeviceFlowService;
-  let prisma: any;
+  let prisma: {
+    deviceAuthorization: {
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
     prisma = {
       deviceAuthorization: {
         findUnique: jest.fn(),
-        create: jest.fn().mockImplementation(async ({ data }: any) => data),
-        update: jest.fn().mockImplementation(async ({ data, where }: any) => ({
-          ...data,
-          id: where.id,
-        })),
+        create: jest
+          .fn()
+          .mockImplementation(
+            async ({ data }: { data: Record<string, unknown> }) => data,
+          ),
+        update: jest.fn().mockImplementation(
+          async ({
+            data,
+            where,
+          }: {
+            data: Record<string, unknown>;
+            where: { id: string };
+          }) => ({
+            ...data,
+            id: where.id,
+          }),
+        ),
         delete: jest.fn(),
       },
     };
@@ -33,7 +53,7 @@ describe('DeviceFlowService', () => {
       prisma.deviceAuthorization.findUnique.mockResolvedValue(null); // no collision
 
       const out = await svc.issue({
-        client: { clientId: 'tv-app' } as any,
+        client: { clientId: 'tv-app' } as unknown as OAuthClient,
         scope: 'openid profile',
         verificationUri: 'https://auth.inite.ai/v1/oauth/device',
       });
@@ -50,7 +70,7 @@ describe('DeviceFlowService', () => {
     it('uses an ambiguity-free alphabet (no 0/O/1/I/etc.)', async () => {
       prisma.deviceAuthorization.findUnique.mockResolvedValue(null);
       const out = await svc.issue({
-        client: { clientId: 'tv-app' } as any,
+        client: { clientId: 'tv-app' } as unknown as OAuthClient,
         verificationUri: 'https://auth.inite.ai/v1/oauth/device',
       });
       expect(out.user_code).not.toMatch(/[01OIAEU]/);

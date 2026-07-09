@@ -32,7 +32,7 @@ describe('auditRowsToCsv', () => {
 
   it('renders null/undefined as empty (unquoted) cells', () => {
     const csv = auditRowsToCsv([{ event: 'x', sub: null }]);
-    const row = csv.trim().split('\r\n')[1];
+    const row = csv.trim().split('\r\n')[1] ?? '';
     // id + ts empty, then the quoted event; null/missing fields stay empty.
     expect(row.startsWith(',,"x",')).toBe(true);
   });

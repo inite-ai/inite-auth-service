@@ -21,7 +21,9 @@ export interface SendTemplatedEmailInput {
 @Injectable()
 export class EmailTransport {
   private readonly logger = new Logger(EmailTransport.name);
-  private transporter: nodemailer.Transporter;
+  // Optional: left undefined when SMTP credentials are absent, so callers must
+  // guard before sending (email is treated as best-effort, never a hard fail).
+  private transporter?: nodemailer.Transporter;
   private templatesCache = new Map<string, HandlebarsTemplateDelegate>();
 
   constructor(private readonly configService: ConfigService) {
@@ -102,10 +104,10 @@ export class EmailTransport {
         const template = Handlebars.compile(templateSource);
         this.templatesCache.set(templateName, template);
         this.logger.log(`✅ Precompiled template: ${templateName}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.logger.error(
           `❌ Failed to precompile template ${templateName}:`,
-          error.message,
+          error instanceof Error ? error.message : String(error),
         );
         this.logger.error(`Template path attempted: ${join(__dirname, 'templates', 'email', `${templateName}.hbs`)}`);
       }
@@ -159,8 +161,11 @@ export class EmailTransport {
       Handlebars.registerPartial('footer', footerSource);
 
       this.logger.log('✅ Registered header and footer partials');
-    } catch (error: any) {
-      this.logger.error('❌ Failed to register partials:', error.message);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Failed to register partials:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
@@ -177,7 +182,8 @@ export class EmailTransport {
     html: string;
     from?: string;
   }): Promise<boolean> {
-    if (!this.transporter) {
+    const transporter = this.transporter;
+    if (!transporter) {
       this.logger.warn('Email transporter not initialized, skipping send');
       return false;
     }
@@ -193,7 +199,7 @@ export class EmailTransport {
       this.logger.log(`📧 Sending email to ${data.to}`);
       this.logger.log(`📧 Subject: ${data.subject}`);
 
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await transporter.sendMail(mailOptions);
       this.logger.log(
         `✅ Email sent successfully to ${data.to}, messageId: ${info.messageId}`,
       );
@@ -231,11 +237,12 @@ export class EmailTransport {
   }
 
   async testConnection(): Promise<boolean> {
-    if (!this.transporter) {
+    const transporter = this.transporter;
+    if (!transporter) {
       return false;
     }
     try {
-      await this.transporter.verify();
+      await transporter.verify();
       return true;
     } catch (error) {
       this.logger.error('SMTP connection test failed:', error);

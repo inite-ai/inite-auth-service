@@ -19,6 +19,7 @@ import { RequestObjectService } from './request-object.service';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
+import { AuthorizeQuery } from './dto/oauth-requests';
 
 
 @ApiTags('oauth')
@@ -44,7 +45,7 @@ export class OAuthRequestController {
   @Post('par')
   @UseInterceptors(IdempotencyInterceptor)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  async pushAuthorization(@Body() body: Record<string, any>) {
+  async pushAuthorization(@Body() body: AuthorizeQuery) {
     const clientId = body.client_id;
     if (!clientId) throw new BadRequestException('client_id is required');
     // Supports client_secret_post and private_key_jwt (RFC 7523).
@@ -63,7 +64,9 @@ export class OAuthRequestController {
       request_uri: (
         await this.par.push({
           clientId,
-          redirectUri: p.redirect_uri,
+          // par.push rejects a missing redirect_uri with the same 400 whether
+          // it arrives as undefined or ''; coercing keeps the type strict.
+          redirectUri: p.redirect_uri ?? '',
           responseType: p.response_type,
           scope: p.scope,
           state: p.state,
@@ -78,7 +81,7 @@ export class OAuthRequestController {
     };
   }
 
-  private async resolveRequestObject(request: string, clientId: string): Promise<Record<string, any>> {
+  private async resolveRequestObject(request: string, clientId: string): Promise<Partial<AuthorizeQuery>> {
     return this.requestObject.resolve({ request, clientId });
   }
 
@@ -165,7 +168,8 @@ export class OAuthRequestController {
     // { userId } derived from the session; we read only userId here.
     const updated = await this.deviceFlow.approve({
       userCode: body.user_code,
-      userId: (req.user as { userId?: string }).userId,
+      // JwtOrSessionGuard guarantees req.user carries a userId.
+      userId: (req.user as { userId: string }).userId,
     });
     return { status: updated.status };
   }

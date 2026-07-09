@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { AdminClientsService } from '../admin-clients.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { assertPublicJwks, validateDcrClientKeys } from '../../oauth/dcr-jwks.util';
 
 const PUBLIC_JWKS = { keys: [{ kty: 'RSA', n: 'abc', e: 'AQAB', use: 'sig', kid: 'k1' }] };
@@ -28,17 +29,17 @@ describe('validateDcrClientKeys + private-jwks', () => {
 });
 
 describe('AdminClientsService auth-method', () => {
-  let prisma: any;
+  let prisma: { oAuthClient: { create: jest.Mock; update: jest.Mock } };
   let service: AdminClientsService;
 
   beforeEach(() => {
     prisma = {
       oAuthClient: {
-        create: jest.fn().mockImplementation(({ data }: any) => ({ id: 'c1', clientSecretHash: 'h', ...data })),
-        update: jest.fn().mockImplementation(({ data }: any) => ({ id: 'c1', clientSecretHash: 'h', clientId: 'x', ...data })),
+        create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'c1', clientSecretHash: 'h', ...data })),
+        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'c1', clientSecretHash: 'h', clientId: 'x', ...data })),
       },
     };
-    service = new AdminClientsService(prisma);
+    service = new AdminClientsService(prisma as unknown as PrismaService);
   });
 
   it('persists private_key_jwt + jwks and stays confidential', async () => {

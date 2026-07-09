@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthParamsDto } from '../common/dto/oauth-params.dto';
 import { IdentityService } from '../identity/identity.service';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class MagicLinkService {
@@ -36,7 +36,11 @@ export class MagicLinkService {
         purpose,
         expiresAt,
         used: false,
-        oauthParams: oauthParams?.clientId ? (oauthParams as any) : null,
+        // Store the OAuth params blob as JSON, or a DB NULL when absent.
+        // Runtime value is unchanged; the cast only satisfies Prisma's Json input type.
+        oauthParams: (oauthParams?.clientId
+          ? oauthParams
+          : null) as unknown as Prisma.InputJsonValue,
       },
     });
 

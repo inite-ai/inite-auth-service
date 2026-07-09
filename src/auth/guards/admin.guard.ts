@@ -5,6 +5,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import type {
+  AuthenticatedUser,
+  MachinePrincipal,
+  UserPrincipal,
+} from '../authenticated-user';
 
 /**
  * Admit two distinct principals to admin endpoints:
@@ -23,13 +28,15 @@ import { JwtAuthGuard } from './jwt-auth.guard';
  */
 @Injectable()
 export class AdminGuard extends JwtAuthGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  override async canActivate(context: ExecutionContext): Promise<boolean> {
     const isAuthenticated = await super.canActivate(context);
     if (!isAuthenticated) {
       return false;
     }
 
-    const request = context.switchToHttp().getRequest();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user?: AuthenticatedUser }>();
     const user = request.user;
 
     if (user?.kind === 'machine') {
@@ -43,7 +50,7 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private assertMachineAdmin(user: any): boolean {
+  private assertMachineAdmin(user: MachinePrincipal): boolean {
     const scope = user.scope instanceof Set ? user.scope : new Set<string>();
     if (!scope.has('admin')) {
       throw new ForbiddenException('Admin scope required');
@@ -51,11 +58,16 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private isUserAdmin(user: any): boolean {
+  private isUserAdmin(user: UserPrincipal | undefined): boolean {
+    const metadata = user?.metadata;
+    if (!metadata) {
+      return false;
+    }
+    const roles = Array.isArray(metadata.roles) ? metadata.roles : [];
     return (
-      user?.metadata?.isAdmin === true ||
-      user?.metadata?.roles?.includes('admin') ||
-      user?.metadata?.roles?.includes('superadmin')
+      metadata.isAdmin === true ||
+      roles.includes('admin') ||
+      roles.includes('superadmin')
     );
   }
 }

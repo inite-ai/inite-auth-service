@@ -4,7 +4,7 @@ import { requestContext } from './request-context';
 type LogLevel = 'log' | 'error' | 'warn' | 'debug' | 'verbose';
 
 interface LogContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface RequestLogInput {
@@ -93,24 +93,46 @@ export class LoggerService implements NestLoggerService {
       ...(trace ? { trace } : {}),
     };
 
+    const emit = this.consoleFor(level);
+
     // In production, output JSON for log aggregation
     if (!this.isDev) {
-      console[level](JSON.stringify(logData));
+      emit(JSON.stringify(logData));
       return;
     }
 
     // In development, pretty print
     const prefix = this.getEmoji(level);
     const contextStr = ctxName ? `[${ctxName}]` : '';
-    
+
     if (typeof context === 'object' && Object.keys(context).length > 0) {
-      console[level](`${prefix} ${contextStr} ${message}`, context);
+      emit(`${prefix} ${contextStr} ${message}`, context);
     } else {
-      console[level](`${prefix} ${contextStr} ${message}`);
+      emit(`${prefix} ${contextStr} ${message}`);
     }
 
     if (trace) {
-      console[level](trace);
+      emit(trace);
+    }
+  }
+
+  /**
+   * Map a LogLevel to its console method. `console` has no `verbose`, so that
+   * level routes to `console.debug` (Nest's own convention) — every other
+   * level keeps its same-named method, preserving stream + formatting.
+   */
+  private consoleFor(level: LogLevel): (...args: unknown[]) => void {
+    switch (level) {
+      case 'error':
+        return (...args: unknown[]) => console.error(...args);
+      case 'warn':
+        return (...args: unknown[]) => console.warn(...args);
+      case 'debug':
+      case 'verbose':
+        return (...args: unknown[]) => console.debug(...args);
+      case 'log':
+      default:
+        return (...args: unknown[]) => console.log(...args);
     }
   }
 

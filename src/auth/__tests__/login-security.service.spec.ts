@@ -6,16 +6,16 @@ import { MetricsService } from '../../common/metrics.service';
 import { RedisService } from '../../common/redis.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 
-const mockMetrics = (): any => ({
+const mockMetrics = () => ({
   authAttempts: { inc: jest.fn() },
   accountLockouts: { inc: jest.fn() },
 });
 
 describe('LoginSecurityService', () => {
   let service: LoginSecurityService;
-  let prisma: any;
-  let metrics: any;
-  let redis: any;
+  let prisma: { user: { update: jest.Mock; findUnique: jest.Mock } };
+  let metrics: ReturnType<typeof mockMetrics>;
+  let redis: { setIfAbsent: jest.Mock };
 
   beforeEach(async () => {
     prisma = { user: { update: jest.fn(), findUnique: jest.fn() } };

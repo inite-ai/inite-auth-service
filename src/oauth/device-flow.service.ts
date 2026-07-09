@@ -44,7 +44,10 @@ function generateUserCode(): string {
     const out: string[] = [];
     const bytes = randomBytes(n);
     for (let i = 0; i < n; i++) {
-      out.push(USER_CODE_ALPHABET[bytes[i] % USER_CODE_ALPHABET.length]);
+      // i < n === bytes.length and the modulo keeps the index within the
+      // fixed 20-char alphabet, so both lookups are provably in range.
+      const byte = bytes[i]!;
+      out.push(USER_CODE_ALPHABET[byte % USER_CODE_ALPHABET.length]!);
     }
     return out.join('');
   };

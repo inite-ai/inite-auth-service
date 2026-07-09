@@ -73,8 +73,8 @@ export class AuthAccountController {
           avatarUrl: user.avatarUrl,
         },
       };
-    } catch (error: any) {
-      this.logger.error('Session user fetch failed', error.message);
+    } catch (error: unknown) {
+      this.logger.error('Session user fetch failed', error instanceof Error ? error.message : String(error));
       return { authenticated: false };
     }
   }

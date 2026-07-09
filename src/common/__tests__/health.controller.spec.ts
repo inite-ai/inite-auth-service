@@ -17,8 +17,8 @@ import { MetricsService } from '../metrics.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
-  let dbHealth: any;
-  let redis: any;
+  let dbHealth: { ping: jest.Mock };
+  let redis: { ping: jest.Mock };
 
   beforeEach(async () => {
     dbHealth = { ping: jest.fn() };
@@ -54,8 +54,8 @@ describe('HealthController', () => {
 
       const result = await controller.ready();
       expect(result.status).toBe('ok');
-      expect(result.checks.db.ok).toBe(true);
-      expect(result.checks.redis.ok).toBe(true);
+      expect(result.checks.db?.ok).toBe(true);
+      expect(result.checks.redis?.ok).toBe(true);
     });
 
     it('returns 503 when DB query fails', async () => {
@@ -65,13 +65,17 @@ describe('HealthController', () => {
       try {
         await controller.ready();
         fail('should have thrown');
-      } catch (err: any) {
+      } catch (err: unknown) {
         expect(err).toBeInstanceOf(HttpException);
-        expect(err.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
-        const body = err.getResponse();
+        const httpErr = err as HttpException;
+        expect(httpErr.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+        const body = httpErr.getResponse() as {
+          status?: string;
+          checks?: Record<string, { ok: boolean; error?: string }>;
+        };
         expect(body.status).toBe('degraded');
-        expect(body.checks.db.ok).toBe(false);
-        expect(body.checks.db.error).toContain('connection refused');
+        expect(body.checks?.db?.ok).toBe(false);
+        expect(body.checks?.db?.error).toContain('connection refused');
       }
     });
 
@@ -82,10 +86,13 @@ describe('HealthController', () => {
       try {
         await controller.ready();
         fail('should have thrown');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
-        const body = err.getResponse();
-        expect(body.checks.redis.ok).toBe(false);
+      } catch (err: unknown) {
+        const httpErr = err as HttpException;
+        expect(httpErr.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+        const body = httpErr.getResponse() as {
+          checks?: Record<string, { ok: boolean }>;
+        };
+        expect(body.checks?.redis?.ok).toBe(false);
       }
     });
   });

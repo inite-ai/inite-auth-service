@@ -7,13 +7,17 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  */
 @Injectable()
 export class UserOrIpThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, any>): Promise<string> {
-    const userId = req?.user?.userId ?? req?.user?.sub ?? null;
-    if (userId) return `user:${userId}`;
-    return `ip:${req?.ip ?? 'unknown'}`;
+  protected override async getTracker(
+    req: Record<string, unknown>,
+  ): Promise<string> {
+    const user = req.user as { userId?: unknown; sub?: unknown } | undefined;
+    const userId = user?.userId ?? user?.sub ?? null;
+    if (userId) return `user:${String(userId)}`;
+    const ip = typeof req.ip === 'string' ? req.ip : 'unknown';
+    return `ip:${ip}`;
   }
 
-  protected getRequestResponse(context: ExecutionContext) {
+  protected override getRequestResponse(context: ExecutionContext) {
     const http = context.switchToHttp();
     return { req: http.getRequest(), res: http.getResponse() };
   }

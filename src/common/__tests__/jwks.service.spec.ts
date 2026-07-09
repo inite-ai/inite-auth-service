@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { JwksService } from '../jwks.service';
 import * as jose from 'jose';
 
@@ -22,7 +23,9 @@ describe('JwksService (rotation)', () => {
   });
 
   function build(env: Record<string, string | undefined>): JwksService {
-    const config = { get: (k: string, d?: string) => env[k] ?? d } as any;
+    const config = {
+      get: (k: string, d?: string) => env[k] ?? d,
+    } as unknown as ConfigService;
     return new JwksService(config);
   }
 
@@ -38,7 +41,7 @@ describe('JwksService (rotation)', () => {
     const svc = build({ JWT_PUBLIC_KEY: activePub, JWT_PRIVATE_KEY: 'x' });
     await svc.onModuleInit();
     expect(svc.getJwks().keys).toHaveLength(1);
-    expect(svc.getJwks().keys[0].kid).toBe('auth-rs256-key-1');
+    expect(svc.getJwks().keys[0]?.kid).toBe('auth-rs256-key-1');
     expect(svc.getActiveKid()).toBe('auth-rs256-key-1');
   });
 

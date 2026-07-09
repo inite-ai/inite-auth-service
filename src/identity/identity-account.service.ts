@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { IdentityService } from './identity.service';
@@ -22,7 +22,7 @@ export class IdentityAccountService {
   ): Promise<User> {
     await this.identityService.getIdentityById(userId);
 
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
     if (data.bio !== undefined) updateData.bio = data.bio;
@@ -81,7 +81,8 @@ export class IdentityAccountService {
     // back or 500 the request.
     this.emailService
       .sendPasswordChanged({
-        email: user.email,
+        // A password-login account always has an email on file.
+        email: user.email!,
         name: user.name ?? undefined,
       })
       .catch(() => {
@@ -92,19 +93,24 @@ export class IdentityAccountService {
   /**
    * Update user metadata
    */
-  async updateMetadata(userId: string, metadata: Record<string, any>): Promise<User> {
+  async updateMetadata(userId: string, metadata: Record<string, unknown>): Promise<User> {
     const user = await this.identityService.getIdentityById(userId);
     const { isAdmin, roles, ...safeMetadata } = metadata;
     return await this.prisma.user.update({
       where: { id: userId },
-      data: { metadata: { ...user.metadata as any, ...safeMetadata } },
+      data: {
+        metadata: {
+          ...(user.metadata as Record<string, unknown>),
+          ...safeMetadata,
+        } as Prisma.InputJsonValue,
+      },
     });
   }
 
   /**
    * Export all user data
    */
-  async exportUserData(userId: string): Promise<any> {
+  async exportUserData(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { wallets: true, passkeys: true },

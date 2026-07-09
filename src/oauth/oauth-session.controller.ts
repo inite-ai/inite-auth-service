@@ -148,8 +148,10 @@ export class OAuthSessionController {
   private async resolveUserDid(userId: string): Promise<string | null> {
     try {
       return await this.oauthService.getUserDid(userId);
-    } catch (e: any) {
-      this.logger.warn(`Logout: could not resolve userDid: ${e?.message}`);
+    } catch (e: unknown) {
+      this.logger.warn(
+        `Logout: could not resolve userDid: ${e instanceof Error ? e.message : String(e)}`,
+      );
       return null;
     }
   }
@@ -228,7 +230,8 @@ export class OAuthSessionController {
   async createCode(@Req() req: Request, @Body() input: CreateCodeInput) {
     // JwtOrSessionGuard populates req.user from either the JWT principal or a
     // bare { userId } derived from the session, so we read only userId here.
-    const userId = (req.user as { userId?: string }).userId;
+    // JwtOrSessionGuard guarantees req.user carries a userId.
+    const userId = (req.user as { userId: string }).userId;
     const client = await this.clientRegistry.validateClient(input.clientId);
 
     if (!this.clientRegistry.validateRedirectUri(client, input.redirectUri)) {
@@ -287,10 +290,12 @@ export class OAuthSessionController {
 
     try {
       const payload = await this.authService.verifyToken(token);
+      const userId =
+        typeof payload.userId === 'string' ? payload.userId : undefined;
 
       if (req.session) {
-        req.session.userId = payload.userId;
-        this.logger.session('Set from token', { sessionId: req.session.id, userId: payload.userId });
+        req.session.userId = userId;
+        this.logger.session('Set from token', { sessionId: req.session.id, userId });
       }
 
       if (redirect) {
@@ -301,8 +306,11 @@ export class OAuthSessionController {
         } catch { /* invalid URL, ignore redirect */ }
       }
       return res.json({ success: true, message: 'Session established' });
-    } catch (error: any) {
-      this.logger.error('Token verification failed', error.message);
+    } catch (error: unknown) {
+      this.logger.error(
+        'Token verification failed',
+        error instanceof Error ? error.message : String(error),
+      );
       throw new UnauthorizedException('Invalid token');
     }
   }

@@ -27,13 +27,13 @@ export class SsfStreamService {
   }
 
   async list(scope: AdminScope): Promise<SsfStream[]> {
-    const where: Record<string, any> = {};
+    const where: Record<string, unknown> = {};
     applyScopeFilter(scope, where);
     return this.prisma.ssfStream.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
   async get(scope: AdminScope, streamId: string): Promise<SsfStream> {
-    const where: Record<string, any> = { streamId };
+    const where: Record<string, unknown> = { streamId };
     applyScopeFilter(scope, where);
     const stream = await this.prisma.ssfStream.findFirst({ where });
     if (!stream) throw new NotFoundException('stream not found');

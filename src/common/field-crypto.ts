@@ -68,10 +68,13 @@ export class FieldCrypto {
   decrypt(value: string): string {
     if (!FieldCrypto.isEncrypted(value)) return value;
     const key = this.requireKey();
+    // isEncrypted() above guarantees exactly 4 dot-separated parts, so the
+    // envelope segments are provably present — the `!` narrows away the
+    // noUncheckedIndexedAccess `string | undefined` without changing behaviour.
     const [, ivB64, tagB64, ctB64] = value.split('.');
-    const decipher = crypto.createDecipheriv(ALGO, key, Buffer.from(ivB64, 'base64url'));
-    decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
-    return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64url')), decipher.final()]).toString('utf8');
+    const decipher = crypto.createDecipheriv(ALGO, key, Buffer.from(ivB64!, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagB64!, 'base64url'));
+    return Buffer.concat([decipher.update(Buffer.from(ctB64!, 'base64url')), decipher.final()]).toString('utf8');
   }
 
   private requireKey(): Buffer {

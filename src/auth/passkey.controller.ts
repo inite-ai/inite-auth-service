@@ -65,9 +65,9 @@ export class PasskeyController {
       // to 'fido' on verifyAuthentication.
       req.session.amr = ['magic-link'];
       await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => {
+        req.session.save((err: unknown) => {
           if (err) {
-            this.logger.error('Session save error', err.message, { action: 'passkey-prepare' });
+            this.logger.error('Session save error', err instanceof Error ? err.message : String(err), { action: 'passkey-prepare' });
             reject(err);
           } else {
             this.logger.session('Saved after passkey prepare', {

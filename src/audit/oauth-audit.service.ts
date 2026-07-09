@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { requestContext } from '../common/request-context';
 import { MetricsService } from '../common/metrics.service';
@@ -73,13 +74,14 @@ export class OAuthAuditService {
       const companyId = await this.resolveCompanyId(input);
       const metadata = this.buildMetadata(input);
       await this.persistAndFanOut(input, companyId, metadata);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Audit log write failures must NEVER tail-latency the OAuth
       // flow — log and move on. Operators monitoring this log line
       // can correlate with the DB outage.
       this.metrics?.auditWriteFailures.inc();
+      const message = e instanceof Error ? e.message : 'unknown';
       this.logger.warn(
-        `audit log write failed [${input.event}]: ${e?.message ?? 'unknown'}`,
+        `audit log write failed [${input.event}]: ${message}`,
       );
     }
   }
@@ -114,7 +116,7 @@ export class OAuthAuditService {
         userAgent: input.userAgent ?? null,
         success: input.success,
         errorMessage: input.errorMessage ?? null,
-        metadata: (metadata as any) ?? null,
+        metadata: metadata === null ? Prisma.DbNull : (metadata as Prisma.InputJsonValue),
       },
     });
 
@@ -180,13 +182,14 @@ export class OAuthAuditService {
     const page = Math.max(1, filters.page ?? 1);
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
 
-    const where: any = { sub: filters.sub };
+    const where: Record<string, unknown> = { sub: filters.sub };
     if (filters.event) where.event = filters.event;
     if (filters.success !== undefined) where.success = filters.success;
     if (filters.since || filters.until) {
-      where.ts = {};
-      if (filters.since) where.ts.gte = filters.since;
-      if (filters.until) where.ts.lte = filters.until;
+      const ts: Record<string, Date> = {};
+      if (filters.since) ts.gte = filters.since;
+      if (filters.until) ts.lte = filters.until;
+      where.ts = ts;
     }
 
     const [rows, total] = await Promise.all([
@@ -228,15 +231,16 @@ export class OAuthAuditService {
   /** Translate the public filter shape into a Prisma `where`. Shared by
    *  list() and exportRows() so the scoping rules can't drift apart. */
   private buildWhere(filters: AuditQueryFilters): Record<string, unknown> {
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (filters.companyId !== undefined) where.companyId = filters.companyId;
     if (filters.clientId) where.clientId = filters.clientId;
     if (filters.event) where.event = filters.event;
     if (filters.success !== undefined) where.success = filters.success;
     if (filters.since || filters.until) {
-      where.ts = {};
-      if (filters.since) where.ts.gte = filters.since;
-      if (filters.until) where.ts.lte = filters.until;
+      const ts: Record<string, Date> = {};
+      if (filters.since) ts.gte = filters.since;
+      if (filters.until) ts.lte = filters.until;
+      where.ts = ts;
     }
     return where;
   }

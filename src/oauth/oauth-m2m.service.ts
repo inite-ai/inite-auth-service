@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
@@ -81,7 +81,7 @@ export class OAuthM2mService {
       'http://localhost:3002',
     );
 
-    const claims: Record<string, any> = {
+    const claims: Record<string, unknown> = {
       sub,
       client_id: client.clientId,
       scopes: grantedScopes,
@@ -95,7 +95,7 @@ export class OAuthM2mService {
     }
 
     const accessToken = this.jwtService.sign(claims, {
-      expiresIn: accessTokenExpiry as any,
+      expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'],
       audience: effectiveAudience,
       issuer,
     });
@@ -147,7 +147,7 @@ export class OAuthM2mService {
 
     // Actor: the party acting on behalf of the subject. Defaults to the
     // calling client; a presented actor_token nests its sub (RFC 8693 §4.1).
-    let act: Record<string, any> = { sub: client.clientId };
+    let act: Record<string, unknown> = { sub: client.clientId };
     if (input.actorToken) {
       const actorClaims = this.verifyExchangeToken(input.actorToken);
       act = { sub: actorClaims.sub, client_id: client.clientId };
@@ -170,7 +170,7 @@ export class OAuthM2mService {
         scopes: grantedScopes,
         scope: grantedScopes.join(' '),
       },
-      { expiresIn: accessTokenExpiry as any, audience: effectiveAudience, issuer },
+      { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
     );
 
     return {
@@ -214,7 +214,7 @@ export class OAuthM2mService {
     return grantedScopes;
   }
 
-  private verifyExchangeToken(token: string): Record<string, any> {
+  private verifyExchangeToken(token: string): Record<string, unknown> {
     try {
       // kid-aware verify so a subject/actor token signed by any published
       // key still validates during a signing-key rotation overlap.
@@ -231,8 +231,8 @@ export class OAuthM2mService {
     }
   }
 
-  private claimScopes(claims: Record<string, any>): string[] {
-    if (Array.isArray(claims.scopes)) return claims.scopes;
+  private claimScopes(claims: Record<string, unknown>): string[] {
+    if (Array.isArray(claims.scopes)) return claims.scopes as string[];
     if (typeof claims.scope === 'string') {
       return claims.scope.split(/\s+/).filter(Boolean);
     }
@@ -278,7 +278,7 @@ export class OAuthM2mService {
       }
       return audience;
     }
-    return allowedAud.length > 0 ? allowedAud[0] : client.clientId;
+    return allowedAud[0] ?? client.clientId;
   }
 
   /**
@@ -289,7 +289,8 @@ export class OAuthM2mService {
   private parseExpiryToSeconds(expiry: string): number {
     const m = /^(\d+)([smhd]?)$/.exec(expiry.trim());
     if (!m) return 600;
-    const value = parseInt(m[1], 10);
+    // Group 1 (\d+) is mandatory in the matched regex, so it is present.
+    const value = parseInt(m[1]!, 10);
     switch (m[2]) {
       case 's':
       case '':

@@ -18,8 +18,8 @@ async function buildKey(alg: 'ES256' | 'EdDSA' = 'ES256') {
 }
 
 async function signProof(opts: {
-  privateKey: any;
-  publicJwk: any;
+  privateKey: jose.CryptoKey;
+  publicJwk: jose.JWK;
   alg: string;
   htu?: string;
   htm?: string;
@@ -43,7 +43,7 @@ async function signProof(opts: {
 
 describe('DpopService', () => {
   let svc: DpopService;
-  let redis: any;
+  let redis: { get: jest.Mock; set: jest.Mock };
 
   beforeEach(async () => {
     redis = {
@@ -130,7 +130,7 @@ describe('DpopService', () => {
       htm: 'POST',
       jti: 'x',
     })
-      .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: fauxJwk as any })
+      .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: fauxJwk })
       .setIssuedAt()
       .sign(k.privateKey);
     await expect(

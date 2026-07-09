@@ -17,7 +17,7 @@ describe('ParService', () => {
         if (v !== undefined) store.delete(k);
         return v ?? null;
       }),
-    } as any;
+    } as unknown as RedisService;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

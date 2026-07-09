@@ -7,7 +7,10 @@ const daysAgo = (n: number): Date => new Date(Date.now() - n * DAY_MS);
 
 describe('DcrReaperService', () => {
   let service: DcrReaperService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    oAuthClient: { findMany: jest.Mock; deleteMany: jest.Mock };
+    refreshToken: { findMany: jest.Mock };
+  };
 
   beforeEach(async () => {
     mockPrisma = {

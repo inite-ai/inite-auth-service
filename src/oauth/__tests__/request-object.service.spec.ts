@@ -1,4 +1,6 @@
 import { RequestObjectService } from '../request-object.service';
+import { OAuthClientRegistryService } from '../oauth-client-registry.service';
+import { ClientJwksService } from '../client-jwks.service';
 import * as jose from 'jose';
 
 const CLIENT_ID = 'client-jar';
@@ -6,7 +8,7 @@ const CLIENT_ID = 'client-jar';
 describe('RequestObjectService (JAR)', () => {
   let priv: jose.CryptoKey;
   let publicJwk: jose.JWK;
-  let registry: any;
+  let registry: { validateClient: jest.Mock };
   let service: RequestObjectService;
 
   beforeAll(async () => {
@@ -18,7 +20,10 @@ describe('RequestObjectService (JAR)', () => {
   beforeEach(() => {
     registry = { validateClient: jest.fn().mockResolvedValue({ clientId: CLIENT_ID }) };
     const clientJwks = { resolveKeySet: () => jose.createLocalJWKSet({ keys: [publicJwk] }) };
-    service = new RequestObjectService(registry, clientJwks as any);
+    service = new RequestObjectService(
+      registry as unknown as OAuthClientRegistryService,
+      clientJwks as unknown as ClientJwksService,
+    );
   });
 
   async function mkRequest(claims: Record<string, unknown>, alg = 'ES256'): Promise<string> {

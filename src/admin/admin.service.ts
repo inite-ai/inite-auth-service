@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { BackchannelLogoutService } from '../oauth/backchannel-logout.service';
@@ -87,23 +88,27 @@ export class AdminService {
       bio: string;
       location: string;
       profession: string;
-      metadata: Record<string, any>;
+      metadata: Record<string, unknown>;
     }>,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return null;
 
-    const updateData: any = {};
-    const allowedFields = ['name', 'email', 'emailVerified', 'bio', 'location', 'profession'] as const;
-
-    for (const field of allowedFields) {
-      if (data[field] !== undefined) {
-        updateData[field] = data[field];
-      }
-    }
+    // Explicit allow-list of admin-editable columns — mirrors the previous
+    // `allowedFields` guard so no other field can be written via this path.
+    const updateData: Prisma.UserUpdateInput = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.emailVerified !== undefined) updateData.emailVerified = data.emailVerified;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.profession !== undefined) updateData.profession = data.profession;
 
     if (data.metadata !== undefined) {
-      updateData.metadata = { ...user.metadata as any, ...data.metadata };
+      updateData.metadata = {
+        ...(user.metadata as Record<string, unknown>),
+        ...data.metadata,
+      } as Prisma.InputJsonValue;
     }
 
     const updated = await this.prisma.user.update({
@@ -122,10 +127,10 @@ export class AdminService {
       where: { id: userId },
       data: {
         metadata: {
-          ...user.metadata as any,
+          ...(user.metadata as Record<string, unknown>),
           roles,
           isAdmin: roles.includes('admin'),
-        },
+        } as Prisma.InputJsonValue,
       },
     });
     const { passwordHash, ...safeUser } = updated;

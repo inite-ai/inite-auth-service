@@ -1,12 +1,22 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OrganizationsService } from '../organizations.service';
+import { CreateOrganizationDto } from '../dto/create-organization.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AdminScope } from '../../admin/admin-scope';
 
 const SUPERADMIN: AdminScope = { kind: 'superadmin' };
 const SCOPED: AdminScope = { kind: 'scoped', companyId: 'acme' };
 
 describe('OrganizationsService', () => {
-  let prisma: any;
+  let prisma: {
+    organization: {
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+    orgRole: { create: jest.Mock; findMany: jest.Mock };
+  };
   let service: OrganizationsService;
 
   beforeEach(() => {
@@ -14,12 +24,12 @@ describe('OrganizationsService', () => {
       organization: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
-        create: jest.fn().mockImplementation(({ data }: any) => ({ id: 'o1', ...data })),
+        create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'o1', ...data })),
         delete: jest.fn(),
       },
       orgRole: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
-    service = new OrganizationsService(prisma);
+    service = new OrganizationsService(prisma as unknown as PrismaService);
   });
 
   it('applies the tenant filter for a scoped admin list', async () => {
@@ -30,12 +40,12 @@ describe('OrganizationsService', () => {
   });
 
   it('blocks a scoped admin creating an org outside its tenant', async () => {
-    await expect(service.create(SCOPED, { name: 'X', slug: 'other', companyId: 'other' } as any))
+    await expect(service.create(SCOPED, { name: 'X', slug: 'other', companyId: 'other' } as CreateOrganizationDto))
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('lets a scoped admin create within its tenant', async () => {
-    const org = await service.create(SCOPED, { name: 'Acme', slug: 'acme' } as any);
+    const org = await service.create(SCOPED, { name: 'Acme', slug: 'acme' } as CreateOrganizationDto);
     expect(org.companyId).toBe('acme');
   });
 

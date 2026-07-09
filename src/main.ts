@@ -11,6 +11,8 @@ startTracing();
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import type { Request, Response, NextFunction } from 'express';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { writeFileSync } from 'fs';
@@ -96,12 +98,23 @@ async function bootstrap() {
   // Warm the cache up front so the first request doesn't get an
   // empty allowlist for one cycle.
   await oauthForCsp.getAllowedOrigins();
-  app.use((req: any, res: any, next: any) => {
+  app.use((_req: Request, res: Response, next: NextFunction) => {
     const partners = [...oauthForCsp.getAllowedOriginsSync()];
-    res.locals = res.locals ?? {};
     res.locals.allowedPartners = partners;
     next();
   });
+
+  // helmet's CSP directive callbacks receive Node's raw (IncomingMessage,
+  // ServerResponse), not the Express Response — but at runtime the object is
+  // the same Express response carrying `.locals`. This typed shape reads the
+  // partner list set by the middleware above without an `any`.
+  interface CspLocals {
+    allowedPartners?: string[];
+  }
+  const cspAllowedPartners = (res: ServerResponse): string =>
+    (res as ServerResponse & { locals?: CspLocals }).locals?.allowedPartners?.join(
+      ' ',
+    ) ?? '';
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -115,14 +128,14 @@ async function bootstrap() {
           // is O(1) so this stays cheap.
           connectSrc: [
             "'self'",
-            (_req, res) =>
-              (res as any).locals?.allowedPartners?.join(' ') ?? '',
-          ] as any,
+            (_req: IncomingMessage, res: ServerResponse) =>
+              cspAllowedPartners(res),
+          ],
           frameAncestors: [
             "'self'",
-            (_req, res) =>
-              (res as any).locals?.allowedPartners?.join(' ') ?? '',
-          ] as any,
+            (_req: IncomingMessage, res: ServerResponse) =>
+              cspAllowedPartners(res),
+          ],
         },
       },
       // Override the default X-Frame-Options=SAMEORIGIN — that header
@@ -150,7 +163,10 @@ async function bootstrap() {
   logger.log(`CORS Origins: ${[...allowedOrigins].join(', ')}`);
 
   app.enableCors({
-    origin: async (origin, callback) => {
+    origin: async (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // Allow requests with no origin (server-to-server, curl, etc.)
       if (!origin) return callback(null, true);
       const allowed = await oauthService.getAllowedOrigins();
@@ -168,15 +184,11 @@ async function bootstrap() {
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
   const redisPassword = configService.get<string>('REDIS_PASSWORD');
 
-  const redisConfig: any = {
+  const hasRedisPassword = !!(redisPassword && redisPassword.trim().length > 0);
+  const redisClient = createClient({
     socket: { host: redisHost, port: redisPort },
-  };
-  
-  if (redisPassword && redisPassword.trim().length > 0) {
-    redisConfig.password = redisPassword;
-  }
-
-  const redisClient = createClient(redisConfig);
+    ...(hasRedisPassword ? { password: redisPassword } : {}),
+  });
   redisClient.on('error', (err) => logger.error('Redis error', err.message));
   await redisClient.connect();
   logger.log('Redis session store connected');
@@ -185,9 +197,12 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Request logging middleware
-  app.use((req: any, res: any, next: any) => {
-    const originalEnd = res.end;
-    res.end = function(...args: any[]) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Monkeypatch res.end to log on flush. res.end is overloaded, so we bind
+    // the original and cast the replacement back to its exact type — no `any`.
+    type EndFn = Response['end'];
+    const originalEnd = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = function (this: Response, ...args: unknown[]): Response {
       const setCookie = res.getHeader('Set-Cookie');
       // Only log auth/oauth requests
       if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
@@ -198,8 +213,8 @@ async function bootstrap() {
           data: { hasCookie: !!setCookie },
         });
       }
-      return originalEnd.apply(this, args);
-    };
+      return originalEnd(...args);
+    } as EndFn;
     next();
   });
 
@@ -254,8 +269,8 @@ async function bootstrap() {
   const normalizedFrontendUrl = (
     configService.get<string>('FRONTEND_URL', '') ?? ''
   ).replace(/\/$/, '');
-  app.use((req: any, res: any, next: any) => {
-    const origin = req.headers.origin as string | undefined;
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
     if (origin) {
       const allowed = oauthForCsp.getAllowedOriginsSync();
       if (allowed.has(origin) && origin !== normalizedFrontendUrl) {

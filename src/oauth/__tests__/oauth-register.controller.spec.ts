@@ -8,14 +8,14 @@ import { RegisterClientDto } from '../dto/register-client.dto';
 describe('OAuthRegisterController', () => {
   let controller: OAuthRegisterController;
   let registry: OAuthClientRegistryService;
-  let mockPrisma: any;
+  let mockPrisma: { oAuthClient: { create: jest.Mock } };
 
   beforeEach(async () => {
     mockPrisma = {
       oAuthClient: {
         // Echo back the data the registry asked to persist so the
         // controller maps the stored row, and assertions can inspect it.
-        create: jest.fn(({ data }: any) =>
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) =>
           Promise.resolve({ id: 'uuid-new', ...data }),
         ),
       },
@@ -43,11 +43,11 @@ describe('OAuthRegisterController', () => {
       token_endpoint_auth_method: 'client_secret_post',
     };
 
-    const res: any = await controller.register(dto);
+    const res = await controller.register(dto);
 
     expect(res.client_id).toMatch(/^dcr_[0-9a-f]{32}$/);
     expect(typeof res.client_secret).toBe('string');
-    expect(res.client_secret.length).toBeGreaterThan(0);
+    expect((res.client_secret as string).length).toBeGreaterThan(0);
     expect(res.token_endpoint_auth_method).toBe('client_secret_post');
     expect(res.client_secret_expires_at).toBe(0);
 
@@ -67,7 +67,7 @@ describe('OAuthRegisterController', () => {
       token_endpoint_auth_method: 'none',
     };
 
-    const res: any = await controller.register(dto);
+    const res = await controller.register(dto);
 
     expect('client_secret' in res).toBe(false);
     expect(res.token_endpoint_auth_method).toBe('none');
@@ -123,7 +123,7 @@ describe('OAuthRegisterController', () => {
       token_endpoint_auth_method: 'client_secret_post',
     };
 
-    const res: any = await controller.register(dto);
+    const res = await controller.register(dto);
     expect(res.scope).toBe('openid email');
   });
 });

@@ -128,16 +128,16 @@ export class FederationController {
     res: Response,
     userId: string,
   ): Promise<void> {
-    const session = (req as any).session;
+    const session = req.session;
     if (!session) return;
     await new Promise<void>((resolve, reject) => {
-      session.regenerate((err: any) => {
+      session.regenerate((err) => {
         if (err) return reject(err);
         session.userId = userId;
         // RFC 8176 has no dedicated "federated" value; reflect that the
         // assertion came from an external IdP.
         session.amr = ['federated'];
-        session.save((saveErr: any) => {
+        session.save((saveErr) => {
           if (saveErr) return reject(saveErr);
           const signed = 's:' + signature.sign(session.id, this.sessionSecret);
           res.cookie('inite.sid', signed, {

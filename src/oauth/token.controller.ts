@@ -107,7 +107,7 @@ export class TokenController {
         body,
         audiences: this.clientAuth.tokenAudiences(),
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'invalid_credentials' });
       await this.audit.record({
         event: 'token.failed.invalid_credentials',
@@ -115,7 +115,7 @@ export class TokenController {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         success: false,
-        errorMessage: e?.message ?? 'unknown',
+        errorMessage: e instanceof Error ? e.message : 'unknown',
         metadata: { grantType },
       });
       throw e;
@@ -129,7 +129,7 @@ export class TokenController {
   ): Promise<void> {
     try {
       this.clientRegistry.validateGrantType(client, grantType);
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'unsupported_grant' });
       await this.audit.record({
         event: 'token.failed.unsupported_grant',
@@ -137,7 +137,7 @@ export class TokenController {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         success: false,
-        errorMessage: e?.message ?? 'unknown',
+        errorMessage: e instanceof Error ? e.message : 'unknown',
         metadata: { grantType },
       });
       throw e;

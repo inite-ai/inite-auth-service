@@ -4,7 +4,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('OAuthAuditService', () => {
   let service: OAuthAuditService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    oAuthAuditLog: { create: jest.Mock; findMany: jest.Mock; count: jest.Mock };
+    oAuthClient: { findUnique: jest.Mock };
+  };
 
   beforeEach(async () => {
     mockPrisma = {

@@ -4,7 +4,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('SessionService', () => {
   let service: SessionService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    refreshToken: {
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+    };
+    user: { findUnique: jest.Mock };
+  };
 
   beforeEach(async () => {
     mockPrisma = {
@@ -39,7 +48,7 @@ describe('SessionService', () => {
 
       const sessions = await service.getActiveSessions('user-1');
       expect(sessions).toHaveLength(1);
-      expect(sessions[0].clientName).toBe('App');
+      expect(sessions[0]?.clientName).toBe('App');
 
       // Should filter by revoked=false and expiresAt > now
       expect(mockPrisma.refreshToken.findMany).toHaveBeenCalledWith(

@@ -3,6 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
+/** A user-visible active session, projected from a non-revoked refresh token. */
+export interface ActiveSession {
+  id: string;
+  clientName: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 @Injectable()
 export class SessionService {
   constructor(
@@ -13,7 +21,7 @@ export class SessionService {
   /**
    * Get active (non-expired, non-revoked) sessions for user
    */
-  async getActiveSessions(userId: string): Promise<any[]> {
+  async getActiveSessions(userId: string): Promise<ActiveSession[]> {
     const tokens = await this.prisma.refreshToken.findMany({
       where: {
         userId,

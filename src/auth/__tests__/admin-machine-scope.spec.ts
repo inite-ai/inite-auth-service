@@ -1,3 +1,4 @@
+import { ExecutionContext } from '@nestjs/common';
 import { AdminGuard } from '../guards/admin.guard';
 import { resolveAdminScope } from '../../admin/admin-scope';
 
@@ -12,18 +13,18 @@ import { resolveAdminScope } from '../../admin/admin-scope';
  * JwtStrategy.validate() produces.
  */
 
-function mockContext(user: any) {
-  const req: any = { user, headers: {}, isAuthenticated: () => true };
+function mockContext(user: unknown): ExecutionContext {
+  const req = { user, headers: {}, isAuthenticated: () => true };
   return {
     switchToHttp: () => ({ getRequest: () => req }),
-  } as any;
+  } as unknown as ExecutionContext;
 }
 
 describe('AdminGuard — M2M admin scope', () => {
   let guard: AdminGuard;
 
   beforeEach(() => {
-    guard = new AdminGuard({} as any);
+    guard = new AdminGuard();
     // Skip the JwtAuthGuard.canActivate() chain — it requires passport
     // wiring. The unit under test is the post-auth admin check.
     jest

@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { User, Wallet } from '@prisma/client';
+import { User, Wallet, Passkey } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { DidService } from './did.service';
+import { DidService, DidDocument, VerifiableCredential } from './did.service';
 import { ethers } from 'ethers';
 import * as nacl from 'tweetnacl';
 import * as naclUtil from 'tweetnacl-util';
@@ -74,7 +74,7 @@ export class IdentityService {
   /**
    * Get user identity by ID
    */
-  async getIdentityById(id: string): Promise<User & { wallets?: Wallet[]; passkeys?: any[] }> {
+  async getIdentityById(id: string): Promise<User & { wallets?: Wallet[]; passkeys?: Passkey[] }> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: { wallets: true, passkeys: true },
@@ -155,7 +155,7 @@ export class IdentityService {
   /**
    * Get DID document for user
    */
-  async getDidDocument(userId: string): Promise<any> {
+  async getDidDocument(userId: string): Promise<DidDocument> {
     const user = await this.getIdentityById(userId);
     return await this.didService.resolveDidDocument(user.did);
   }
@@ -166,8 +166,8 @@ export class IdentityService {
   async issueCredential(
     userId: string,
     credentialType: string,
-    claims: Record<string, any>,
-  ): Promise<any> {
+    claims: Record<string, unknown>,
+  ): Promise<VerifiableCredential> {
     const user = await this.getIdentityById(userId);
 
     const issuerDid = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';

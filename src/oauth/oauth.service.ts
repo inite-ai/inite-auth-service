@@ -137,19 +137,7 @@ export class OAuthService {
     });
 
     if (claim.count !== 1) {
-      const replay = await this.prisma.authorizationCode.findUnique({
-        where: { code },
-      });
-      if (replay && replay.used) {
-        this.oauthLogger.warn(
-          `Authorization code replay detected — revoking refresh-token family for user=${replay.userId} client=${replay.clientId}`,
-        );
-        await this.prisma.refreshToken.updateMany({
-          where: { userId: replay.userId, clientId: replay.clientId, revoked: false },
-          data: { revoked: true, revokedAt: new Date() },
-        });
-      }
-      throw new BadRequestException('Invalid or expired authorization code');
+      await this.handleCodeClaimFailure(code);
     }
 
     const authCode = await this.prisma.authorizationCode.findUnique({
@@ -182,10 +170,11 @@ export class OAuthService {
     // allowedAudiences). Undefined result → audience stays the clientId.
     const audience = await this.resolveCodeAudience(clientId, authCode.resource);
 
+    const scope = authCode.scope ?? '';
     const tokens = await this.tokenIssuer.generateTokens({
       user: authCode.user,
       clientId,
-      scope: authCode.scope,
+      scope,
       nonce: authCode.nonce ?? undefined,
       audience,
       authnContext: {
@@ -201,7 +190,7 @@ export class OAuthService {
     // refresh token from before this generateTokens() call — the
     // new one we just minted will be present too, so we exclude it
     // by created_at ordering rather than count.
-    this.notifyFirstTimeConsent(authCode.user, clientId, authCode.scope).catch(
+    this.notifyFirstTimeConsent(authCode.user, clientId, scope).catch(
       (err) =>
         this.oauthLogger.warn(
           `first-time-consent notification failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -209,6 +198,28 @@ export class OAuthService {
     );
 
     return tokens;
+  }
+
+  /**
+   * Code-claim failed (already used / expired / unknown). If the code exists
+   * and was already used, treat it as replay and revoke the refresh-token
+   * family issued from that code's user+client (RFC 6819 §4.4.1.1). Always
+   * throws — the caller's claim did not win the atomic UPDATE.
+   */
+  private async handleCodeClaimFailure(code: string): Promise<never> {
+    const replay = await this.prisma.authorizationCode.findUnique({
+      where: { code },
+    });
+    if (replay && replay.used) {
+      this.oauthLogger.warn(
+        `Authorization code replay detected — revoking refresh-token family for user=${replay.userId} client=${replay.clientId}`,
+      );
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: replay.userId, clientId: replay.clientId, revoked: false },
+        data: { revoked: true, revokedAt: new Date() },
+      });
+    }
+    throw new BadRequestException('Invalid or expired authorization code');
   }
 
   /**
@@ -268,13 +279,13 @@ export class OAuthService {
       });
       const scopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
       await this.emailService.sendOAuthConsentGranted(
-        { email: user.email, name: user.name ?? undefined },
+        { email: user.email ?? '', name: user.name ?? undefined },
         client?.name ?? clientId,
         scopes,
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.oauthLogger.warn(
-        `first-time-consent notification failed: ${e?.message ?? 'unknown'}`,
+        `first-time-consent notification failed: ${e instanceof Error ? e.message : 'unknown'}`,
       );
     }
   }
@@ -282,7 +293,7 @@ export class OAuthService {
   /**
    * Get user info (OIDC endpoint)
    */
-  async getUserInfo(userId: string): Promise<any> {
+  async getUserInfo(userId: string): Promise<Record<string, unknown>> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');

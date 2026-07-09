@@ -1,10 +1,13 @@
 import { SsfEmitterService } from '../ssf-emitter.service';
+import { SetBuilderService } from '../set-builder.service';
+import { SetPushService } from '../set-push.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CAEP_EVENTS } from '../caep-event-types';
 
 describe('SsfEmitterService', () => {
-  let prisma: any;
-  let builder: any;
-  let push: any;
+  let prisma: { ssfStream: { findMany: jest.Mock }; setDelivery: { create: jest.Mock } };
+  let builder: { build: jest.Mock };
+  let push: { deliver: jest.Mock };
   let service: SsfEmitterService;
 
   beforeEach(() => {
@@ -14,7 +17,11 @@ describe('SsfEmitterService', () => {
     };
     builder = { build: jest.fn().mockResolvedValue({ jwt: 'jwt', jti: 'jti1' }) };
     push = { deliver: jest.fn().mockResolvedValue(undefined) };
-    service = new SsfEmitterService(prisma, builder, push);
+    service = new SsfEmitterService(
+      prisma as unknown as PrismaService,
+      builder as unknown as SetBuilderService,
+      push as unknown as SetPushService,
+    );
   });
 
   it('is a no-op when no streams match', async () => {

@@ -1,4 +1,7 @@
 import { ClientAssertionService, CLIENT_ASSERTION_TYPE } from '../client-assertion.service';
+import { ClientJwksService } from '../client-jwks.service';
+import { ClientAssertionJtiStore } from '../client-assertion-jti.store';
+import { PrismaService } from '../../prisma/prisma.service';
 import * as jose from 'jose';
 
 const CLIENT_ID = 'client-abc';
@@ -7,8 +10,8 @@ const AUDIENCE = 'https://auth.example.com/v1/oauth/token';
 describe('ClientAssertionService', () => {
   let priv: jose.CryptoKey;
   let publicJwk: jose.JWK;
-  let prisma: any;
-  let jtiStore: any;
+  let prisma: { oAuthClient: { findFirst: jest.Mock } };
+  let jtiStore: { consume: jest.Mock };
   let service: ClientAssertionService;
 
   beforeAll(async () => {
@@ -29,7 +32,11 @@ describe('ClientAssertionService', () => {
     };
     jtiStore = { consume: jest.fn().mockResolvedValue(undefined) };
     const clientJwks = { resolveKeySet: () => jose.createLocalJWKSet({ keys: [publicJwk] }) };
-    service = new ClientAssertionService(prisma, clientJwks as any, jtiStore);
+    service = new ClientAssertionService(
+      prisma as unknown as PrismaService,
+      clientJwks as unknown as ClientJwksService,
+      jtiStore as unknown as ClientAssertionJtiStore,
+    );
   });
 
   async function mkAssertion(overrides: {

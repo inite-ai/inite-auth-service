@@ -70,7 +70,9 @@ export class DpopService {
     return { jkt, alg };
   }
 
-  private decodeProof(proof: string): { header: any; payload: any } {
+  private decodeProof(
+    proof: string,
+  ): { header: jose.ProtectedHeaderParameters; payload: jose.JWTPayload } {
     try {
       return {
         header: jose.decodeProtectedHeader(proof),
@@ -81,7 +83,9 @@ export class DpopService {
     }
   }
 
-  private validateProofHeader(header: any): { alg: string; jwk: any } {
+  private validateProofHeader(
+    header: jose.ProtectedHeaderParameters,
+  ): { alg: string; jwk: jose.JWK } {
     if (header.typ !== 'dpop+jwt') {
       throw new BadRequestException('DPoP proof: typ must be dpop+jwt');
     }
@@ -104,20 +108,29 @@ export class DpopService {
 
   private async verifyProofSignature(
     proof: string,
-    jwk: any,
+    jwk: jose.JWK,
     alg: string,
   ): Promise<void> {
     const key = await jose.importJWK(jwk, alg);
     try {
       await jose.jwtVerify(proof, key, { algorithms: [alg] });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const code =
+        e && typeof e === 'object' && 'code' in e
+          ? String((e as { code: unknown }).code)
+          : undefined;
+      const message = e instanceof Error ? e.message : undefined;
       throw new UnauthorizedException(
-        `DPoP proof signature invalid: ${e?.code ?? e?.message ?? 'unknown'}`,
+        `DPoP proof signature invalid: ${code ?? message ?? 'unknown'}`,
       );
     }
   }
 
-  private assertBindings(payload: any, method: string, url: string): void {
+  private assertBindings(
+    payload: jose.JWTPayload,
+    method: string,
+    url: string,
+  ): void {
     // htm / htu binding — defeats proof reuse on a different
     // endpoint with the same key.
     if (typeof payload.htm !== 'string' || payload.htm.toUpperCase() !== method.toUpperCase()) {
@@ -135,12 +148,15 @@ export class DpopService {
     }
   }
 
-  private async assertNotReplayed(payload: any, jwk: any): Promise<string> {
+  private async assertNotReplayed(
+    payload: jose.JWTPayload,
+    jwk: jose.JWK,
+  ): Promise<string> {
     // Replay protection — single-use jti within the freshness window.
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
       throw new BadRequestException('DPoP proof: jti required');
     }
-    const jktForKey = await jose.calculateJwkThumbprint(jwk as any);
+    const jktForKey = await jose.calculateJwkThumbprint(jwk);
     const jtiKey = `dpop:jti:${jktForKey}:${payload.jti}`;
     const stored = await this.redis.get(jtiKey);
     if (stored) {

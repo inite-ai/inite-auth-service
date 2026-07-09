@@ -1,31 +1,41 @@
 import { FederationAdminService } from '../federation-admin.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { FieldCrypto } from '../../common/field-crypto';
+import { FederationProviders } from '../../auth/federation/federation-providers.service';
+import { FederationConfigStore } from '../../auth/federation/federation-config.store';
+import { ProviderConfig } from '../../auth/federation/contracts/provider-config';
 
 /** Build the service with lightweight mocks for its four collaborators. */
 function setup(overrides: {
-  findUnique?: any;
-  envConfig?: any;
+  findUnique?: Record<string, unknown> | null;
+  envConfig?: ProviderConfig | null;
 } = {}) {
   const create = jest.fn().mockResolvedValue({});
   const update = jest.fn().mockResolvedValue({});
   const upsert = jest.fn().mockResolvedValue({});
   const findUnique = jest.fn().mockResolvedValue(overrides.findUnique ?? null);
-  const prisma = { federationProvider: { create, update, upsert, findUnique } } as any;
+  const prisma = { federationProvider: { create, update, upsert, findUnique } };
 
   const crypto = {
     encrypt: (s: string) => `enc:${s}`,
     decrypt: (s: string) => s.replace(/^enc:/, ''),
-  } as any;
+  };
 
   const providers = {
     envConfig: jest.fn().mockReturnValue(overrides.envConfig ?? null),
     redirectUri: (slug: string) => `https://auth.example.com/v1/auth/oauth/${slug}/callback`,
     resolveForTest: jest.fn(),
     getEndpoints: jest.fn(),
-  } as any;
+  };
 
-  const store = { invalidate: jest.fn().mockResolvedValue(undefined) } as any;
+  const store = { invalidate: jest.fn().mockResolvedValue(undefined) };
 
-  const svc = new FederationAdminService(prisma, crypto, providers, store);
+  const svc = new FederationAdminService(
+    prisma as unknown as PrismaService,
+    crypto as unknown as FieldCrypto,
+    providers as unknown as FederationProviders,
+    store as unknown as FederationConfigStore,
+  );
   return { svc, create, update, upsert, findUnique, providers, store };
 }
 
@@ -47,7 +57,7 @@ describe('FederationAdminService', () => {
     expect(summary.enabled).toBe(true);
     expect(summary.clientId).toBe('env-id');
     expect(summary.hasSecret).toBe(true);
-    expect((summary as any).clientSecret).toBeUndefined();
+    expect((summary as unknown as Record<string, unknown>).clientSecret).toBeUndefined();
   });
 
   it('reports unset source when neither DB nor env configured', async () => {
@@ -75,7 +85,7 @@ describe('FederationAdminService', () => {
     expect(store.invalidate).toHaveBeenCalled();
     expect(summary.source).toBe('db');
     expect(summary.hasSecret).toBe(true);
-    expect((summary as any).clientSecret).toBeUndefined();
+    expect((summary as unknown as Record<string, unknown>).clientSecret).toBeUndefined();
     expect(findUnique).toHaveBeenCalled();
   });
 

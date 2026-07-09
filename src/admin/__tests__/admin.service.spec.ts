@@ -2,10 +2,36 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from '../admin.service';
 import { AdminClientsService } from '../admin-clients.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OAuthAuditService } from '../../audit/oauth-audit.service';
+import { BackchannelLogoutService } from '../../oauth/backchannel-logout.service';
 
 describe('AdminService', () => {
   let service: AdminService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    user: {
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+      count: jest.Mock;
+    };
+    oAuthClient: {
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+      count: jest.Mock;
+    };
+    passkey: { findMany: jest.Mock; count: jest.Mock; deleteMany: jest.Mock };
+    wallet: { findMany: jest.Mock; count: jest.Mock; deleteMany: jest.Mock };
+    refreshToken: {
+      count: jest.Mock;
+      deleteMany: jest.Mock;
+      updateMany: jest.Mock;
+    };
+    authorizationCode: { count: jest.Mock; deleteMany: jest.Mock };
+  };
 
   beforeEach(async () => {
     mockPrisma = {
@@ -68,7 +94,12 @@ describe('AdminService', () => {
 
       const audit = { record: jest.fn().mockResolvedValue(undefined) };
       const backchannel = { fanOut: jest.fn().mockResolvedValue(2) };
-      const s = new (AdminService as any)(mockPrisma, {} as any, audit, backchannel);
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+        audit as unknown as OAuthAuditService,
+        backchannel as unknown as BackchannelLogoutService,
+      );
 
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { reason: 'leaked' });
 
@@ -100,7 +131,10 @@ describe('AdminService', () => {
     it('throws 404 NotFoundException when user does not exist', async () => {
       const { NotFoundException } = await import('@nestjs/common');
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      const s = new (AdminService as any)(mockPrisma, {} as any);
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+      );
       await expect(
         s.revokeAllUserSessions('22222222-2222-4222-8222-222222222222'),
       ).rejects.toThrow(NotFoundException);
@@ -108,7 +142,10 @@ describe('AdminService', () => {
 
     it('throws 400 BadRequestException when userId is not a UUID', async () => {
       const { BadRequestException } = await import('@nestjs/common');
-      const s = new (AdminService as any)(mockPrisma, {} as any);
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+      );
       await expect(s.revokeAllUserSessions('not-a-uuid')).rejects.toThrow(
         BadRequestException,
       );
@@ -125,7 +162,10 @@ describe('AdminService', () => {
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.update.mockResolvedValue({});
 
-      const s = new (AdminService as any)(mockPrisma, {} as any);
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+      );
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111');
       expect(result.success).toBe(true);
       expect(result.backchannelLogoutRecipients).toBe(0);
@@ -135,7 +175,10 @@ describe('AdminService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', did: 'did:k', email: 'a@b.com' });
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.update.mockResolvedValue({});
-      const s = new (AdminService as any)(mockPrisma, {} as any);
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+      );
 
       const before = Date.now();
       const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { lockoutHours: 9999 });
@@ -158,7 +201,9 @@ describe('AdminService', () => {
 
       const result = await service.getAllUsers(1, 20);
       expect(result.users).toHaveLength(2);
-      expect((result.users[0] as any).passwordHash).toBeUndefined();
+      expect(
+        (result.users[0]! as Record<string, unknown>).passwordHash,
+      ).toBeUndefined();
       expect(result.pagination.total).toBe(2);
     });
 
@@ -185,7 +230,7 @@ describe('AdminService', () => {
     it('should set isAdmin in metadata when admin role present', async () => {
       const user = { id: '1', metadata: {} };
       mockPrisma.user.findUnique.mockResolvedValue(user);
-      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+      mockPrisma.user.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ ...user, ...data, passwordHash: undefined }),
       );
 
@@ -206,7 +251,7 @@ describe('AdminService', () => {
     it('should set isAdmin false when no admin role', async () => {
       const user = { id: '1', metadata: { isAdmin: true } };
       mockPrisma.user.findUnique.mockResolvedValue(user);
-      mockPrisma.user.update.mockImplementation(({ data }: any) =>
+      mockPrisma.user.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ ...user, ...data, passwordHash: undefined }),
       );
 
@@ -232,8 +277,10 @@ describe('AdminService', () => {
       ]);
 
       const result = await service.getAllOAuthClients();
-      expect((result[0] as any).clientSecretHash).toBeUndefined();
-      expect(result[0].redirectUris).toEqual(['https://a.com/callback', 'https://b.com/callback']);
+      // exactly one client is mocked above
+      const first = result[0]!;
+      expect((first as Record<string, unknown>).clientSecretHash).toBeUndefined();
+      expect(first.redirectUris).toEqual(['https://a.com/callback', 'https://b.com/callback']);
     });
   });
 
@@ -253,7 +300,7 @@ describe('AdminService', () => {
 
   describe('createOAuthClient', () => {
     it('persists allowedGrants + companyId when provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => ({
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
         ...data,
         id: 'uuid-1',
         clientSecretHash: data.clientSecretHash,
@@ -279,7 +326,7 @@ describe('AdminService', () => {
     });
 
     it('falls back to default scopes when none provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
 
       await service.createOAuthClient({
         name: 'User App',
@@ -296,7 +343,7 @@ describe('AdminService', () => {
     });
 
     it('treats empty allowedGrants array as "use schema default"', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
 
       await service.createOAuthClient({
         name: 'X',
@@ -310,7 +357,7 @@ describe('AdminService', () => {
     });
 
     it('persists allowedAudiences for M2M clients', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
 
       await service.createOAuthClient({
         name: 'Brain M2M',
@@ -327,7 +374,7 @@ describe('AdminService', () => {
     });
 
     it('defaults allowedAudiences to empty array when not provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: any) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
 
       await service.createOAuthClient({
         name: 'User App',

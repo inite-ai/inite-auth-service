@@ -98,10 +98,10 @@ export class HibpService {
         return null;
       }
       return await res.text();
-    } catch (err: any) {
-      this.logger.warn(
-        `HIBP request failed (${err?.name ?? 'err'}): ${err?.message ?? 'unknown'}`,
-      );
+    } catch (err: unknown) {
+      const name = err instanceof Error ? err.name : 'err';
+      const message = err instanceof Error ? err.message : 'unknown';
+      this.logger.warn(`HIBP request failed (${name}): ${message}`);
       return null;
     } finally {
       clearTimeout(t);
@@ -128,9 +128,9 @@ export class HibpService {
     if (!this.enabled) return;
     const count = await this.breachCount(password);
     if (count >= this.minBreachCount) {
-      const error: any = new Error(
+      const error = new Error(
         `Password appears in known breach corpora (${count} sightings). Please choose a different password.`,
-      );
+      ) as Error & { code?: string; breachCount?: number };
       error.code = 'password_breached';
       error.breachCount = count;
       throw error;

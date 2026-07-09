@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { SetBuilderService } from '../set-builder.service';
 import { CAEP_EVENTS } from '../caep-event-types';
 import * as jose from 'jose';
@@ -13,7 +14,7 @@ describe('SetBuilderService', () => {
   });
 
   function build(env: Record<string, string | undefined>): SetBuilderService {
-    return new SetBuilderService({ get: (k: string, d?: string) => env[k] ?? d } as any);
+    return new SetBuilderService({ get: (k: string, d?: string) => env[k] ?? d } as unknown as ConfigService);
   }
 
   it('signs a verifiable SET with the CAEP events claim', async () => {
@@ -32,8 +33,8 @@ describe('SetBuilderService', () => {
     expect(protectedHeader.typ).toBe('secevent+jwt');
     expect(protectedHeader.kid).toBe('auth-rs256-key-1');
     expect(payload.jti).toBe(result!.jti);
-    expect((payload.events as any)[CAEP_EVENTS.sessionRevoked]).toBeDefined();
-    expect((payload.sub_id as any).sub).toBe('did:key:zabc');
+    expect((payload.events as Record<string, unknown>)[CAEP_EVENTS.sessionRevoked]).toBeDefined();
+    expect((payload.sub_id as { sub?: string }).sub).toBe('did:key:zabc');
   });
 
   it('returns null in HS256/dev mode (no private key)', async () => {

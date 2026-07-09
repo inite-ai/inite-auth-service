@@ -20,7 +20,7 @@ export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(scope: AdminScope): Promise<Organization[]> {
-    const where: Record<string, any> = {};
+    const where: Record<string, unknown> = {};
     applyScopeFilter(scope, where);
     return this.prisma.organization.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
@@ -36,7 +36,7 @@ export class OrganizationsService {
   }
 
   async get(scope: AdminScope, orgId: string): Promise<Organization> {
-    const where: Record<string, any> = { id: orgId };
+    const where: Record<string, unknown> = { id: orgId };
     applyScopeFilter(scope, where);
     const org = await this.prisma.organization.findFirst({ where });
     if (!org) throw new NotFoundException('organization not found');

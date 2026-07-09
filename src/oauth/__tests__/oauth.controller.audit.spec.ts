@@ -1,5 +1,8 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { OAuthClient } from '@prisma/client';
+import { Request } from 'express';
 import { TokenController } from '../token.controller';
+import { ClientAuthService } from '../client-auth.service';
 import { TokenGrantService } from '../token-grant.service';
 import { OAuthService } from '../oauth.service';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
@@ -10,7 +13,7 @@ import { MetricsService } from '../../common/metrics.service';
 import { DpopService } from '../dpop.service';
 import { DeviceFlowService } from '../device-flow.service';
 
-const mockMetrics = (): any => ({
+const mockMetrics = () => ({
   tokensIssued: { inc: jest.fn() },
   tokenFailures: { inc: jest.fn() },
   tokenLatency: { startTimer: () => () => undefined },
@@ -27,7 +30,13 @@ const mockMetrics = (): any => ({
  */
 describe('TokenController /oauth/token — audit log writes', () => {
   let controller: TokenController;
-  let oauth: any;
+  let oauth: {
+    validateClientWithSecret: jest.Mock;
+    validateGrantType: jest.Mock;
+    exchangeAuthorizationCode: jest.Mock;
+    refreshAccessToken: jest.Mock;
+    issueClientCredentialsToken: jest.Mock;
+  };
   let audit: jest.Mocked<Pick<OAuthAuditService, 'record'>>;
 
   const m2mClient = {
@@ -37,14 +46,14 @@ describe('TokenController /oauth/token — audit log writes', () => {
     allowedScopes: ['brain:read', 'brain:write', 'brain:admin'],
     allowedAudiences: ['brain'],
     active: true,
-  } as any;
+  } as unknown as OAuthClient;
 
   const userClient = {
     clientId: 'smart-chat',
     allowedGrants: ['authorization_code', 'refresh_token'],
     allowedScopes: ['openid', 'profile', 'email'],
     active: true,
-  } as any;
+  } as unknown as OAuthClient;
 
   beforeEach(() => {
     audit = { record: jest.fn().mockResolvedValue(undefined) };
@@ -65,7 +74,7 @@ describe('TokenController /oauth/token — audit log writes', () => {
       pollForApproval: jest.fn(),
     } as unknown as DeviceFlowService;
     const grants = new TokenGrantService(
-      oauth as OAuthService,
+      oauth as unknown as OAuthService,
       audit as unknown as OAuthAuditService,
       metrics,
       dpop,
@@ -76,7 +85,9 @@ describe('TokenController /oauth/token — audit log writes', () => {
     // Dispatcher stub delegating to the client-registry mock, mirroring the
     // shared-secret path so the existing audit assertions still hold.
     const clientAuth = {
-      authenticate: (input: any) =>
+      authenticate: (input: {
+        body: { client_id?: string; client_secret?: string };
+      }) =>
         oauth.validateClientWithSecret(input.body.client_id, input.body.client_secret),
       tokenAudiences: () => [],
     };
@@ -85,11 +96,14 @@ describe('TokenController /oauth/token — audit log writes', () => {
       audit as unknown as OAuthAuditService,
       metrics,
       grants,
-      clientAuth as any,
+      clientAuth as unknown as ClientAuthService,
     );
   });
 
-  const req: any = { headers: { 'user-agent': 'jest' }, ip: '10.0.0.1' };
+  const req = {
+    headers: { 'user-agent': 'jest' },
+    ip: '10.0.0.1',
+  } as unknown as Request;
 
   it('records token.issued.client_credentials on M2M success', async () => {
     oauth.validateClientWithSecret.mockResolvedValue(m2mClient);

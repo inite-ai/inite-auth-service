@@ -16,16 +16,18 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  */
 @Injectable()
 export class LoginEmailThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, any>): Promise<string> {
+  protected override async getTracker(
+    req: Record<string, unknown>,
+  ): Promise<string> {
+    const body = req.body as { email?: unknown } | undefined;
     const email =
-      typeof req?.body?.email === 'string'
-        ? req.body.email.trim().toLowerCase()
-        : null;
+      typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null;
     if (email) return `login-email:${email}`;
-    return `login-ip:${req?.ip ?? 'unknown'}`;
+    const ip = typeof req.ip === 'string' ? req.ip : 'unknown';
+    return `login-ip:${ip}`;
   }
 
-  protected getRequestResponse(context: ExecutionContext) {
+  protected override getRequestResponse(context: ExecutionContext) {
     const http = context.switchToHttp();
     return { req: http.getRequest(), res: http.getResponse() };
   }

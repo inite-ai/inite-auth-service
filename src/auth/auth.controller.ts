@@ -60,9 +60,9 @@ export class AuthController {
       req.session.amr = ['pwd'];
 
       await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => {
+        req.session.save((err: unknown) => {
           if (err) {
-            this.logger.error('Session save error', err.message, { action: 'register' });
+            this.logger.error('Session save error', err instanceof Error ? err.message : String(err), { action: 'register' });
             reject(err);
           } else {
             this.logger.session('Saved after register', {
@@ -103,9 +103,9 @@ export class AuthController {
       const userId = result.user.id;
 
       await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err: any) => {
+        req.session.regenerate((err: unknown) => {
           if (err) {
-            this.logger.error('Session regenerate error', err.message, { action: 'login' });
+            this.logger.error('Session regenerate error', err instanceof Error ? err.message : String(err), { action: 'login' });
             reject(err);
             return;
           }
@@ -114,9 +114,9 @@ export class AuthController {
           // Password login → 'pwd' AMR.
           req.session.amr = ['pwd'];
 
-          req.session.save((saveErr: any) => {
+          req.session.save((saveErr: unknown) => {
             if (saveErr) {
-              this.logger.error('Session save error', saveErr.message, { action: 'login' });
+              this.logger.error('Session save error', saveErr instanceof Error ? saveErr.message : String(saveErr), { action: 'login' });
               reject(saveErr);
             } else {
               this.logger.session('Regenerated and saved', {
@@ -190,9 +190,9 @@ export class AuthController {
     if (req.session) {
       const userId = result.user.id;
       await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err: any) => {
+        req.session.regenerate((err: unknown) => {
           if (err) {
-            this.logger.error('Session regenerate error', err.message, { action: 'magic-link-verify' });
+            this.logger.error('Session regenerate error', err instanceof Error ? err.message : String(err), { action: 'magic-link-verify' });
             reject(err);
             return;
           }
@@ -201,9 +201,9 @@ export class AuthController {
           // 8176 doesn't define a perfect AMR, but 'mfa' fits the
           // "knowledge + control of inbox" semantic.
           req.session.amr = ['magic-link'];
-          req.session.save((saveErr: any) => {
+          req.session.save((saveErr: unknown) => {
             if (saveErr) {
-              this.logger.error('Session save error', saveErr.message, { action: 'magic-link-verify' });
+              this.logger.error('Session save error', saveErr instanceof Error ? saveErr.message : String(saveErr), { action: 'magic-link-verify' });
               reject(saveErr);
             } else {
               this.logger.session('New session after magic link verify', { sessionId: req.session.id, userId });

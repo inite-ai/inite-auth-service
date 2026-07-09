@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { Observable, of, from } from 'rxjs';
 import { tap, switchMap } from 'rxjs/operators';
@@ -49,6 +50,8 @@ function hashBody(body: any): string {
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(IdempotencyInterceptor.name);
+
   constructor(private readonly redis: RedisService) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<any> {
@@ -90,18 +93,18 @@ export class IdempotencyInterceptor implements NestInterceptor {
           return of(parsed.body);
         }
         return next.handle().pipe(
-          tap(async (body) => {
+          tap((body) => {
             const statusCode = res.statusCode ?? 200;
             const payload: CachedResponse = { statusCode, body, bodyHash };
-            try {
-              await this.redis.set(
-                redisKey,
-                JSON.stringify(payload),
-                TTL_SECONDS,
+            // Best-effort cache write, off the response path. Fire-and-forget
+            // but logged — a persistent Redis failure shouldn't be invisible.
+            void this.redis
+              .set(redisKey, JSON.stringify(payload), TTL_SECONDS)
+              .catch((e) =>
+                this.logger.warn(
+                  `idempotency cache write failed: ${e instanceof Error ? e.message : String(e)}`,
+                ),
               );
-            } catch {
-              /* swallow — caching is best-effort */
-            }
           }),
         );
       }),

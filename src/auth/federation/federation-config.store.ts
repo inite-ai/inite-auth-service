@@ -61,7 +61,7 @@ export class FederationConfigStore implements OnModuleInit {
   }
 
   private async reload(): Promise<void> {
-    if (this.loading) return this.loading;
+    if (this.loading !== null) return this.loading;
     this.loading = this.doReload().finally(() => {
       this.loading = null;
     });

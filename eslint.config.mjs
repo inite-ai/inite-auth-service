@@ -70,9 +70,11 @@ export default tseslint.config(
       sourceType: 'module',
       globals: { ...globals.node, ...globals.jest },
       parserOptions: {
-        // No type-aware linting (slow on a Nest app; we lint src + test
-        // which would need separate tsconfigs).
-        project: false,
+        // Type-aware linting: enables async-safety rules (no-floating-promises,
+        // no-misused-promises) that need type info. tsconfig.eslint.json covers
+        // src + test so every linted file belongs to a project.
+        project: './tsconfig.eslint.json',
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     settings: {
@@ -110,6 +112,13 @@ export default tseslint.config(
       ],
       'sonarjs/no-identical-functions': 'error',
       'sonarjs/no-duplicated-branches': 'error',
+
+      // ── Async safety (type-aware) ────────────────────────────────
+      // A promise that isn't awaited/void/caught is a silent failure on an
+      // auth path. no-misused-promises catches async fns passed where a sync
+      // callback is expected (e.g. an async Express handler that drops errors).
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
 
       ...sizeGates,
     },

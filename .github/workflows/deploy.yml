@@ -121,6 +121,7 @@ jobs:
           echo "JWT_PRIVATE_KEY=\"$(printf '%s' '${{ secrets.JWT_PRIVATE_KEY }}' | sed ':a;N;$!ba;s/\n/\\n/g')\""
           echo "JWT_PUBLIC_KEY=\"$(printf '%s' '${{ secrets.JWT_PUBLIC_KEY }}' | sed ':a;N;$!ba;s/\n/\\n/g')\""
           echo "REFRESH_TOKEN_HMAC_SECRET=${{ secrets.REFRESH_TOKEN_HMAC_SECRET }}"
+          echo "FIELD_ENCRYPTION_KEY=${{ secrets.FIELD_ENCRYPTION_KEY }}"
           echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}"
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}"
           echo "ADMIN_NAME=${{ secrets.ADMIN_NAME }}"

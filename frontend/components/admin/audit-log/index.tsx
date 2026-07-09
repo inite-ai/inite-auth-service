@@ -20,6 +20,7 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
     pages: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
 
   // Filters
   const [event, setEvent] = useState('')
@@ -68,6 +69,53 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, clientId, companyId, successFilter, since, until])
 
+  // Shared query string for the current filter set (no pagination — export
+  // applies its own row cap server-side). Keeps list + export in sync.
+  const filterParams = useCallback(() => {
+    const params = new URLSearchParams()
+    if (event) params.set('event', event)
+    if (clientId) params.set('clientId', clientId)
+    if (companyId) params.set('companyId', companyId)
+    if (successFilter !== 'all') params.set('success', successFilter)
+    if (since) params.set('since', new Date(since).toISOString())
+    if (until) params.set('until', new Date(until).toISOString())
+    return params
+  }, [event, clientId, companyId, successFilter, since, until])
+
+  const exportLog = useCallback(
+    async (format: 'csv' | 'json') => {
+      setExporting(format)
+      try {
+        const params = filterParams()
+        params.set('format', format)
+        const res = await api.get(`/admin/audit-log/export?${params.toString()}`, {
+          ...config,
+          responseType: 'blob',
+        })
+        const url = URL.createObjectURL(res.data as Blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `audit-log.${format}`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        if (res.headers['x-export-truncated'] === 'true') {
+          toast('Export hit the row cap — narrow the filters for a complete set', {
+            icon: '⚠️',
+          })
+        } else {
+          toast.success(`Exported ${format.toUpperCase()}`)
+        }
+      } catch {
+        toast.error('Failed to export audit log')
+      } finally {
+        setExporting(null)
+      }
+    },
+    [config, filterParams],
+  )
+
   const resetFilters = () => {
     setEvent('')
     setClientId('')
@@ -112,6 +160,9 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
         setUntil={setUntil}
         activeFilterCount={activeFilterCount}
         onReset={resetFilters}
+        onExport={exportLog}
+        exporting={exporting}
+        exportDisabled={loading || pagination.total === 0}
       />
 
       <ResultsTable

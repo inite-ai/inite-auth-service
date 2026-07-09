@@ -1,6 +1,6 @@
 'use client'
 
-import { Edit2, Trash2, Key, Wallet, Shield } from 'lucide-react'
+import { Edit2, Trash2, Key, Wallet, Shield, LogOut } from 'lucide-react'
 import { Sheet, Badge } from '@/components/ui'
 import { UserDetails, formatRelative } from './types'
 import { initialAvatar, Section, Stat } from './shared'
@@ -10,11 +10,13 @@ export function UserDetailsPanel({
   onClose,
   onEdit,
   onDelete,
+  onRevokeSessions,
 }: {
   user: UserDetails | null
   onClose: () => void
   onEdit: (u: UserDetails) => void
   onDelete: (u: UserDetails) => void
+  onRevokeSessions: (u: UserDetails) => void
 }) {
   if (!user) {
     return (
@@ -33,14 +35,25 @@ export function UserDetailsPanel({
       width="md"
       footer={
         <div className="flex justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => onDelete(user)}
-            className="h-8 px-3 inline-flex items-center gap-1.5 text-xs rounded-md text-[color:var(--danger)] hover:bg-[color:var(--danger)]/10"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onDelete(user)}
+              className="h-8 px-3 inline-flex items-center gap-1.5 text-xs rounded-md text-[color:var(--danger)] hover:bg-[color:var(--danger)]/10"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={() => onRevokeSessions(user)}
+              title="Revoke every active session, lock the account for 24h, and fan out back-channel logout"
+              className="h-8 px-3 inline-flex items-center gap-1.5 text-xs rounded-md text-[var(--text-muted)] hover:text-[color:var(--warning)] hover:bg-[color:var(--warning)]/10"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Revoke sessions
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => onEdit(user)}

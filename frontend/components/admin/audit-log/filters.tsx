@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, X } from 'lucide-react'
+import { Search, X, Download, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui'
 import { COMMON_EVENTS, SuccessFilter } from './types'
 
@@ -22,6 +22,9 @@ export function Filters({
   setUntil,
   activeFilterCount,
   onReset,
+  onExport,
+  exporting,
+  exportDisabled,
 }: {
   event: string
   setEvent: (v: string) => void
@@ -37,6 +40,9 @@ export function Filters({
   setUntil: (v: string) => void
   activeFilterCount: number
   onReset: () => void
+  onExport: (format: 'csv' | 'json') => void
+  exporting: 'csv' | 'json' | null
+  exportDisabled: boolean
 }) {
   return (
     <div className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-4">
@@ -48,16 +54,35 @@ export function Filters({
             <Badge variant="accent">{activeFilterCount} active</Badge>
           )}
         </div>
-        {activeFilterCount > 0 && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text)] inline-flex items-center gap-1"
-          >
-            <X className="w-3 h-3" />
-            Clear all
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {(['csv', 'json'] as const).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => onExport(fmt)}
+              disabled={exportDisabled || exporting !== null}
+              title={`Export the current (filtered) log as ${fmt.toUpperCase()}`}
+              className="h-7 px-2.5 text-[11px] inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {exporting === fmt ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Download className="w-3 h-3" />
+              )}
+              {fmt.toUpperCase()}
+            </button>
+          ))}
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text)] inline-flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Success chips */}

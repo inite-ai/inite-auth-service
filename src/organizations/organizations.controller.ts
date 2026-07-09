@@ -5,12 +5,13 @@ import {
   Delete,
   Body,
   Param,
-  Req,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../auth/authenticated-user';
 import { resolveAdminScope, AdminScope } from '../admin/admin-scope';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -27,56 +28,56 @@ import { CreateRoleDto } from './dto/create-role.dto';
 export class OrganizationsController {
   constructor(private readonly organizations: OrganizationsService) {}
 
-  private scope(req: any): AdminScope {
-    const scope = resolveAdminScope(req.user);
+  private scope(user: AuthenticatedUser): AdminScope {
+    const scope = resolveAdminScope(user);
     if (!scope) throw new ForbiddenException('admin access required');
     return scope;
   }
 
   @Get()
-  list(@Req() req: any) {
-    return this.organizations.list(this.scope(req));
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizations.list(this.scope(user));
   }
 
   @Post()
-  create(@Req() req: any, @Body() dto: CreateOrganizationDto) {
-    return this.organizations.create(this.scope(req), dto);
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrganizationDto) {
+    return this.organizations.create(this.scope(user), dto);
   }
 
   @Get(':orgId')
-  get(@Req() req: any, @Param('orgId') orgId: string) {
-    return this.organizations.get(this.scope(req), orgId);
+  get(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string) {
+    return this.organizations.get(this.scope(user), orgId);
   }
 
   @Delete(':orgId')
-  async remove(@Req() req: any, @Param('orgId') orgId: string) {
-    await this.organizations.remove(this.scope(req), orgId);
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string) {
+    await this.organizations.remove(this.scope(user), orgId);
     return { success: true };
   }
 
   @Get(':orgId/members')
-  listMembers(@Req() req: any, @Param('orgId') orgId: string) {
-    return this.organizations.listMembers(this.scope(req), orgId);
+  listMembers(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string) {
+    return this.organizations.listMembers(this.scope(user), orgId);
   }
 
   @Post(':orgId/members')
-  upsertMember(@Req() req: any, @Param('orgId') orgId: string, @Body() dto: UpsertMembershipDto) {
-    return this.organizations.upsertMember(this.scope(req), orgId, dto);
+  upsertMember(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Body() dto: UpsertMembershipDto) {
+    return this.organizations.upsertMember(this.scope(user), orgId, dto);
   }
 
   @Delete(':orgId/members/:userId')
-  async removeMember(@Req() req: any, @Param('orgId') orgId: string, @Param('userId') userId: string) {
-    await this.organizations.removeMember(this.scope(req), orgId, userId);
+  async removeMember(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Param('userId') userId: string) {
+    await this.organizations.removeMember(this.scope(user), orgId, userId);
     return { success: true };
   }
 
   @Get(':orgId/roles')
-  listRoles(@Req() req: any, @Param('orgId') orgId: string) {
-    return this.organizations.listRoles(this.scope(req), orgId);
+  listRoles(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string) {
+    return this.organizations.listRoles(this.scope(user), orgId);
   }
 
   @Post(':orgId/roles')
-  createRole(@Req() req: any, @Param('orgId') orgId: string, @Body() dto: CreateRoleDto) {
-    return this.organizations.createRole(this.scope(req), orgId, dto);
+  createRole(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Body() dto: CreateRoleDto) {
+    return this.organizations.createRole(this.scope(user), orgId, dto);
   }
 }

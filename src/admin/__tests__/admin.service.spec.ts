@@ -31,10 +31,12 @@ describe('AdminService', () => {
       updateMany: jest.Mock;
     };
     authorizationCode: { count: jest.Mock; deleteMany: jest.Mock };
+    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
     mockPrisma = {
+      $transaction: jest.fn((ops: Array<Promise<unknown>>) => Promise.all(ops)),
       user: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
@@ -285,13 +287,14 @@ describe('AdminService', () => {
   });
 
   describe('deleteOAuthClient', () => {
-    it('should delete related data before client', async () => {
+    it('deletes related grants + client atomically in one transaction', async () => {
       mockPrisma.authorizationCode.deleteMany.mockResolvedValue({ count: 0 });
       mockPrisma.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
       mockPrisma.oAuthClient.delete.mockResolvedValue({});
 
       await service.deleteOAuthClient('test-app');
 
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
       expect(mockPrisma.authorizationCode.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
       expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
       expect(mockPrisma.oAuthClient.delete).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });

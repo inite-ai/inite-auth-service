@@ -9,7 +9,7 @@ import 'dotenv/config';
 import { startTracing } from './tracing';
 startTracing();
 
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -24,6 +24,7 @@ import { RedisStore } from 'connect-redis';
 import { AppModule } from './app.module';
 import { OAuthOriginsService } from './oauth/oauth-origins.service';
 import { createLogger } from './common/logger.service';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 // Export for use in controllers
 export let sessionSecret: string;
@@ -155,6 +156,11 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Catch-all exception filter — adds structured logging for 5xx / unhandled
+  // errors without altering any response body (OAuth RFC error shapes intact).
+  const { httpAdapter } = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
 
   // Dynamic CORS — check origin against OAuth client redirect URIs on every request
   // Reuse OAuthOriginsService for allowed origins (cached, auto-refreshes every 60s)

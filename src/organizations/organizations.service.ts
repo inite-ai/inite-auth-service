@@ -10,6 +10,7 @@ import { SYSTEM_ROLE_PERMISSIONS } from '../rbac/permissions';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpsertMembershipDto } from './dto/upsert-membership.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 /**
  * Organization / membership / role CRUD, scoped to the admin operator's tenant
@@ -84,6 +85,28 @@ export class OrganizationsService {
     }
     return this.prisma.orgRole.create({
       data: { organizationId: orgId, slug: dto.slug, name: dto.name, permissions: dto.permissions },
+    });
+  }
+
+  /** Update a custom role's name + permissions. System roles are immutable
+   *  (their permissions are code-defined), so they're rejected. `slug` is the
+   *  role identity (from the path); it is not itself editable. */
+  async updateRole(
+    scope: AdminScope,
+    orgId: string,
+    patch: { slug: string } & UpdateRoleDto,
+  ): Promise<OrgRole> {
+    await this.get(scope, orgId);
+    if (SYSTEM_ROLE_PERMISSIONS[patch.slug]) {
+      throw new BadRequestException(`"${patch.slug}" is a reserved system role and cannot be edited`);
+    }
+    const existing = await this.prisma.orgRole.findFirst({
+      where: { organizationId: orgId, slug: patch.slug },
+    });
+    if (!existing) throw new NotFoundException('role not found');
+    return this.prisma.orgRole.update({
+      where: { id: existing.id },
+      data: { name: patch.name, permissions: patch.permissions },
     });
   }
 }

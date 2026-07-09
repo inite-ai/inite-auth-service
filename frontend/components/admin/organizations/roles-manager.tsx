@@ -1,67 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Shield, Check, Loader2, ShieldCheck, ShieldPlus } from 'lucide-react'
+import { Shield, Check, Loader2, ShieldCheck, ShieldPlus, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { Badge } from '@/components/ui'
-import { FieldLabel, TextField, CheckRow } from '@/components/admin/form-controls'
-import { SYSTEM_ROLES, PERMISSION_PRESETS, type OrgRoleView } from './types'
+import { FieldLabel, TextField } from '@/components/admin/form-controls'
+import { SYSTEM_ROLES, type OrgRoleView } from './types'
 import { SectionHeader } from './details-panel'
-
-function PermissionPicker({
-  values,
-  onChange,
-}: {
-  values: string[]
-  onChange: (next: string[]) => void
-}) {
-  const [custom, setCustom] = useState('')
-  const toggle = (p: string) =>
-    onChange(values.includes(p) ? values.filter((x) => x !== p) : [...values, p])
-  const addCustom = () => {
-    const v = custom.trim()
-    if (v && !values.includes(v)) onChange([...values, v])
-    setCustom('')
-  }
-  const customValues = values.filter((v) => !PERMISSION_PRESETS.includes(v))
-
-  return (
-    <div className="space-y-1.5">
-      {[...PERMISSION_PRESETS, ...customValues].map((p) => (
-        <CheckRow
-          key={p}
-          checked={values.includes(p)}
-          onToggle={() => toggle(p)}
-          label={p}
-          mono
-        />
-      ))}
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              addCustom()
-            }
-          }}
-          placeholder="custom scope e.g. org:billing:manage"
-          className="flex-1 h-8 px-2.5 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-md text-xs text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent-ring)]/40 font-mono"
-        />
-        <button
-          type="button"
-          onClick={addCustom}
-          className="h-8 px-2.5 text-xs rounded-md bg-[var(--bg-overlay)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
-        >
-          Add
-        </button>
-      </div>
-    </div>
-  )
-}
+import { PermissionPicker } from './permission-picker'
 
 // ===== Roles =====
 
@@ -81,11 +28,49 @@ export function RolesManager({
   const [name, setName] = useState('')
   const [permissions, setPermissions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
+  // Slug of the custom role currently being edited inline (null = none).
+  const [editingSlug, setEditingSlug] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPerms, setEditPerms] = useState<string[]>([])
 
   const reset = () => {
     setSlug('')
     setName('')
     setPermissions([])
+  }
+
+  const startEdit = (r: OrgRoleView) => {
+    setAdding(false)
+    setEditingSlug(r.slug)
+    setEditName(r.name || r.slug)
+    setEditPerms(r.permissions)
+  }
+
+  const saveEdit = async () => {
+    if (!editingSlug) return
+    if (!editName.trim()) {
+      toast.error('Name is required')
+      return
+    }
+    if (editPerms.length === 0) {
+      toast.error('Add at least one permission')
+      return
+    }
+    setBusy(true)
+    try {
+      await api.put(
+        `/admin/organizations/${orgId}/roles/${editingSlug}`,
+        { name: editName.trim(), permissions: editPerms },
+        config,
+      )
+      toast.success('Role updated')
+      setEditingSlug(null)
+      onChanged()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message ?? 'Failed to update role')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const createRole = async () => {
@@ -139,33 +124,85 @@ export function RolesManager({
       />
 
       <div className="space-y-1 mb-3">
-        {roles.map((r) => (
-          <div
-            key={r.slug}
-            className="bg-[var(--bg)] border border-[var(--border)] rounded-md px-2.5 py-2"
-          >
-            <div className="flex items-center gap-2">
-              {r.system ? (
-                <ShieldCheck className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-              ) : (
+        {roles.map((r) =>
+          editingSlug === r.slug ? (
+            <div
+              key={r.slug}
+              className="bg-[var(--bg)] border border-[var(--accent)]/40 rounded-md p-3 space-y-3"
+            >
+              <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-              )}
-              <span className="text-xs font-mono text-[var(--text)]">
-                {r.slug}
-              </span>
-              <Badge variant={r.system ? 'neutral' : 'accent'}>
-                {r.system ? 'system' : 'custom'}
-              </Badge>
+                <span className="text-xs font-mono text-[var(--text)]">{r.slug}</span>
+                <Badge variant="accent">editing</Badge>
+              </div>
+              <div>
+                <FieldLabel label="Name" />
+                <TextField value={editName} onChange={setEditName} placeholder="Billing Admin" />
+              </div>
+              <div>
+                <FieldLabel label="Permissions" hint="pick from the catalog or add a custom scope" />
+                <PermissionPicker values={editPerms} onChange={setEditPerms} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSlug(null)}
+                  disabled={busy}
+                  className="h-8 px-3 text-xs rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text)] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={busy}
+                  className="h-8 px-3 inline-flex items-center gap-1.5 text-xs font-medium rounded-md bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                >
+                  {busy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Save
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1 mt-1.5 pl-[22px]">
-              {r.permissions.map((p) => (
-                <Badge key={p} variant="mono" mono>
-                  {p}
+          ) : (
+            <div
+              key={r.slug}
+              className="group bg-[var(--bg)] border border-[var(--border)] rounded-md px-2.5 py-2"
+            >
+              <div className="flex items-center gap-2">
+                {r.system ? (
+                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
+                ) : (
+                  <Shield className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                )}
+                <span className="text-xs font-mono text-[var(--text)]">{r.slug}</span>
+                <Badge variant={r.system ? 'neutral' : 'accent'}>
+                  {r.system ? 'system' : 'custom'}
                 </Badge>
-              ))}
+                {!r.system && (
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    title="Edit permissions"
+                    className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-[var(--accent)]"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1.5 pl-[22px]">
+                {r.permissions.map((p) => (
+                  <Badge key={p} variant="mono" mono>
+                    {p}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
       </div>
 
       {adding && (

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
@@ -17,6 +18,7 @@ import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpsertMembershipDto } from './dto/upsert-membership.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 /**
  * Admin API for organizations, memberships, and custom roles. Tenant-scoped:
@@ -79,5 +81,16 @@ export class OrganizationsController {
   @Post(':orgId/roles')
   createRole(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Body() dto: CreateRoleDto) {
     return this.organizations.createRole(this.scope(user), orgId, dto);
+  }
+
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
+  @Put(':orgId/roles/:slug')
+  updateRole(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orgId') orgId: string,
+    @Param('slug') slug: string,
+    @Body() dto: UpdateRoleDto,
+  ) {
+    return this.organizations.updateRole(this.scope(user), orgId, { slug, ...dto });
   }
 }

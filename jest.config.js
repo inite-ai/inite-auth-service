@@ -12,6 +12,18 @@ module.exports = {
   transformIgnorePatterns: ['node_modules/(?!(jose)/)'],
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.module.ts', '!src/main.ts', '!src/migrations/**'],
   coverageDirectory: './coverage',
+  // Ratchet floor: set a few points below the measured baseline
+  // (stmts 44.5 / branch 39.2 / funcs 41.2 / lines 43.9) so `test:cov`
+  // fails on a regression without flaking on run-to-run jitter. Raise the
+  // floor as coverage climbs — never lower it.
+  coverageThreshold: {
+    global: {
+      statements: 42,
+      branches: 37,
+      functions: 39,
+      lines: 42,
+    },
+  },
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

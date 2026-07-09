@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { validateDcrClientKeys } from "../oauth/dcr-jwks.util";
+import { stripClientSecret } from "../common/sanitize";
 
 const AUTH_METHODS = ['client_secret_post', 'private_key_jwt', 'none'];
 
@@ -27,7 +28,7 @@ export class AdminClientsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return clients.map(({ clientSecretHash, ...client }) => client);
+    return clients.map(stripClientSecret);
   }
 
   async getOAuthClientById(clientId: string) {
@@ -43,9 +44,8 @@ export class AdminClientsService {
       this.prisma.refreshToken.count({ where: { clientId, revoked: false } }),
     ]);
 
-    const { clientSecretHash, ...safeClient } = client;
     return {
-      ...safeClient,
+      ...stripClientSecret(client),
       stats: {
         totalAuthCodes: totalCodes,
         totalTokens,
@@ -107,9 +107,8 @@ export class AdminClientsService {
       },
     });
 
-    const { clientSecretHash: _, ...safeClient } = client;
     return {
-      ...safeClient,
+      ...stripClientSecret(client),
       clientSecret,
       message: 'Save this client secret - it will not be shown again!',
     };
@@ -140,8 +139,7 @@ export class AdminClientsService {
         where: { clientId },
         data: { ...rest, ...authFields },
       });
-      const { clientSecretHash, ...safeClient } = client;
-      return safeClient;
+      return stripClientSecret(client);
     } catch {
       return null;
     }
@@ -205,9 +203,15 @@ export class AdminClientsService {
   }
 
   async deleteOAuthClient(clientId: string) {
-    await this.prisma.authorizationCode.deleteMany({ where: { clientId } });
-    await this.prisma.refreshToken.deleteMany({ where: { clientId } });
-    await this.prisma.oAuthClient.delete({ where: { clientId } });
+    // Atomic: dropping the client invalidates its auth codes + refresh tokens.
+    // Run all three in one transaction so a mid-delete crash can't leave the
+    // client alive with its grants already revoked (or vice-versa). The schema
+    // also cascades, but the explicit deletes keep the intent visible.
+    await this.prisma.$transaction([
+      this.prisma.authorizationCode.deleteMany({ where: { clientId } }),
+      this.prisma.refreshToken.deleteMany({ where: { clientId } }),
+      this.prisma.oAuthClient.delete({ where: { clientId } }),
+    ]);
     return { success: true };
   }
 }

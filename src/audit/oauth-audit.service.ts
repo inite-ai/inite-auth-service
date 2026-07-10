@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { requestContext } from '../common/request-context';
 import { MetricsService } from '../common/metrics.service';
 import { AuditWebhookService } from './audit-webhook.service';
-import { AuditQueryFilters } from './contracts/audit-query-filters';
+import { AuditQueryFilters, AuditSortColumn } from './contracts/audit-query-filters';
 
 /**
  * Durable audit trail for OAuth + client-lifecycle events.
@@ -245,6 +245,24 @@ export class OAuthAuditService {
     return where;
   }
 
+  /**
+   * Translate the requested sort into a safe Prisma orderBy. Only whitelisted
+   * columns are honored (a bad/absent value falls back to newest-first) so the
+   * query param can't inject an arbitrary column. A secondary ts tiebreak keeps
+   * pagination stable when the primary column has duplicates.
+   */
+  private buildOrderBy(
+    filters: AuditQueryFilters,
+  ): Array<Record<string, 'asc' | 'desc'>> {
+    const allowed: readonly AuditSortColumn[] = ['ts', 'event', 'clientId', 'sub', 'success'];
+    // Unknown column → full default (newest-first), ignoring any direction.
+    if (!filters.sortBy || !allowed.includes(filters.sortBy)) {
+      return [{ ts: 'desc' }];
+    }
+    const dir: 'asc' | 'desc' = filters.sortDir === 'asc' ? 'asc' : 'desc';
+    return filters.sortBy === 'ts' ? [{ ts: dir }] : [{ [filters.sortBy]: dir }, { ts: 'desc' }];
+  }
+
   async list(filters: AuditQueryFilters) {
     const page = Math.max(1, filters.page ?? 1);
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
@@ -253,7 +271,7 @@ export class OAuthAuditService {
     const [rows, total] = await Promise.all([
       this.prisma.oAuthAuditLog.findMany({
         where,
-        orderBy: { ts: 'desc' },
+        orderBy: this.buildOrderBy(filters),
         skip: (page - 1) * limit,
         take: limit,
       }),

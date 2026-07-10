@@ -128,5 +128,23 @@ describe('OAuthAuditService', () => {
       expect(where.ts.gte).toBe(since);
       expect(where.ts.lte).toBe(until);
     });
+
+    it('defaults to newest-first (ts desc) when no sort is given', async () => {
+      await service.list({ limit: 10 });
+      const orderBy = mockPrisma.oAuthAuditLog.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy).toEqual([{ ts: 'desc' }]);
+    });
+
+    it('sorts by a whitelisted column asc with a ts tiebreak', async () => {
+      await service.list({ sortBy: 'event', sortDir: 'asc' });
+      const orderBy = mockPrisma.oAuthAuditLog.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy).toEqual([{ event: 'asc' }, { ts: 'desc' }]);
+    });
+
+    it('ignores a non-whitelisted sort column (falls back to ts desc)', async () => {
+      await service.list({ sortBy: 'metadata' as never, sortDir: 'asc' });
+      const orderBy = mockPrisma.oAuthAuditLog.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy).toEqual([{ ts: 'desc' }]);
+    });
   });
 });

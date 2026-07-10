@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
-import { AuditRow, SuccessFilter } from './types'
+import { AuditRow, SuccessFilter, AuditSortColumn } from './types'
 import { Filters } from './filters'
 import { ResultsTable } from './results-table'
 
@@ -30,6 +30,10 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
 
+  // Sort (server-side — the list is paginated, so it must sort across pages).
+  const [sortBy, setSortBy] = useState<AuditSortColumn>('ts')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
   // Expanded row IDs (multi-open allowed)
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
 
@@ -51,6 +55,8 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
         if (successFilter !== 'all') params.set('success', successFilter)
         if (since) params.set('since', new Date(since).toISOString())
         if (until) params.set('until', new Date(until).toISOString())
+        params.set('sortBy', sortBy)
+        params.set('sortDir', sortDir)
 
         const res = await api.get(`/admin/audit-log?${params.toString()}`, config)
         setRows(res.data.rows)
@@ -61,13 +67,24 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
         setLoading(false)
       }
     },
-    [config, event, clientId, companyId, successFilter, since, until],
+    [config, event, clientId, companyId, successFilter, since, until, sortBy, sortDir],
   )
 
   useEffect(() => {
     load(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, clientId, companyId, successFilter, since, until])
+  }, [event, clientId, companyId, successFilter, since, until, sortBy, sortDir])
+
+  // Clicking a column: toggle direction if it's already active, else switch to
+  // it (default desc). Resets to page 1 via the load(1) effect above.
+  const onSort = (col: AuditSortColumn) => {
+    if (col === sortBy) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(col)
+      setSortDir('desc')
+    }
+  }
 
   // Shared query string for the current filter set (no pagination — export
   // applies its own row cap server-side). Keeps list + export in sync.
@@ -173,6 +190,9 @@ export default function AuditLogSection({ accessToken }: AuditLogSectionProps) {
         openIds={openIds}
         toggleRow={toggleRow}
         onPage={load}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={onSort}
       />
     </div>
   )

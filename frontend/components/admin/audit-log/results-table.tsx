@@ -10,11 +10,47 @@ import {
   Loader2,
   Clock,
   ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
   Inbox,
 } from 'lucide-react'
 import { Badge } from '@/components/ui'
-import { AuditRow, eventBadgeVariant, formatRelative } from './types'
+import { AuditRow, AuditSortColumn, eventBadgeVariant, formatRelative } from './types'
 import { ExpandedDetail } from './expanded-detail'
+
+/** Clickable, sort-aware column header. */
+function SortHeader({
+  col,
+  label,
+  align,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  col: AuditSortColumn
+  label: string
+  align?: 'center'
+  sortBy: AuditSortColumn
+  sortDir: 'asc' | 'desc'
+  onSort: (col: AuditSortColumn) => void
+}) {
+  const active = sortBy === col
+  const Icon = !active ? ChevronsUpDown : sortDir === 'asc' ? ChevronUp : ChevronDown
+  return (
+    <th className={`px-3 py-2 font-medium ${align === 'center' ? 'text-center' : ''}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-[var(--text)] ${
+          active ? 'text-[var(--text)]' : ''
+        } ${align === 'center' ? 'mx-auto' : ''}`}
+      >
+        {label}
+        <Icon className={`w-3 h-3 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`} />
+      </button>
+    </th>
+  )
+}
 
 export function ResultsTable({
   rows,
@@ -24,6 +60,9 @@ export function ResultsTable({
   openIds,
   toggleRow,
   onPage,
+  sortBy,
+  sortDir,
+  onSort,
 }: {
   rows: AuditRow[]
   loading: boolean
@@ -32,7 +71,11 @@ export function ResultsTable({
   openIds: Set<string>
   toggleRow: (id: string) => void
   onPage: (page: number) => void
+  sortBy: AuditSortColumn
+  sortDir: 'asc' | 'desc'
+  onSort: (col: AuditSortColumn) => void
 }) {
+  const sortProps = { sortBy, sortDir, onSort }
   return (
     <div className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
@@ -66,13 +109,13 @@ export function ResultsTable({
             <thead>
               <tr className="border-b border-[var(--border)] text-left text-[11px] font-medium uppercase tracking-wide text-[var(--text-faint)]">
                 <th className="px-3 py-2 font-medium w-8"></th>
-                <th className="px-3 py-2 font-medium">When</th>
-                <th className="px-3 py-2 font-medium">Event</th>
-                <th className="px-3 py-2 font-medium">Client</th>
-                <th className="px-3 py-2 font-medium">Subject</th>
+                <SortHeader col="ts" label="When" {...sortProps} />
+                <SortHeader col="event" label="Event" {...sortProps} />
+                <SortHeader col="clientId" label="Client" {...sortProps} />
+                <SortHeader col="sub" label="Subject" {...sortProps} />
                 <th className="px-3 py-2 font-medium">Scopes</th>
                 <th className="px-3 py-2 font-medium">IP</th>
-                <th className="px-3 py-2 font-medium text-center">Result</th>
+                <SortHeader col="success" label="Result" align="center" {...sortProps} />
               </tr>
             </thead>
             <tbody>

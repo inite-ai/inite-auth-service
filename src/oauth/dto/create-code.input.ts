@@ -39,6 +39,11 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   resource?: string;
+
+  /** RFC 9396 raw `authorization_details` JSON, re-posted from the consent UI. */
+  @IsString()
+  @IsOptional()
+  authorizationDetails?: string;
 }
 
 

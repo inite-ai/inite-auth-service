@@ -2,13 +2,15 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
 import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
+import { AuthorizationDetailsService } from './authorization-details.service';
+import { AuthorizationDetail } from './contracts/authorization-detail';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -29,6 +31,7 @@ export class OAuthService {
     private readonly identityService: IdentityService,
     private readonly emailService: EmailService,
     private readonly tokenIssuer: OAuthTokenIssuerService,
+    private readonly authorizationDetails: AuthorizationDetailsService,
   ) {}
 
   /**
@@ -81,6 +84,11 @@ export class OAuthService {
       select: { companyId: true },
     });
 
+    // RFC 9396: validate the raw authorization_details here (the single valve
+    // covering both the direct-authorize and consent code-issuance paths).
+    // Throws invalid_authorization_details on any violation.
+    const details = this.authorizationDetails.parse(input.authorizationDetails);
+
     await this.prisma.authorizationCode.create({
       data: {
         code,
@@ -94,6 +102,9 @@ export class OAuthService {
         nonce: input.nonce ?? null,
         acrValues: input.acrValues ?? null,
         resource: input.resource ?? null,
+        authorizationDetails: details
+          ? (details as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
         amr: input.amr ?? [],
         expiresAt,
         used: false,
@@ -181,6 +192,9 @@ export class OAuthService {
         amr: authCode.amr ?? [],
         acr: authCode.acrValues ?? undefined,
       },
+      // RFC 9396: forward the grant captured on the code into the token.
+      authorizationDetails:
+        (authCode.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,
     });
 
     // Best-effort: if this is the first successful token exchange

@@ -5,6 +5,7 @@ import { JwksService } from './jwks.service';
 import { DbHealthService } from './db-health.service';
 import { RedisService } from './redis.service';
 import { MetricsService } from './metrics.service';
+import { resolveAuthorizationDetailsTypes } from '../oauth/authorization-details.config';
 
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
@@ -150,6 +151,16 @@ export class HealthController {
   }
 
   private authServerMetadata(issuer: string) {
+    // RFC 9396: only advertise authorization_details support (and the accepted
+    // types) when the feature is turned on, so discovery matches enforcement.
+    const rar =
+      this.configService.get<string>('RAR_ENABLED') === 'true'
+        ? {
+            authorization_details_types_supported: resolveAuthorizationDetailsTypes(
+              this.configService.get<string>('AUTHORIZATION_DETAILS_TYPES'),
+            ),
+          }
+        : {};
     return {
       issuer,
       authorization_endpoint: `${issuer}/v1/oauth/authorize`,
@@ -225,6 +236,7 @@ export class HealthController {
       // RFC 9449. Listing the algorithms our DPoP verifier accepts
       // tells SDK authors which key types to mint for M2M clients.
       dpop_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'EdDSA'],
+      ...rar,
     };
   }
 }

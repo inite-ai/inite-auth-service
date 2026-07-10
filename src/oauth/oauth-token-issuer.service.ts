@@ -7,9 +7,10 @@ import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { Optional } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { AuthorizationDetail } from './contracts/authorization-detail';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 /**
@@ -37,6 +38,12 @@ export interface GenerateTokensInput {
    * id_token `aud` is NOT affected — it stays the clientId per OIDC core.
    */
   audience?: string;
+  /**
+   * RFC 9396 authorization_details granted for this token. Emitted as an
+   * access-token claim and persisted on the refresh token so rotation keeps
+   * the same grant.
+   */
+  authorizationDetails?: AuthorizationDetail[];
 }
 
 /** Issuer + access-token expiry resolved once per token issuance. */
@@ -150,6 +157,10 @@ export class OAuthTokenIssuerService {
         picture: user.avatarUrl,
         roles: orgCtx.roles,
         ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
+        // RFC 9396: echo the granted authorization_details into the access token.
+        ...(input.authorizationDetails?.length
+          ? { authorization_details: input.authorizationDetails }
+          : {}),
         scope,
       },
       {
@@ -264,6 +275,10 @@ export class OAuthTokenIssuerService {
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
+        // RFC 9396: persist the grant so rotation re-emits the same details.
+        authorizationDetails: input.authorizationDetails?.length
+          ? (input.authorizationDetails as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
         expiresAt,
         revoked: false,
         rotatedFrom: rotatedFrom ?? null,
@@ -345,6 +360,9 @@ export class OAuthTokenIssuerService {
       rotatedFrom: matchedToken.id,
       nonce: matchedToken.nonce ?? undefined,
       authnContext: { amr: matchedToken.amr ?? [] },
+      // RFC 9396: carry the grant across rotation.
+      authorizationDetails:
+        (matchedToken.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,
     });
   }
 

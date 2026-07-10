@@ -71,9 +71,18 @@ export class RequestObjectService {
       'code_challenge', 'code_challenge_method', 'prompt', 'nonce',
       'acr_values', 'resource',
     ];
+    const record = p as Record<string, unknown>;
     for (const key of keys) {
-      const value = (p as Record<string, unknown>)[key];
+      const value = record[key];
       if (typeof value === 'string') out[key] = value;
+    }
+    // RFC 9396 inside a JAR carries authorization_details as a native JSON
+    // array; normalize it to the raw string the downstream validator expects.
+    const details = record.authorization_details;
+    if (typeof details === 'string') {
+      out.authorization_details = details;
+    } else if (Array.isArray(details)) {
+      out.authorization_details = JSON.stringify(details);
     }
     return out;
   }

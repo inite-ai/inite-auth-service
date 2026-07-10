@@ -121,9 +121,13 @@ Where we can lead rather than follow, anchored on our two unique strengths:
   or polled to registered receivers for near-real-time revocation propagation —
   increasingly table-stakes for MCP/enterprise. Discovery at
   `/.well-known/ssf-configuration`.
-- **Rich Authorization Requests (RFC 9396)** — **L**. *Only Auth0 ships this in
-  production.* MCP is pulling it forward for fine-grained agent permissions. Adding
-  `authorization_details` (on top of our existing PAR) would put us in rare company.
+- ✅ **Rich Authorization Requests (RFC 9396)** — **L**. *Shipped (behind
+  `RAR_ENABLED`).* *Only Auth0 ships this in production* — MCP is pulling it forward
+  for fine-grained agent permissions. `authorization_details` (a JSON array of typed
+  permission objects) rides alongside `scope` at `/authorize` + `/par`, is validated
+  against a configurable type allow-list (`AUTHORIZATION_DETAILS_TYPES`), persisted on
+  the code + refresh token, emitted as an access-token claim, re-emitted across refresh
+  rotation, and advertised via `authorization_details_types_supported` in AS metadata.
 - **OAuth for MCP / AI agents — the standout 2026 bet** — **M–L**. The MCP spec
   treats the MCP server as an OAuth resource server validating tokens from a
   separate authorization server — which is exactly what we are. We already have the

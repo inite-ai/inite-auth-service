@@ -75,6 +75,7 @@ export class OAuthRequestController {
           nonce: p.nonce,
           acrValues: p.acr_values,
           prompt: p.prompt,
+          authorizationDetails: p.authorization_details,
         })
       ).requestUri,
       expires_in: 60,

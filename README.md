@@ -136,7 +136,7 @@ const auth = new IniteAuth({ baseUrl: 'https://auth.example.com', clientId: 'my-
 | Organizations / Teams + relational RBAC | — | ✅ |
 | CAEP / Shared Signals (SET transmitter) | RFC 8417 / 8935 / 8936 | ✅ |
 | Social login federation (Google/GitHub/OIDC) | OIDC | ✅ |
-| Rich Authorization Requests | RFC 9396 | ⬜ roadmap |
+| Rich Authorization Requests | RFC 9396 | ✅ *(flag: `RAR_ENABLED`)* |
 | mTLS + certificate-bound tokens | RFC 8705 | ⬜ roadmap |
 | SAML / SCIM | — | ⬜ roadmap |
 
@@ -212,12 +212,12 @@ npm ci && npm run build && npm test && npm run lint
 
 ## Roadmap
 
-Tracked in [ROADMAP.md](ROADMAP.md). Next up: Rich Authorization Requests
-(RFC 9396), mTLS (RFC 8705), SAML, SCIM, and more SDKs. Recently shipped:
-private_key_jwt (RFC 7523) + signed request objects (RFC 9101), CAEP / Shared
-Signals (RFC 8417), organizations + relational RBAC, signing-key rotation with
-overlapping kids, encrypted 2FA secrets at rest, Token Exchange (RFC 8693), and
-the MCP bundle (RFC 8414 / 7591 / 9728 / 8707).
+Tracked in [ROADMAP.md](ROADMAP.md). Next up: mTLS (RFC 8705), SAML, SCIM, and
+more SDKs. Recently shipped: Rich Authorization Requests (RFC 9396, behind
+`RAR_ENABLED`), private_key_jwt (RFC 7523) + signed request objects (RFC 9101),
+CAEP / Shared Signals (RFC 8417), organizations + relational RBAC, signing-key
+rotation with overlapping kids, encrypted 2FA secrets at rest, Token Exchange
+(RFC 8693), and the MCP bundle (RFC 8414 / 7591 / 9728 / 8707).
 
 ## License
 

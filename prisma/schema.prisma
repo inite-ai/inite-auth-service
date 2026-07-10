@@ -345,6 +345,10 @@ model AuthorizationCode {
   /// this code be exchanged for; at /token it binds the issued access
   /// token's `aud` (validated against the client's allowedAudiences).
   resource            String?
+  /// RFC 9396 Rich Authorization Requests. The validated `authorization_details`
+  /// JSON array (typed permission objects) captured at /authorize or /par; at
+  /// /token it is echoed to the client and embedded as an access-token claim.
+  authorizationDetails Json?   @map("authorizationDetails")
   expiresAt           DateTime @map("expiresAt")
   used                Boolean  @default(false)
   createdAt           DateTime @default(now()) @map("createdAt")
@@ -379,6 +383,9 @@ model RefreshToken {
   /// Carry AMR forward across rotation so refresh-issued id_tokens
   /// keep the original authentication context.
   amr         String[] @default([]) @map("amr")
+  /// RFC 9396 authorization_details carried forward across rotation so
+  /// refresh-issued access tokens keep the same granted permissions.
+  authorizationDetails Json? @map("authorizationDetails")
   expiresAt   DateTime  @map("expiresAt")
   rotatedFrom String?   @map("rotatedFrom") @db.Uuid
   revoked     Boolean   @default(false)

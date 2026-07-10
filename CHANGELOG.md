@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.8.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.7.0...inite-auth-service-v1.8.0) (2026-07-10)
+
+
+### Features
+
+* **admin-ui:** surface audit-log export + user revoke-sessions ([#110](https://github.com/inite-ai/inite-auth-service/issues/110)) ([92f9cb5](https://github.com/inite-ai/inite-auth-service/commit/92f9cb5ff31f219872ec143b7847a43b7526d99a))
+* **audit:** sortable columns in the audit log (backend + UI) ([#114](https://github.com/inite-ai/inite-auth-service/issues/114)) ([52fd944](https://github.com/inite-ai/inite-auth-service/commit/52fd9443d903e150b659fa7b7dd52ad4f176f498))
+* **orgs:** edit custom role permissions (backend + UI) ([#112](https://github.com/inite-ai/inite-auth-service/issues/112)) ([b6c93d5](https://github.com/inite-ai/inite-auth-service/commit/b6c93d5b9e9d51d1242c38b8052abb1ddf7f1655))
+* **ssf:** enable/disable a stream without deleting it (backend + UI) ([#113](https://github.com/inite-ai/inite-auth-service/issues/113)) ([174ad05](https://github.com/inite-ai/inite-auth-service/commit/174ad0558e052612c7cf5039d926a2db9e021918))
+
 ## [1.7.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.6.0...inite-auth-service-v1.7.0) (2026-07-08)
 
 

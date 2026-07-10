@@ -269,6 +269,7 @@ export class OAuthSessionController {
       acrValues: this.stepUp.achievedAcr(amr) ?? input.acrValues,
       amr,
       resource: input.resource,
+      authorizationDetails: input.authorizationDetails,
     });
 
     this.logger.oauth('Code created', { clientId: input.clientId, userId });

@@ -6,6 +6,7 @@ import { OAuthService } from '../oauth.service';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { OAuthM2mService } from '../oauth-m2m.service';
+import { AuthorizationDetailsService } from '../authorization-details.service';
 import { OAuthOriginsService } from '../oauth-origins.service';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
@@ -103,6 +104,7 @@ describe('OAuthService', () => {
         OAuthTokenIssuerService,
         OAuthM2mService,
         OAuthOriginsService,
+        AuthorizationDetailsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },

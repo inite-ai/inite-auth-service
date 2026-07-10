@@ -24,6 +24,8 @@ export interface AuthorizeQuery {
   request?: string;
   /** RFC 8707 Resource Indicator — target resource for the issued token. */
   resource?: string;
+  /** RFC 9396 — JSON-encoded array of typed authorization_details objects. */
+  authorization_details?: string;
 }
 
 /** Authorize params after PAR (request_uri) resolution, normalized to camelCase. */
@@ -40,6 +42,8 @@ export interface ResolvedAuthorizeParams {
   acrValues?: string;
   /** RFC 8707 Resource Indicator — target resource for the issued token. */
   resource?: string;
+  /** RFC 9396 — raw JSON `authorization_details` string, validated downstream. */
+  authorizationDetails?: string;
 }
 
 export interface TokenRequestBody {
@@ -63,4 +67,6 @@ export interface TokenRequestBody {
   requested_token_type?: string;
   // RFC 8707 Resource Indicators
   resource?: string;
+  // RFC 9396 — authorization_details on the client_credentials grant.
+  authorization_details?: string;
 }

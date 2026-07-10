@@ -137,6 +137,8 @@ export class OAuthController {
       prompt: q.prompt,
       // RFC 8707 — not part of the PAR request object round-trip.
       resource: q.resource,
+      // RFC 9396 — raw JSON, validated at code creation.
+      authorizationDetails: q.authorization_details,
     };
   }
 
@@ -166,6 +168,7 @@ export class OAuthController {
       nonce: pushed.nonce ?? base.nonce,
       acrValues: pushed.acrValues ?? base.acrValues,
       prompt: pushed.prompt ?? base.prompt,
+      authorizationDetails: pushed.authorizationDetails ?? base.authorizationDetails,
     };
   }
 
@@ -241,6 +244,7 @@ export class OAuthController {
       acrValues: this.stepUp.achievedAcr(amr) ?? p.acrValues ?? undefined,
       amr,
       resource: p.resource,
+      authorizationDetails: p.authorizationDetails,
     });
 
     this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });

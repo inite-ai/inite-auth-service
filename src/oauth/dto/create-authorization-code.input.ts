@@ -22,4 +22,9 @@ export interface CreateAuthorizationCodeInput {
    * against the client's allowedAudiences).
    */
   resource?: string;
+  /**
+   * RFC 9396 raw `authorization_details` JSON string captured at /authorize or
+   * /par. Validated + persisted in createAuthorizationCode.
+   */
+  authorizationDetails?: string;
 }

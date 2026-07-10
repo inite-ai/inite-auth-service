@@ -15,7 +15,12 @@ describe('OrganizationsService', () => {
       create: jest.Mock;
       delete: jest.Mock;
     };
-    orgRole: { create: jest.Mock; findMany: jest.Mock };
+    orgRole: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      update: jest.Mock;
+    };
   };
   let service: OrganizationsService;
 
@@ -27,7 +32,12 @@ describe('OrganizationsService', () => {
         create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'o1', ...data })),
         delete: jest.fn(),
       },
-      orgRole: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      orgRole: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'r1', ...data })),
+      },
     };
     service = new OrganizationsService(prisma as unknown as PrismaService);
   });
@@ -58,5 +68,33 @@ describe('OrganizationsService', () => {
     prisma.organization.findFirst.mockResolvedValue({ id: 'o1', companyId: 'acme' });
     await expect(service.createRole(SUPERADMIN, 'o1', { slug: 'owner', name: 'Owner', permissions: [] }))
       .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects editing a system role', async () => {
+    prisma.organization.findFirst.mockResolvedValue({ id: 'o1', companyId: 'acme' });
+    await expect(service.updateRole(SUPERADMIN, 'o1', { slug: 'admin', name: 'Admin', permissions: ['org:*'] }))
+      .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('404s when editing a custom role that does not exist', async () => {
+    prisma.organization.findFirst.mockResolvedValue({ id: 'o1', companyId: 'acme' });
+    prisma.orgRole.findFirst.mockResolvedValue(null);
+    await expect(service.updateRole(SUPERADMIN, 'o1', { slug: 'auditor', name: 'Auditor', permissions: [] }))
+      .rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates a custom role name + permissions', async () => {
+    prisma.organization.findFirst.mockResolvedValue({ id: 'o1', companyId: 'acme' });
+    prisma.orgRole.findFirst.mockResolvedValue({ id: 'r1', organizationId: 'o1', slug: 'auditor' });
+    const role = await service.updateRole(SUPERADMIN, 'o1', {
+      slug: 'auditor',
+      name: 'Senior Auditor',
+      permissions: ['org:read', 'org:members:manage'],
+    });
+    expect(prisma.orgRole.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { name: 'Senior Auditor', permissions: ['org:read', 'org:members:manage'] },
+    });
+    expect(role.name).toBe('Senior Auditor');
   });
 });

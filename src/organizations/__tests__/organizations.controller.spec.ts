@@ -35,6 +35,7 @@ describe('OrganizationsController', () => {
       removeMember: jest.fn().mockResolvedValue(undefined),
       listRoles: jest.fn().mockResolvedValue([]),
       createRole: jest.fn().mockResolvedValue({ id: 'r1' }),
+      updateRole: jest.fn().mockResolvedValue({ id: 'r1' }),
     } as unknown as jest.Mocked<OrganizationsService>;
     controller = new OrganizationsController(service);
   });
@@ -75,5 +76,15 @@ describe('OrganizationsController', () => {
     const dto = { slug: 'auditor', name: 'Auditor', permissions: ['org:read'] } as never;
     await controller.createRole(superadmin, 'o1', dto);
     expect(service.createRole).toHaveBeenCalledWith({ kind: 'superadmin' }, 'o1', dto);
+  });
+
+  it('updateRole folds slug into the patch and passes scope + orgId', async () => {
+    const dto = { name: 'Auditor', permissions: ['org:read'] } as never;
+    await controller.updateRole(superadmin, 'o1', 'auditor', dto);
+    expect(service.updateRole).toHaveBeenCalledWith({ kind: 'superadmin' }, 'o1', {
+      slug: 'auditor',
+      name: 'Auditor',
+      permissions: ['org:read'],
+    });
   });
 });

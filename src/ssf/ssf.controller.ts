@@ -60,6 +60,16 @@ export class SsfController {
     return { success: true };
   }
 
+  @Post('streams/:streamId/enable')
+  enable(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
+    return this.streams.setStatus(this.scope(user), streamId, 'enabled');
+  }
+
+  @Post('streams/:streamId/disable')
+  disable(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
+    return this.streams.setStatus(this.scope(user), streamId, 'disabled');
+  }
+
   @Post('streams/:streamId/verification')
   async verify(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string) {
     const stream = await this.streams.get(this.scope(user), streamId);

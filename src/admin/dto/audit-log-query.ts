@@ -16,4 +16,7 @@ export interface AuditLogQuery {
   limit?: string;
   /** For the export endpoint: 'csv' | 'json' (default json). */
   format?: string;
+  /** Sort column (ts|event|clientId|sub|success) + direction (asc|desc). */
+  sortBy?: string;
+  sortDir?: string;
 }

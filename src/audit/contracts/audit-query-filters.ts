@@ -1,3 +1,6 @@
+/** Columns the audit list may be sorted by (whitelist — see buildOrderBy). */
+export type AuditSortColumn = 'ts' | 'event' | 'clientId' | 'sub' | 'success';
+
 /** Filter shape shared by OAuthAuditService.list() and exportRows(). */
 export interface AuditQueryFilters {
   companyId?: string;
@@ -8,4 +11,6 @@ export interface AuditQueryFilters {
   until?: Date;
   page?: number;
   limit?: number;
+  sortBy?: AuditSortColumn;
+  sortDir?: 'asc' | 'desc';
 }

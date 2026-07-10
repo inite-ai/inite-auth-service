@@ -35,6 +35,9 @@ export const COMMON_EVENTS = [
 
 export type SuccessFilter = 'all' | 'true' | 'false'
 
+/** Columns the audit list may be sorted by (must match the backend whitelist). */
+export type AuditSortColumn = 'ts' | 'event' | 'clientId' | 'sub' | 'success'
+
 export function eventBadgeVariant(event: string, success: boolean) {
   if (!success) return 'danger' as const
   if (event.startsWith('client.')) return 'accent' as const

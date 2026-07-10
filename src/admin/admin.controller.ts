@@ -294,6 +294,10 @@ export class AdminController {
       until: q.until ? new Date(q.until) : undefined,
       page: parseInt(q.page ?? '1', 10),
       limit: parseInt(q.limit ?? '50', 10),
+      // The service whitelists the column, so an unknown sortBy is safely
+      // ignored (falls back to newest-first) — no validation needed here.
+      sortBy: q.sortBy as AuditQueryFilters['sortBy'],
+      sortDir: q.sortDir === 'asc' ? 'asc' : q.sortDir === 'desc' ? 'desc' : undefined,
     };
     if (scope.kind === 'superadmin' && q.companyId) {
       filters.companyId = q.companyId;

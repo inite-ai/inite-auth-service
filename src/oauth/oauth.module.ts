@@ -25,6 +25,7 @@ import { ClientAssertionJtiStore } from './client-assertion-jti.store';
 import { ClientAssertionJtiReaperService } from './client-assertion-jti-reaper.service';
 import { ClientAuthService } from './client-auth.service';
 import { RequestObjectService } from './request-object.service';
+import { AuthorizationDetailsService } from './authorization-details.service';
 import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
@@ -59,6 +60,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     ClientAssertionJtiReaperService,
     ClientAuthService,
     RequestObjectService,
+    AuthorizationDetailsService,
   ],
   controllers: [
     OAuthController,
@@ -75,6 +77,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     DpopService,
     ParService,
     DeviceFlowService,
+    AuthorizationDetailsService,
   ],
 })
 export class OAuthModule {}

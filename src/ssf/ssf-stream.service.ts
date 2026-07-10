@@ -44,4 +44,19 @@ export class SsfStreamService {
     const stream = await this.get(scope, streamId);
     await this.prisma.ssfStream.delete({ where: { id: stream.id } });
   }
+
+  /** Pause / resume delivery without deleting the stream. The emitter only
+   *  fans events out to `status: 'enabled'` streams, so a disabled stream
+   *  keeps its config + backlog but receives nothing new. */
+  async setStatus(
+    scope: AdminScope,
+    streamId: string,
+    status: 'enabled' | 'disabled',
+  ): Promise<SsfStream> {
+    const stream = await this.get(scope, streamId);
+    return this.prisma.ssfStream.update({
+      where: { id: stream.id },
+      data: { status },
+    });
+  }
 }

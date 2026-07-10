@@ -9,6 +9,8 @@ import {
   Send,
   Download,
   ShieldCheck,
+  Power,
+  PowerOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
@@ -27,6 +29,7 @@ export default function SsfStreamsSection({ accessToken }: SsfStreamsSectionProp
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<SsfStream | null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
 
   const config = useMemo(
     () => ({ headers: { Authorization: `Bearer ${accessToken}` } }),
@@ -58,6 +61,20 @@ export default function SsfStreamsSection({ accessToken }: SsfStreamsSectionProp
       toast.error('Failed to send verification event')
     } finally {
       setVerifying(null)
+    }
+  }
+
+  const toggleStatus = async (stream: SsfStream) => {
+    const action = stream.status === 'enabled' ? 'disable' : 'enable'
+    setToggling(stream.streamId)
+    try {
+      await api.post(`/ssf/streams/${stream.streamId}/${action}`, {}, config)
+      toast.success(action === 'enable' ? 'Stream enabled' : 'Stream disabled')
+      load()
+    } catch {
+      toast.error(`Failed to ${action} stream`)
+    } finally {
+      setToggling(null)
     }
   }
 
@@ -186,6 +203,22 @@ export default function SsfStreamsSection({ accessToken }: SsfStreamsSectionProp
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <ShieldCheck className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title={s.status === 'enabled' ? 'Disable stream' : 'Enable stream'}
+                          aria-label={s.status === 'enabled' ? 'Disable stream' : 'Enable stream'}
+                          onClick={() => toggleStatus(s)}
+                          disabled={toggling === s.streamId}
+                          className="p-1.5 rounded-md text-[var(--text-faint)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text)] transition-colors disabled:opacity-50"
+                        >
+                          {toggling === s.streamId ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : s.status === 'enabled' ? (
+                            <PowerOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Power className="w-3.5 h-3.5" />
                           )}
                         </button>
                         <button

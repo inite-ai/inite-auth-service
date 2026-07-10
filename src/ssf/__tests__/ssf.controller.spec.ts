@@ -33,6 +33,7 @@ describe('SsfController', () => {
       list: jest.fn().mockResolvedValue([]),
       get: jest.fn().mockResolvedValue({ id: 's1' }),
       remove: jest.fn().mockResolvedValue(undefined),
+      setStatus: jest.fn().mockResolvedValue({ id: 's1', status: 'disabled' }),
     } as unknown as jest.Mocked<SsfStreamService>;
     delivery = {
       poll: jest.fn().mockResolvedValue(['set1']),
@@ -57,6 +58,16 @@ describe('SsfController', () => {
   it('remove awaits + returns success', async () => {
     await expect(controller.remove(admin, 's1')).resolves.toEqual({ success: true });
     expect(streams.remove).toHaveBeenCalledWith({ kind: 'superadmin' }, 's1');
+  });
+
+  it('enable sets status to enabled', async () => {
+    await controller.enable(admin, 's1');
+    expect(streams.setStatus).toHaveBeenCalledWith({ kind: 'superadmin' }, 's1', 'enabled');
+  });
+
+  it('disable sets status to disabled', async () => {
+    await controller.disable(admin, 's1');
+    expect(streams.setStatus).toHaveBeenCalledWith({ kind: 'superadmin' }, 's1', 'disabled');
   });
 
   it('verify resolves the stream then emits a verification SET', async () => {

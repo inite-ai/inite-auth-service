@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthorizationDetail } from './contracts/authorization-detail';
+import { resolveAuthorizationDetailsTypes } from './authorization-details.config';
 
 /**
  * RFC 9396 Rich Authorization Requests — parse + validate the
@@ -15,11 +16,6 @@ import { AuthorizationDetail } from './contracts/authorization-detail';
  */
 @Injectable()
 export class AuthorizationDetailsService {
-  // Built-in default types. Overridable via the comma-separated
-  // AUTHORIZATION_DETAILS_TYPES env var; whatever is active is also what
-  // discovery advertises as authorization_details_types_supported.
-  private static readonly DEFAULT_TYPES = ['inite_mcp_resource', 'payment_initiation'];
-
   constructor(private readonly configService: ConfigService) {}
 
   /** True when RAR is turned on for this deployment. */
@@ -29,13 +25,9 @@ export class AuthorizationDetailsService {
 
   /** The supported `type` values (for enforcement + discovery metadata). */
   supportedTypes(): string[] {
-    const raw = this.configService.get<string>('AUTHORIZATION_DETAILS_TYPES');
-    if (!raw) return [...AuthorizationDetailsService.DEFAULT_TYPES];
-    const types = raw
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-    return types.length ? types : [...AuthorizationDetailsService.DEFAULT_TYPES];
+    return resolveAuthorizationDetailsTypes(
+      this.configService.get<string>('AUTHORIZATION_DETAILS_TYPES'),
+    );
   }
 
   /**

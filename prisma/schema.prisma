@@ -136,6 +136,34 @@ model OAuthIdentity {
   @@map("oauth_identities")
 }
 
+/// A per-tenant inbound SAML 2.0 IdP connection (enterprise SSO). One row per
+/// enterprise IdP an organization federates from. `slug` is the stable path
+/// segment used in the ACS + metadata URLs (`/v1/auth/saml/<slug>/…`). The IdP's
+/// X.509 signing certificate is stored FieldCrypto-encrypted at rest, like the
+/// federation client secret. Assertions are validated against this cert on the
+/// ACS endpoint; a resolved SAML login reuses the same NormalizedProfile →
+/// FederationService.resolveUser provisioning path as social login.
+model SamlConnection {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Tenant this connection belongs to (bridges to the free-form companyId used
+  /// across OAuthClient/Organization). Provisioned users are scoped here.
+  companyId   String   @map("companyId")
+  slug        String   @unique
+  displayName String   @map("displayName")
+  enabled     Boolean  @default(true)
+  /// IdP EntityID (issuer) — the expected `Issuer` on inbound assertions.
+  idpEntityId String   @map("idpEntityId")
+  /// IdP Single Sign-On URL (redirect binding) for SP-initiated AuthnRequests.
+  idpSsoUrl   String   @map("idpSsoUrl")
+  /// FieldCrypto-encrypted PEM X.509 signing certificate of the IdP.
+  idpCertEnc  String   @map("idpCertEnc") @db.Text
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  @@index([companyId])
+  @@map("saml_connections")
+}
+
 model Passkey {
   id           String   @id @default(uuid()) @db.Uuid
   userId       String   @map("userId") @db.Uuid

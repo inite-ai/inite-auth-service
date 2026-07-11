@@ -5,9 +5,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SettingsService } from '../common/settings/settings.service';
 
 /**
  * Guards the SCIM 2.0 surface. Three gates:
@@ -19,12 +19,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
  */
 @Injectable()
 export class ScimGuard extends JwtAuthGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly settings: SettingsService) {
     super();
   }
 
   override async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (this.config.get<string>('SCIM_ENABLED') !== 'true') {
+    if (!this.settings.flag('SCIM_ENABLED')) {
       throw new NotFoundException('SCIM API is not enabled');
     }
     if (!(await super.canActivate(context))) return false;

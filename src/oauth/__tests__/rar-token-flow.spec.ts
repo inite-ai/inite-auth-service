@@ -2,6 +2,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 import type { User } from '@prisma/client';
 
 /**
@@ -49,6 +50,7 @@ describe('RAR — authorization_details in the token issuer', () => {
       prisma as unknown as PrismaService,
       jwt,
       config,
+      fakeSettings({}),
     );
   });
 

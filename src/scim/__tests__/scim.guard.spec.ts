@@ -1,7 +1,7 @@
 import { ExecutionContext, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ScimGuard } from '../scim.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 
 function ctxFor(method: string, user: unknown): ExecutionContext {
   return {
@@ -10,10 +10,7 @@ function ctxFor(method: string, user: unknown): ExecutionContext {
 }
 
 function guardWith(enabled: boolean): ScimGuard {
-  const config = {
-    get: (k: string) => (k === 'SCIM_ENABLED' ? (enabled ? 'true' : 'false') : undefined),
-  } as unknown as ConfigService;
-  return new ScimGuard(config);
+  return new ScimGuard(fakeSettings({ SCIM_ENABLED: enabled ? 'true' : 'false' }));
 }
 
 describe('ScimGuard', () => {

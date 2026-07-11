@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { resolveAuthorizationDetailsTypes } from './authorization-details.config';
+import { SettingsService } from '../common/settings/settings.service';
 
 /**
  * RFC 9396 Rich Authorization Requests — parse + validate the
@@ -16,17 +16,17 @@ import { resolveAuthorizationDetailsTypes } from './authorization-details.config
  */
 @Injectable()
 export class AuthorizationDetailsService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly settings: SettingsService) {}
 
   /** True when RAR is turned on for this deployment. */
   isEnabled(): boolean {
-    return this.configService.get<string>('RAR_ENABLED') === 'true';
+    return this.settings.flag('RAR_ENABLED');
   }
 
   /** The supported `type` values (for enforcement + discovery metadata). */
   supportedTypes(): string[] {
     return resolveAuthorizationDetailsTypes(
-      this.configService.get<string>('AUTHORIZATION_DETAILS_TYPES'),
+      this.settings.raw('AUTHORIZATION_DETAILS_TYPES'),
     );
   }
 

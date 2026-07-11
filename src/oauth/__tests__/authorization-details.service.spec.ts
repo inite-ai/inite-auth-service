@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AuthorizationDetailsService } from '../authorization-details.service';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 
 /**
  * RFC 9396 validator. A rejection must carry the `invalid_authorization_details`
@@ -8,8 +8,7 @@ import { AuthorizationDetailsService } from '../authorization-details.service';
  */
 describe('AuthorizationDetailsService', () => {
   function make(env: Record<string, string | undefined>): AuthorizationDetailsService {
-    const config = { get: (k: string) => env[k] } as unknown as ConfigService;
-    return new AuthorizationDetailsService(config);
+    return new AuthorizationDetailsService(fakeSettings(env));
   }
 
   const enabled = () => make({ RAR_ENABLED: 'true' });

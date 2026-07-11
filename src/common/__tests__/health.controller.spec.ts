@@ -14,6 +14,8 @@ import { JwksService } from '../jwks.service';
 import { DbHealthService } from '../db-health.service';
 import { RedisService } from '../redis.service';
 import { MetricsService } from '../metrics.service';
+import { SettingsService } from '../settings/settings.service';
+import { fakeSettings } from '../settings/settings.test-fixture';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -32,6 +34,7 @@ describe('HealthController', () => {
         { provide: DbHealthService, useValue: dbHealth },
         { provide: RedisService, useValue: redis },
         { provide: MetricsService, useValue: { expose: jest.fn() } },
+        { provide: SettingsService, useValue: fakeSettings({}) },
       ],
     }).compile();
 

@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { HealthController } from '../health.controller';
+import { fakeSettings } from '../settings/settings.test-fixture';
 
 /**
  * RFC 9396 discovery: authorization_details_types_supported must appear in the
@@ -16,6 +17,7 @@ describe('HealthController — RAR discovery metadata', () => {
       {} as never,
       {} as never,
       {} as never,
+      fakeSettings(env),
     );
   }
 

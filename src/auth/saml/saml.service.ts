@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SAML, SamlConfig, Profile, ValidateInResponseTo } from '@node-saml/node-saml';
 import { ResolvedSamlConnection } from './saml-connection.store';
 import { NormalizedProfile } from '../federation/contracts/normalized-profile';
+import { SettingsService } from '../../common/settings/settings.service';
 
 /** Common SAML attribute OIDs/URIs we look at for a display name. */
 const DISPLAY_NAME_ATTRS = [
@@ -25,11 +26,14 @@ const DISPLAY_NAME_ATTRS = [
  */
 @Injectable()
 export class SamlService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly settings: SettingsService,
+  ) {}
 
   /** True when SAML SSO is turned on for this deployment. */
   isEnabled(): boolean {
-    return this.config.get<string>('SAML_ENABLED') === 'true';
+    return this.settings.flag('SAML_ENABLED');
   }
 
   /** Per-connection SP EntityID (also the metadata URL). */

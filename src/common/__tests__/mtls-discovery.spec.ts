@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { HealthController } from '../health.controller';
+import { fakeSettings } from '../settings/settings.test-fixture';
 
 /**
  * RFC 8705 discovery: certificate-bound-token support, the mTLS client-auth
@@ -16,6 +17,7 @@ describe('HealthController — mTLS discovery metadata', () => {
       {} as never,
       {} as never,
       {} as never,
+      fakeSettings(env),
     );
     return controller.openidConfiguration() as Record<string, unknown>;
   }

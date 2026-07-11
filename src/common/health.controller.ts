@@ -6,6 +6,7 @@ import { DbHealthService } from './db-health.service';
 import { RedisService } from './redis.service';
 import { MetricsService } from './metrics.service';
 import { resolveAuthorizationDetailsTypes } from '../oauth/authorization-details.config';
+import { SettingsService } from './settings/settings.service';
 
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
@@ -16,6 +17,7 @@ export class HealthController {
     private readonly dbHealth: DbHealthService,
     private readonly redis: RedisService,
     private readonly metrics: MetricsService,
+    private readonly settings: SettingsService,
   ) {}
 
   @Get('metrics')
@@ -153,20 +155,19 @@ export class HealthController {
   private authServerMetadata(issuer: string) {
     // RFC 9396: only advertise authorization_details support (and the accepted
     // types) when the feature is turned on, so discovery matches enforcement.
-    const rar =
-      this.configService.get<string>('RAR_ENABLED') === 'true'
-        ? {
-            authorization_details_types_supported: resolveAuthorizationDetailsTypes(
-              this.configService.get<string>('AUTHORIZATION_DETAILS_TYPES'),
-            ),
-          }
-        : {};
+    const rar = this.settings.flag('RAR_ENABLED')
+      ? {
+          authorization_details_types_supported: resolveAuthorizationDetailsTypes(
+            this.settings.raw('AUTHORIZATION_DETAILS_TYPES'),
+          ),
+        }
+      : {};
 
     // RFC 8705: advertise certificate-bound tokens + the mTLS client-auth
     // methods only when enabled. mtls_endpoint_aliases points at the separate
     // mTLS host (MTLS_ISSUER) so ordinary clients keep using the primary host.
-    const mtlsOn = this.configService.get<string>('MTLS_ENABLED') === 'true';
-    const mtlsAliasHost = this.configService.get<string>('MTLS_ISSUER');
+    const mtlsOn = this.settings.flag('MTLS_ENABLED');
+    const mtlsAliasHost = this.settings.raw('MTLS_ISSUER');
     const mtls = mtlsOn
       ? {
           tls_client_certificate_bound_access_tokens: true,

@@ -72,6 +72,10 @@ model Membership {
   organizationId String   @map("organizationId") @db.Uuid
   role           String
   status         String   @default("active")
+  /// SCIM 2.0 (RFC 7643) externalId — the provisioning IdP's stable identifier
+  /// for this user within this tenant. Scoped per organization since each IdP
+  /// owns its own id-space. Null for memberships not created via SCIM.
+  externalId     String?  @map("externalId")
   createdAt      DateTime @default(now()) @map("createdAt")
   updatedAt      DateTime @updatedAt @map("updatedAt")
 
@@ -81,6 +85,7 @@ model Membership {
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@index([userId])
+  @@index([organizationId, externalId])
   @@map("memberships")
 }
 

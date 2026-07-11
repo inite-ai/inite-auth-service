@@ -76,8 +76,13 @@ genuine differentiator.
   account-disabled event, and `ServiceProviderConfig`/`ResourceTypes`/`Schemas`
   discovery. *Paywalled by Ory & Logto; Zitadel's is preview/user-only — OSS SCIM
   is a real edge.*
-- **SAML 2.0 (SP + IdP)** — **L**. Accept enterprise SAML and issue assertions.
-  Same paywall story as SCIM. Consider wrapping an existing lib over inventing it.
+- 🟡 **SAML 2.0 (SP + IdP)** — **L**. **SP shipped** (behind `SAML_ENABLED`):
+  inbound enterprise SSO wrapping `@node-saml/node-saml` — per-tenant IdP
+  connections (signing cert encrypted at rest), SP metadata, SP-initiated start +
+  an ACS that validates the XMLDSig signature / audience / conditions (XSW
+  signature-wrapping rejected, covered by tests) and reuses the federation
+  `resolveUser` provisioning path. **IdP side** (issuing assertions) still
+  roadmap. Same paywall story as SCIM — OSS SP SSO is a real edge.
 - **Audit-log export / SIEM streaming** — **M**. We have a queryable audit log; add
   bulk export (CSV/JSON) + webhook/stream to S3/HTTPS. Everyone treats turnkey SIEM
   streaming as Enterprise — a basic OSS exporter is welcome.

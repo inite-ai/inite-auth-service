@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth.module';
+import { FederationModule } from '../federation/federation.module';
 import { SamlController } from './saml.controller';
 import { SamlAdminController } from './saml-admin.controller';
 import { SamlService } from './saml.service';
@@ -14,7 +15,7 @@ import { SamlEnabledGuard } from './saml-enabled.guard';
  * are global.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, FederationModule],
   controllers: [SamlController, SamlAdminController],
   providers: [SamlService, SamlConnectionStore, SamlAdminService, SamlEnabledGuard],
   exports: [SamlService, SamlConnectionStore],

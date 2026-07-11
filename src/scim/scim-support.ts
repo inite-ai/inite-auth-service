@@ -1,6 +1,14 @@
 import { ForbiddenException } from '@nestjs/common';
-import { User, Membership } from '@prisma/client';
-import { ScimUser, SCIM_SCHEMAS } from './scim.contracts';
+import type { Request } from 'express';
+import { User, Membership, OrgRole } from '@prisma/client';
+import { ScimUser, ScimGroup, SCIM_SCHEMAS } from './scim.contracts';
+
+/** Absolute base URL for SCIM `meta.location`, honouring the terminating proxy. */
+export function scimBaseUrl(req: Request): string {
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? req.protocol ?? 'https';
+  const host = req.headers.host ?? '';
+  return `${proto}://${host}`;
+}
 
 /**
  * The machine principal fields SCIM reads. SCIM is tenant-scoped: every request
@@ -103,6 +111,92 @@ function activeFromOperation(op: {
 
 function coerceBool(value: unknown): boolean {
   return value === true || value === 'true' || value === 'True';
+}
+
+/** Map a tenant OrgRole + its member users onto the SCIM Group wire shape. */
+export function toScimGroup(
+  role: OrgRole,
+  members: Array<{ userId: string; email: string | null }>,
+  baseUrl: string,
+): ScimGroup {
+  return {
+    schemas: [SCIM_SCHEMAS.group],
+    id: role.id,
+    displayName: role.name,
+    members: members.map((m) => ({
+      value: m.userId,
+      ...(m.email ? { display: m.email } : {}),
+    })),
+    meta: {
+      resourceType: 'Group',
+      created: role.createdAt.toISOString(),
+      location: `${baseUrl}/scim/v2/Groups/${role.id}`,
+    },
+  };
+}
+
+/** Normalize a Group displayName into a role slug (lowercase, dash-joined). */
+export function slugifyGroupName(displayName: string): string {
+  const slug = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.length > 0 ? slug : 'group';
+}
+
+/** The structured effect of a Group PATCH: displayName + member add/remove/replace. */
+export interface GroupPatch {
+  displayName?: string;
+  addMembers: string[];
+  removeMembers: string[];
+  replaceMembers?: string[];
+}
+
+/** Reduce a SCIM Group PATCH op list into a structured GroupPatch. */
+export function groupPatchFromOps(
+  operations: Array<{ op: string; path?: string; value?: unknown }> | undefined,
+): GroupPatch {
+  const patch: GroupPatch = { addMembers: [], removeMembers: [] };
+  for (const op of operations ?? []) applyGroupOp(op, patch);
+  return patch;
+}
+
+function applyGroupOp(
+  op: { op: string; path?: string; value?: unknown },
+  patch: GroupPatch,
+): void {
+  const kind = op.op?.toLowerCase();
+  const path = (op.path ?? '').toLowerCase();
+  if (path === 'displayname' && (kind === 'replace' || kind === 'add')) {
+    if (typeof op.value === 'string') patch.displayName = op.value;
+    return;
+  }
+  if (path.startsWith('members')) applyMemberOp(kind, op, patch);
+}
+
+function applyMemberOp(
+  kind: string | undefined,
+  op: { path?: string; value?: unknown },
+  patch: GroupPatch,
+): void {
+  const filtered = /members\[value eq "([^"]+)"\]/i.exec(op.path ?? '');
+  if (kind === 'remove') {
+    if (filtered) patch.removeMembers.push(filtered[1]!);
+    else patch.removeMembers.push(...memberValues(op.value));
+  } else if (kind === 'replace') {
+    patch.replaceMembers = memberValues(op.value);
+  } else if (kind === 'add') {
+    patch.addMembers.push(...memberValues(op.value));
+  }
+}
+
+/** Extract member user ids from a SCIM members value (array of {value}). */
+export function memberValues(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((m) => (m && typeof m === 'object' ? (m as { value?: unknown }).value : undefined))
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
 }
 
 /**

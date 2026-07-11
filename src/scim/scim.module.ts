@@ -3,6 +3,9 @@ import { AuthModule } from '../auth/auth.module';
 import { IdentityModule } from '../identity/identity.module';
 import { ScimUsersController } from './scim-users.controller';
 import { ScimUsersService } from './scim-users.service';
+import { ScimGroupsController } from './scim-groups.controller';
+import { ScimGroupsService } from './scim-groups.service';
+import { ScimDiscoveryController } from './scim-discovery.controller';
 import { ScimGuard } from './scim.guard';
 
 /**
@@ -13,7 +16,7 @@ import { ScimGuard } from './scim.guard';
  */
 @Module({
   imports: [AuthModule, IdentityModule],
-  controllers: [ScimUsersController],
-  providers: [ScimUsersService, ScimGuard],
+  controllers: [ScimUsersController, ScimGroupsController, ScimDiscoveryController],
+  providers: [ScimUsersService, ScimGroupsService, ScimGuard],
 })
 export class ScimModule {}

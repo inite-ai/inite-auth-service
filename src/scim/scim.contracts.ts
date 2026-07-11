@@ -52,6 +52,28 @@ export interface ScimUserBody {
   [key: string]: unknown;
 }
 
+/** A SCIM Group resource as emitted on the wire. */
+export interface ScimGroup {
+  schemas: string[];
+  id: string;
+  displayName: string;
+  members?: Array<{ value: string; display?: string; $ref?: string }>;
+  meta: {
+    resourceType: 'Group';
+    created?: string;
+    lastModified?: string;
+    location?: string;
+  };
+}
+
+/** Inbound SCIM Group body. Permissive, like ScimUserBody. */
+export interface ScimGroupBody {
+  schemas?: string[];
+  displayName?: string;
+  members?: Array<{ value?: string; display?: string }>;
+  [key: string]: unknown;
+}
+
 /** A single RFC 7644 §3.5.2 PATCH operation. */
 export interface ScimPatchOperation {
   op: string;

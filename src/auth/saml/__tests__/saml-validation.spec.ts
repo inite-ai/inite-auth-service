@@ -8,6 +8,7 @@ import {
   SAML_RESPONSE_UNSIGNED,
 } from './saml-fixtures';
 import { SELF_SIGNED_CERT_PEM } from '../../../oauth/__tests__/mtls-certs.fixture';
+import { fakeSettings } from '../../../common/settings/settings.test-fixture';
 
 /**
  * SAML assertion validation — the security core. The fixtures are a validly
@@ -16,7 +17,7 @@ import { SELF_SIGNED_CERT_PEM } from '../../../oauth/__tests__/mtls-certs.fixtur
  */
 function serviceWith(env: Record<string, string>): SamlService {
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
-  return new SamlService(config);
+  return new SamlService(config, fakeSettings(env));
 }
 
 const svc = serviceWith({ SAML_ENABLED: 'true', OIDC_ISSUER: 'https://auth.example.com' });

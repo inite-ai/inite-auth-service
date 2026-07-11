@@ -7,6 +7,8 @@ import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { OAuthM2mService } from '../oauth-m2m.service';
 import { AuthorizationDetailsService } from '../authorization-details.service';
+import { SettingsService } from '../../common/settings/settings.service';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 import { OAuthOriginsService } from '../oauth-origins.service';
 import { PkceService } from '../pkce.service';
 import { IdentityService } from '../../identity/identity.service';
@@ -108,6 +110,7 @@ describe('OAuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+        { provide: SettingsService, useValue: fakeSettings({}) },
         { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
         { provide: PkceService, useValue: { verifyCodeChallenge: jest.fn() } },
         { provide: IdentityService, useValue: { getWallets: jest.fn().mockResolvedValue([]) } },

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { OAuthM2mService } from '../oauth-m2m.service';
 import { JwksService } from '../../common/jwks.service';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 
 /**
  * RFC 8705 §3.1 — a client-credentials token bound to a presented certificate
@@ -32,7 +33,7 @@ describe('mTLS — certificate-bound client_credentials token', () => {
       get: (_k: string, d?: string) => d ?? '',
     } as unknown as ConfigService;
     const jwks = { isRs256Enabled: () => false } as unknown as JwksService;
-    m2m = new OAuthM2mService(jwt, config, jwks);
+    m2m = new OAuthM2mService(jwt, config, jwks, fakeSettings({}));
   });
 
   it('binds cnf["x5t#S256"] when a certificate thumbprint is supplied', async () => {

@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
+import { SettingsService } from '../common/settings/settings.service';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -68,6 +69,7 @@ export class OAuthTokenIssuerService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly settings: SettingsService,
     @Optional() private readonly ssf?: SsfEmitterService,
   ) {}
 
@@ -134,10 +136,7 @@ export class OAuthTokenIssuerService {
   private signingContext(): SigningContext {
     return {
       issuer: this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002'),
-      accessTokenExpiry: this.configService.get<string>(
-        'JWT_ACCESS_TOKEN_EXPIRY',
-        '10m',
-      ),
+      accessTokenExpiry: this.settings.value('JWT_ACCESS_TOKEN_EXPIRY', '10m'),
     };
   }
 
@@ -219,7 +218,7 @@ export class OAuthTokenIssuerService {
     const metadata = input.user.metadata as { roles?: string[] } | null;
     const metaRoles: string[] = metadata?.roles ?? [];
     const legacy = { roles: metaRoles.length ? metaRoles : ['user'] };
-    if (this.configService.get<string>('RBAC_TOKEN_CLAIMS_ENABLED') !== 'true') {
+    if (!this.settings.flag('RBAC_TOKEN_CLAIMS_ENABLED')) {
       return legacy;
     }
 

@@ -1,10 +1,10 @@
 import { X509Certificate } from 'node:crypto';
 import * as jose from 'jose';
-import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import type { Request } from 'express';
 import { MtlsService } from '../mtls.service';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
+import { fakeSettings } from '../../common/settings/settings.test-fixture';
 import {
   CA_CERT_PEM,
   LEAF_CERT_PEM,
@@ -33,10 +33,9 @@ function makeService(
   env: Record<string, string>,
   client: Partial<OAuthClient>,
 ): { svc: MtlsService; validateClient: jest.Mock } {
-  const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   const validateClient = jest.fn().mockResolvedValue(client as OAuthClient);
   const registry = { validateClient } as unknown as OAuthClientRegistryService;
-  return { svc: new MtlsService(config, registry), validateClient };
+  return { svc: new MtlsService(fakeSettings(env), registry), validateClient };
 }
 
 async function selfSignedJwks(): Promise<{ keys: jose.JWK[] }> {

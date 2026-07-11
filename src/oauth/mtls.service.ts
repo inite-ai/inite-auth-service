@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { X509Certificate } from 'node:crypto';
 import * as jose from 'jose';
 import { OAuthClient } from '@prisma/client';
 import type { Request } from 'express';
+import { SettingsService } from '../common/settings/settings.service';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import {
   parseForwardedCertificate,
@@ -37,13 +37,13 @@ const DEFAULT_CERT_HEADER = 'x-forwarded-tls-client-cert';
 @Injectable()
 export class MtlsService {
   constructor(
-    private readonly config: ConfigService,
+    private readonly settings: SettingsService,
     private readonly registry: OAuthClientRegistryService,
   ) {}
 
   /** True when mTLS is turned on for this deployment. */
   isEnabled(): boolean {
-    return this.config.get<string>('MTLS_ENABLED') === 'true';
+    return this.settings.flag('MTLS_ENABLED');
   }
 
   /** True when the client authenticates via one of the mTLS methods. */
@@ -56,9 +56,9 @@ export class MtlsService {
 
   /** Read + parse the forwarded client certificate, or null when absent. */
   presentedCertificate(req: Request): X509Certificate | null {
-    const header = (
-      this.config.get<string>('MTLS_CLIENT_CERT_HEADER') ?? DEFAULT_CERT_HEADER
-    ).toLowerCase();
+    const header = this.settings
+      .value('MTLS_CLIENT_CERT_HEADER', DEFAULT_CERT_HEADER)
+      .toLowerCase();
     const raw = req.headers[header];
     return parseForwardedCertificate(Array.isArray(raw) ? raw[0] : raw);
   }
@@ -102,7 +102,7 @@ export class MtlsService {
 
   /** §2.1 PKI: chain to the trusted CA + subject DN must match the registration. */
   private assertPkiCertificate(client: OAuthClient, cert: X509Certificate): void {
-    const caPem = this.config.get<string>('MTLS_TRUSTED_CA_CERT');
+    const caPem = this.settings.raw('MTLS_TRUSTED_CA_CERT');
     if (!caPem) {
       throw new UnauthorizedException('mTLS PKI validation is not configured');
     }

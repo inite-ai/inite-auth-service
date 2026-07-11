@@ -136,6 +136,19 @@ model OAuthIdentity {
   @@map("oauth_identities")
 }
 
+/// Operator-tunable runtime setting — a DB override for an env-provided config
+/// key (feature flags, token TTLs, RAR types, mTLS config). The env value is the
+/// boot default/fallback; a row here shadows it without a redeploy (resolved via
+/// SettingsService, hot-reloaded through AppSettingsStore's TTL snapshot). Only
+/// keys in the settings registry are writable; secrets (JWT/SMTP) stay env-only.
+model AppSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  @@map("app_settings")
+}
+
 /// A per-tenant inbound SAML 2.0 IdP connection (enterprise SSO). One row per
 /// enterprise IdP an organization federates from. `slug` is the stable path
 /// segment used in the ACS + metadata URLs (`/v1/auth/saml/<slug>/…`). The IdP's

@@ -2,10 +2,11 @@ import { ConfigService } from '@nestjs/config';
 import { SamlService } from '../saml.service';
 import { ResolvedSamlConnection } from '../saml-connection.store';
 import { SELF_SIGNED_CERT_PEM } from '../../../oauth/__tests__/mtls-certs.fixture';
+import { fakeSettings } from '../../../common/settings/settings.test-fixture';
 
 function serviceWith(env: Record<string, string>): SamlService {
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
-  return new SamlService(config);
+  return new SamlService(config, fakeSettings(env));
 }
 
 const connection: ResolvedSamlConnection = {

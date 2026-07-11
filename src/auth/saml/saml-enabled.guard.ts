@@ -3,7 +3,7 @@ import {
   CanActivate,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { SettingsService } from '../../common/settings/settings.service';
 
 /**
  * Gates the public SAML endpoints (metadata / start / ACS) on SAML_ENABLED —
@@ -13,10 +13,10 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class SamlEnabledGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly settings: SettingsService) {}
 
   canActivate(): boolean {
-    if (this.config.get<string>('SAML_ENABLED') !== 'true') {
+    if (!this.settings.flag('SAML_ENABLED')) {
       throw new NotFoundException('SAML is not enabled');
     }
     return true;

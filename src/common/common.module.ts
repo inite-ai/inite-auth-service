@@ -6,6 +6,8 @@ import { RedisService } from './redis.service';
 import { MetricsService } from './metrics.service';
 import { DbHealthService } from './db-health.service';
 import { FieldCrypto } from './field-crypto';
+import { AppSettingsStore } from './settings/app-settings.store';
+import { SettingsService } from './settings/settings.service';
 
 const fieldCryptoProvider = {
   provide: FieldCrypto,
@@ -16,8 +18,26 @@ const fieldCryptoProvider = {
 
 @Global()
 @Module({
-  providers: [LoggerService, JwksService, RedisService, MetricsService, DbHealthService, fieldCryptoProvider],
-  exports: [LoggerService, JwksService, RedisService, MetricsService, DbHealthService, FieldCrypto],
+  providers: [
+    LoggerService,
+    JwksService,
+    RedisService,
+    MetricsService,
+    DbHealthService,
+    fieldCryptoProvider,
+    AppSettingsStore,
+    SettingsService,
+  ],
+  exports: [
+    LoggerService,
+    JwksService,
+    RedisService,
+    MetricsService,
+    DbHealthService,
+    FieldCrypto,
+    AppSettingsStore,
+    SettingsService,
+  ],
 })
 export class CommonModule {}
 

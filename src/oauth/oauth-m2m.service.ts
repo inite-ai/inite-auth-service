@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
 import { JwksService } from '../common/jwks.service';
+import { SettingsService } from '../common/settings/settings.service';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -20,10 +21,12 @@ export interface ClientCredentialsTokenInput {
 
 @Injectable()
 export class OAuthM2mService {
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly jwksService: JwksService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -74,10 +77,7 @@ export class OAuthM2mService {
     // deactivated machine client stops working within ≤5min — our
     // chosen revocation strategy in place of a real-time revocation
     // list. Override via JWT_M2M_ACCESS_TOKEN_EXPIRY.
-    const accessTokenExpiry = this.configService.get<string>(
-      'JWT_M2M_ACCESS_TOKEN_EXPIRY',
-      '5m',
-    );
+    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
     const issuer = this.configService.get<string>(
       'JWT_ISSUER',
       'http://localhost:3002',
@@ -158,10 +158,7 @@ export class OAuthM2mService {
       act = { sub: actorClaims.sub, client_id: client.clientId };
     }
 
-    const accessTokenExpiry = this.configService.get<string>(
-      'JWT_M2M_ACCESS_TOKEN_EXPIRY',
-      '5m',
-    );
+    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
     const issuer = this.configService.get<string>(
       'JWT_ISSUER',
       'http://localhost:3002',

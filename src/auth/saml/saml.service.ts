@@ -1,7 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SAML, SamlConfig, ValidateInResponseTo } from '@node-saml/node-saml';
+import { SAML, SamlConfig, Profile, ValidateInResponseTo } from '@node-saml/node-saml';
 import { ResolvedSamlConnection } from './saml-connection.store';
+import { NormalizedProfile } from '../federation/contracts/normalized-profile';
+
+/** Common SAML attribute OIDs/URIs we look at for a display name. */
+const DISPLAY_NAME_ATTRS = [
+  'displayName',
+  'urn:oid:2.16.840.1.113730.3.1.241', // displayName
+  'http://schemas.microsoft.com/identity/claims/displayname',
+  'urn:oid:2.5.4.3', // cn
+];
 
 /**
  * SAML 2.0 Service Provider — wraps @node-saml/node-saml (which owns the XML
@@ -41,6 +50,64 @@ export class SamlService {
   /** SP metadata XML (EntityDescriptor / SPSSODescriptor) for a connection. */
   metadata(connection: ResolvedSamlConnection): string {
     return this.buildSaml(connection).generateServiceProviderMetadata(null, null);
+  }
+
+  /** SP-initiated: the IdP redirect URL for an AuthnRequest, carrying RelayState. */
+  authorizeUrl(connection: ResolvedSamlConnection, relayState: string): Promise<string> {
+    return this.buildSaml(connection).getAuthorizeUrlAsync(relayState, undefined, {});
+  }
+
+  /**
+   * Validate a base64 SAMLResponse from the ACS POST binding. node-saml verifies
+   * the XMLDSig signature against the connection's IdP cert, the audience, the
+   * conditions window, and (when present) InResponseTo — throwing on any failure.
+   * Returns the assertion profile.
+   */
+  async validate(connection: ResolvedSamlConnection, samlResponse: string): Promise<Profile> {
+    const { profile } = await this.buildSaml(connection).validatePostResponseAsync({
+      SAMLResponse: samlResponse,
+    });
+    if (!profile) {
+      throw new UnauthorizedException('SAML response carried no assertion');
+    }
+    return profile;
+  }
+
+  /**
+   * Map a validated SAML profile onto the federation NormalizedProfile so a SAML
+   * login reuses the exact provisioning/linking path as social login. The email
+   * is treated as verified: it's vouched for by the trusted enterprise IdP.
+   */
+  toNormalizedProfile(
+    connection: ResolvedSamlConnection,
+    profile: Profile,
+  ): NormalizedProfile {
+    return {
+      provider: `saml:${connection.slug}`,
+      subject: profile.nameID,
+      email: this.pickEmail(profile),
+      emailVerified: true,
+      displayName: this.pickDisplayName(profile),
+      avatarUrl: null,
+      raw: { issuer: profile.issuer, nameIDFormat: profile.nameIDFormat },
+    };
+  }
+
+  private pickEmail(profile: Profile): string | null {
+    const candidate = profile.email ?? profile.mail;
+    if (typeof candidate === 'string' && candidate.includes('@')) return candidate;
+    if (typeof profile.nameID === 'string' && profile.nameID.includes('@')) {
+      return profile.nameID;
+    }
+    return null;
+  }
+
+  private pickDisplayName(profile: Profile): string | null {
+    for (const key of DISPLAY_NAME_ATTRS) {
+      const value = profile[key];
+      if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    }
+    return null;
   }
 
   private buildConfig(connection: ResolvedSamlConnection): SamlConfig {

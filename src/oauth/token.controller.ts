@@ -68,7 +68,7 @@ export class TokenController {
         throw new BadRequestException('grant_type is required');
       }
 
-      const client = await this.authenticateTokenClient(body, ctx, grantType);
+      const client = await this.authenticateTokenClient({ body, ctx, grantType, req });
       await this.assertGrantAllowed(client, grantType, ctx);
 
       switch (grantType) {
@@ -95,17 +95,21 @@ export class TokenController {
    * Authenticate the calling client. Audit-logs a credential failure even
    * when the client is unknown (IP/UA still tells the operator who's probing).
    */
-  private async authenticateTokenClient(
-    body: TokenRequestBody,
-    ctx: AuditCtx,
-    grantType: string,
-  ): Promise<OAuthClient> {
+  private async authenticateTokenClient(params: {
+    body: TokenRequestBody;
+    ctx: AuditCtx;
+    grantType: string;
+    req: Request;
+  }): Promise<OAuthClient> {
+    const { body, ctx, grantType, req } = params;
     try {
       // Dispatches to private_key_jwt (RFC 7523) when a client_assertion is
-      // present, else the shared-secret path.
+      // present, mTLS (RFC 8705) when a forwarded client cert is present, else
+      // the shared-secret path.
       return await this.clientAuth.authenticate({
         body,
         audiences: this.clientAuth.tokenAudiences(),
+        req,
       });
     } catch (e: unknown) {
       this.metrics.tokenFailures.inc({ grant_type: grantType, reason: 'invalid_credentials' });

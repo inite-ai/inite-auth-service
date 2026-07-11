@@ -161,6 +161,30 @@ export class HealthController {
             ),
           }
         : {};
+
+    // RFC 8705: advertise certificate-bound tokens + the mTLS client-auth
+    // methods only when enabled. mtls_endpoint_aliases points at the separate
+    // mTLS host (MTLS_ISSUER) so ordinary clients keep using the primary host.
+    const mtlsOn = this.configService.get<string>('MTLS_ENABLED') === 'true';
+    const mtlsAliasHost = this.configService.get<string>('MTLS_ISSUER');
+    const mtls = mtlsOn
+      ? {
+          tls_client_certificate_bound_access_tokens: true,
+          ...(mtlsAliasHost
+            ? {
+                mtls_endpoint_aliases: {
+                  token_endpoint: `${mtlsAliasHost}/v1/oauth/token`,
+                  pushed_authorization_request_endpoint: `${mtlsAliasHost}/v1/oauth/par`,
+                  revocation_endpoint: `${mtlsAliasHost}/v1/oauth/revoke`,
+                  introspection_endpoint: `${mtlsAliasHost}/v1/oauth/introspect`,
+                },
+              }
+            : {}),
+        }
+      : {};
+    const mtlsAuthMethods = mtlsOn
+      ? ['tls_client_auth', 'self_signed_tls_client_auth']
+      : [];
     return {
       issuer,
       authorization_endpoint: `${issuer}/v1/oauth/authorize`,
@@ -201,6 +225,7 @@ export class HealthController {
         'client_secret_post',
         'private_key_jwt',
         'none',
+        ...mtlsAuthMethods,
       ],
       // Asymmetric algs accepted for a private_key_jwt client assertion.
       token_endpoint_auth_signing_alg_values_supported: [
@@ -237,6 +262,7 @@ export class HealthController {
       // tells SDK authors which key types to mint for M2M clients.
       dpop_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'EdDSA'],
       ...rar,
+      ...mtls,
     };
   }
 }

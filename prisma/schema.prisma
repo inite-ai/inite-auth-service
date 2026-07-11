@@ -209,6 +209,12 @@ model OAuthClient {
   jwksUri           String?  @map("jwksUri")
   /// Optional pin for the alg a JAR request object must be signed with.
   requestObjectSigningAlg String? @map("requestObjectSigningAlg")
+  /// RFC 8705 mTLS: the expected X.500 subject DN of the client certificate
+  /// when tokenEndpointAuthMethod is "tls_client_auth" (PKI mode). The presented
+  /// cert must chain to MTLS_TRUSTED_CA_CERT AND match this subject. The
+  /// "self_signed_tls_client_auth" variant needs no DN — it matches the cert's
+  /// public key against the client's registered jwks above instead.
+  tlsClientAuthSubjectDn String? @map("tlsClientAuthSubjectDn")
   active            Boolean  @default(true)
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")

@@ -14,6 +14,8 @@ export interface ClientCredentialsTokenInput {
   requestedScope?: string;
   audience?: string;
   dpopJkt?: string;
+  /** RFC 8705 §3.1 certificate thumbprint (base64url SHA-256 of the DER). */
+  certThumbprint?: string;
 }
 
 @Injectable()
@@ -55,7 +57,7 @@ export class OAuthM2mService {
     audience: string;
     tokenType: 'Bearer' | 'DPoP';
   }> {
-    const { client, requestedScope, audience, dpopJkt } = input;
+    const { client, requestedScope, audience, dpopJkt, certThumbprint } = input;
     const grantedScopes = this.resolveClientCredentialsScopes(
       client,
       requestedScope,
@@ -87,11 +89,14 @@ export class OAuthM2mService {
       scopes: grantedScopes,
       scope: grantedScopes.join(' '),
     };
-    if (dpopJkt) {
-      // RFC 9449 §6.1: bind the access token to the client's DPoP
-      // key by SHA-256 thumbprint. Resource servers verify it
-      // matches the proof they receive on the protected request.
-      claims.cnf = { jkt: dpopJkt };
+    // Sender-constraint confirmation (RFC 7800 cnf). A client may present a
+    // DPoP proof (RFC 9449 §6.1, jkt) and/or a client certificate (RFC 8705
+    // §3.1, x5t#S256); resource servers verify whichever the token carries.
+    const cnf: Record<string, string> = {};
+    if (dpopJkt) cnf.jkt = dpopJkt;
+    if (certThumbprint) cnf['x5t#S256'] = certThumbprint;
+    if (Object.keys(cnf).length > 0) {
+      claims.cnf = cnf;
     }
 
     const accessToken = this.jwtService.sign(claims, {

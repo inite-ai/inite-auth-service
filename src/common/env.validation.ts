@@ -36,6 +36,8 @@ const FORMAT_RULES: ReadonlyArray<
   ['DATABASE_URL', (v) => /^postgres(ql)?:\/\//.test(v), 'must be a postgres:// URL'],
   ['PORT', (v) => !Number.isNaN(Number(v)), 'must be numeric'],
   ['REDIS_PORT', (v) => !Number.isNaN(Number(v)), 'must be numeric'],
+  // RFC 8705 — the trusted proxy header carrying the forwarded client cert.
+  ['MTLS_CLIENT_CERT_HEADER', (v) => /^x-/i.test(v), 'must be an x- header name'],
 ];
 
 /** Production-only checks: fatal required secrets + non-fatal recommendations. */
@@ -68,6 +70,22 @@ export function validateEnv(
   }
 
   if (config.NODE_ENV === 'production') checkProduction(config, errors);
+
+  // RFC 8705 mTLS is opt-in. When enabled in production without a trusted CA,
+  // the PKI (tls_client_auth) mode can't validate chains — warn but don't block
+  // boot, since the self-signed variant works without a CA (fail-safe, like the
+  // FieldCrypto lazy-key pattern above).
+  if (
+    config.NODE_ENV === 'production' &&
+    config.MTLS_ENABLED === 'true' &&
+    !present(config.MTLS_TRUSTED_CA_CERT)
+  ) {
+    console.warn(
+      '[env] MTLS_ENABLED is true but MTLS_TRUSTED_CA_CERT is not set — ' +
+        'tls_client_auth (PKI) clients cannot be validated; ' +
+        'self_signed_tls_client_auth still works',
+    );
+  }
 
   for (const [key, ok, message] of FORMAT_RULES) {
     const value = config[key];

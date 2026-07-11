@@ -6,6 +6,7 @@ import { OAuthTokenIssuerService } from "./oauth-token-issuer.service";
 import { OAuthM2mService } from "./oauth-m2m.service";
 import { DeviceFlowService } from "./device-flow.service";
 import { DpopService } from "./dpop.service";
+import { MtlsService } from "./mtls.service";
 import { OAuthAuditService } from "../audit/oauth-audit.service";
 import { MetricsService } from "../common/metrics.service";
 import { LoggerService } from "../common/logger.service";
@@ -38,6 +39,7 @@ export class TokenGrantService {
     private readonly deviceFlow: DeviceFlowService,
     private readonly tokenIssuer: OAuthTokenIssuerService,
     private readonly m2m: OAuthM2mService,
+    private readonly mtls: MtlsService,
   ) {
     this.logger.setContext("TokenGrantService");
   }
@@ -193,6 +195,9 @@ export class TokenGrantService {
   async grantClientCredentials(input: GrantWithRequestInput) {
     const { req, body, client, ctx } = input;
     const dpopJkt = await this.resolveDpopJkt(req, client, ctx);
+    // RFC 8705 §3 — bind the presented client certificate's x5t#S256 thumbprint
+    // into cnf so resource servers can enforce sender-constraint.
+    const certThumbprint = this.mtls.resolveCertThumbprint(req, client);
 
     let tokens;
     try {
@@ -201,6 +206,7 @@ export class TokenGrantService {
         requestedScope: body.scope as string,
         audience: body.audience as string,
         dpopJkt,
+        certThumbprint,
       });
     } catch (e: unknown) {
       // Scope or audience violation — both surface as BadRequestException

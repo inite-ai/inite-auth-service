@@ -1,7 +1,7 @@
 'use client'
 
 import { Edit2, Trash2, Key, Wallet, Shield, LogOut } from 'lucide-react'
-import { Sheet, Badge } from '@/components/ui'
+import { Sheet, Badge, CopyButton } from '@/components/ui'
 import { UserDetails, formatRelative } from './types'
 import { initialAvatar, Section, Stat } from './shared'
 
@@ -150,9 +150,12 @@ export function UserDetailsPanel({
 
         {user.did && (
           <Section title="DID">
-            <code className="block text-[11px] font-mono text-[var(--text)] bg-[var(--bg)] border border-[var(--border)] rounded-md px-2.5 py-1.5 break-all">
-              {user.did}
-            </code>
+            <div className="flex items-start gap-1.5">
+              <code className="flex-1 block text-[11px] font-mono text-[var(--text)] bg-[var(--bg)] border border-[var(--border)] rounded-md px-2.5 py-1.5 break-all">
+                {user.did}
+              </code>
+              <CopyButton value={user.did} what="DID" className="mt-1.5 shrink-0" />
+            </div>
           </Section>
         )}
 
@@ -194,8 +197,11 @@ export function UserDetailsPanel({
                       {new Date(w.linkedAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="text-xs font-mono text-[var(--text)] mt-1 truncate">
-                    {w.address}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="flex-1 text-xs font-mono text-[var(--text)] truncate">
+                      {w.address}
+                    </span>
+                    <CopyButton value={w.address} what="Address" className="shrink-0" />
                   </div>
                 </div>
               ))}

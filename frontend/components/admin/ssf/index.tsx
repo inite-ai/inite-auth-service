@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
-import { Badge, ConfirmDialog, SkeletonRow } from '@/components/ui'
+import { Badge, ConfirmDialog, SkeletonRow, CopyButton } from '@/components/ui'
 import { formatRelative } from '../form-controls'
 import { SsfStream, EVENT_LABEL } from './events'
 import CreateStreamPanel from './create-stream-panel'
@@ -166,8 +166,15 @@ export default function SsfStreamsSection({ accessToken }: SsfStreamsSectionProp
                           <div className="text-[13px] font-medium text-[var(--text)] truncate">
                             {s.pushEndpointUrl ?? 'Poll delivery'}
                           </div>
-                          <div className="text-[11px] text-[var(--text-faint)] font-mono truncate">
-                            {s.streamId}
+                          <div className="flex items-center gap-1 min-w-0 group">
+                            <span className="text-[11px] text-[var(--text-faint)] font-mono truncate">
+                              {s.streamId}
+                            </span>
+                            <CopyButton
+                              value={s.streamId}
+                              what="Stream ID"
+                              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            />
                           </div>
                         </div>
                       </div>

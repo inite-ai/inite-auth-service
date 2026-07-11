@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Globe, Code2, KeyRound, Plug, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
-import { Badge } from '@/components/ui'
+import { Badge, SkeletonRow } from '@/components/ui'
 import { FederationProviderSummary } from './types'
 import EditProviderPanel from './edit-panel'
 
@@ -78,12 +78,7 @@ export default function FederationSection({ accessToken }: FederationSectionProp
 
       <div className="space-y-2">
         {loading ? (
-          [...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="h-16 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg animate-pulse"
-            />
-          ))
+          [...Array(3)].map((_, i) => <SkeletonRow key={i} />)
         ) : (
           providers.map((p) => {
             const Icon = PROVIDER_ICON[p.slug] ?? Plug

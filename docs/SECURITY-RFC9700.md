@@ -23,7 +23,7 @@ Last reviewed: 2026-07-07 (v1.5.0).
 
 | # | Recommendation | Status | Evidence / note |
 |---|----------------|--------|-----------------|
-| 2.2 | Sender-constrained access tokens (DPoP or mTLS) available | 🟡 | DPoP (RFC 9449) implemented with `cnf.jkt` binding — `dpop.service.ts`. mTLS (RFC 8705) not offered — tracked separately. |
+| 2.2 | Sender-constrained access tokens (DPoP or mTLS) available | ✅ | DPoP (RFC 9449) with `cnf.jkt` binding — `dpop.service.ts` — and mTLS certificate-bound tokens (RFC 8705) with `cnf["x5t#S256"]` — `mtls.service.ts`, behind `MTLS_ENABLED`. |
 | 2.2.2 | Refresh-token rotation for public clients | ✅ | Every refresh rotates; the used token is revoked in the same transaction — `oauth-token-issuer.service.ts` `refreshAccessToken`. |
 | 2.2.2 | Refresh-token replay / theft detection | ✅ | Replay of an already-revoked token revokes the whole family (RFC 6819 §5.2.2.3) — `oauth-token-issuer.service.ts:257`. Concurrent-rotation race is claimed atomically (`updateMany … revoked:false`). |
 | 2.2 | Access tokens are short-lived | ✅ | User-flow access/id tokens ~10 min; M2M ~5 min (`JWT_M2M_ACCESS_TOKEN_EXPIRY`). |
@@ -70,7 +70,9 @@ Last reviewed: 2026-07-07 (v1.5.0).
    `authorization_response_iss_parameter_supported`.
 2. **`private_key_jwt` client authentication (RFC 7523)** — stronger confidential-client
    auth; see the client-auth-depth workstream.
-3. **mTLS + certificate-bound tokens (RFC 8705)** — FAPI-track sender-constraining.
+3. ~~**mTLS + certificate-bound tokens (RFC 8705)**~~ — ✅ shipped behind
+   `MTLS_ENABLED`: `tls_client_auth` (PKI) + `self_signed_tls_client_auth` client
+   auth and `cnf["x5t#S256"]` token binding — `mtls.service.ts`.
 4. **App-level HTTPS enforcement** — currently proxy-terminated; a redirect-to-HTTPS
    guard would close the gap for direct-exposure deployments.
 

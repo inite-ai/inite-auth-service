@@ -8,6 +8,8 @@ import {
   Building2,
   Radio,
   Plug,
+  ShieldCheck,
+  SlidersHorizontal,
   FileSearch,
   Loader2,
 } from 'lucide-react'
@@ -23,10 +25,21 @@ import {
   OrganizationsSection,
   SsfStreamsSection,
   FederationSection,
+  SamlSection,
+  SettingsSection,
   AuditLogSection,
 } from '@/components/admin'
 
-type Tab = 'stats' | 'users' | 'clients' | 'orgs' | 'signals' | 'connections' | 'audit'
+type Tab =
+  | 'stats'
+  | 'users'
+  | 'clients'
+  | 'orgs'
+  | 'signals'
+  | 'connections'
+  | 'saml'
+  | 'audit'
+  | 'settings'
 
 const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'stats', label: 'Dashboard', icon: BarChart3 },
@@ -35,7 +48,9 @@ const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'orgs', label: 'Organizations', icon: Building2 },
   { key: 'signals', label: 'Shared Signals', icon: Radio },
   { key: 'connections', label: 'Connections', icon: Plug },
+  { key: 'saml', label: 'SAML SSO', icon: ShieldCheck },
   { key: 'audit', label: 'Audit Log', icon: FileSearch },
+  { key: 'settings', label: 'Settings', icon: SlidersHorizontal },
 ]
 
 export default function AdminPage() {
@@ -171,7 +186,11 @@ export default function AdminPage() {
           {activeTab === 'connections' && (
             <FederationSection accessToken={accessToken} />
           )}
+          {activeTab === 'saml' && <SamlSection accessToken={accessToken} />}
           {activeTab === 'audit' && <AuditLogSection accessToken={accessToken} />}
+          {activeTab === 'settings' && (
+            <SettingsSection accessToken={accessToken} />
+          )}
         </div>
       </div>
     </div>

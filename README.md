@@ -138,7 +138,8 @@ const auth = new IniteAuth({ baseUrl: 'https://auth.example.com', clientId: 'my-
 | Social login federation (Google/GitHub/OIDC) | OIDC | ✅ |
 | Rich Authorization Requests | RFC 9396 | ✅ *(flag: `RAR_ENABLED`)* |
 | mTLS + certificate-bound tokens | RFC 8705 | ✅ *(flag: `MTLS_ENABLED`)* |
-| SAML / SCIM | — | ⬜ roadmap |
+| SCIM 2.0 inbound provisioning | RFC 7643 / 7644 | ✅ *(flag: `SCIM_ENABLED`)* |
+| SAML 2.0 SP | — | ⬜ roadmap |
 
 Full gap analysis vs Ory / Keycloak / Zitadel / Auth0 / WorkOS / Logto and the
 path to feature-parity is in **[ROADMAP.md](ROADMAP.md)**.
@@ -212,8 +213,9 @@ npm ci && npm run build && npm test && npm run lint
 
 ## Roadmap
 
-Tracked in [ROADMAP.md](ROADMAP.md). Next up: SCIM, SAML, and more SDKs.
-Recently shipped: mTLS + certificate-bound tokens (RFC 8705, behind
+Tracked in [ROADMAP.md](ROADMAP.md). Next up: SAML 2.0 SP and more SDKs.
+Recently shipped: SCIM 2.0 inbound provisioning (RFC 7643/7644, behind
+`SCIM_ENABLED`), mTLS + certificate-bound tokens (RFC 8705, behind
 `MTLS_ENABLED`), Rich Authorization Requests (RFC 9396, behind `RAR_ENABLED`),
 private_key_jwt (RFC 7523) + signed request objects (RFC 9101), CAEP / Shared
 Signals (RFC 8417), organizations + relational RBAC, signing-key rotation with

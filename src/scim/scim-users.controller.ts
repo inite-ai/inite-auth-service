@@ -21,7 +21,7 @@ import { ScimGuard } from './scim.guard';
 import { ScimExceptionFilter } from './scim-exception.filter';
 import { ScimUsersService } from './scim-users.service';
 import { ScimUserBody, ScimPatchBody, SCIM_CONTENT_TYPE } from './scim.contracts';
-import { resolveScimTenant, ScimPrincipal } from './scim-support';
+import { resolveScimTenant, scimBaseUrl, ScimPrincipal } from './scim-support';
 
 /**
  * SCIM 2.0 Users endpoint (RFC 7644) at /scim/v2/Users — version-neutral
@@ -40,7 +40,7 @@ export class ScimUsersController {
   @HttpCode(201)
   @Header('Content-Type', SCIM_CONTENT_TYPE)
   createUser(@Body() body: ScimUserBody, @Req() req: Request) {
-    return this.users.createUser(this.tenant(req), body, this.baseUrl(req));
+    return this.users.createUser(this.tenant(req), body, scimBaseUrl(req));
   }
 
   @Get('Users')
@@ -49,13 +49,13 @@ export class ScimUsersController {
     @Query() query: { filter?: string; startIndex?: string; count?: string },
     @Req() req: Request,
   ) {
-    return this.users.listUsers(this.tenant(req), query, this.baseUrl(req));
+    return this.users.listUsers(this.tenant(req), query, scimBaseUrl(req));
   }
 
   @Get('Users/:id')
   @Header('Content-Type', SCIM_CONTENT_TYPE)
   getUser(@Param('id') id: string, @Req() req: Request) {
-    return this.users.getUser(this.tenant(req), id, this.baseUrl(req));
+    return this.users.getUser(this.tenant(req), id, scimBaseUrl(req));
   }
 
   @Put('Users/:id')
@@ -65,7 +65,7 @@ export class ScimUsersController {
       companyId: this.tenant(req),
       id,
       body,
-      baseUrl: this.baseUrl(req),
+      baseUrl: scimBaseUrl(req),
     });
   }
 
@@ -76,7 +76,7 @@ export class ScimUsersController {
       companyId: this.tenant(req),
       id,
       operations: body.Operations,
-      baseUrl: this.baseUrl(req),
+      baseUrl: scimBaseUrl(req),
     });
   }
 
@@ -88,12 +88,5 @@ export class ScimUsersController {
 
   private tenant(req: Request): string {
     return resolveScimTenant(req.user as ScimPrincipal | undefined);
-  }
-
-  /** Absolute base URL for SCIM `meta.location`, honouring the terminating proxy. */
-  private baseUrl(req: Request): string {
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? req.protocol ?? 'https';
-    const host = req.headers.host ?? '';
-    return `${proto}://${host}`;
   }
 }

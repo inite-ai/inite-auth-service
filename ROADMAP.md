@@ -69,8 +69,13 @@ genuine differentiator.
   string), `org:*` permission sets, an OrgRbacGuard + `@RequirePermissions`, a
   tenant-scoped org admin API, and union `roles` + `org`/`org_id` token claims
   gated behind `RBAC_TOKEN_CLAIMS_ENABLED`. Foundation for SCIM/SAML.
-- **SCIM 2.0 inbound provisioning** — **L**. User/group sync from Okta/Entra/Google.
-  Paywalled by Ory & Logto; Zitadel's is preview/user-only. OSS SCIM is a real edge.
+- ✅ **SCIM 2.0 inbound provisioning (RFC 7643/7644)** — **L**. *Shipped (behind
+  `SCIM_ENABLED`).* User/group sync from Okta/Entra/Google at `/scim/v2` —
+  tenant-scoped M2M auth (`scim:read`/`scim:write`), Users + Groups CRUD with
+  filter/pagination, PATCH `active`/member ops, deprovision emits a CAEP
+  account-disabled event, and `ServiceProviderConfig`/`ResourceTypes`/`Schemas`
+  discovery. *Paywalled by Ory & Logto; Zitadel's is preview/user-only — OSS SCIM
+  is a real edge.*
 - **SAML 2.0 (SP + IdP)** — **L**. Accept enterprise SAML and issue assertions.
   Same paywall story as SCIM. Consider wrapping an existing lib over inventing it.
 - **Audit-log export / SIEM streaming** — **M**. We have a queryable audit log; add

@@ -137,11 +137,14 @@ export function toScimGroup(
 
 /** Normalize a Group displayName into a role slug (lowercase, dash-joined). */
 export function slugifyGroupName(displayName: string): string {
+  // Split on non-alphanumeric runs and rejoin — avoids the trailing-dash trim
+  // regex, whose `-+$` alternative backtracks quadratically on adversarial
+  // input (ReDoS). This form is single-pass and has no leading/trailing dashes.
   const slug = displayName
-    .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .join('-');
   return slug.length > 0 ? slug : 'group';
 }
 

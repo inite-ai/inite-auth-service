@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.9.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.8.0...inite-auth-service-v1.9.0) (2026-07-11)
+
+
+### Features
+
+* **admin-ui:** SAML connections + runtime Settings admin sections ([#124](https://github.com/inite-ai/inite-auth-service/issues/124)) ([be5c803](https://github.com/inite-ai/inite-auth-service/commit/be5c80317275622a2afbeb422574344185721758))
+* **admin-ui:** shared CopyButton + copy affordances + skeleton consistency ([#126](https://github.com/inite-ai/inite-auth-service/issues/126)) ([01e72fb](https://github.com/inite-ai/inite-auth-service/commit/01e72fb18452e3c5180c3dc3b21f5b1ddc70ae9e))
+* **admin-ui:** Sheet focus-trap + unsaved-changes guard ([#125](https://github.com/inite-ai/inite-auth-service/issues/125)) ([b399d62](https://github.com/inite-ai/inite-auth-service/commit/b399d62c2d03be7bbd5dfe36340b558995969dda))
+* **oauth:** mTLS client auth + certificate-bound tokens — RFC 8705 (behind MTLS_ENABLED) ([#117](https://github.com/inite-ai/inite-auth-service/issues/117)) ([526d5e0](https://github.com/inite-ai/inite-auth-service/commit/526d5e070c784025c9feafb999d026152ca793da))
+* **oauth:** Rich Authorization Requests — RFC 9396 (behind RAR_ENABLED) ([#115](https://github.com/inite-ai/inite-auth-service/issues/115)) ([a410937](https://github.com/inite-ai/inite-auth-service/commit/a410937449c01064203ea736315986eb50c90c26))
+* **saml:** ACS + session + signature-wrapping tests (RFC-adjacent SAML 2.0) ([#121](https://github.com/inite-ai/inite-auth-service/issues/121)) ([e4a6807](https://github.com/inite-ai/inite-auth-service/commit/e4a6807067526c6928935b278f548c9c20fa1835))
+* **saml:** SAML 2.0 SP metadata + IdP connection provisioning (flagged) ([#120](https://github.com/inite-ai/inite-auth-service/issues/120)) ([2acd2ae](https://github.com/inite-ai/inite-auth-service/commit/2acd2ae8385ae664ae29ae0ddfb69fde9340a12c))
+* **scim:** SCIM 2.0 Groups + discovery (RFC 7644, behind SCIM_ENABLED) ([#119](https://github.com/inite-ai/inite-auth-service/issues/119)) ([be5ea6f](https://github.com/inite-ai/inite-auth-service/commit/be5ea6ff0a0eac2b29816d91342a208774537804))
+* **scim:** SCIM 2.0 Users provisioning at /scim/v2 (RFC 7644, flagged) ([#118](https://github.com/inite-ai/inite-auth-service/issues/118)) ([b669160](https://github.com/inite-ai/inite-auth-service/commit/b66916073e4f814fddb3d02c72e4e2a3516df1de))
+* **settings:** DB-backed runtime settings store + admin API ([#123](https://github.com/inite-ai/inite-auth-service/issues/123)) ([4d1bbe7](https://github.com/inite-ai/inite-auth-service/commit/4d1bbe7f93e838c5d15004b3f0cf6ae8c4e61ef0))
+
 ## [1.8.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.7.0...inite-auth-service-v1.8.0) (2026-07-10)
 
 

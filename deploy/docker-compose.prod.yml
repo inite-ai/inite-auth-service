@@ -42,6 +42,25 @@ services:
       - "traefik.http.routers.auth-api-http.rule=Host(`auth-api.inite.ai`)"
       - "traefik.http.routers.auth-api-http.entrypoints=web"
       - "traefik.http.routers.auth-api-http.middlewares=redirect-to-https"
+      # RFC 8705 mTLS host — a SEPARATE router so the primary hosts above are
+      # never asked for a client cert. Terminates TLS with client-cert auth
+      # (tls.options `mtls-client-auth@file`, defined in the global Traefik's
+      # file provider — see deploy/traefik-mtls-dynamic.yml + deploy/MTLS-SETUP.md)
+      # and forwards the verified leaf cert to the backend as
+      # X-Forwarded-Tls-Client-Cert, which the app trusts like X-Forwarded-For
+      # (MtlsService.presentedCertificate). Same backend service/port as the
+      # primary API. Inert until the operator installs the tls.options, points
+      # DNS at mtls-auth-api.inite.ai, and sets MTLS_ENABLED=true.
+      - "traefik.http.routers.auth-api-mtls.rule=Host(`mtls-auth-api.inite.ai`)"
+      - "traefik.http.routers.auth-api-mtls.entrypoints=websecure"
+      - "traefik.http.routers.auth-api-mtls.tls=true"
+      - "traefik.http.routers.auth-api-mtls.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth-api-mtls.tls.options=mtls-client-auth@file"
+      - "traefik.http.routers.auth-api-mtls.priority=100"
+      - "traefik.http.routers.auth-api-mtls.middlewares=pass-client-cert"
+      - "traefik.http.routers.auth-api-mtls.service=auth-api-service"
+      # Forward the verified client certificate (full PEM) to the backend.
+      - "traefik.http.middlewares.pass-client-cert.passtlsclientcert.pem=true"
     environment:
       - NODE_ENV=production
       - PORT=3002
@@ -64,6 +83,15 @@ services:
       - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY}
       - JWT_ISSUER=https://auth-api.inite.ai
       - OIDC_ISSUER=https://auth-api.inite.ai
+      # RFC 8705 mTLS — wired but OFF by default. The app stays inert until
+      # MTLS_ENABLED=true is set in the deploy env AND MTLS_TRUSTED_CA_CERT holds
+      # the PEM CA that PKI client certs must chain to. The header matches
+      # Traefik's passTLSClientCert output; MTLS_ISSUER is the separate mTLS host
+      # advertised in discovery as mtls_endpoint_aliases. See deploy/MTLS-SETUP.md.
+      - MTLS_ENABLED=${MTLS_ENABLED:-false}
+      - MTLS_CLIENT_CERT_HEADER=x-forwarded-tls-client-cert
+      - MTLS_ISSUER=https://mtls-auth-api.inite.ai
+      - MTLS_TRUSTED_CA_CERT=${MTLS_TRUSTED_CA_CERT:-}
       - CORS_ORIGINS=
       - SMTP_HOST=smtp.mailgun.org
       - SMTP_PORT=2525

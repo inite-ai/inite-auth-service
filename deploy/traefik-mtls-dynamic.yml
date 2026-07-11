@@ -1,0 +1,24 @@
+# Traefik dynamic (file-provider) configuration for the RFC 8705 mTLS host.
+#
+# This is NOT loaded by docker-compose — it must be installed into the GLOBAL
+# Traefik instance's file provider (the same Traefik that owns the
+# `traefik-global` network), because TLS options with clientAuth cannot be
+# expressed as Docker router labels. Install it BEFORE the mtls-auth-api router
+# (in docker-compose.prod.yml) is relied upon. See MTLS-SETUP.md.
+#
+# `mtls-client-auth` is referenced by the router label
+#   traefik.http.routers.auth-api-mtls.tls.options=mtls-client-auth@file
+tls:
+  options:
+    mtls-client-auth:
+      minVersion: VersionTLS12
+      clientAuth:
+        # PEM CA bundle the client certificates must chain to. Mount this into
+        # the Traefik container (read-only) and keep it in sync with the app's
+        # MTLS_TRUSTED_CA_CERT so proxy-side and app-side validation agree.
+        caFiles:
+          - /etc/traefik/mtls/client-ca.pem
+        # Require + verify: every request to the mTLS host must present a client
+        # certificate that chains to caFiles. The app then re-validates the
+        # forwarded cert (subject DN / JWKS thumbprint) as defense-in-depth.
+        clientAuthType: RequireAndVerifyClientCert

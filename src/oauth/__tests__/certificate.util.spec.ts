@@ -1,14 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { X509Certificate } from 'node:crypto';
 import {
   parseForwardedCertificate,
   certificateThumbprint,
   canonicalizeSubjectDn,
 } from '../certificate.util';
+import { LEAF_CERT_PEM } from './mtls-certs.fixture';
 
-const FIXTURES = join(__dirname, 'fixtures', 'mtls');
-const leafPem = readFileSync(join(FIXTURES, 'leaf-cert.pem'), 'utf8');
+const leafPem = LEAF_CERT_PEM;
 
 /**
  * The leaf fixture's expected RFC 8705 §3.1 thumbprint, produced out-of-band:

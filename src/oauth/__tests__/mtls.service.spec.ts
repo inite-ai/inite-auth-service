@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { X509Certificate } from 'node:crypto';
 import * as jose from 'jose';
 import { ConfigService } from '@nestjs/config';
@@ -7,23 +5,21 @@ import { OAuthClient } from '@prisma/client';
 import type { Request } from 'express';
 import { MtlsService } from '../mtls.service';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
+import {
+  CA_CERT_PEM,
+  LEAF_CERT_PEM,
+  SELF_SIGNED_CERT_PEM,
+} from './mtls-certs.fixture';
 
 /**
- * RFC 8705 mTLS. Fixtures are PUBLIC test certificates only (no private keys):
- *   CA + a leaf it signed (PKI / tls_client_auth) and a self-signed leaf
- *   (self_signed_tls_client_auth). Regenerate with:
- *     openssl ecparam -name prime256v1 -genkey -noout -out ca.key
- *     openssl req -new -x509 -key ca.key -days 3650 \
- *       -subj "/C=US/O=INITE Test CA/CN=INITE Test Root" -out ca-cert.pem
- *     openssl ecparam -name prime256v1 -genkey -noout -out leaf.key
- *     openssl req -new -key leaf.key -subj "/C=US/O=INITE/CN=mtls-client.inite.ai" -out leaf.csr
- *     openssl x509 -req -in leaf.csr -CA ca-cert.pem -CAkey ca.key \
- *       -CAcreateserial -days 1825 -out leaf-cert.pem
+ * RFC 8705 mTLS. Certificates are PUBLIC test fixtures (no private keys): a CA,
+ * a leaf it signed (PKI / tls_client_auth), and a self-signed leaf
+ * (self_signed_tls_client_auth). See mtls-certs.fixture.ts for the openssl
+ * regeneration recipe.
  */
-const FIXTURES = join(__dirname, 'fixtures', 'mtls');
-const caPem = readFileSync(join(FIXTURES, 'ca-cert.pem'), 'utf8');
-const leafPem = readFileSync(join(FIXTURES, 'leaf-cert.pem'), 'utf8');
-const selfSignedPem = readFileSync(join(FIXTURES, 'selfsigned-cert.pem'), 'utf8');
+const caPem = CA_CERT_PEM;
+const leafPem = LEAF_CERT_PEM;
+const selfSignedPem = SELF_SIGNED_CERT_PEM;
 
 const LEAF_SUBJECT = 'CN=mtls-client.inite.ai, O=INITE, C=US';
 

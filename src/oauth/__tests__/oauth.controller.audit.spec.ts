@@ -11,6 +11,7 @@ import { OAuthM2mService } from '../oauth-m2m.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { MetricsService } from '../../common/metrics.service';
 import { DpopService } from '../dpop.service';
+import { MtlsService } from '../mtls.service';
 import { DeviceFlowService } from '../device-flow.service';
 
 const mockMetrics = () => ({
@@ -73,6 +74,11 @@ describe('TokenController /oauth/token — audit log writes', () => {
       deny: jest.fn(),
       pollForApproval: jest.fn(),
     } as unknown as DeviceFlowService;
+    // mTLS off in this suite — resolveCertThumbprint returns undefined so the
+    // existing shared-secret audit assertions are unaffected.
+    const mtls = {
+      resolveCertThumbprint: jest.fn().mockReturnValue(undefined),
+    } as unknown as MtlsService;
     const grants = new TokenGrantService(
       oauth as unknown as OAuthService,
       audit as unknown as OAuthAuditService,
@@ -81,6 +87,7 @@ describe('TokenController /oauth/token — audit log writes', () => {
       deviceFlow,
       oauth as unknown as OAuthTokenIssuerService,
       oauth as unknown as OAuthM2mService,
+      mtls,
     );
     // Dispatcher stub delegating to the client-registry mock, mirroring the
     // shared-secret path so the existing audit assertions still hold.

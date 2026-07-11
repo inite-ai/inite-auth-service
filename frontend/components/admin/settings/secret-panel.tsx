@@ -50,6 +50,7 @@ export default function SecretPanel({
     <Sheet
       open={!!setting}
       onClose={() => !saving && onClose()}
+      dirty={!saving && value.trim().length > 0}
       title={setting?.label ?? ''}
       subtitle={setting?.key}
       width="lg"

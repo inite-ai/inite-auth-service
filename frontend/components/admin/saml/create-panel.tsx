@@ -73,6 +73,7 @@ export default function CreateSamlPanel({
     <Sheet
       open={open}
       onClose={() => !saving && onClose()}
+      dirty={!saving && JSON.stringify(form) !== JSON.stringify(EMPTY)}
       title="New SAML connection"
       subtitle="Inbound enterprise SSO (Service Provider)"
       width="lg"

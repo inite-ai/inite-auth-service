@@ -12,6 +12,7 @@ interface CreateForm {
   companyId: string
   audience: string
   scopes: string[]
+  policyNames: string[]
   expiresInDays: string
 }
 
@@ -21,6 +22,7 @@ function initialForm(): CreateForm {
     companyId: '',
     audience: 'brain',
     scopes: ['brain:read', 'brain:write'],
+    policyNames: [],
     expiresInDays: '',
   }
 }
@@ -70,6 +72,7 @@ export default function CreateKeyPanel({
           ...(form.companyId.trim() ? { companyId: form.companyId.trim() } : {}),
           audience: form.audience.trim(),
           scopes: form.scopes,
+          ...(form.policyNames.length > 0 ? { policyNames: form.policyNames } : {}),
           ...(days !== undefined ? { expiresInDays: days } : {}),
         },
         config,
@@ -154,6 +157,18 @@ export default function CreateKeyPanel({
             values={form.scopes}
             onChange={(v) => setForm({ ...form, scopes: v })}
             placeholder="brain:read"
+          />
+        </div>
+
+        <div>
+          <FieldLabel
+            label="ABAC policy sets"
+            hint="optional · brain policy set names resolved for this key"
+          />
+          <ChipInput
+            values={form.policyNames}
+            onChange={(v) => setForm({ ...form, policyNames: v })}
+            placeholder="support-reader"
           />
         </div>
 

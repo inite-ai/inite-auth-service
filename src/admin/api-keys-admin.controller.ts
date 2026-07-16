@@ -59,6 +59,7 @@ export class ApiKeysAdminController {
       companyId,
       audience: dto.audience,
       scopes: dto.scopes,
+      policyNames: dto.policyNames,
       userId: dto.userId,
       expiresAt,
     });

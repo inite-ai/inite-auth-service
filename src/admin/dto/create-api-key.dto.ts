@@ -28,6 +28,12 @@ export class CreateApiKeyDto {
   @IsString({ each: true })
   scopes!: string[];
 
+  /** ABAC policy set names the vertical resolves for this key (introspection `policy`). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  policyNames?: string[];
+
   /** Optional owner user (UUID) — introspection then answers sub=user.did. */
   @IsOptional()
   @IsUUID()

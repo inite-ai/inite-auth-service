@@ -29,6 +29,7 @@ describe('ApiKeysService', () => {
     organizationId: 'org-uuid-1',
     audience: 'brain',
     scopes: ['brain:read', 'brain:write'],
+    policyNames: [] as string[],
     expiresAt: null,
     revoked: false,
     revokedAt: null,
@@ -79,6 +80,33 @@ describe('ApiKeysService', () => {
       expect(created.prefix).toBe(rawKey.slice(0, 9));
       expect(created.organizationId).toBe('org-uuid-1');
       expect(apiKey).not.toHaveProperty('keyHash');
+    });
+
+    it('persists policy set names and rejects invalid ones', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(org);
+      mockPrisma.apiKey.create.mockImplementation(({ data }: { data: object }) =>
+        Promise.resolve({ ...storedKey, ...data }),
+      );
+
+      await service.issue({
+        name: 'k',
+        companyId: 'co_acme',
+        audience: 'brain',
+        scopes: ['brain:read'],
+        policyNames: ['support-reader', 'no-pii'],
+      });
+      const created = mockPrisma.apiKey.create.mock.calls[0][0].data;
+      expect(created.policyNames).toEqual(['support-reader', 'no-pii']);
+
+      await expect(
+        service.issue({
+          name: 'k',
+          companyId: 'co_acme',
+          audience: 'brain',
+          scopes: ['brain:read'],
+          policyNames: ['BAD NAME!'],
+        }),
+      ).rejects.toThrow(/Invalid policy set name/);
     });
 
     it('rejects an unknown owner userId with a 400, not an FK 500', async () => {
@@ -137,6 +165,25 @@ describe('ApiKeysService', () => {
         scope: 'brain:read brain:write',
         token_type: 'api_key',
       });
+    });
+
+    it('answers the policy member for keys carrying policy sets', async () => {
+      mockPrisma.apiKey.findUnique.mockResolvedValue({
+        ...storedKey,
+        policyNames: ['support-reader'],
+        organization: org,
+        user: null,
+      });
+      const claims = await service.introspectionClaims('ik_raw_key_value');
+      expect(claims?.policy).toEqual(['support-reader']);
+
+      mockPrisma.apiKey.findUnique.mockResolvedValue({
+        ...storedKey,
+        organization: org,
+        user: null,
+      });
+      const bare = await service.introspectionClaims('ik_raw_key_value');
+      expect(bare).not.toHaveProperty('policy');
     });
 
     it('answers sub=user.did for a user-bound key', async () => {

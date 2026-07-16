@@ -16,6 +16,7 @@ interface AdminApiKey {
   companyId: string
   audience: string
   scopes: string[]
+  policyNames: string[]
   userId: string | null
   expiresAt: string | null
   revoked: boolean
@@ -166,6 +167,11 @@ export default function ApiKeysSection({ accessToken }: { accessToken: string })
                           {k.scopes.map((s) => (
                             <Badge key={s} variant="mono" mono>
                               {s}
+                            </Badge>
+                          ))}
+                          {(k.policyNames ?? []).map((p) => (
+                            <Badge key={`p:${p}`} variant="neutral" mono>
+                              {p}
                             </Badge>
                           ))}
                         </div>

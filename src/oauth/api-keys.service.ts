@@ -31,10 +31,20 @@ export interface IssueApiKeyInput {
   /** RFC 8707 audience the key is valid for, e.g. 'brain'. */
   audience: string;
   scopes: string[];
+  /**
+   * ABAC policy set names the vertical resolves for this key — answered
+   * as the `policy` member of the introspection response. Names use the
+   * verticals' policy-set charset; semantics live vertical-side.
+   */
+  policyNames?: string[];
   /** Optional owner user (UUID) — introspection then answers sub=user.did. */
   userId?: string;
   expiresAt?: Date;
 }
+
+/** Mirror of the verticals' policy-set naming rules (brain policy-store). */
+const VALID_POLICY_NAME = /^[a-z][a-z0-9_-]{1,63}$/;
+const MAX_POLICY_NAMES = 8;
 
 function hashKey(rawKey: string): string {
   return crypto.createHash('sha256').update(rawKey).digest('hex');
@@ -78,6 +88,7 @@ export class ApiKeysService {
         userId: input.userId ?? null,
         audience: input.audience,
         scopes: input.scopes,
+        policyNames: input.policyNames ?? [],
         expiresAt: input.expiresAt ?? null,
       },
     });
@@ -141,6 +152,9 @@ export class ApiKeysService {
       aud: key.audience,
       client_id: key.audience,
       scope: key.scopes.join(' '),
+      // ABAC policy sets the vertical resolves for this key — same
+      // claim name as on JWTs, so resource-side parsing is uniform.
+      ...(key.policyNames.length > 0 ? { policy: key.policyNames } : {}),
       token_type: 'api_key',
       iat: Math.floor(key.createdAt.getTime() / 1000),
       ...(key.expiresAt ? { exp: Math.floor(key.expiresAt.getTime() / 1000) } : {}),
@@ -155,6 +169,14 @@ export class ApiKeysService {
     const unknown = input.scopes.filter((s) => !known.includes(s));
     if (unknown.length > 0) {
       throw new BadRequestException(`Unknown scope(s): ${unknown.join(', ')}`);
+    }
+    const policyNames = input.policyNames ?? [];
+    if (policyNames.length > MAX_POLICY_NAMES) {
+      throw new BadRequestException(`At most ${MAX_POLICY_NAMES} policy sets per key`);
+    }
+    const badNames = policyNames.filter((n) => !VALID_POLICY_NAME.test(n));
+    if (badNames.length > 0) {
+      throw new BadRequestException(`Invalid policy set name(s): ${badNames.join(', ')}`);
     }
   }
 

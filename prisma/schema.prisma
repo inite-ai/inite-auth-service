@@ -86,6 +86,9 @@ model ApiKey {
   /// RFC 8707 audience the key is valid for (e.g. 'brain').
   audience       String
   scopes         String[]
+  /// ABAC policy set names the vertical resolves for this key —
+  /// surfaced as the `policy` member of the introspection answer.
+  policyNames    String[]  @map("policyNames")
   expiresAt      DateTime? @map("expiresAt")
   revoked        Boolean   @default(false)
   revokedAt      DateTime? @map("revokedAt")
@@ -271,6 +274,13 @@ model OAuthClient {
   /// back to clientId as audience). Set explicitly when provisioning
   /// machine clients via the admin UI.
   allowedAudiences  String[] @default([]) @map("allowedAudiences")
+  /// Vertical-facing claims stamped on every token issued to/for this
+  /// client. Sanitized at issue time (custom-claims.ts): only the
+  /// allow-listed keys (`policy`, `packs`) survive, values must be
+  /// identifier-charset string arrays, registered claims can't be
+  /// overridden. This is how a tenant pins ABAC policy sets to an
+  /// agent's OAuth client.
+  customClaims      Json?    @map("customClaims")
   /// Marks the client as a public client (RFC 6749 §2.1) — no
   /// client_secret. Token-endpoint authentication relies on PKCE
   /// (authorization_code) or the device_code itself (device flow)

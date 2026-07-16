@@ -445,6 +445,50 @@ describe('OAuthService', () => {
       expect(payload).not.toHaveProperty('roles');
     });
 
+    it('carries inite_mcp_resource authorization_details, dropping other types', async () => {
+      const mcpGrant = {
+        type: 'inite_mcp_resource',
+        locations: ['https://brain.inite.ai'],
+        actions: ['search_knowledge'],
+      };
+      jwt.verify.mockReturnValue({
+        sub: 'did:key:z6MkUser',
+        scope: 'brain:read',
+        authorization_details: [
+          mcpGrant,
+          { type: 'payment_initiation', actions: ['initiate'] },
+        ],
+      });
+      const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
+      jwt.sign = signSpy;
+
+      await m2m.exchangeToken({
+        client: exchangeClient as OAuthClient,
+        subjectToken: 'subject-jwt',
+        subjectTokenType: SUBJECT_TYPE,
+        audience: 'brain',
+      } as never);
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload.authorization_details).toEqual([mcpGrant]);
+    });
+
+    it('omits authorization_details when the subject token carries none', async () => {
+      jwt.verify.mockReturnValue({ sub: 'did:key:z6MkUser', scope: 'brain:read' });
+      const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
+      jwt.sign = signSpy;
+
+      await m2m.exchangeToken({
+        client: exchangeClient as OAuthClient,
+        subjectToken: 'subject-jwt',
+        subjectTokenType: SUBJECT_TYPE,
+        audience: 'brain',
+      } as never);
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload).not.toHaveProperty('authorization_details');
+    });
+
     it('rejects a requested scope beyond the subject token authority', async () => {
       jwt.verify.mockReturnValue({
         sub: 'did:key:z6MkUser',

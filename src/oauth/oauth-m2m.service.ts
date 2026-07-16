@@ -5,6 +5,7 @@ import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
 import { JwksService } from '../common/jwks.service';
 import { SettingsService } from '../common/settings/settings.service';
+import { MCP_AUTHORIZATION_DETAILS_TYPE } from './authorization-details.config';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -164,6 +165,7 @@ export class OAuthM2mService {
       'http://localhost:3002',
     );
 
+    const mcpDetails = this.subjectMcpAuthorizationDetails(subject);
     const accessToken = this.jwtService.sign(
       {
         sub: subject.sub,
@@ -172,6 +174,9 @@ export class OAuthM2mService {
         scopes: grantedScopes,
         scope: grantedScopes.join(' '),
         ...this.subjectIdentityClaims(subject),
+        // RFC 9396: per-tool MCP grants the user consented to ride the
+        // exchange — the target resource gates its MCP tools by them.
+        ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),
       },
       { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
     );
@@ -249,6 +254,25 @@ export class OAuthM2mService {
       if (subject[key] !== undefined) carried[key] = subject[key];
     }
     return carried;
+  }
+
+  /**
+   * RFC 9396 details carried across the exchange. Only the MCP grant
+   * type rides along — those entries are user-consented per-tool
+   * permissions the exchanged token's resource enforces. Other types
+   * (e.g. payment_initiation) stay bound to the original audience.
+   */
+  private subjectMcpAuthorizationDetails(
+    subject: Record<string, unknown>,
+  ): unknown[] {
+    const raw = subject.authorization_details;
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (d): d is Record<string, unknown> =>
+        typeof d === 'object' &&
+        d !== null &&
+        (d as { type?: unknown }).type === MCP_AUTHORIZATION_DETAILS_TYPE,
+    );
   }
 
   private claimScopes(claims: Record<string, unknown>): string[] {

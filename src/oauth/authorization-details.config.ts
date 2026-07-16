@@ -4,9 +4,20 @@
  * `authorization_details` types identically.
  */
 
+/**
+ * The MCP per-tool grant type. Convention (consumed by verticals' MCP
+ * servers, e.g. brain):
+ *   { type: 'inite_mcp_resource',
+ *     locations?: ['https://brain.inite.ai'],   // target deployment(s)
+ *     actions?: ['search_knowledge', 'read'] }  // vertical action names / kinds
+ * Entries of this type also ride RFC 8693 token exchange so a BFF-exchanged
+ * token keeps the user's per-tool consent.
+ */
+export const MCP_AUTHORIZATION_DETAILS_TYPE = 'inite_mcp_resource';
+
 /** Built-in default `authorization_details` types when none are configured. */
 export const DEFAULT_AUTHORIZATION_DETAILS_TYPES = [
-  'inite_mcp_resource',
+  MCP_AUTHORIZATION_DETAILS_TYPE,
   'payment_initiation',
 ];
 

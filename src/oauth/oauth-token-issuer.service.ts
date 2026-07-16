@@ -152,6 +152,10 @@ export class OAuthTokenIssuerService {
     return this.jwtService.sign(
       {
         sub: user.did,
+        // RFC 9068 §2.2 — the client the token was issued to. Resource
+        // servers use it for agent attribution when no act claim exists
+        // (device-flow MCP clients call them directly, no exchange).
+        client_id: clientId,
         userId: user.id,
         email: user.email,
         email_verified: user.emailVerified,

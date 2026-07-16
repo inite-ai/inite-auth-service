@@ -14,6 +14,8 @@ export interface OAuthParams {
   acrValues?: string | null
   /** RFC 8707 resource indicator — binds the issued access-token audience. */
   resource?: string | null
+  /** RFC 9396 raw `authorization_details` JSON (validated server-side). */
+  authorizationDetails?: string | null
 }
 
 /**
@@ -37,6 +39,8 @@ export function buildConsentUrl(params: OAuthParams): string {
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
   if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
   if (params.resource) url.searchParams.set('resource', params.resource)
+  if (params.authorizationDetails)
+    url.searchParams.set('authorization_details', params.authorizationDetails)
 
   return url.pathname + url.search
 }
@@ -55,6 +59,8 @@ export function buildLoginUrl(params: OAuthParams): string {
   if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
   if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
   if (params.resource) url.searchParams.set('resource', params.resource)
+  if (params.authorizationDetails)
+    url.searchParams.set('authorization_details', params.authorizationDetails)
 
   return url.pathname + url.search
 }
@@ -92,6 +98,7 @@ export async function createAuthorizationCode(
       codeChallengeMethod: params.codeChallengeMethod,
       acrValues: params.acrValues,
       resource: params.resource,
+      authorizationDetails: params.authorizationDetails ?? undefined,
     }),
   })
 
@@ -117,6 +124,37 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     codeChallengeMethod: searchParams.get('code_challenge_method'),
     acrValues: searchParams.get('acr_values'),
     resource: searchParams.get('resource'),
+    authorizationDetails: searchParams.get('authorization_details'),
+  }
+}
+
+/** One parsed RFC 9396 entry, plus the whole-list parse helper. */
+export interface ParsedAuthorizationDetail {
+  type: string
+  locations?: string[]
+  actions?: string[]
+  [key: string]: unknown
+}
+
+/**
+ * Best-effort parse of the raw `authorization_details` JSON for display.
+ * Returns null on malformed input — the consent page then shows a warning
+ * and does NOT forward the parameter (the backend would reject it anyway).
+ */
+export function parseAuthorizationDetails(
+  raw: string | null | undefined,
+): ParsedAuthorizationDetail[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return null
+    for (const entry of parsed) {
+      if (typeof entry !== 'object' || entry === null) return null
+      if (typeof (entry as { type?: unknown }).type !== 'string') return null
+    }
+    return parsed as ParsedAuthorizationDetail[]
+  } catch {
+    return null
   }
 }
 

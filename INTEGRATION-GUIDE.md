@@ -614,6 +614,38 @@ curl -X POST https://auth.inite.ai/v1/oauth/token \
 Выданный токен сохраняет `sub` пользователя, несёт `act` (кто действует от его
 имени) и `org`/`org_id`, а scope может только сужаться.
 
+### 6. Пер-инструментные права агентов (RAR, RFC 9396)
+
+При включённом `RAR_ENABLED` клиент может передать в `/authorize` (и через
+consent-экран) `authorization_details` типа `inite_mcp_resource`:
+
+```json
+[{ "type": "inite_mcp_resource",
+   "locations": ["https://brain.inite.ai"],
+   "actions": ["search_knowledge", "record_fact"] }]
+```
+
+Гранты показываются пользователю на consent-экране человекочитаемым списком,
+персистятся на code/refresh, попадают claim'ом в access-токен и переживают
+token exchange. Вертикал (brain) снимает с регистрации MCP-тулзы вне
+гранта; `actions` — имена action-реестра вертикала, `read`/`write` — макросы
+на целый класс. Fail-closed: грант с чужим `locations` даёт пустую поверхность.
+
+### 7. Политики для агентов (claims `policy`/`packs`)
+
+Два канала доставки ABAC-политик вертикала:
+
+- **OAuthClient.customClaims** (admin → OAuth Clients → Edit): map вида
+  `{"policy": ["support-reader"], "packs": ["real_estate"]}` — санитизируется
+  (только эти ключи, identifier-чарсет) и стемпится на каждый токен клиента
+  (user-flow, client_credentials, token exchange). Так политика пинуется к
+  агенту как к OAuth-клиенту.
+- **ApiKey.policyNames** (admin → API Keys → New key): для долгоживущих
+  `ik_…` ключей; уезжает членом `policy` в ответе introspection.
+
+Brain дополнительно поддерживает биндинг `agent:<client_id>` на своей
+стороне (policy_binding) — политика на действующего агента без правок в auth.
+
 ## Troubleshooting
 
 ### CORS errors

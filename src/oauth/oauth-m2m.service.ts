@@ -171,6 +171,7 @@ export class OAuthM2mService {
         act,
         scopes: grantedScopes,
         scope: grantedScopes.join(' '),
+        ...this.subjectIdentityClaims(subject),
       },
       { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
     );
@@ -231,6 +232,23 @@ export class OAuthM2mService {
         'subject_token or actor_token is invalid or expired',
       );
     }
+  }
+
+  /**
+   * Identity context carried over from the subject token so the target
+   * resource keeps tenant + role attribution across the exchange (e.g.
+   * brain maps org→companyId and sub→userId for per-user memory).
+   * Authorization-bearing claims are NOT copied — the issued scope was
+   * already narrowed by resolveExchangeScopes above.
+   */
+  private subjectIdentityClaims(
+    subject: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const carried: Record<string, unknown> = {};
+    for (const key of ['org', 'org_id', 'roles']) {
+      if (subject[key] !== undefined) carried[key] = subject[key];
+    }
+    return carried;
   }
 
   private claimScopes(claims: Record<string, unknown>): string[] {

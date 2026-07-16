@@ -23,7 +23,7 @@ describe('OAuthService', () => {
   let tokenIssuer: OAuthTokenIssuerService;
   let m2m: OAuthM2mService;
   let origins: OAuthOriginsService;
-  let jwt: { sign: jest.Mock };
+  let jwt: { sign: jest.Mock; verify: jest.Mock };
   let config: { get: jest.Mock };
   let mockPrisma: {
     oAuthClient: {
@@ -108,7 +108,10 @@ describe('OAuthService', () => {
         OAuthOriginsService,
         AuthorizationDetailsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
+        {
+          provide: JwtService,
+          useValue: { sign: jest.fn().mockReturnValue('jwt-token'), verify: jest.fn() },
+        },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
         { provide: SettingsService, useValue: fakeSettings({}) },
         { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
@@ -126,7 +129,10 @@ describe('OAuthService', () => {
     tokenIssuer = module.get<OAuthTokenIssuerService>(OAuthTokenIssuerService);
     m2m = module.get<OAuthM2mService>(OAuthM2mService);
     origins = module.get<OAuthOriginsService>(OAuthOriginsService);
-    jwt = module.get<JwtService>(JwtService) as unknown as { sign: jest.Mock };
+    jwt = module.get<JwtService>(JwtService) as unknown as {
+      sign: jest.Mock;
+      verify: jest.Mock;
+    };
     config = module.get<ConfigService>(ConfigService) as unknown as {
       get: jest.Mock;
     };
@@ -372,6 +378,88 @@ describe('OAuthService', () => {
         });
         expect(result.audience).toBe('smart-chat-brain');
       });
+    });
+  });
+
+  describe('exchangeToken', () => {
+    const SUBJECT_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
+    const exchangeClient: Partial<OAuthClient> = {
+      id: 'uuid-landing',
+      clientId: 'brain-landing',
+      clientSecretHash: '$2a$10$x',
+      name: 'Brain Landing',
+      redirectUris: [],
+      allowedScopes: ['openid', 'profile', 'email', 'brain:read', 'brain:write'],
+      allowedGrants: ['urn:ietf:params:oauth:grant-type:token-exchange'],
+      allowedAudiences: ['brain', 'brain-landing'],
+      active: true,
+    };
+
+    it('carries org/org_id/roles from the subject token so the resource keeps tenant context', async () => {
+      jwt.verify.mockReturnValue({
+        sub: 'did:key:z6MkUser',
+        org: 'co_acme',
+        org_id: 'org-uuid-1',
+        roles: ['user', 'admin'],
+        scope: 'openid brain:read brain:write',
+      });
+      const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
+      jwt.sign = signSpy;
+
+      const result = await m2m.exchangeToken({
+        client: exchangeClient as OAuthClient,
+        subjectToken: 'subject-jwt',
+        subjectTokenType: SUBJECT_TYPE,
+        requestedScope: 'brain:read brain:write',
+        audience: 'brain',
+      } as never);
+
+      expect(result.accessToken).toBe('exchanged-jwt');
+      const [payload, opts] = signSpy.mock.calls[0];
+      expect(payload.sub).toBe('did:key:z6MkUser');
+      expect(payload.org).toBe('co_acme');
+      expect(payload.org_id).toBe('org-uuid-1');
+      expect(payload.roles).toEqual(['user', 'admin']);
+      expect(payload.act).toEqual({ sub: 'brain-landing' });
+      expect(opts.audience).toBe('brain');
+    });
+
+    it('omits identity claims the subject token does not carry (M2M subject)', async () => {
+      jwt.verify.mockReturnValue({
+        sub: 'co_acme',
+        scope: 'brain:read',
+      });
+      const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
+      jwt.sign = signSpy;
+
+      await m2m.exchangeToken({
+        client: exchangeClient as OAuthClient,
+        subjectToken: 'subject-jwt',
+        subjectTokenType: SUBJECT_TYPE,
+        audience: 'brain',
+      } as never);
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload).not.toHaveProperty('org');
+      expect(payload).not.toHaveProperty('org_id');
+      expect(payload).not.toHaveProperty('roles');
+    });
+
+    it('rejects a requested scope beyond the subject token authority', async () => {
+      jwt.verify.mockReturnValue({
+        sub: 'did:key:z6MkUser',
+        scope: 'openid brain:read',
+      });
+
+      await expect(
+        m2m.exchangeToken({
+          client: exchangeClient as OAuthClient,
+          subjectToken: 'subject-jwt',
+          subjectTokenType: SUBJECT_TYPE,
+          requestedScope: 'brain:write',
+          audience: 'brain',
+        } as never),
+      ).rejects.toThrow(/exceeds the subject token/);
     });
   });
 

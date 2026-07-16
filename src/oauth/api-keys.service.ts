@@ -61,6 +61,12 @@ export class ApiKeysService {
     if (!organization) {
       throw new BadRequestException(`Unknown companyId "${input.companyId}"`);
     }
+    // Resolve the owner up front — a dangling userId would otherwise
+    // surface as an FK violation (500) instead of a clean 400.
+    if (input.userId) {
+      const user = await this.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!user) throw new BadRequestException(`Unknown userId "${input.userId}"`);
+    }
 
     const rawKey = KEY_PREFIX + crypto.randomBytes(32).toString('base64url');
     const apiKey = await this.prisma.apiKey.create({

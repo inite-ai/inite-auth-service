@@ -8,6 +8,7 @@ describe('ApiKeysService', () => {
   let service: ApiKeysService;
   let mockPrisma: {
     organization: { findUnique: jest.Mock };
+    user: { findUnique: jest.Mock };
     apiKey: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -39,6 +40,7 @@ describe('ApiKeysService', () => {
   beforeEach(async () => {
     mockPrisma = {
       organization: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn() },
       apiKey: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -77,6 +79,21 @@ describe('ApiKeysService', () => {
       expect(created.prefix).toBe(rawKey.slice(0, 9));
       expect(created.organizationId).toBe('org-uuid-1');
       expect(apiKey).not.toHaveProperty('keyHash');
+    });
+
+    it('rejects an unknown owner userId with a 400, not an FK 500', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(org);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(
+        service.issue({
+          name: 'k',
+          companyId: 'co_acme',
+          audience: 'brain',
+          scopes: ['brain:read'],
+          userId: '00000000-0000-0000-0000-000000000000',
+        }),
+      ).rejects.toThrow(/Unknown userId/);
+      expect(mockPrisma.apiKey.create).not.toHaveBeenCalled();
     });
 
     it('rejects an unknown tenant', async () => {

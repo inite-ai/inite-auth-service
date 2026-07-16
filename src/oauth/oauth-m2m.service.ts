@@ -6,6 +6,7 @@ import { TokenExchangeInput } from './dto/token-exchange.input';
 import { JwksService } from '../common/jwks.service';
 import { SettingsService } from '../common/settings/settings.service';
 import { MCP_AUTHORIZATION_DETAILS_TYPE } from './authorization-details.config';
+import { sanitizeCustomClaims } from './custom-claims';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -89,6 +90,9 @@ export class OAuthM2mService {
       client_id: client.clientId,
       scopes: grantedScopes,
       scope: grantedScopes.join(' '),
+      // Per-client vertical claims (policy/packs) — allow-listed keys
+      // only, so they cannot shadow the registered claims here.
+      ...sanitizeCustomClaims(client.customClaims),
     };
     // Sender-constraint confirmation (RFC 7800 cnf). A client may present a
     // DPoP proof (RFC 9449 §6.1, jkt) and/or a client certificate (RFC 8705
@@ -174,6 +178,9 @@ export class OAuthM2mService {
         scopes: grantedScopes,
         scope: grantedScopes.join(' '),
         ...this.subjectIdentityClaims(subject),
+        // The exchanging client's own vertical claims (policy/packs) —
+        // a tenant can pin ABAC policy to the BFF/agent client itself.
+        ...sanitizeCustomClaims(client.customClaims),
         // RFC 9396: per-tool MCP grants the user consented to ride the
         // exchange — the target resource gates its MCP tools by them.
         ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),

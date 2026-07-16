@@ -22,6 +22,8 @@ interface EditForm {
   allowedAudiences: string[]
   companyId: string
   backchannelLogoutUri: string
+  claimPolicy: string[]
+  claimPacks: string[]
   active: boolean
   auth: AuthMethodValue
 }
@@ -55,6 +57,8 @@ export function EditClientPanel({
       allowedAudiences: [...(client.allowedAudiences ?? [])],
       companyId: client.companyId ?? '',
       backchannelLogoutUri: client.backchannelLogoutUri ?? '',
+      claimPolicy: [...(client.customClaims?.policy ?? [])],
+      claimPacks: [...(client.customClaims?.packs ?? [])],
       active: client.active !== false,
       auth: authValueFromClient(client),
     })
@@ -87,6 +91,13 @@ export function EditClientPanel({
           companyId: form.companyId.trim() || null,
           allowedAudiences: form.allowedAudiences,
           backchannelLogoutUri: form.backchannelLogoutUri.trim() || null,
+          customClaims:
+            form.claimPolicy.length > 0 || form.claimPacks.length > 0
+              ? {
+                  ...(form.claimPolicy.length > 0 ? { policy: form.claimPolicy } : {}),
+                  ...(form.claimPacks.length > 0 ? { packs: form.claimPacks } : {}),
+                }
+              : null,
           active: form.active,
           ...auth.payload,
         },
@@ -270,6 +281,30 @@ export function EditClientPanel({
             values={form.allowedScopes}
             onChange={(v) => setForm({ ...form, allowedScopes: v })}
             presets={SCOPE_PRESETS}
+          />
+        </div>
+
+        <div>
+          <FieldLabel
+            label="ABAC policy sets (policy claim)"
+            hint="stamped on every token issued to this client — brain resolves them"
+          />
+          <ChipInput
+            values={form.claimPolicy}
+            onChange={(v) => setForm({ ...form, claimPolicy: v })}
+            placeholder="support-reader"
+          />
+        </div>
+
+        <div>
+          <FieldLabel
+            label="Pack binding (packs claim)"
+            hint="optional · fences indexer:write keys to these packs"
+          />
+          <ChipInput
+            values={form.claimPacks}
+            onChange={(v) => setForm({ ...form, claimPacks: v })}
+            placeholder="real_estate"
           />
         </div>
 

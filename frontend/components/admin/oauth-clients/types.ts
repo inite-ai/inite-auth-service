@@ -12,6 +12,8 @@ export interface OAuthClient {
   allowedAudiences: string[]
   companyId?: string | null
   backchannelLogoutUri?: string | null
+  /** Sanitized vertical-facing claims (policy/packs string arrays). */
+  customClaims?: { policy?: string[]; packs?: string[] } | null
   active: boolean
   logoUrl?: string | null
   tokenEndpointAuthMethod?: string | null

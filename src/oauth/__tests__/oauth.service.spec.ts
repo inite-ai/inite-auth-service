@@ -297,6 +297,25 @@ describe('OAuthService', () => {
       expect(payload.sub).toBe('smart-chat-brain');
     });
 
+    it('stamps sanitized per-client custom claims (policy/packs only)', async () => {
+      const signSpy = jest.fn().mockReturnValue('m2m-jwt');
+      jwt.sign = signSpy;
+
+      await m2m.issueClientCredentialsToken({
+        client: {
+          ...m2mClient,
+          customClaims: { policy: ['support-reader'], sub: 'hijack', evil: ['x'] },
+        } as unknown as OAuthClient,
+        requestedScope: 'brain:read',
+        audience: 'brain',
+      });
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload.policy).toEqual(['support-reader']);
+      expect(payload.sub).toBe('co_smar_chat');
+      expect(payload).not.toHaveProperty('evil');
+    });
+
     it('grants ALL allowed scopes when none are explicitly requested', async () => {
       const signSpy = jest.fn().mockReturnValue('m2m-jwt');
       jwt.sign = signSpy;
@@ -443,6 +462,25 @@ describe('OAuthService', () => {
       expect(payload).not.toHaveProperty('org');
       expect(payload).not.toHaveProperty('org_id');
       expect(payload).not.toHaveProperty('roles');
+    });
+
+    it('stamps the exchanging client custom claims on the exchanged token', async () => {
+      jwt.verify.mockReturnValue({ sub: 'did:key:z6MkUser', scope: 'brain:read' });
+      const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
+      jwt.sign = signSpy;
+
+      await m2m.exchangeToken({
+        client: {
+          ...exchangeClient,
+          customClaims: { policy: ['bff-restricted'] },
+        } as unknown as OAuthClient,
+        subjectToken: 'subject-jwt',
+        subjectTokenType: SUBJECT_TYPE,
+        audience: 'brain',
+      } as never);
+
+      const [payload] = signSpy.mock.calls[0];
+      expect(payload.policy).toEqual(['bff-restricted']);
     });
 
     it('carries inite_mcp_resource authorization_details, dropping other types', async () => {

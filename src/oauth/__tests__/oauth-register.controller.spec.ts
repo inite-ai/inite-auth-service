@@ -119,11 +119,13 @@ describe('OAuthRegisterController', () => {
   it('intersects scope against the supported set and defaults when empty', async () => {
     const dto: RegisterClientDto = {
       redirect_uris: ['https://app.example.com/callback'],
-      scope: 'openid email admin brain:write',
+      // brain:write is DCR-allowed (vertical user scope); admin and
+      // brain:admin are operator-provisioned only and must be dropped.
+      scope: 'openid email admin brain:write brain:admin',
       token_endpoint_auth_method: 'client_secret_post',
     };
 
     const res = await controller.register(dto);
-    expect(res.scope).toBe('openid email');
+    expect(res.scope).toBe('openid email brain:write');
   });
 });

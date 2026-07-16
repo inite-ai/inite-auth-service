@@ -557,6 +557,63 @@ async function linkWallet(accessToken: string) {
 }
 ```
 
+## Интеграция вертикала (resource server)
+
+Раздел для бэкенд-сервисов экосистемы (brain, inbox, …), которые принимают
+access-токены этого IdP. Эталонная интеграция — inite-brain-service.
+
+### 1. Регистрация клиентов
+
+Каждому вертикалу нужны два OAuth-клиента (пример — brain):
+
+| Клиент | Гранты | Audience | Назначение |
+|---|---|---|---|
+| `brain-landing` | authorization_code + refresh_token + token-exchange | `brain`, `brain-landing` | Дашборд: логин пользователя + обмен его токена на `aud=brain` для проксирования |
+| `brain-service` | client_credentials | `brain` | M2M: фоновые задачи без пользователя |
+
+Провижининг: `npm run register-brain-clients` (секреты через
+`BRAIN_LANDING_CLIENT_SECRET` / `BRAIN_SERVICE_CLIENT_SECRET`, печатаются один раз).
+
+### 2. Scopes вертикала
+
+Scopes объявлены в `src/oauth/oauth-scopes.registry.ts` и попадают в discovery
+(`scopes_supported`). Для brain: `brain:read`, `brain:write`, `brain:admin`,
+`brain:read_pii`, `registry:publish`, `indexer:write`. Анонимная динамическая
+регистрация (RFC 7591) может запросить только `brain:read` / `brain:write` —
+административные scopes выдаются только operator-provisioned клиентам.
+
+### 3. Верификация токенов на ресурс-сервере
+
+- JWT подписаны RS256; ключи — `GET /.well-known/jwks.json` (kid-ротация с перекрытием).
+- Проверяйте `iss` (issuer), `aud` (ваш audience, например `brain`), `exp`, подпись.
+- Scopes лежат в `scope` (space-delimited) и `scopes` (массив).
+- Непрозрачные credentials (API-ключи) проверяйте через `POST /v1/oauth/introspect`.
+
+### 4. Claims для мультитенантности
+
+При включённом `RBAC_TOKEN_CLAIMS_ENABLED` пользовательские access-токены несут
+`org` (companyId организации) и `org_id` (UUID). Правило для вертикала:
+
+- есть `org` → тенант = `org`, пользователь = `sub` (did:key);
+- нет `org` (M2M client_credentials) → тенант = `sub` (companyId клиента).
+
+### 5. Токен пользователя вместо M2M (token exchange, RFC 8693)
+
+BFF вертикала не должен минтить анонимный client_credentials-токен для
+проксирования пользовательских запросов — обменивайте токен сессии:
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d client_id=brain-landing -d client_secret=$SECRET \
+  -d subject_token=$USER_ACCESS_TOKEN \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+  -d audience=brain -d scope="brain:read brain:write"
+```
+
+Выданный токен сохраняет `sub` пользователя, несёт `act` (кто действует от его
+имени) и `org`/`org_id`, а scope может только сужаться.
+
 ## Troubleshooting
 
 ### CORS errors

@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Sheet } from '@/components/ui'
 import { OAuthClient, SCOPE_PRESETS, AUDIENCE_PRESETS } from './types'
 import { FieldLabel, TextField, GrantPicker, RedirectUris, ChipInput } from './shared'
+import { CustomClaimsFields, buildCustomClaimsPayload } from './custom-claims-fields'
 import {
   AuthMethodValue,
   AuthMethodField,
@@ -91,13 +92,7 @@ export function EditClientPanel({
           companyId: form.companyId.trim() || null,
           allowedAudiences: form.allowedAudiences,
           backchannelLogoutUri: form.backchannelLogoutUri.trim() || null,
-          customClaims:
-            form.claimPolicy.length > 0 || form.claimPacks.length > 0
-              ? {
-                  ...(form.claimPolicy.length > 0 ? { policy: form.claimPolicy } : {}),
-                  ...(form.claimPacks.length > 0 ? { packs: form.claimPacks } : {}),
-                }
-              : null,
+          customClaims: buildCustomClaimsPayload(form.claimPolicy, form.claimPacks),
           active: form.active,
           ...auth.payload,
         },
@@ -284,29 +279,13 @@ export function EditClientPanel({
           />
         </div>
 
-        <div>
-          <FieldLabel
-            label="ABAC policy sets (policy claim)"
-            hint="stamped on every token issued to this client — brain resolves them"
-          />
-          <ChipInput
-            values={form.claimPolicy}
-            onChange={(v) => setForm({ ...form, claimPolicy: v })}
-            placeholder="support-reader"
-          />
-        </div>
-
-        <div>
-          <FieldLabel
-            label="Pack binding (packs claim)"
-            hint="optional · fences indexer:write keys to these packs"
-          />
-          <ChipInput
-            values={form.claimPacks}
-            onChange={(v) => setForm({ ...form, claimPacks: v })}
-            placeholder="real_estate"
-          />
-        </div>
+        <CustomClaimsFields
+          policy={form.claimPolicy}
+          packs={form.claimPacks}
+          onChange={({ policy, packs }) =>
+            setForm({ ...form, claimPolicy: policy, claimPacks: packs })
+          }
+        />
 
         <AuthMethodField
           value={form.auth}

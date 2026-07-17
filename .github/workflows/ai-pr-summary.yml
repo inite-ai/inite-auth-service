@@ -56,7 +56,7 @@ jobs:
         # isn't enabled for the org/repo). A failed summary must not red-X the
         # PR — the summary is advisory only.
         continue-on-error: true
-        uses: actions/ai-inference@v2
+        uses: actions/ai-inference@a7805884c80886efc241e94a5351df715968a0ad # v2
         with:
           model: openai/gpt-4o-mini
           max-completion-tokens: 800

@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Registry + SSH creds ride dedicated secrets; the GITHUB_TOKEN only checks out.
+permissions:
+  contents: read
+
 env:
   PROJECT_NAME: inite-auth-service
   DOMAIN: auth.inite.ai
@@ -15,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: '20'
         cache: 'npm'
@@ -38,19 +42,19 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v4
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and push backend
-      uses: docker/build-push-action@v7
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
       with:
         context: .
         file: ./Dockerfile
@@ -63,7 +67,7 @@ jobs:
         platforms: linux/amd64
 
     - name: Build and push frontend
-      uses: docker/build-push-action@v7
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
       with:
         context: ./frontend
         file: ./frontend/Dockerfile
@@ -95,10 +99,10 @@ jobs:
     - name: Checkout code
       # We need deploy/docker-compose.prod.yml from the repo on the
       # runner so we can copy it into /opt/projects/.
-      uses: actions/checkout@v7
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v4
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}

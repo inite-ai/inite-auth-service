@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, Loader2, KeyRound, Ban } from 'lucide-react'
+import { Plus, KeyRound, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { Badge, ConfirmDialog, SkeletonRow, CopyButton } from '@/components/ui'

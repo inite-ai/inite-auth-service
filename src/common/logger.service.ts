@@ -27,7 +27,9 @@ interface PrintInput {
  * in the dev pretty-printer — collapse them to a single space.
  */
 function sanitizeLogText(text: string): string {
-  return text.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
+  return text
+    .replace(/\r\n|\r|\n/g, ' ')
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
 }
 
 /**

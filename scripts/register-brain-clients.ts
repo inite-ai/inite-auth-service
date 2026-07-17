@@ -27,6 +27,7 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { BRAIN_SCOPES, STANDARD_SCOPES } from '../src/oauth/oauth-scopes.registry';
+import { writeSecretToFile } from './lib/secret-out';
 
 const prisma = new PrismaClient();
 
@@ -123,13 +124,14 @@ async function upsertClient(config: BrainClientConfig): Promise<void> {
     },
   });
 
+  const secretPath = writeSecretToFile(config.secretEnvVar, config.clientSecret);
   console.log(`✅ Registered: ${config.name}`);
   console.log(`   Client ID:      ${config.clientId}`);
-  console.log(`   Client Secret:  ${config.clientSecret}`);
+  console.log(`   Client Secret:  written to ${secretPath} (chmod 600)`);
   console.log(`   Allowed Scopes: ${config.allowedScopes.join(', ')}`);
   console.log(`   Grants:         ${config.allowedGrants.join(', ')}`);
   console.log(`   Audiences:      ${config.allowedAudiences.join(', ')}`);
-  console.log(`📌 Save the secret NOW — it cannot be retrieved later (${config.secretEnvVar}).\n`);
+  console.log(`📌 Copy ${config.secretEnvVar} from that file NOW and delete it — the secret cannot be retrieved later.\n`);
 }
 
 async function main() {

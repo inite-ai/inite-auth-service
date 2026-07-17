@@ -22,6 +22,15 @@ interface PrintInput {
 }
 
 /**
+ * Control characters in a logged value (CR/LF, ANSI escapes, line
+ * separators) would let request-tainted strings forge extra log lines
+ * in the dev pretty-printer — collapse them to a single space.
+ */
+function sanitizeLogText(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
+}
+
+/**
  * Centralized logger service with structured logging
  * Follows Single Responsibility Principle - handles all logging logic
  */
@@ -78,7 +87,9 @@ export class LoggerService implements NestLoggerService {
   }
 
   private print(input: PrintInput) {
-    const { level, message, context, trace } = input;
+    const { level, context } = input;
+    const message = sanitizeLogText(input.message);
+    const trace = input.trace ? sanitizeLogText(input.trace) : undefined;
     const timestamp = new Date().toISOString();
     const ctxName = typeof context === 'string' ? context : this.context;
     const requestId = requestContext.getRequestId();

@@ -17,6 +17,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import { writeSecretToFile } from './lib/secret-out';
 
 const prisma = new PrismaClient();
 
@@ -73,16 +74,17 @@ async function main() {
     },
   });
 
+  const secretPath = writeSecretToFile('AUTH_ADMIN_TOOLS_CLIENT_SECRET', config.clientSecret);
   console.log(`✅ Registered: ${config.name}`);
   console.log(`   Client ID:     ${config.clientId}`);
-  console.log(`   Client Secret: ${config.clientSecret}`);
+  console.log(`   Client Secret: written to ${secretPath} (chmod 600)`);
   console.log(`   Allowed Scopes: ${config.allowedScopes.join(', ')}`);
   console.log(`   Grants:        ${config.allowedGrants.join(', ')}\n`);
 
-  console.log('📌 Save the secret NOW — it cannot be retrieved later.\n');
+  console.log('📌 Copy the secret from that file NOW and delete it — it cannot be retrieved later.\n');
   console.log('   Set in each vertical that uses @inite/auth-admin:');
   console.log('     AUTH_ADMIN_TOOLS_CLIENT_ID=' + config.clientId);
-  console.log('     AUTH_ADMIN_TOOLS_CLIENT_SECRET=<the value above>');
+  console.log('     AUTH_ADMIN_TOOLS_CLIENT_SECRET=<from the secrets file>');
   console.log('     AUTH_SERVICE_URL=https://auth-api.inite.ai\n');
 
   await prisma.$disconnect();

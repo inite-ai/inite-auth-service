@@ -45,6 +45,12 @@ function EmbedLoginInner() {
     if (fromReferrer) setParentOrigin(fromReferrer)
 
     const onMessage = (e: MessageEvent) => {
+      // Only the embedding parent may hand us its origin: a nested or
+      // sibling frame posting a forged handshake must not redirect our
+      // replies. When the referrer already told us the parent origin,
+      // the handshake has to agree with it.
+      if (e.source !== window.parent) return
+      if (fromReferrer && e.origin !== fromReferrer) return
       if (typeof e.data !== 'object' || e.data == null) return
       if (e.data.type === 'inite.handshake') {
         setParentOrigin(e.origin)

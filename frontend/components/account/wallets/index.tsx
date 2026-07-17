@@ -143,7 +143,7 @@ export default function WalletsSection({ wallets, userDid, accessToken, onUpdate
       )
 
       // Sign message using TON Connect
-      const signResult = await tonConnectUI.sendTransaction({
+      await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [],
       })

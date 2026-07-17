@@ -9,6 +9,7 @@ import { OAuthClient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { validateDcrClientKeys } from './dcr-jwks.util';
+import { dcrSupportedScopes } from './oauth-scopes.registry';
 
 /** Input contract for the programmatic registerClient (not public DCR). */
 export interface RegisterClientInput {
@@ -27,7 +28,7 @@ const DCR_ALLOWED_GRANTS = [
   'client_credentials',
 ];
 const DCR_DEFAULT_GRANTS = ['authorization_code', 'refresh_token'];
-const DCR_SUPPORTED_SCOPES = ['openid', 'profile', 'email', 'offline_access'];
+const DCR_SUPPORTED_SCOPES = dcrSupportedScopes();
 const DCR_DEFAULT_SCOPES = ['openid', 'profile', 'email'];
 const DCR_MAX_REDIRECT_URIS = 10;
 

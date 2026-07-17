@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Sheet } from '@/components/ui'
 import { OAuthClient, SCOPE_PRESETS, AUDIENCE_PRESETS } from './types'
 import { FieldLabel, TextField, GrantPicker, RedirectUris, ChipInput } from './shared'
+import { CustomClaimsFields, buildCustomClaimsPayload } from './custom-claims-fields'
 import {
   AuthMethodValue,
   AuthMethodField,
@@ -22,6 +23,8 @@ interface EditForm {
   allowedAudiences: string[]
   companyId: string
   backchannelLogoutUri: string
+  claimPolicy: string[]
+  claimPacks: string[]
   active: boolean
   auth: AuthMethodValue
 }
@@ -55,6 +58,8 @@ export function EditClientPanel({
       allowedAudiences: [...(client.allowedAudiences ?? [])],
       companyId: client.companyId ?? '',
       backchannelLogoutUri: client.backchannelLogoutUri ?? '',
+      claimPolicy: [...(client.customClaims?.policy ?? [])],
+      claimPacks: [...(client.customClaims?.packs ?? [])],
       active: client.active !== false,
       auth: authValueFromClient(client),
     })
@@ -87,6 +92,7 @@ export function EditClientPanel({
           companyId: form.companyId.trim() || null,
           allowedAudiences: form.allowedAudiences,
           backchannelLogoutUri: form.backchannelLogoutUri.trim() || null,
+          customClaims: buildCustomClaimsPayload(form.claimPolicy, form.claimPacks),
           active: form.active,
           ...auth.payload,
         },
@@ -272,6 +278,14 @@ export function EditClientPanel({
             presets={SCOPE_PRESETS}
           />
         </div>
+
+        <CustomClaimsFields
+          policy={form.claimPolicy}
+          packs={form.claimPacks}
+          onChange={({ policy, packs }) =>
+            setForm({ ...form, claimPolicy: policy, claimPacks: packs })
+          }
+        />
 
         <AuthMethodField
           value={form.auth}

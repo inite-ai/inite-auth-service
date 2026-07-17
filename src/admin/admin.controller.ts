@@ -141,6 +141,7 @@ export class AdminController {
       allowedGrants?: string[];
       companyId?: string | null;
       allowedAudiences?: string[];
+      customClaims?: unknown;
       tokenEndpointAuthMethod?: string;
       jwks?: unknown;
       jwksUri?: string | null;
@@ -181,6 +182,7 @@ export class AdminController {
       logoUrl: string;
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
+      customClaims: unknown;
       tokenEndpointAuthMethod: string;
       jwks: unknown;
       jwksUri: string | null;

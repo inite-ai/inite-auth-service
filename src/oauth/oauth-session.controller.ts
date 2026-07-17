@@ -26,6 +26,7 @@ import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 import { BackchannelLogoutService } from './backchannel-logout.service';
 import { StepUpService } from './step-up.service';
+import { ApiKeysService } from './api-keys.service';
 
 
 @ApiTags('oauth')
@@ -42,6 +43,7 @@ export class OAuthSessionController {
     private readonly authService: AuthService,
     private readonly backchannelLogout: BackchannelLogoutService,
     private readonly stepUp: StepUpService,
+    private readonly apiKeys: ApiKeysService,
   ) {
     this.logger.setContext('OAuthSessionController');
   }
@@ -109,13 +111,19 @@ export class OAuthSessionController {
         exp: payload.exp,
         iat: payload.iat,
         iss: payload.iss,
+        // Tenant/role context so an introspecting RS resolves the same
+        // principal as a local JWT verify (org→tenant, sub→user).
+        ...(payload.org ? { org: payload.org, org_id: payload.org_id } : {}),
+        ...(payload.roles ? { roles: payload.roles } : {}),
         // RFC 9449 §6.1: surface the JWK thumbprint so an RS that
         // happens to call introspect (rare for M2M, but legal) can
         // also verify sender-constraint.
         ...(payload.cnf ? { cnf: payload.cnf, token_type: 'DPoP' } : { token_type: 'Bearer' }),
       };
     } catch {
-      return { active: false };
+      // Not one of our JWTs — maybe a long-lived opaque API key.
+      const apiKeyClaims = await this.apiKeys.introspectionClaims(token);
+      return apiKeyClaims ? { active: true, ...apiKeyClaims } : { active: false };
     }
   }
 

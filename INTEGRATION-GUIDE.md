@@ -557,6 +557,95 @@ async function linkWallet(accessToken: string) {
 }
 ```
 
+## Интеграция вертикала (resource server)
+
+Раздел для бэкенд-сервисов экосистемы (brain, inbox, …), которые принимают
+access-токены этого IdP. Эталонная интеграция — inite-brain-service.
+
+### 1. Регистрация клиентов
+
+Каждому вертикалу нужны два OAuth-клиента (пример — brain):
+
+| Клиент | Гранты | Audience | Назначение |
+|---|---|---|---|
+| `brain-landing` | authorization_code + refresh_token + token-exchange | `brain`, `brain-landing` | Дашборд: логин пользователя + обмен его токена на `aud=brain` для проксирования |
+| `brain-service` | client_credentials | `brain` | M2M: фоновые задачи без пользователя |
+
+Провижининг: `npm run register-brain-clients` (секреты через
+`BRAIN_LANDING_CLIENT_SECRET` / `BRAIN_SERVICE_CLIENT_SECRET`, печатаются один раз).
+
+### 2. Scopes вертикала
+
+Scopes объявлены в `src/oauth/oauth-scopes.registry.ts` и попадают в discovery
+(`scopes_supported`). Для brain: `brain:read`, `brain:write`, `brain:admin`,
+`brain:read_pii`, `registry:publish`, `indexer:write`. Анонимная динамическая
+регистрация (RFC 7591) может запросить только `brain:read` / `brain:write` —
+административные scopes выдаются только operator-provisioned клиентам.
+
+### 3. Верификация токенов на ресурс-сервере
+
+- JWT подписаны RS256; ключи — `GET /.well-known/jwks.json` (kid-ротация с перекрытием).
+- Проверяйте `iss` (issuer), `aud` (ваш audience, например `brain`), `exp`, подпись.
+- Scopes лежат в `scope` (space-delimited) и `scopes` (массив).
+- Непрозрачные credentials (API-ключи) проверяйте через `POST /v1/oauth/introspect`.
+
+### 4. Claims для мультитенантности
+
+При включённом `RBAC_TOKEN_CLAIMS_ENABLED` пользовательские access-токены несут
+`org` (companyId организации) и `org_id` (UUID). Правило для вертикала:
+
+- есть `org` → тенант = `org`, пользователь = `sub` (did:key);
+- нет `org` (M2M client_credentials) → тенант = `sub` (companyId клиента).
+
+### 5. Токен пользователя вместо M2M (token exchange, RFC 8693)
+
+BFF вертикала не должен минтить анонимный client_credentials-токен для
+проксирования пользовательских запросов — обменивайте токен сессии:
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d client_id=brain-landing -d client_secret=$SECRET \
+  -d subject_token=$USER_ACCESS_TOKEN \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+  -d audience=brain -d scope="brain:read brain:write"
+```
+
+Выданный токен сохраняет `sub` пользователя, несёт `act` (кто действует от его
+имени) и `org`/`org_id`, а scope может только сужаться.
+
+### 6. Пер-инструментные права агентов (RAR, RFC 9396)
+
+При включённом `RAR_ENABLED` клиент может передать в `/authorize` (и через
+consent-экран) `authorization_details` типа `inite_mcp_resource`:
+
+```json
+[{ "type": "inite_mcp_resource",
+   "locations": ["https://brain.inite.ai"],
+   "actions": ["search_knowledge", "record_fact"] }]
+```
+
+Гранты показываются пользователю на consent-экране человекочитаемым списком,
+персистятся на code/refresh, попадают claim'ом в access-токен и переживают
+token exchange. Вертикал (brain) снимает с регистрации MCP-тулзы вне
+гранта; `actions` — имена action-реестра вертикала, `read`/`write` — макросы
+на целый класс. Fail-closed: грант с чужим `locations` даёт пустую поверхность.
+
+### 7. Политики для агентов (claims `policy`/`packs`)
+
+Два канала доставки ABAC-политик вертикала:
+
+- **OAuthClient.customClaims** (admin → OAuth Clients → Edit): map вида
+  `{"policy": ["support-reader"], "packs": ["real_estate"]}` — санитизируется
+  (только эти ключи, identifier-чарсет) и стемпится на каждый токен клиента
+  (user-flow, client_credentials, token exchange). Так политика пинуется к
+  агенту как к OAuth-клиенту.
+- **ApiKey.policyNames** (admin → API Keys → New key): для долгоживущих
+  `ik_…` ключей; уезжает членом `policy` в ответе introspection.
+
+Brain дополнительно поддерживает биндинг `agent:<client_id>` на своей
+стороне (policy_binding) — политика на действующего агента без правок в auth.
+
 ## Troubleshooting
 
 ### CORS errors

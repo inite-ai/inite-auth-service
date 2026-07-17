@@ -6,6 +6,7 @@ import { DbHealthService } from './db-health.service';
 import { RedisService } from './redis.service';
 import { MetricsService } from './metrics.service';
 import { resolveAuthorizationDetailsTypes } from '../oauth/authorization-details.config';
+import { supportedScopes } from '../oauth/oauth-scopes.registry';
 import { SettingsService } from './settings/settings.service';
 
 @Controller({ version: VERSION_NEUTRAL })
@@ -139,7 +140,7 @@ export class HealthController {
     return {
       resource: issuer,
       authorization_servers: [issuer],
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+      scopes_supported: supportedScopes(),
       bearer_methods_supported: ['header'],
       resource_documentation: `${issuer}/docs`,
     };
@@ -240,7 +241,7 @@ export class HealthController {
         'RS256', 'PS256', 'ES256', 'EdDSA',
       ],
       code_challenge_methods_supported: ['S256'],
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+      scopes_supported: supportedScopes(),
       claims_supported: [
         'sub',
         'email',

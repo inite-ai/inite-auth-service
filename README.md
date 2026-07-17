@@ -165,7 +165,7 @@ my-app-one.example.com   my-app-two.example.com   my-app-three.example.com
 - **Data:** PostgreSQL + [Prisma](https://www.prisma.io); Redis (sessions, rate limits, lockout)
 - **Auth:** Passport.js, [SimpleWebAuthn](https://simplewebauthn.dev) (passkeys), `jose` (RS256 JWKS), `ethers` (SIWE)
 - **Frontend:** Next.js admin UI + docs site (`frontend/`)
-- **SDK:** TypeScript + React (`packages/sdk/`, MIT)
+- **SDK:** TypeScript + React (`packages/sdk/`, MIT); server-side resource-server SDK (`packages/resource/`, MIT)
 - **Tooling:** Jest, ESLint (flat config + size/complexity gates), Prettier, Docker
 
 ## Documentation
@@ -227,8 +227,9 @@ the MCP bundle (RFC 8414 / 7591 / 9728 / 8707).
 
 [AGPL-3.0-or-later](LICENSE) for the server, with a commercial license also
 available — see [LICENSING.md](LICENSING.md). The client SDK in
-[`packages/sdk/`](packages/sdk/) is MIT. Contributions require a CLA; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[`packages/sdk/`](packages/sdk/) and the resource-server SDK in
+[`packages/resource/`](packages/resource/) are MIT. Contributions require a
+CLA; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Support
 

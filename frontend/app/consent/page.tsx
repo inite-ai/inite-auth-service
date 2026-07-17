@@ -5,9 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut, ExternalLink, AppWindow } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
-import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, OAuthParams } from '@/lib/oauthHelpers'
+import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, parseAuthorizationDetails, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
 import { AppHeader } from '@/components/AppHeader'
+import { ConsentGrants } from '@/components/ConsentGrants'
 import api from '@/lib/api'
 
 interface UserInfo {
@@ -31,6 +32,10 @@ const SCOPE_INFO: Record<string, { icon: typeof Key; label: string; description:
   'email': { icon: Mail, label: 'Email', description: 'View your email address' },
   'admin': { icon: Shield, label: 'Admin', description: 'Administrative access' },
   'offline_access': { icon: Key, label: 'Offline', description: 'Stay signed in with refresh tokens' },
+  'brain:read': { icon: Key, label: 'Memory read', description: 'Search and read your memory (brain)' },
+  'brain:write': { icon: Key, label: 'Memory write', description: 'Record facts into your memory (brain)' },
+  'brain:admin': { icon: Shield, label: 'Memory admin', description: 'Operate your memory tenant (brain)' },
+  'brain:read_pii': { icon: Shield, label: 'Memory PII', description: 'Read personally identifiable memory fields' },
 }
 
 function ConsentContent() {
@@ -99,6 +104,11 @@ function ConsentContent() {
       .map(s => ({ scope: s, ...SCOPE_INFO[s] }))
   }
 
+  // RFC 9396 fine-grained grants. Malformed JSON is shown as a warning
+  // and stripped before the code is created — never forwarded blind.
+  const rarDetails = parseAuthorizationDetails(oauthParams?.authorizationDetails)
+  const rarMalformed = !!oauthParams?.authorizationDetails && !rarDetails
+
   const handleApprove = async () => {
     if (!oauthParams?.clientId || !oauthParams?.redirectUri) {
       setError('Missing required parameters')
@@ -125,7 +135,10 @@ function ConsentContent() {
         return
       }
 
-      const code = await createAuthorizationCode(token, oauthParams)
+      const code = await createAuthorizationCode(token, {
+        ...oauthParams,
+        authorizationDetails: rarMalformed ? null : oauthParams.authorizationDetails,
+      })
       window.location.href = buildRedirectWithCode(oauthParams.redirectUri, code, oauthParams.state)
     } catch (err: any) {
       setError(err.message || 'Failed to process authorization')
@@ -246,6 +259,9 @@ function ConsentContent() {
               ))}
             </ul>
           </div>
+
+          {/* Fine-grained agent grants (RFC 9396) */}
+          <ConsentGrants details={rarDetails} malformed={rarMalformed} />
 
           {/* Actions */}
           <div className="flex gap-3">

@@ -6,6 +6,7 @@ import {
   Users,
   AppWindow,
   Building2,
+  KeyRound,
   Radio,
   Plug,
   ShieldCheck,
@@ -23,6 +24,7 @@ import {
   UsersSection,
   OAuthClientsSection,
   OrganizationsSection,
+  ApiKeysSection,
   SsfStreamsSection,
   FederationSection,
   SamlSection,
@@ -35,6 +37,7 @@ type Tab =
   | 'users'
   | 'clients'
   | 'orgs'
+  | 'apikeys'
   | 'signals'
   | 'connections'
   | 'saml'
@@ -46,6 +49,7 @@ const tabs: { key: Tab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'users', label: 'Users', icon: Users },
   { key: 'clients', label: 'OAuth Clients', icon: AppWindow },
   { key: 'orgs', label: 'Organizations', icon: Building2 },
+  { key: 'apikeys', label: 'API Keys', icon: KeyRound },
   { key: 'signals', label: 'Shared Signals', icon: Radio },
   { key: 'connections', label: 'Connections', icon: Plug },
   { key: 'saml', label: 'SAML SSO', icon: ShieldCheck },
@@ -180,6 +184,7 @@ export default function AdminPage() {
           {activeTab === 'orgs' && (
             <OrganizationsSection accessToken={accessToken} />
           )}
+          {activeTab === 'apikeys' && <ApiKeysSection accessToken={accessToken} />}
           {activeTab === 'signals' && (
             <SsfStreamsSection accessToken={accessToken} />
           )}

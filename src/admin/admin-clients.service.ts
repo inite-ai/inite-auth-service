@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { validateDcrClientKeys } from "../oauth/dcr-jwks.util";
+import { sanitizeCustomClaims } from "../oauth/custom-claims";
 import { stripClientSecret } from "../common/sanitize";
 
 const AUTH_METHODS = ['client_secret_post', 'private_key_jwt', 'none'];
@@ -13,6 +14,18 @@ export interface ClientAuthMethodInput {
   tokenEndpointAuthMethod?: string;
   jwks?: unknown;
   jwksUri?: string | null;
+}
+
+/**
+ * customClaims are sanitized at write time too (not only at issuance) so
+ * the admin sees exactly what tokens will carry; an all-invalid input
+ * stores NULL rather than dead weight.
+ */
+function customClaimsField(raw: unknown): { customClaims: Prisma.InputJsonValue | Prisma.NullTypes.JsonNull } {
+  const clean = sanitizeCustomClaims(raw);
+  return {
+    customClaims: Object.keys(clean).length > 0 ? clean : Prisma.JsonNull,
+  };
 }
 
 /**
@@ -84,6 +97,7 @@ export class AdminClientsService {
     companyId?: string | null;
     allowedAudiences?: string[];
     backchannelLogoutUri?: string | null;
+    customClaims?: unknown;
   } & ClientAuthMethodInput) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -103,6 +117,7 @@ export class AdminClientsService {
         allowedAudiences: data.allowedAudiences ?? [],
         companyId: data.companyId ?? null,
         backchannelLogoutUri: data.backchannelLogoutUri ?? null,
+        ...customClaimsField(data.customClaims),
         ...this.authMethodFields(data),
       },
     });
@@ -128,16 +143,19 @@ export class AdminClientsService {
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
       backchannelLogoutUri: string | null;
+      customClaims: unknown;
     }> & ClientAuthMethodInput,
   ) {
     // Separate the auth-method inputs (validated + mapped) from the plain
     // column updates so the raw jwks/method values aren't written unchecked.
-    const { tokenEndpointAuthMethod, jwks, jwksUri, ...rest } = data;
+    const { tokenEndpointAuthMethod, jwks, jwksUri, customClaims, ...rest } = data;
     const authFields = this.authMethodFields({ tokenEndpointAuthMethod, jwks, jwksUri });
+    const claimFields =
+      customClaims !== undefined ? customClaimsField(customClaims) : {};
     try {
       const client = await this.prisma.oAuthClient.update({
         where: { clientId },
-        data: { ...rest, ...authFields },
+        data: { ...rest, ...claimFields, ...authFields },
       });
       return stripClientSecret(client);
     } catch {

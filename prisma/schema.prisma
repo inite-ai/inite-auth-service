@@ -43,6 +43,7 @@ model User {
   knownDevices       UserKnownDevice[]
   oauthIdentities    OAuthIdentity[]
   memberships        Membership[]
+  apiKeys            ApiKey[]
 
   @@map("users")
 }
@@ -61,8 +62,46 @@ model Organization {
 
   memberships Membership[]
   roles       OrgRole[]
+  apiKeys     ApiKey[]
 
   @@map("organizations")
+}
+
+/// Long-lived opaque API key ("ik_…") for vertical resource access. The raw
+/// value is shown once at issuance and stored only as a SHA-256 hash.
+/// Resource servers verify keys via RFC 7662 introspection, which answers
+/// with the same claim shape as OAuth tokens (sub/org/org_id/scope/aud) so
+/// @inite/auth-resource maps keys and tokens identically.
+model ApiKey {
+  id             String    @id @default(uuid()) @db.Uuid
+  /// SHA-256 hex of the raw key — unique O(1) lookup; raw value never stored.
+  keyHash        String    @unique @map("keyHash")
+  /// Display fragment (first chars of the raw key) so operators can identify keys.
+  prefix         String
+  name           String
+  /// Owner user (personal key) — introspection surfaces sub = user.did.
+  userId         String?   @map("userId") @db.Uuid
+  /// Owning tenant — introspection surfaces org = organization.companyId.
+  organizationId String    @map("organizationId") @db.Uuid
+  /// RFC 8707 audience the key is valid for (e.g. 'brain').
+  audience       String
+  scopes         String[]
+  /// ABAC policy set names the vertical resolves for this key —
+  /// surfaced as the `policy` member of the introspection answer.
+  policyNames    String[]  @map("policyNames")
+  expiresAt      DateTime? @map("expiresAt")
+  revoked        Boolean   @default(false)
+  revokedAt      DateTime? @map("revokedAt")
+  lastUsedAt     DateTime? @map("lastUsedAt")
+  createdAt      DateTime  @default(now()) @map("createdAt")
+  updatedAt      DateTime  @updatedAt @map("updatedAt")
+
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("api_keys")
 }
 
 /// A user's membership in an organization, carrying a role slug.
@@ -235,6 +274,13 @@ model OAuthClient {
   /// back to clientId as audience). Set explicitly when provisioning
   /// machine clients via the admin UI.
   allowedAudiences  String[] @default([]) @map("allowedAudiences")
+  /// Vertical-facing claims stamped on every token issued to/for this
+  /// client. Sanitized at issue time (custom-claims.ts): only the
+  /// allow-listed keys (`policy`, `packs`) survive, values must be
+  /// identifier-charset string arrays, registered claims can't be
+  /// overridden. This is how a tenant pins ABAC policy sets to an
+  /// agent's OAuth client.
+  customClaims      Json?    @map("customClaims")
   /// Marks the client as a public client (RFC 6749 §2.1) — no
   /// client_secret. Token-endpoint authentication relies on PKCE
   /// (authorization_code) or the device_code itself (device flow)

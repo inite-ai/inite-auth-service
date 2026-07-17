@@ -13,6 +13,7 @@ import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 import { SettingsService } from '../common/settings/settings.service';
+import { sanitizeCustomClaims } from './custom-claims';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -58,6 +59,8 @@ interface OrgContext {
   roles: string[];
   org?: string;
   orgId?: string;
+  /** Sanitized per-client claims (policy/packs) — see custom-claims.ts. */
+  customClaims?: Record<string, string[]>;
 }
 
 @Injectable()
@@ -149,6 +152,10 @@ export class OAuthTokenIssuerService {
     return this.jwtService.sign(
       {
         sub: user.did,
+        // RFC 9068 §2.2 — the client the token was issued to. Resource
+        // servers use it for agent attribution when no act claim exists
+        // (device-flow MCP clients call them directly, no exchange).
+        client_id: clientId,
         userId: user.id,
         email: user.email,
         email_verified: user.emailVerified,
@@ -156,6 +163,9 @@ export class OAuthTokenIssuerService {
         picture: user.avatarUrl,
         roles: orgCtx.roles,
         ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
+        // Per-client vertical claims (policy/packs) — allow-listed keys
+        // only, so they can never shadow the registered claims above.
+        ...(orgCtx.customClaims ?? {}),
         // RFC 9396: echo the granted authorization_details into the access token.
         ...(input.authorizationDetails?.length
           ? { authorization_details: input.authorizationDetails }
@@ -217,26 +227,34 @@ export class OAuthTokenIssuerService {
   private async resolveOrgContext(input: GenerateTokensInput): Promise<OrgContext> {
     const metadata = input.user.metadata as { roles?: string[] } | null;
     const metaRoles: string[] = metadata?.roles ?? [];
-    const legacy = { roles: metaRoles.length ? metaRoles : ['user'] };
+    // The client row is fetched regardless of the RBAC flag: per-client
+    // custom claims (policy/packs) are a vertical-facing channel, not an
+    // RBAC feature, and must survive the flag being off.
+    const clientRow = await this.prisma.oAuthClient.findUnique({
+      where: { clientId: input.clientId },
+      select: { companyId: true, customClaims: true },
+    });
+    const customClaims = sanitizeCustomClaims(clientRow?.customClaims);
+    const base: OrgContext = {
+      roles: metaRoles.length ? metaRoles : ['user'],
+      ...(Object.keys(customClaims).length > 0 ? { customClaims } : {}),
+    };
     if (!this.settings.flag('RBAC_TOKEN_CLAIMS_ENABLED')) {
-      return legacy;
+      return base;
     }
 
     const memberships = await this.prisma.membership.findMany({
       where: { userId: input.user.id, status: 'active' },
       include: { organization: true },
     });
-    if (memberships.length === 0) return legacy;
+    if (memberships.length === 0) return base;
 
-    const clientRow = await this.prisma.oAuthClient.findUnique({
-      where: { clientId: input.clientId },
-      select: { companyId: true },
-    });
     const chosen =
       memberships.find((m) => m.organization.companyId === clientRow?.companyId)
       ?? memberships[0]!; // memberships is non-empty (checked above)
     const roles = [...new Set([...metaRoles, ...memberships.map((m) => m.role)])];
     return {
+      ...base,
       roles: roles.length ? roles : ['user'],
       org: chosen.organization.companyId,
       orgId: chosen.organizationId,

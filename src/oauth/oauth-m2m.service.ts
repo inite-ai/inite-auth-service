@@ -5,6 +5,8 @@ import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
 import { JwksService } from '../common/jwks.service';
 import { SettingsService } from '../common/settings/settings.service';
+import { MCP_AUTHORIZATION_DETAILS_TYPE } from './authorization-details.config';
+import { sanitizeCustomClaims } from './custom-claims';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -88,6 +90,9 @@ export class OAuthM2mService {
       client_id: client.clientId,
       scopes: grantedScopes,
       scope: grantedScopes.join(' '),
+      // Per-client vertical claims (policy/packs) — allow-listed keys
+      // only, so they cannot shadow the registered claims here.
+      ...sanitizeCustomClaims(client.customClaims),
     };
     // Sender-constraint confirmation (RFC 7800 cnf). A client may present a
     // DPoP proof (RFC 9449 §6.1, jkt) and/or a client certificate (RFC 8705
@@ -164,6 +169,7 @@ export class OAuthM2mService {
       'http://localhost:3002',
     );
 
+    const mcpDetails = this.subjectMcpAuthorizationDetails(subject);
     const accessToken = this.jwtService.sign(
       {
         sub: subject.sub,
@@ -171,6 +177,13 @@ export class OAuthM2mService {
         act,
         scopes: grantedScopes,
         scope: grantedScopes.join(' '),
+        ...this.subjectIdentityClaims(subject),
+        // The exchanging client's own vertical claims (policy/packs) —
+        // a tenant can pin ABAC policy to the BFF/agent client itself.
+        ...sanitizeCustomClaims(client.customClaims),
+        // RFC 9396: per-tool MCP grants the user consented to ride the
+        // exchange — the target resource gates its MCP tools by them.
+        ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),
       },
       { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
     );
@@ -231,6 +244,42 @@ export class OAuthM2mService {
         'subject_token or actor_token is invalid or expired',
       );
     }
+  }
+
+  /**
+   * Identity context carried over from the subject token so the target
+   * resource keeps tenant + role attribution across the exchange (e.g.
+   * brain maps org→companyId and sub→userId for per-user memory).
+   * Authorization-bearing claims are NOT copied — the issued scope was
+   * already narrowed by resolveExchangeScopes above.
+   */
+  private subjectIdentityClaims(
+    subject: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const carried: Record<string, unknown> = {};
+    for (const key of ['org', 'org_id', 'roles']) {
+      if (subject[key] !== undefined) carried[key] = subject[key];
+    }
+    return carried;
+  }
+
+  /**
+   * RFC 9396 details carried across the exchange. Only the MCP grant
+   * type rides along — those entries are user-consented per-tool
+   * permissions the exchanged token's resource enforces. Other types
+   * (e.g. payment_initiation) stay bound to the original audience.
+   */
+  private subjectMcpAuthorizationDetails(
+    subject: Record<string, unknown>,
+  ): unknown[] {
+    const raw = subject.authorization_details;
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (d): d is Record<string, unknown> =>
+        typeof d === 'object' &&
+        d !== null &&
+        (d as { type?: unknown }).type === MCP_AUTHORIZATION_DETAILS_TYPE,
+    );
   }
 
   private claimScopes(claims: Record<string, unknown>): string[] {

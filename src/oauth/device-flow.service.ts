@@ -3,7 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { OAuthClient, DeviceAuthorization } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -42,12 +42,11 @@ function hashDeviceCode(code: string): string {
 function generateUserCode(): string {
   const pick = (n: number) => {
     const out: string[] = [];
-    const bytes = randomBytes(n);
     for (let i = 0; i < n; i++) {
-      // i < n === bytes.length and the modulo keeps the index within the
-      // fixed 20-char alphabet, so both lookups are provably in range.
-      const byte = bytes[i]!;
-      out.push(USER_CODE_ALPHABET[byte % USER_CODE_ALPHABET.length]!);
+      // randomInt is rejection-sampled — uniform over the 20-char
+      // alphabet, unlike a raw byte modulo (256 % 20 !== 0 biases
+      // the first 16 characters).
+      out.push(USER_CODE_ALPHABET[randomInt(USER_CODE_ALPHABET.length)]!);
     }
     return out.join('');
   };

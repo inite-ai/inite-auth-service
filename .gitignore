@@ -59,3 +59,6 @@ openapi.json
 *.pfx
 private.pem
 public.pem
+
+# one-shot secret hand-off from provisioning scripts
+client-secrets.local.env

@@ -17,6 +17,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import { writeSecretToFile } from './lib/secret-out';
 
 const prisma = new PrismaClient();
 
@@ -68,9 +69,10 @@ async function main() {
         active: true,
       },
     });
+    const secretPath = writeSecretToFile('CLIENT_SECRET', client.clientSecret);
     console.log(`✅ Registered "${client.name}"`);
     console.log(`   Client ID:     ${client.clientId}`);
-    console.log(`   Client Secret: ${client.clientSecret}   <-- store this now, shown once`);
+    console.log(`   Client Secret: written to ${secretPath} (chmod 600) — copy now, then delete the file`);
     console.log(`   Redirect URIs: ${client.redirectUris.join(', ')}`);
   }
 

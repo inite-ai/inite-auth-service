@@ -116,16 +116,6 @@ export default function AdminPage() {
     loadAdmin()
   }, [loadAdmin])
 
-  const handleLogout = async () => {
-    try {
-      await api.get('/oauth/logout', { withCredentials: true }).catch(() => {})
-    } finally {
-      authStorage.clear()
-      router.push('/login')
-      toast.success('Logged out')
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--bg)]">

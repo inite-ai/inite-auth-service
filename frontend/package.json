@@ -14,7 +14,7 @@
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
-    "@next/mdx": "^16.2.10",
+    "@next/mdx": "^16.3.0",
     "@simplewebauthn/browser": "^13.2.2",
     "@tonconnect/ui-react": "^3.0.0",
     "@walletconnect/ethereum-provider": "^2.23.10",
@@ -23,7 +23,7 @@
     "ethers": "^6.17.0",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.24.0",
-    "next": "^16.2.10",
+    "next": "^16.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hot-toast": "^2.6.0"
@@ -36,13 +36,13 @@
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.2",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^16.2.10",
-    "postcss": "^8.5.10",
+    "eslint-config-next": "^16.3.0",
+    "postcss": "^8.5.18",
     "tailwindcss": "4.3.2",
     "typescript": "^5.9.3"
   },
   "comments": {
-    "overrides": "Pin patched transitive deps flagged by Dependabot. ws is split: the 8.x consumers get >=8.21.0, while @walletconnect/jsonrpc-ws-connection (which wants the 7.x line) is scoped to >=7.5.11 so it isn't force-upgraded to 8.x."
+    "overrides": "Pin patched transitive deps flagged by Dependabot. ws is split: the 8.x consumers get >=8.21.0, while @walletconnect/jsonrpc-ws-connection (which wants the 7.x line) is scoped to >=7.5.11 so it isn't force-upgraded to 8.x. axios is global: @coinbase/cdp-sdk (reached through the wallet stack) pins an exact 1.16.0, and the 1.x line is API-stable, so lifting everything to the patched release is safe. sharp needs no pin — next 16.3 asks for ^0.35.3 itself."
   },
   "overrides": {
     "ws": "^8.21.0",
@@ -51,6 +51,7 @@
     },
     "form-data": "^4.0.6",
     "@babel/core": "^7.29.6",
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.18",
+    "axios": "^1.18.1"
   }
 }

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.10.1](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.10.0...inite-auth-service-v1.10.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **deps:** clear all 30 Dependabot alerts, then upgrade everything else too ([#153](https://github.com/inite-ai/inite-auth-service/issues/153)) ([9818652](https://github.com/inite-ai/inite-auth-service/commit/98186529841de1cca20af03103f4383ca341b92a))
+* **seo:** server-render the landing, add robots/sitemap/JSON-LD ([#151](https://github.com/inite-ai/inite-auth-service/issues/151)) ([2d93483](https://github.com/inite-ai/inite-auth-service/commit/2d934836cc6c74bc16d4e92a206d3a72548db923))
+
 ## [1.10.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.9.0...inite-auth-service-v1.10.0) (2026-07-17)
 
 

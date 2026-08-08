@@ -2,9 +2,25 @@ name: Release image
 
 # On a version tag (cut by release-please), build and push a versioned Docker
 # image — :vX.Y.Z, :X.Y, and :latest — so releases map to immutable images.
+#
+# release-please names tags after the component: `inite-auth-service-vX.Y.Z`.
+# The trigger used to be `v*`, which those never match, so this workflow had
+# never once run — ten releases with no image behind them. `v*` is kept for
+# any hand-cut tag.
+#
+# The version is resolved in a step rather than by metadata-action's
+# `type=semver`, which parses the ref as-is and cannot read past the component
+# prefix. That also lets workflow_dispatch backfill an image for a tag cut
+# before this file was fixed: the definition comes from the default branch
+# while the build checks out the tag.
 on:
   push:
-    tags: ['v*']
+    tags: ['inite-auth-service-v*', 'v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. inite-auth-service-v1.10.1)'
+        required: true
 
 permissions:
   contents: read
@@ -13,7 +29,26 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
+      - id: ver
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(printf '%s' "$TAG" | sed -E 's/^.*v([0-9]+\.[0-9]+\.[0-9]+)$/\1/')"
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$TAG' does not end in a semver version — refusing to tag an image from it."
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$version"
+            echo "minor=${version%.*}"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
       - uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         with:
@@ -24,8 +59,8 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service
           tags: |
-            type=semver,pattern=v{{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=v${{ steps.ver.outputs.version }}
+            type=raw,value=${{ steps.ver.outputs.minor }}
             type=raw,value=latest
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:

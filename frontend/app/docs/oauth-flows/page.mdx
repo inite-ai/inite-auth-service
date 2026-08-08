@@ -1,7 +1,17 @@
-export const metadata = {
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'oauth-flows',
   title: 'OAuth flows · INITE Docs',
   description: 'Authorization code + PKCE, refresh, device flow, with curl recipes.',
 }
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
 
 # OAuth flows
 

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.10.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.9.0...inite-auth-service-v1.10.0) (2026-07-17)
+
+
+### Features
+
+* **oauth:** brain-vertical integration — user identity, RAR E2E, agent policy channels ([#132](https://github.com/inite-ai/inite-auth-service/issues/132)) ([9b65e15](https://github.com/inite-ai/inite-auth-service/commit/9b65e15be3d05150ae1f10093fb9bc6b0f7d8f15))
+
+
+### Bug Fixes
+
+* **logging:** explicit newline replace ahead of the control-char sweep ([#135](https://github.com/inite-ai/inite-auth-service/issues/135)) ([57b3d5d](https://github.com/inite-ai/inite-auth-service/commit/57b3d5d6433f7a52c0779865c667c0fdd286b20d))
+* **security:** CodeQL + Scorecard + dependency backlog sweep ([#134](https://github.com/inite-ai/inite-auth-service/issues/134)) ([63faa17](https://github.com/inite-ai/inite-auth-service/commit/63faa171789a85a65529680ca752dd984ec4cb13))
+
 ## [1.9.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.8.0...inite-auth-service-v1.9.0) (2026-07-11)
 
 

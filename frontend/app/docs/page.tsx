@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { DOCS_GROUPS } from '@/lib/docs-nav'
+import { buildDocsMetadata } from '@/lib/seo'
 
-export const metadata = {
+export const metadata = buildDocsMetadata({
   title: 'Docs · INITE',
   description: 'How to integrate INITE Identity Provider — SDK, OAuth, OIDC, service tokens.',
-}
+})
 
 /**
  * Docs landing — grouped grid of every doc page. Mirrors the sidebar

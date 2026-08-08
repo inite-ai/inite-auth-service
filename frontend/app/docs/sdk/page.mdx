@@ -1,7 +1,17 @@
-export const metadata = {
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'sdk',
   title: 'SDK reference · INITE Docs',
   description: '@inite/auth-sdk — IniteAuth class, React adapter, mountEmbed.',
 }
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
 
 # SDK reference
 

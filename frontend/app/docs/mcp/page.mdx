@@ -1,8 +1,18 @@
-export const metadata = {
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'mcp',
   title: 'MCP integration · INITE Docs',
   description:
     'Expose INITE auth-admin operations to AI assistants (Claude, Cursor, Goose, n8n) via the Model Context Protocol — using the signed-in admin\'s own session.',
 }
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
 
 # MCP integration
 

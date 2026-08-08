@@ -1,7 +1,17 @@
-export const metadata = {
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'self-hosting',
   title: 'Self-hosting · INITE Docs',
   description: 'Env vars, Prisma migrations, docker-compose, deploy.yml, metrics.',
 }
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
 
 # Self-hosting
 

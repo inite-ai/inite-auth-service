@@ -3,16 +3,13 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import { Providers } from '@/components/Providers'
+import { buildSiteMetadata } from '@/lib/seo'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
-  title: 'INITE Identity - Secure Authentication',
-  description: 'Decentralized identity and authentication for the INITE ecosystem',
-  icons: {
-    icon: '/favicon.ico',
-  },
-}
+// Site-wide defaults (canonical base, OpenGraph, Twitter, robots) live in
+// lib/seo so metadata and JSON-LD read from one set of brand facts.
+export const metadata: Metadata = buildSiteMetadata()
 
 export default function RootLayout({
   children,

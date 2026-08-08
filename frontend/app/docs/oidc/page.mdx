@@ -1,7 +1,17 @@
-export const metadata = {
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'oidc',
   title: 'OIDC reference · INITE Docs',
   description: 'Discovery, JWKS, supported claims, DPoP, PAR, back-channel logout.',
 }
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
 
 # OIDC reference
 

@@ -39,7 +39,7 @@
     "eslint-config-next": "^16.3.0",
     "postcss": "^8.5.18",
     "tailwindcss": "4.3.3",
-    "typescript": "^7.0.2"
+    "typescript": "^5.9.3"
   },
   "comments": {
     "overrides": "Pin patched transitive deps flagged by Dependabot. ws is split: the 8.x consumers get >=8.21.0, while @walletconnect/jsonrpc-ws-connection (which wants the 7.x line) is scoped to >=7.5.11 so it isn't force-upgraded to 8.x. axios is global: @coinbase/cdp-sdk (reached through the wallet stack) pins an exact 1.16.0, and the 1.x line is API-stable, so lifting everything to the patched release is safe. sharp needs no pin — next 16.3 asks for ^0.35.3 itself."

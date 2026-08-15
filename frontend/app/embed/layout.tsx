@@ -1,4 +1,10 @@
 import '../globals.css'
+import { buildNoindexMetadata } from '@/lib/seo'
+
+// Listed in APP_PATHS (app/robots.ts) as never indexable. This is its own root
+// layout, so it does not inherit the site defaults — but it did not set any
+// robots directive either, and a page with none is indexable by default.
+export const metadata = buildNoindexMetadata()
 
 /**
  * Embed routes get a stripped layout — no marketing chrome, no

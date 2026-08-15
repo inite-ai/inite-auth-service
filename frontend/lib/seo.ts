@@ -24,6 +24,33 @@ const ROBOTS = {
   },
 } as const
 
+/**
+ * The opposite directive, for the auth surface.
+ *
+ * app/robots.ts lists /login, /register, /account, /consent and the rest as
+ * "never indexable" and disallows them — but every one of those pages is a
+ * client component with no metadata of its own, so each inherited ROBOTS above
+ * and served `index, follow` to anyone who read it. Two files, one question,
+ * opposite answers.
+ *
+ * robots.txt only asks a crawler not to fetch. A crawler that fetches anyway —
+ * or one that already had, which is how auth.inite.ai/register turned up in
+ * the 2026-08 Search Console crawl — reads the meta tag and finds an
+ * invitation. Belt and braces on purpose: the disallow keeps well-behaved
+ * crawlers out, and this keeps the page out of the index if it is ever
+ * relaxed.
+ */
+export const NOINDEX = {
+  index: false,
+  follow: false,
+  googleBot: { index: false, follow: false },
+} as const
+
+/** Metadata for a route that must never be indexed. Applied from its layout. */
+export function buildNoindexMetadata(): Metadata {
+  return { robots: NOINDEX }
+}
+
 /** Site-wide defaults, applied in the root layout. */
 export function buildSiteMetadata(): Metadata {
   return {

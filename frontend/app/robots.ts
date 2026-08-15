@@ -24,8 +24,16 @@ const BLOCKED = [
   'Omgilibot', 'Webzio-Extended', 'MJ12bot',
 ]
 
-/** Auth surfaces and account chrome — never indexable. */
-const APP_PATHS = [
+/**
+ * Auth surfaces and account chrome — never indexable.
+ *
+ * Exported so __tests__/noindex-parity.test.ts can hold the claim to account.
+ * Every route here is a client component, so it cannot export metadata of its
+ * own and inherits the root layout's `index, follow` unless a layout.tsx says
+ * otherwise. Disallowing a path in this file while the page itself invites
+ * indexing is the contradiction that test exists to catch.
+ */
+export const APP_PATHS = [
   '/account', '/admin', '/login', '/register', '/auth/', '/oauth/', '/consent',
   '/device', '/verify', '/verify-email', '/embed/',
 ]

@@ -160,14 +160,38 @@ export function buildLandingJsonLd(): Json {
   return {
     '@context': 'https://schema.org',
     '@graph': [
+      /**
+       * INITE Identity, as its own entity.
+       *
+       * This node used to describe the parent instead: `@id` was
+       * https://inite.ai/#organization and the name was INITE AI, on a site
+       * that is not inite.ai. Two consequences, both measurable. inite.ai
+       * lists seventeen brands as `subOrganization`, one of them
+       * https://auth.inite.ai/#organization — and nothing declared it, so the
+       * reference resolved to nothing. And every other node here pointed its
+       * publisher at a company on a different domain, which is a claim about
+       * inite.ai rather than about this product.
+       *
+       * Identity is a product with a name, a licence, a repository and a
+       * version. It gets to be a company of its own, hanging off the one that
+       * makes it.
+       */
       {
         '@type': 'Organization',
-        '@id': `${ORG.url}/#organization`,
-        name: ORG.name,
+        '@id': `${SITE_URL}/#organization`,
+        name: BRAND.name,
         legalName: ORG.legalName,
-        url: ORG.url,
+        url: SITE_URL,
+        description: META.description,
         logo: { '@type': 'ImageObject', url: ORG.logo, width: 512, height: 512 },
-        sameAs: ORG.sameAs,
+        sameAs: BRAND.sameAs,
+        parentOrganization: {
+          '@type': 'Organization',
+          '@id': `${ORG.url}/#organization`,
+          name: ORG.name,
+          legalName: ORG.legalName,
+          url: ORG.url,
+        },
         founder: {
           '@type': 'Person',
           name: ORG.founder.name,
@@ -180,7 +204,7 @@ export function buildLandingJsonLd(): Json {
         name: BRAND.name,
         url: SITE_URL,
         inLanguage: 'en',
-        publisher: { '@id': `${ORG.url}/#organization` },
+        publisher: { '@id': `${SITE_URL}/#organization` },
       },
       {
         '@type': 'SoftwareApplication',
@@ -203,8 +227,8 @@ export function buildLandingJsonLd(): Json {
           description:
             'Free and self-hostable under AGPL-3.0; commercial license available',
         },
-        publisher: { '@id': `${ORG.url}/#organization` },
-        provider: { '@id': `${ORG.url}/#organization` },
+        publisher: { '@id': `${SITE_URL}/#organization` },
+        provider: { '@id': `${SITE_URL}/#organization` },
       },
       {
         '@type': 'FAQPage',
@@ -238,7 +262,7 @@ export function buildDocsJsonLd(opts: {
         inLanguage: 'en',
         isPartOf: { '@id': `${SITE_URL}/#website` },
         about: { '@id': `${SITE_URL}/#app` },
-        publisher: { '@id': `${ORG.url}/#organization` },
+        publisher: { '@id': `${SITE_URL}/#organization` },
       },
       {
         '@type': 'BreadcrumbList',

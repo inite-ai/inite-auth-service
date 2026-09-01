@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.11.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.10.1...inite-auth-service-v1.11.0) (2026-09-01)
+
+
+### Features
+
+* **account:** rebuild /account on the design system and fix its flows ([#169](https://github.com/inite-ai/inite-auth-service/issues/169)) ([5e8dcbc](https://github.com/inite-ai/inite-auth-service/commit/5e8dcbcf2e6ee188bef5ee96e2c424ea2b8b4e85))
+* **identity:** make TON wallet linking actually work, behind a flag ([#171](https://github.com/inite-ai/inite-auth-service/issues/171)) ([86d53f8](https://github.com/inite-ai/inite-auth-service/commit/86d53f87ad14b71293bf059f49c0b95d0988a60c))
+
+
+### Bug Fixes
+
+* **seo:** the robots file and the pages disagree ([eacc4e5](https://github.com/inite-ai/inite-auth-service/commit/eacc4e5646d0205096ad017d41cbc72ea272c2b4))
+* **seo:** the robots file and the pages disagree ([301aa51](https://github.com/inite-ai/inite-auth-service/commit/301aa51257769bfcbcd7cdba9a0e29a7b395300e))
+
 ## [1.10.1](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.10.0...inite-auth-service-v1.10.1) (2026-08-08)
 
 

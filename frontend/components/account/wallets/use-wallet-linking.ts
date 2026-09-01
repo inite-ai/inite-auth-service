@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
-import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
+import { useTonConnectUI } from '@tonconnect/ui-react'
 import { EthereumProvider } from '@walletconnect/ethereum-provider'
 import api from '@/lib/api'
 import { useT } from '@/lib/i18n'
@@ -20,20 +20,16 @@ export type LinkKind = 'evm' | 'ton'
  * Wallet link/unlink side effects, extracted from the section so the view
  * stays presentational.
  *
- * NOTE — TON linking is known-broken upstream of this hook: the flow signs
- * nothing and posts `base64(message)` where the API expects a detached
- * Ed25519 signature, which IdentityService.verifyTonSignature always
- * rejects. It fails closed (no wallet is linked), so this preserves the
- * existing behaviour rather than papering over it, and reports the failure
- * plainly instead of as a generic error. Fixing it properly means requesting
- * `ton_proof` at connect time and verifying it server-side per the TON
- * Connect spec — tracked separately.
+ * TON linking uses the real TON Connect `ton_proof`. The previous version
+ * signed nothing and posted `base64(message)` where the API expects a
+ * detached Ed25519 signature, so it could never succeed. A proof is only
+ * issued at connect time, which is why an existing connection is dropped
+ * first — reconnecting is the only way to ask for one.
  */
 export function useWalletLinking(accessToken: string, onUpdate: () => void) {
   const t = useT()
   const [pending, setPending] = useState<LinkKind | null>(null)
   const [tonConnectUI] = useTonConnectUI()
-  const tonWallet = useTonWallet()
 
   const auth = { headers: { Authorization: `Bearer ${accessToken}` } }
 
@@ -96,31 +92,49 @@ export function useWalletLinking(accessToken: string, onUpdate: () => void) {
   const linkTon = useCallback(async () => {
     setPending('ton')
     try {
-      if (!tonWallet) {
-        await tonConnectUI.openModal()
+      // Server-issued, single-use: the wallet must sign a payload we minted,
+      // so a proof captured anywhere else carries the wrong one.
+      const { data } = await api.post('/auth/identity/wallet/ton/payload', {}, auth)
+
+      // ton_proof only comes back with a fresh connect handshake.
+      if (tonConnectUI.connected) await tonConnectUI.disconnect()
+      tonConnectUI.setConnectRequestParameters({
+        state: 'ready',
+        value: { tonProof: data.payload },
+      })
+
+      const wallet = await tonConnectUI.connectWallet()
+      const item = wallet.connectItems?.tonProof
+
+      if (!item || !('proof' in item)) {
+        toast.error(t('account.wallets.proofRefused'))
         return
       }
-      const { address, publicKey } = tonWallet.account
-      const { data } = await api.post(
-        '/auth/identity/wallet/ton-message',
-        { address, nonce: crypto.randomUUID() },
-        auth,
-      )
-      // The wallet never signs `data.message`; the API rejects what we send.
-      // See the note on this hook.
+
       await api.post(
-        '/auth/identity/wallet/link',
-        { address, chain: 'ton', message: data.message, signature: '', publicKey },
+        '/auth/identity/wallet/ton/link',
+        {
+          address: wallet.account.address,
+          publicKey: wallet.account.publicKey,
+          walletStateInit: wallet.account.walletStateInit,
+          proof: item.proof,
+        },
         auth,
       )
       toast.success(t('account.wallets.linked'))
       onUpdate()
     } catch (error: any) {
-      toast.error(error.response?.data?.message || t('error.network'))
+      // The UI rejects with a plain Error when the user closes the modal.
+      if (/reject|cancel|abort/i.test(error?.message ?? '')) {
+        toast.error(t('account.wallets.cancelled'))
+      } else {
+        toast.error(error.response?.data?.message || t('error.network'))
+      }
     } finally {
       setPending(null)
+      tonConnectUI.setConnectRequestParameters(null)
     }
-  }, [tonWallet, tonConnectUI, accessToken, onUpdate, t])
+  }, [tonConnectUI, accessToken, onUpdate, t])
 
   const unlink = useCallback(
     async (walletId: string) => {

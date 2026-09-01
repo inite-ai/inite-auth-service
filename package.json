@@ -109,7 +109,7 @@
     "globals": "^17.7.0",
     "jest": "^30.4.2",
     "prettier": "^3.9.1",
-    "prisma": "^7.9.1",
+    "prisma": "^7.10.0",
     "source-map-support": "^0.5.21",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",
@@ -120,9 +120,10 @@
     "typescript-eslint": "^8.62.0"
   },
   "comments": {
-    "overrides": "Pin patched versions of transitive deps flagged by Dependabot (mostly build/test tooling). Patch-level bumps only — no API-breaking majors. picomatch is scoped under micromatch to keep the 2.x line patched without disturbing 4.x consumers. js-yaml is scoped under @nestjs/swagger, which pins an exact 5.2.1 — the global range stays untouched so the 3.x/4.x consumers are not dragged onto 5.x. The @hono/node-server pin is gone: its only consumer was @prisma/dev, and prisma 7.9 dropped the dependency outright, so there is nothing left to patch."
+    "overrides": "Pin patched versions of transitive deps flagged by Dependabot (mostly build/test tooling). Patch-level bumps only — no API-breaking majors. picomatch is scoped under micromatch to keep the 2.x line patched without disturbing 4.x consumers. js-yaml is scoped under @nestjs/swagger, which pins an exact 5.2.1 — the global range stays untouched so the 3.x/4.x consumers are not dragged onto 5.x. The @hono/node-server pin is gone: its only consumer was @prisma/dev, and prisma 7.9 dropped the dependency outright, so there is nothing left to patch. mysql2 arrives only under the prisma CLI, which bundles every driver; this service talks to Postgres through @prisma/adapter-pg and never loads it, so the auth-plugin-downgrade advisory (GHSA, high) is not reachable here — but prisma 7.10 still ships 3.15.3, so it is pinned rather than left flagged. deepmerge-ts is scoped under @prisma/config, which pins an exact 7.1.5 while the stack-exhaustion advisory is only cleared by 8.x; npm audit's suggested remedy was a major DOWNGRADE of prisma to 6.12.0, which is worse than the finding. The 8.x bump was verified against the code path that actually uses it — `prisma validate` and `prisma generate` both load prisma.config.ts through it."
   },
   "overrides": {
+    "mysql2": "^3.24.2",
     "multer": "^2.2.0",
     "form-data": "^4.0.6",
     "fast-uri": "^3.1.5",
@@ -136,6 +137,9 @@
     },
     "@nestjs/swagger": {
       "js-yaml": "^5.2.2"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
     }
   }
 }

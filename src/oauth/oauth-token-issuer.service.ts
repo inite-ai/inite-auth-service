@@ -14,6 +14,7 @@ import { AuthorizationDetail } from './contracts/authorization-detail';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 import { SettingsService } from '../common/settings/settings.service';
 import { sanitizeCustomClaims } from './custom-claims';
+import { currentDeviceMetadata } from '../common/device-metadata';
 
 /**
  * Compute the deterministic lookup hash for a refresh token.
@@ -283,6 +284,8 @@ export class OAuthTokenIssuerService {
       select: { companyId: true },
     });
 
+    const device = currentDeviceMetadata();
+
     await this.prisma.refreshToken.create({
       data: {
         tokenLookup,
@@ -292,6 +295,9 @@ export class OAuthTokenIssuerService {
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
+        ip: device.ip,
+        userAgent: device.userAgent,
+        lastUsedAt: new Date(),
         // RFC 9396: persist the grant so rotation re-emits the same details.
         authorizationDetails: input.authorizationDetails?.length
           ? (input.authorizationDetails as unknown as Prisma.InputJsonValue)

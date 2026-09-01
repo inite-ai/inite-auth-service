@@ -489,6 +489,13 @@ model RefreshToken {
   revoked     Boolean   @default(false)
   revokedAt   DateTime? @map("revokedAt")
   createdAt   DateTime  @default(now()) @map("createdAt")
+  /// Device metadata for the user-visible session list, stamped from the
+  /// request context at issue time and refreshed on rotation. Nullable:
+  /// rows minted before migration 0025 have none, and the account UI shows
+  /// "Unknown device" for those rather than inventing one.
+  ip          String?   @map("ip")
+  userAgent   String?   @map("userAgent")
+  lastUsedAt  DateTime? @map("lastUsedAt")
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)

@@ -27,6 +27,9 @@ describe('IdentityService', () => {
       create: jest.Mock;
       delete: jest.Mock;
     };
+    refreshToken: {
+      updateMany: jest.Mock;
+    };
   };
 
   beforeEach(async () => {
@@ -45,6 +48,9 @@ describe('IdentityService', () => {
         findMany: jest.fn(),
         create: jest.fn(),
         delete: jest.fn(),
+      },
+      refreshToken: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
 
@@ -91,6 +97,20 @@ describe('IdentityService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
       mockPrisma.user.update.mockResolvedValue({});
       await expect(accountService.changePassword('1', '', 'ValidPass1')).resolves.not.toThrow();
+    });
+
+    it('revokes every outstanding refresh token', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await accountService.changePassword('1', '', 'ValidPass1');
+
+      // A password change is what a user does when they suspect compromise;
+      // leaving refresh tokens alive would keep an attacker signed in.
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: '1', revoked: false },
+        data: { revoked: true, revokedAt: expect.any(Date) },
+      });
     });
 
     it('should verify current password if set', async () => {

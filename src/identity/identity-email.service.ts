@@ -68,6 +68,29 @@ export class IdentityEmailService {
   }
 
   /**
+   * Drop a pending email change without completing it.
+   *
+   * Needed because the request is otherwise irrevocable for 24h: a user who
+   * typos the address has no way back and no way to start a fresh request
+   * for the correct one until the old token lapses.
+   */
+  async cancelEmailChange(userId: string): Promise<void> {
+    const user = await this.identityService.getIdentityById(userId);
+    const metadata = (user.metadata as Record<string, unknown> | null) ?? {};
+
+    if (!metadata['pendingEmailChange']) {
+      throw new BadRequestException('No pending email change');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        metadata: { ...metadata, pendingEmailChange: null } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
    * Resend email verification
    */
   async resendEmailVerification(userId: string): Promise<void> {

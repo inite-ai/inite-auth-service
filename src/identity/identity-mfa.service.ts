@@ -3,10 +3,10 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdentityService } from './identity.service';
 import { FieldCrypto } from '../common/field-crypto';
+import { generateBackupCodes, countBackupCodes } from './backup-codes';
 import * as bcrypt from 'bcryptjs';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class IdentityMfaService {
@@ -25,6 +25,7 @@ export class IdentityMfaService {
     passkeysCount: number;
     walletsCount: number;
     emailVerified: boolean;
+    backupCodesRemaining: number;
   }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -33,6 +34,7 @@ export class IdentityMfaService {
         passwordHash: true,
         twoFactorEnabled: true,
         emailVerified: true,
+        metadata: true,
         passkeys: { select: { id: true } },
         wallets: { select: { id: true } },
       },
@@ -48,7 +50,50 @@ export class IdentityMfaService {
       passkeysCount: user.passkeys.length,
       walletsCount: user.wallets.length,
       emailVerified: user.emailVerified,
+      // Codes are consumed one-per-use by verify2FA. Surfacing the count
+      // lets the UI warn before the user runs out and locks themselves out.
+      backupCodesRemaining: countBackupCodes(user.metadata),
     };
+  }
+
+  /**
+   * Mint a fresh set of backup codes, invalidating the previous set.
+   *
+   * Password-gated: possession of a live session is not enough to re-key a
+   * recovery factor. Previously the only set a user ever saw was the one
+   * shown once at enable-time — losing it meant losing the account.
+   */
+  async regenerateBackupCodes(userId: string, password: string): Promise<{ backupCodes: string[] }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true, twoFactorEnabled: true, metadata: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (!user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is not enabled');
+    }
+    if (user.passwordHash) {
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    }
+
+    const backupCodes = generateBackupCodes();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        metadata: {
+          ...(user.metadata as Record<string, unknown>),
+          backupCodes: backupCodes.map((c) => bcrypt.hashSync(c, 10)),
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return { backupCodes };
   }
 
   /**
@@ -109,9 +154,7 @@ export class IdentityMfaService {
       throw new BadRequestException('Invalid verification code');
     }
 
-    const backupCodes = Array.from({ length: 10 }, () =>
-      crypto.randomBytes(4).toString('hex').toUpperCase()
-    );
+    const backupCodes = generateBackupCodes();
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -133,7 +176,7 @@ export class IdentityMfaService {
   async disable2FA(userId: string, code: string, password: string): Promise<{ success: boolean }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true, twoFactorSecret: true, twoFactorEnabled: true },
+      select: { id: true, passwordHash: true, twoFactorSecret: true, twoFactorEnabled: true, metadata: true },
     });
 
     if (!user) {
@@ -162,9 +205,17 @@ export class IdentityMfaService {
       throw new BadRequestException('Invalid 2FA code');
     }
 
+    // Drop the recovery codes with the factor. Leaving the hashes behind
+    // meant a later re-enable silently inherited the old set, and the codes
+    // outlived the secret they were meant to back up.
+    const meta = (user.metadata as Record<string, unknown> | null) ?? {};
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorEnabled: false, twoFactorSecret: null },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        metadata: { ...meta, backupCodes: [] } as Prisma.InputJsonValue,
+      },
     });
 
     return { success: true };

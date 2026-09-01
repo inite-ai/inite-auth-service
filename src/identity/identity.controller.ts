@@ -26,6 +26,8 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
 import { Disable2faDto } from './dto/disable-2fa.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { RegenerateBackupCodesDto } from './dto/regenerate-backup-codes.dto';
+import { readPendingEmailChange } from './pending-email-change';
 
 @ApiTags('identity')
 @Controller({ path: 'auth/identity', version: '1' })
@@ -42,6 +44,9 @@ export class IdentityController {
   @UseGuards(JwtAuthGuard)
   async getMe(@CurrentUserId() userId: string) {
     const user = await this.identityService.getIdentityById(userId);
+    // bio/location/profession are editable via PUT /profile, so they must
+    // also be readable here — omitting them made the account page's edit
+    // form initialise from `undefined` and blank the stored values on save.
     return {
       id: user.id,
       did: user.did,
@@ -49,6 +54,10 @@ export class IdentityController {
       emailVerified: user.emailVerified,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      location: user.location,
+      profession: user.profession,
+      pendingEmailChange: readPendingEmailChange(user.metadata),
       metadata: user.metadata,
       createdAt: user.createdAt,
     };
@@ -172,6 +181,13 @@ export class IdentityController {
     return { success: true, message: 'Verification email sent' };
   }
 
+  @Post('email/change/cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelEmailChange(@CurrentUserId() userId: string) {
+    await this.emailService.cancelEmailChange(userId);
+    return { success: true, message: 'Pending email change cancelled' };
+  }
+
   @Post('email/verify')
   async verifyEmail(@Body() body: VerifyEmailDto) {
     return await this.emailService.verifyEmail(body.token);
@@ -222,6 +238,16 @@ export class IdentityController {
     @Body() body: Disable2faDto,
   ) {
     return await this.mfaService.disable2FA(userId, body.code, body.password);
+  }
+
+  @Post('2fa/backup-codes')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async regenerateBackupCodes(
+    @CurrentUserId() userId: string,
+    @Body() body: RegenerateBackupCodesDto,
+  ) {
+    return await this.mfaService.regenerateBackupCodes(userId, body.password);
   }
 
   @Post('2fa/verify')

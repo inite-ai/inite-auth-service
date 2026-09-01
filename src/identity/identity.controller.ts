@@ -14,6 +14,7 @@ import { IdentityService } from './identity.service';
 import { IdentityMfaService } from './identity-mfa.service';
 import { IdentityAccountService } from './identity-account.service';
 import { IdentityEmailService } from './identity-email.service';
+import { TonWalletService } from './ton-wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUserId } from '../auth/decorators/current-user.decorator';
 import { LinkWalletDto } from './dto/link-wallet.dto';
@@ -27,6 +28,7 @@ import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
 import { Disable2faDto } from './dto/disable-2fa.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { RegenerateBackupCodesDto } from './dto/regenerate-backup-codes.dto';
+import { LinkTonWalletDto } from './dto/link-ton-wallet.dto';
 import { readPendingEmailChange } from './pending-email-change';
 
 @ApiTags('identity')
@@ -38,6 +40,7 @@ export class IdentityController {
     private readonly mfaService: IdentityMfaService,
     private readonly accountService: IdentityAccountService,
     private readonly emailService: IdentityEmailService,
+    private readonly tonWalletService: TonWalletService,
   ) {}
 
   @Get('me')
@@ -136,19 +139,22 @@ export class IdentityController {
     return { message };
   }
 
-  @Post('wallet/ton-message')
+  /** Mint the single-use payload a wallet must sign for ton_proof. */
+  @Post('wallet/ton/payload')
   @UseGuards(JwtAuthGuard)
-  async generateTonMessage(
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async issueTonPayload(@CurrentUserId() userId: string) {
+    return await this.tonWalletService.issuePayload(userId);
+  }
+
+  @Post('wallet/ton/link')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async linkTonWallet(
     @CurrentUserId() userId: string,
-    @Body() body: WalletMessageDto,
+    @Body() body: LinkTonWalletDto,
   ) {
-    const user = await this.identityService.getIdentityById(userId);
-    const { message, payload } = this.identityService.generateTonMessage(
-      body.address,
-      user.did,
-      body.nonce,
-    );
-    return { message, payload };
+    return await this.tonWalletService.linkWithProof({ userId, ...body });
   }
 
   // ==================== Profile Management ====================

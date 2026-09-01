@@ -4,8 +4,6 @@ import { User, Wallet, Passkey } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DidService, DidDocument, VerifiableCredential } from './did.service';
 import { ethers } from 'ethers';
-import * as nacl from 'tweetnacl';
-import * as naclUtil from 'tweetnacl-util';
 
 /** Input contract for IdentityService.linkWallet. */
 export interface LinkWalletInput {
@@ -89,45 +87,54 @@ export class IdentityService {
    * Link wallet to identity
    */
   async linkWallet(input: LinkWalletInput): Promise<Wallet> {
-    const { userId, address, chain, message, signature, publicKey } = input;
+    const { userId, address, chain, message, signature } = input;
     await this.getIdentityById(userId);
 
-    let isValid = false;
+    // TON goes through TonWalletService, which checks a real TON Connect
+    // ton_proof. Accepting it here would mean verifying a signature over
+    // prose the wallet never signs.
     if (chain === 'ton') {
-      if (!publicKey) {
-        throw new BadRequestException('Public key is required for TON wallet verification');
-      }
-      isValid = await this.verifyTonSignature(message, signature, publicKey);
-    } else {
-      isValid = await this.verifySiweSignature(message, signature, address);
+      throw new BadRequestException('Link TON wallets via /wallet/ton/link');
     }
 
-    if (!isValid) {
+    if (!(await this.verifySiweSignature(message, signature, address))) {
       throw new BadRequestException('Invalid wallet signature');
     }
 
-    const normalizedAddress = chain === 'ton' ? address : address.toLowerCase();
+    return await this.persistWallet({
+      userId,
+      address: address.toLowerCase(),
+      chain,
+      message,
+      signature,
+    });
+  }
 
+  /**
+   * Store a wallet whose ownership has already been proven.
+   *
+   * Shared by the SIWE path above and TonWalletService, so the
+   * one-address-one-identity rule is enforced in a single place.
+   */
+  async persistWallet(input: {
+    userId: string;
+    address: string;
+    chain: string;
+    message: string;
+    signature: string;
+  }): Promise<Wallet> {
     const existingWallet = await this.prisma.wallet.findUnique({
-      where: { address: normalizedAddress },
+      where: { address: input.address },
     });
 
     if (existingWallet) {
-      if (existingWallet.userId === userId) {
+      if (existingWallet.userId === input.userId) {
         return existingWallet;
       }
       throw new BadRequestException('Wallet is already linked to another identity');
     }
 
-    return await this.prisma.wallet.create({
-      data: {
-        userId,
-        address: normalizedAddress,
-        chain,
-        signature,
-        message,
-      },
-    });
+    return await this.prisma.wallet.create({ data: { ...input } });
   }
 
   /**
@@ -224,44 +231,4 @@ Issued At: ${issuedAt}`;
   /**
    * Generate TON proof message for wallet linking
    */
-  generateTonMessage(
-    address: string,
-    did: string,
-    nonce: string,
-  ): { message: string; payload: string } {
-    const domain = this.configService.get<string>('RP_ID', 'localhost');
-    const timestamp = Math.floor(Date.now() / 1000);
-
-    const payload = JSON.stringify({
-      type: 'ton_proof',
-      domain,
-      address,
-      did,
-      nonce,
-      timestamp,
-    });
-
-    const message = `Link this TON wallet to your INITE identity.\n\nAddress: ${address}\nDID: ${did}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
-
-    return { message, payload };
-  }
-
-  /**
-   * Verify TON signature using ed25519
-   */
-  private async verifyTonSignature(
-    message: string,
-    signature: string,
-    publicKey: string,
-  ): Promise<boolean> {
-    try {
-      const signatureBytes = naclUtil.decodeBase64(signature);
-      const publicKeyBytes = naclUtil.decodeBase64(publicKey);
-      const messageBytes = naclUtil.decodeUTF8(message);
-
-      return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
-    } catch {
-      return false;
-    }
-  }
 }

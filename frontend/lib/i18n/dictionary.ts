@@ -257,6 +257,8 @@ export const en = {
     'Link an Ethereum, Polygon, BSC, or TON address to sign in with your wallet.',
   'account.wallets.linked': 'Wallet linked',
   'account.wallets.cancelled': 'Wallet connection cancelled',
+  'account.wallets.proofRefused':
+    'Your wallet did not provide an ownership proof. Try connecting again.',
   'account.wallets.unlink': 'Unlink wallet',
   'account.wallets.unlink.confirm':
     'This address will no longer be able to sign in to your account.',

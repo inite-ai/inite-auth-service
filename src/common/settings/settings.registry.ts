@@ -30,6 +30,14 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     description: 'RFC 9396 — accept typed `authorization_details` at /authorize + /par.',
   },
   {
+    key: 'TON_WALLET_LINKING_ENABLED',
+    type: 'flag',
+    group: 'Security features',
+    label: 'TON wallet linking',
+    description:
+      'Accept TON Connect ton_proof at /wallet/ton/link. Off until the proof has been exercised against live wallets across TON wallet versions.',
+  },
+  {
     key: 'MTLS_ENABLED',
     type: 'flag',
     group: 'Security features',

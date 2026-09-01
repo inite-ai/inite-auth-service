@@ -241,6 +241,8 @@ export const ru: Partial<Dict> = {
     'Привяжите адрес Ethereum, Polygon, BSC или TON, чтобы входить кошельком.',
   'account.wallets.linked': 'Кошелёк привязан',
   'account.wallets.cancelled': 'Подключение кошелька отменено',
+  'account.wallets.proofRefused':
+    'Кошелёк не выдал подтверждение владения. Попробуйте подключиться заново.',
   'account.wallets.unlink': 'Отвязать кошелёк',
   'account.wallets.unlink.confirm':
     'Этот адрес больше не сможет войти в ваш аккаунт.',

@@ -3,6 +3,7 @@ import { IdentityService } from './identity.service';
 import { IdentityMfaService } from './identity-mfa.service';
 import { IdentityAccountService } from './identity-account.service';
 import { IdentityEmailService } from './identity-email.service';
+import { TonWalletService } from './ton-wallet.service';
 import { DidService } from './did.service';
 import { IdentityController } from './identity.controller';
 import { EmailModule } from '../email/email.module';
@@ -14,6 +15,7 @@ import { EmailModule } from '../email/email.module';
     IdentityMfaService,
     IdentityAccountService,
     IdentityEmailService,
+    TonWalletService,
     DidService,
   ],
   controllers: [IdentityController],

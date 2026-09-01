@@ -29,7 +29,7 @@ export function Skeleton({
   return (
     <div
       aria-hidden="true"
-      className={`shimmer bg-gray-200 dark:bg-gray-700/60 ${width} ${height} ${rounded} ${className}`}
+      className={`shimmer bg-[var(--bg-overlay)] ${width} ${height} ${rounded} ${className}`}
     />
   )
 }

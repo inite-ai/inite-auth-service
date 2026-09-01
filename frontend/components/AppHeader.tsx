@@ -7,14 +7,15 @@ import { useRouter } from 'next/navigation'
 import { LocaleSwitcher } from '@/components/ui/LocaleSwitcher'
 import { authStorage } from '@/lib/authStorage'
 import api from '@/lib/api'
+import { useT } from '@/lib/i18n'
 
 interface AppHeaderProps {
   /** User to render in the user menu. When absent, header shows Sign-in CTA. */
   user?: {
     id: string
     email: string
-    name?: string
-    metadata?: { isAdmin?: boolean }
+    name?: string | null
+    metadata?: { isAdmin?: boolean } | null
   } | null
   /** Slot for a small breadcrumb / page title next to the logo. */
   context?: ReactNode
@@ -66,12 +67,13 @@ export function AppHeader({ user, context, hideUserMenu = false }: AppHeaderProp
 }
 
 function SignInCta() {
+  const t = useT()
   return (
     <Link
       href="/login"
       className="ml-1 h-8 px-2.5 inline-flex items-center text-xs font-medium text-[var(--text)] rounded-md hover:bg-[var(--bg-overlay)]"
     >
-      Sign in
+      {t('common.signIn')}
     </Link>
   )
 }
@@ -81,6 +83,7 @@ function UserMenu({
 }: {
   user: NonNullable<AppHeaderProps['user']>
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const router = useRouter()
   const ref = useRef<HTMLDivElement>(null)
@@ -144,7 +147,7 @@ function UserMenu({
               router.push('/account')
             }}
             icon={<UserIcon className="w-3.5 h-3.5" />}
-            label="Account"
+            label={t('common.account')}
           />
           {user.metadata?.isAdmin && (
             <MenuItem
@@ -153,14 +156,14 @@ function UserMenu({
                 router.push('/admin')
               }}
               icon={<Shield className="w-3.5 h-3.5" />}
-              label="Admin"
+              label={t('common.admin')}
             />
           )}
           <div className="h-px bg-[var(--border)] my-1" />
           <MenuItem
             onClick={handleLogout}
             icon={<LogOut className="w-3.5 h-3.5" />}
-            label="Sign out"
+            label={t('common.signOut')}
           />
         </div>
       )}

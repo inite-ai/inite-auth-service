@@ -1,188 +1,168 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Fingerprint, Plus, Trash2, Shield, Smartphone, Laptop, HelpCircle } from 'lucide-react'
+import { Fingerprint, Plus, Trash2, Smartphone, Laptop } from 'lucide-react'
 import { startRegistration } from '@simplewebauthn/browser'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { useT } from '@/lib/i18n'
+import { Button, Card, CardHeader, ConfirmDialog } from '@/components/ui'
+import { Row, EmptyState, formatRelativeDays } from './shared'
+import type { Passkey } from './types'
 
 interface PasskeysSectionProps {
-  passkeys: any[]
+  passkeys: Passkey[]
+  hasPassword: boolean
   accessToken: string
   onUpdate: () => void
 }
 
-export default function PasskeysSection({ passkeys, accessToken, onUpdate }: PasskeysSectionProps) {
-  const [loading, setLoading] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+export default function PasskeysSection({
+  passkeys,
+  hasPassword,
+  accessToken,
+  onUpdate,
+}: PasskeysSectionProps) {
+  const t = useT()
+  const [adding, setAdding] = useState(false)
+  const [pendingRemoval, setPendingRemoval] = useState<Passkey | null>(null)
+  const [removing, setRemoving] = useState(false)
 
-  const handleAddPasskey = async () => {
-    setLoading(true)
+  const auth = { headers: { Authorization: `Bearer ${accessToken}` } }
+
+  const handleAdd = async () => {
+    setAdding(true)
     try {
-      // Get registration options
       const { data: options } = await api.post(
         '/auth/passkey/registration/options',
         {},
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        auth,
       )
-
-      // Start WebAuthn registration
       const response = await startRegistration(options)
-
-      // Verify registration. Server reads the expected challenge from
-      // Redis (where /options stored it) — never trust the client to
-      // supply it.
-      await api.post(
-        '/auth/passkey/registration/verify',
-        { response },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-
-      toast.success('Passkey registered successfully!')
+      // The server reads the expected challenge from Redis (where /options
+      // stored it) — the client is never trusted to supply it.
+      await api.post('/auth/passkey/registration/verify', { response }, auth)
+      toast.success(t('account.passkeys.added'))
       onUpdate()
     } catch (error: any) {
-      console.error('Passkey registration error:', error)
       if (error.name === 'NotAllowedError') {
-        toast.error('Passkey registration was cancelled')
+        toast.error(t('account.passkeys.cancelled'))
       } else {
-        toast.error(error.response?.data?.message || 'Failed to register passkey')
+        toast.error(error.response?.data?.message || t('error.network'))
       }
     } finally {
-      setLoading(false)
+      setAdding(false)
     }
   }
 
-  const handleDeletePasskey = async (passkeyId: string) => {
-    setDeletingId(passkeyId)
+  const handleRemove = async () => {
+    if (!pendingRemoval) return
+    setRemoving(true)
     try {
-      await api.post(
-        '/auth/passkey/delete',
-        { passkeyId },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-      toast.success('Passkey deleted')
+      await api.post('/auth/passkey/delete', { passkeyId: pendingRemoval.id }, auth)
+      toast.success(t('account.passkeys.removed'))
+      setPendingRemoval(null)
       onUpdate()
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete passkey')
+      toast.error(error.response?.data?.message || t('error.network'))
     } finally {
-      setDeletingId(null)
+      setRemoving(false)
     }
   }
 
-  const getDeviceIcon = (deviceType?: string) => {
-    if (deviceType?.toLowerCase().includes('mobile') || deviceType?.toLowerCase().includes('phone')) {
-      return <Smartphone className="w-5 h-5" />
-    }
-    if (deviceType?.toLowerCase().includes('laptop') || deviceType?.toLowerCase().includes('desktop')) {
-      return <Laptop className="w-5 h-5" />
-    }
-    return <Fingerprint className="w-5 h-5" />
-  }
+  const addButton = (
+    <Button
+      size="sm"
+      block={false}
+      loading={adding}
+      onClick={handleAdd}
+      icon={<Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+    >
+      {t('account.passkeys.add')}
+    </Button>
+  )
+
+  // Removing the only passwordless method is reversible but consequential —
+  // worth naming before the confirmation rather than after.
+  const isLastPasskey = passkeys.length === 1 && hasPassword
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 border border-slate-700/50 shadow-2xl"
-    >
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center">
-            <Fingerprint className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Passkeys</h2>
-            <p className="text-sm text-slate-400">Secure passwordless authentication</p>
-          </div>
-        </div>
-        <button
-          onClick={handleAddPasskey}
-          disabled={loading}
-          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition flex items-center gap-2 text-sm disabled:opacity-50"
-        >
-          <Plus className="w-4 h-4" />
-          {loading ? 'Adding...' : 'Add Passkey'}
-        </button>
-      </div>
+    <>
+      <Card>
+        <CardHeader
+          icon={<Fingerprint className="h-4 w-4" aria-hidden="true" />}
+          title={t('account.passkeys.title')}
+          description={t('account.passkeys.subtitle')}
+          action={passkeys.length > 0 ? addButton : undefined}
+        />
 
-      {passkeys.length > 0 ? (
-        <div className="space-y-3">
-          <AnimatePresence>
-            {passkeys.map((passkey, index) => (
-              <motion.div
+        {passkeys.length === 0 ? (
+          <EmptyState
+            icon={<Fingerprint className="h-4 w-4" aria-hidden="true" />}
+            title={t('account.passkeys.empty')}
+            hint={t('account.passkeys.empty.hint')}
+            action={addButton}
+          />
+        ) : (
+          <div className="space-y-2">
+            {passkeys.map((passkey) => (
+              <Row
                 key={passkey.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ delay: index * 0.05 }}
-                className="p-4 bg-slate-800/30 rounded-xl border border-slate-700/50 flex items-center justify-between group hover:bg-slate-800/50 transition"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center text-blue-400">
-                    {getDeviceIcon(passkey.deviceType)}
-                  </div>
-                  <div>
-                    <p className="font-medium text-white flex items-center gap-2">
-                      {passkey.deviceName || 'Unnamed Passkey'}
-                      <Shield className="w-4 h-4 text-emerald-400" />
-                    </p>
-                    <div className="flex items-center gap-3 text-sm text-slate-400">
-                      <span>
-                        Added {new Date(passkey.createdAt).toLocaleDateString()}
-                      </span>
-                      {passkey.lastUsedAt && (
-                        <span className="text-slate-500">
-                          • Last used {new Date(passkey.lastUsedAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDeletePasskey(passkey.id)}
-                  disabled={deletingId === passkey.id}
-                  className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition opacity-0 group-hover:opacity-100"
-                >
-                  {deletingId === passkey.id ? (
-                    <div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                icon={
+                  /phone|mobile|android|ios/i.test(passkey.deviceType ?? '') ? (
+                    <Smartphone className="h-4 w-4" aria-hidden="true" />
                   ) : (
-                    <Trash2 className="w-5 h-5" />
-                  )}
-                </button>
-              </motion.div>
+                    <Laptop className="h-4 w-4" aria-hidden="true" />
+                  )
+                }
+                title={passkey.name || t('account.passkeys.title')}
+                description={
+                  <span className="flex flex-wrap gap-x-2">
+                    <span>{formatRelativeDays(passkey.createdAt)}</span>
+                    {passkey.lastUsedAt && (
+                      <span className="text-[var(--text-faint)]">
+                        · {formatRelativeDays(passkey.lastUsedAt)}
+                      </span>
+                    )}
+                  </span>
+                }
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    block={false}
+                    aria-label={t('account.passkeys.remove')}
+                    onClick={() => setPendingRemoval(passkey)}
+                    icon={<Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                  />
+                }
+              />
             ))}
-          </AnimatePresence>
-        </div>
-      ) : (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Fingerprint className="w-8 h-8 text-slate-600" />
           </div>
-          <p className="text-slate-400 mb-2">No passkeys registered</p>
-          <p className="text-sm text-slate-500">
-            Passkeys provide secure, passwordless authentication using your device's biometrics
-          </p>
-        </div>
-      )}
+        )}
 
-      {/* Info box */}
-      <div className="mt-6 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
-        <div className="flex items-start gap-3">
-          <HelpCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="text-blue-300 font-medium mb-1">What are Passkeys?</p>
-            <p className="text-blue-400/70">
-              Passkeys are a modern, phishing-resistant replacement for passwords. They use your device's 
-              built-in security (Face ID, Touch ID, Windows Hello) to securely authenticate you.
-            </p>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+      </Card>
+
+      <ConfirmDialog
+        open={!!pendingRemoval}
+        intent="danger"
+        title={t('account.passkeys.remove')}
+        description={
+          <>
+            {t('account.passkeys.remove.confirm')}
+            {isLastPasskey && (
+              <span className="mt-1.5 block text-[color:var(--warning)]">
+                {t('account.passkeys.lastOne')}
+              </span>
+            )}
+          </>
+        }
+        confirmLabel={t('account.passkeys.remove')}
+        cancelLabel={t('common.cancel')}
+        busy={removing}
+        onConfirm={handleRemove}
+        onCancel={() => setPendingRemoval(null)}
+      />
+    </>
   )
 }
-
-
-

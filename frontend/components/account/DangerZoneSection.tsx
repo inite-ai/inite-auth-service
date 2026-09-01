@@ -1,215 +1,224 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, Trash2, Download, FileDown } from 'lucide-react'
+import { Database, Trash2, FileDown, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { useT } from '@/lib/i18n'
+import { Button, Card, CardHeader, Input, Sheet } from '@/components/ui'
+import { Row, Note } from './shared'
 
-interface DangerZoneSectionProps {
-  user: any
+/** The literal a user must type to arm account deletion. */
+const CONFIRM_WORD = 'DELETE'
+
+export default function DangerZoneSection({
+  accessToken,
+  onDeleteAccount,
+}: {
   accessToken: string
   onDeleteAccount: () => void
-}
-
-export default function DangerZoneSection({ user, accessToken, onDeleteAccount }: DangerZoneSectionProps) {
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [deleteConfirmation, setDeleteConfirmation] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+}) {
+  const t = useT()
   const [exporting, setExporting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
-  const handleExportData = async () => {
+  const handleExport = async () => {
     setExporting(true)
     try {
       const { data } = await api.get('/auth/identity/export', {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
-      
-      // Download as JSON
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `inite-data-${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+      )
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `inite-data-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
       URL.revokeObjectURL(url)
-      
-      toast.success('Data exported successfully')
+      toast.success(t('account.data.export.done'))
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to export data')
+      toast.error(error.response?.data?.message || t('error.network'))
     } finally {
       setExporting(false)
     }
   }
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmation !== 'DELETE') {
-      toast.error('Please type DELETE to confirm')
-      return
-    }
+  return (
+    <>
+      <Card>
+        <CardHeader
+          icon={<Database className="h-4 w-4" aria-hidden="true" />}
+          title={t('account.data.title')}
+          description={t('account.data.subtitle')}
+        />
 
-    setLoading(true)
+        <div className="space-y-2">
+          <Row
+            icon={<FileDown className="h-4 w-4" aria-hidden="true" />}
+            title={t('account.data.export.title')}
+            description={t('account.data.export.body')}
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                block={false}
+                loading={exporting}
+                onClick={handleExport}
+              >
+                {t('account.data.export.cta')}
+              </Button>
+            }
+          />
+
+          <Row
+            tone="danger"
+            icon={<Trash2 className="h-4 w-4" aria-hidden="true" />}
+            title={t('account.data.delete.title')}
+            description={t('account.data.delete.body')}
+            action={
+              <Button
+                variant="danger"
+                size="sm"
+                block={false}
+                onClick={() => setDeleteOpen(true)}
+              >
+                {t('account.data.delete.cta')}
+              </Button>
+            }
+          />
+        </div>
+      </Card>
+
+      <DeleteAccountSheet
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        accessToken={accessToken}
+        onDeleted={onDeleteAccount}
+      />
+    </>
+  )
+}
+
+function DeleteAccountSheet({
+  open,
+  onClose,
+  accessToken,
+  onDeleted,
+}: {
+  open: boolean
+  onClose: () => void
+  accessToken: string
+  onDeleted: () => void
+}) {
+  const t = useT()
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const armed = confirmation === CONFIRM_WORD && password.length > 0
+
+  const close = () => {
+    setPassword('')
+    setConfirmation('')
+    setVisible(false)
+    setError(null)
+    onClose()
+  }
+
+  const submit = async () => {
+    setBusy(true)
+    setError(null)
     try {
       await api.delete('/auth/identity/account', {
         headers: { Authorization: `Bearer ${accessToken}` },
         data: { password },
       })
-      toast.success('Account deleted successfully')
-      onDeleteAccount()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete account')
+      toast.success(t('account.data.delete.done'))
+      onDeleted()
+    } catch (err: any) {
+      setError(err.response?.data?.message || t('error.network'))
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
+  const removed = [
+    t('account.data.delete.item.identity'),
+    t('account.data.delete.item.wallets'),
+    t('account.data.delete.item.passkeys'),
+    t('account.data.delete.item.sessions'),
+    t('account.data.delete.item.credentials'),
+  ]
+
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="bg-gradient-to-br from-red-950/30 to-slate-900 rounded-2xl p-8 border border-red-900/30 shadow-2xl"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Danger Zone</h2>
-            <p className="text-sm text-slate-400">Irreversible actions</p>
-          </div>
+    <Sheet
+      open={open}
+      onClose={close}
+      title={t('account.data.delete.sheet.title')}
+      width="sm"
+      footer={
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={close} disabled={busy}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="danger" onClick={submit} loading={busy} disabled={!armed}>
+            {t('account.data.delete.submit')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Note tone="warning" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
+          {t('account.data.delete.sheet.warning')}
+        </Note>
+
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-faint)]">
+            {t('account.data.delete.sheet.list')}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {removed.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-xs text-[var(--text-muted)]">
+                <span aria-hidden="true">·</span>
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="space-y-4">
-          {/* Export Data */}
-          <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
-            <div className="flex items-center gap-3">
-              <FileDown className="w-5 h-5 text-blue-400" />
-              <div>
-                <p className="font-medium text-white">Export Your Data</p>
-                <p className="text-sm text-slate-400">Download all your account data</p>
-              </div>
-            </div>
-            <button
-              onClick={handleExportData}
-              disabled={exporting}
-              className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-xl hover:bg-blue-500/30 transition flex items-center gap-2 text-sm disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? 'Exporting...' : 'Export'}
-            </button>
-          </div>
+        <Input
+          name="password"
+          type={visible ? 'text' : 'password'}
+          autoComplete="current-password"
+          label={t('common.password')}
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value)
+            setError(null)
+          }}
+          showPasswordToggle
+          isPasswordVisible={visible}
+          onPasswordToggle={() => setVisible((v) => !v)}
+        />
 
-          {/* Delete Account */}
-          <div className="flex items-center justify-between p-4 bg-red-950/30 rounded-xl border border-red-900/30">
-            <div className="flex items-center gap-3">
-              <Trash2 className="w-5 h-5 text-red-400" />
-              <div>
-                <p className="font-medium text-white">Delete Account</p>
-                <p className="text-sm text-red-400/70">
-                  Permanently delete your account and all data
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition flex items-center gap-2 text-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {showDeleteModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowDeleteModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-slate-900 rounded-2xl p-8 max-w-md w-full border border-red-900/50"
-            >
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Delete Account?</h3>
-                <p className="text-slate-400">
-                  This action is <span className="text-red-400 font-semibold">permanent</span> and cannot be undone.
-                  All your data will be deleted.
-                </p>
-              </div>
-
-              <div className="space-y-4 mb-6">
-                <div className="p-4 bg-red-950/30 rounded-xl border border-red-900/30">
-                  <p className="text-sm text-red-400 mb-2">What will be deleted:</p>
-                  <ul className="text-sm text-red-300/70 space-y-1">
-                    <li>• Your profile and identity (DID)</li>
-                    <li>• All linked wallets</li>
-                    <li>• All passkeys</li>
-                    <li>• All active sessions</li>
-                    <li>• All issued credentials</li>
-                  </ul>
-                </div>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white"
-                />
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">
-                    Type <span className="text-red-400 font-mono">DELETE</span> to confirm:
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmation}
-                    onChange={(e) => setDeleteConfirmation(e.target.value)}
-                    placeholder="DELETE"
-                    className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-3 bg-slate-700/50 text-slate-300 rounded-xl hover:bg-slate-600/50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={loading || deleteConfirmation !== 'DELETE'}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Deleting...' : 'Delete Forever'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+        <Input
+          name="deleteConfirmation"
+          label={t('account.data.delete.confirmLabel', { word: CONFIRM_WORD })}
+          placeholder={CONFIRM_WORD}
+          value={confirmation}
+          onChange={(e) => {
+            setConfirmation(e.target.value)
+            setError(null)
+          }}
+          error={error ?? undefined}
+          className="font-mono"
+        />
+      </div>
+    </Sheet>
   )
 }
-
-
-

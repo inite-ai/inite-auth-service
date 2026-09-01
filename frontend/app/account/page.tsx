@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
+import { useT } from '@/lib/i18n'
 import { AppHeader } from '@/components/AppHeader'
+import { Card, Skeleton } from '@/components/ui'
 import {
   ProfileSection,
   SecuritySection,
@@ -16,169 +16,183 @@ import {
   SessionsSection,
   DangerZoneSection,
 } from '@/components/account'
+import { AccountNav } from '@/components/account/AccountNav'
+import { SectionAnchor, SectionError } from '@/components/account/shared'
+import { useAccountData, type Loadable } from '@/components/account/use-account-data'
 
 export default function AccountPage() {
-  const [user, setUser] = useState<any>(null)
-  const [wallets, setWallets] = useState<any[]>([])
-  const [passkeys, setPasskeys] = useState<any[]>([])
-  const [securityStatus, setSecurityStatus] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [accessToken, setAccessToken] = useState<string>('')
+  const t = useT()
   const router = useRouter()
-
-  const loadUserData = useCallback(async () => {
-    try {
-      // Get valid (non-expired) token
-      let token = authStorage.getValidToken()
-      
-      // If no valid token, try to get fresh one from session (SSO)
-      if (!token) {
-        try {
-          const sessionRes = await api.get('/auth/session/me', {
-            withCredentials: true,
-          })
-          
-          if (sessionRes.data.authenticated && sessionRes.data.access_token) {
-            token = sessionRes.data.access_token as string
-            // Save to localStorage for future requests
-            authStorage.save({
-              accessToken: sessionRes.data.access_token,
-              userId: sessionRes.data.user.id,
-            })
-          }
-        } catch {
-          // Session check failed, continue to login redirect
-        }
-      }
-
-      if (!token) {
-        router.push('/login')
-        return
-      }
-
-      setAccessToken(token)
-      const config = { headers: { Authorization: `Bearer ${token}` } }
-
-      const [userRes, walletsRes, passkeysRes, securityRes] = await Promise.all([
-        api.get('/auth/identity/me', config),
-        api.get('/auth/identity/wallets', config),
-        api.get('/auth/passkey/list', config),
-        api.get('/auth/identity/security-status', config),
-      ])
-
-      setUser(userRes.data)
-      setWallets(walletsRes.data)
-      setPasskeys(passkeysRes.data)
-      setSecurityStatus(securityRes.data)
-    } catch (error) {
-      console.error('Load user data error:', error)
-      toast.error('Failed to load account data')
-      authStorage.clear()
-      router.push('/login')
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
-
-  useEffect(() => {
-    loadUserData()
-  }, [loadUserData])
+  const { token, user, security, passkeys, wallets, reload } = useAccountData()
 
   const handleLogout = async () => {
     try {
-      // Revoke session on server
       await api.get('/oauth/logout', { withCredentials: true }).catch(() => {})
-      // Optionally revoke tokens
-      if (accessToken) {
-        await api.delete('/auth/session', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }).catch(() => {})
+      if (token) {
+        await api
+          .delete('/auth/session', { headers: { Authorization: `Bearer ${token}` } })
+          .catch(() => {})
       }
     } finally {
       authStorage.clear()
       router.push('/login')
-      toast.success('Logged out successfully')
+      toast.success(t('common.signOut'))
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[var(--bg)]">
-        <AppHeader user={user} context="Account" />
-        <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-5 h-5 text-[var(--text-faint)] animate-spin" />
-        </div>
-      </div>
-    )
-  }
+  const currentUser = user.status === 'ready' ? user.data : null
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      <AppHeader user={user} context="Account" />
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text)] tracking-tight">
-            Account
+      <AppHeader user={currentUser} context={t('account.title')} />
+
+      {/* Matches the header's max-w-6xl so the nav rail lines up with the
+          brand mark instead of floating in unaligned whitespace. */}
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <header className="mb-6">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text)]">
+            {t('account.title')}
           </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Manage your identity, devices, and security.
-          </p>
-        </div>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">{t('account.subtitle')}</p>
+        </header>
 
-        {/* Main Content */}
-        <div className="mt-6 space-y-4">
-          {/* Profile Section */}
-          <ProfileSection
-            user={user}
-            accessToken={accessToken}
-            onUpdate={loadUserData}
-          />
+        <div className="lg:grid lg:grid-cols-[9rem_minmax(0,1fr)] lg:gap-10">
+          <AccountNav />
 
-          {/* Security Section */}
-          {securityStatus && (
-            <SecuritySection
-              securityStatus={securityStatus}
-              accessToken={accessToken}
-              onUpdate={loadUserData}
-            />
-          )}
+          <main className="max-w-3xl space-y-4">
+            <SectionAnchor id="profile">
+              <Resource
+                state={user}
+                onRetry={reload}
+                skeletonRows={3}
+                render={(data) => (
+                  <ProfileSection
+                    user={data}
+                    accessToken={token ?? ''}
+                    onUpdate={reload}
+                  />
+                )}
+              />
+            </SectionAnchor>
 
-          {/* Recent Activity (audit log) */}
-          {accessToken && <SecurityAuditSection accessToken={accessToken} />}
+            <SectionAnchor id="security">
+              <Resource
+                state={security}
+                onRetry={reload}
+                skeletonRows={4}
+                render={(data) => (
+                  <SecuritySection
+                    securityStatus={data}
+                    accessToken={token ?? ''}
+                    onUpdate={reload}
+                  />
+                )}
+              />
+            </SectionAnchor>
 
-          {/* Passkeys Section */}
-          <PasskeysSection
-            passkeys={passkeys}
-            accessToken={accessToken}
-            onUpdate={loadUserData}
-          />
+            <SectionAnchor id="passkeys">
+              <Resource
+                state={passkeys}
+                onRetry={reload}
+                skeletonRows={2}
+                render={(data) => (
+                  <PasskeysSection
+                    passkeys={data}
+                    hasPassword={security.status === 'ready' && security.data.hasPassword}
+                    accessToken={token ?? ''}
+                    onUpdate={reload}
+                  />
+                )}
+              />
+            </SectionAnchor>
 
-          {/* Wallets Section */}
-          <WalletsSection
-            wallets={wallets}
-            userDid={user?.did}
-            accessToken={accessToken}
-            onUpdate={loadUserData}
-          />
+            <SectionAnchor id="wallets">
+              <Resource
+                state={wallets}
+                onRetry={reload}
+                skeletonRows={2}
+                render={(data) => (
+                  <WalletsSection
+                    wallets={data}
+                    accessToken={token ?? ''}
+                    onUpdate={reload}
+                  />
+                )}
+              />
+            </SectionAnchor>
 
-          {/* Sessions Section */}
-          <SessionsSection accessToken={accessToken} />
+            {/* Sessions and activity own their own fetch, loading and error
+                states, so they mount as soon as there is a token. */}
+            {token && (
+              <>
+                <SectionAnchor id="sessions">
+                  <SessionsSection accessToken={token} />
+                </SectionAnchor>
 
-          {/* Danger Zone */}
-          <DangerZoneSection
-            user={user}
-            accessToken={accessToken}
-            onDeleteAccount={handleLogout}
-          />
-        </div>
+                <SectionAnchor id="activity">
+                  <SecurityAuditSection accessToken={token} />
+                </SectionAnchor>
 
-        {/* Footer */}
-        <div className="mt-12 pt-6 border-t border-[var(--border)] text-center">
-          <p className="text-xs text-[var(--text-faint)]">
-            INITE Identity Provider · Your identity, your control
-          </p>
+                <SectionAnchor id="data">
+                  <DangerZoneSection accessToken={token} onDeleteAccount={handleLogout} />
+                </SectionAnchor>
+              </>
+            )}
+
+            <footer className="mt-8 border-t border-[var(--border)] pt-5 text-center">
+              <p className="text-xs text-[var(--text-faint)]">{t('account.footer')}</p>
+            </footer>
+          </main>
         </div>
       </div>
     </div>
   )
+}
+
+/**
+ * Render one resource in whichever of its three states it is in.
+ *
+ * Keeps the failure of a single endpoint local to its own card — the rest of
+ * the page stays usable, which is the whole point of loading them separately.
+ */
+function Resource<T>({
+  state,
+  onRetry,
+  render,
+  skeletonRows,
+}: {
+  state: Loadable<T>
+  onRetry: () => void
+  render: (data: T) => React.ReactNode
+  skeletonRows: number
+}) {
+  const t = useT()
+
+  if (state.status === 'loading') {
+    return (
+      <Card>
+        <div className="space-y-3">
+          <Skeleton width="w-32" height="h-4" />
+          {Array.from({ length: skeletonRows }).map((_, i) => (
+            <Skeleton key={i} height="h-10" />
+          ))}
+        </div>
+      </Card>
+    )
+  }
+
+  if (state.status === 'error') {
+    return (
+      <Card>
+        <SectionError
+          title={t('account.error.title')}
+          message={state.message}
+          retryLabel={t('account.error.retry')}
+          onRetry={onRetry}
+        />
+      </Card>
+    )
+  }
+
+  return <>{render(state.data)}</>
 }

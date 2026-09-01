@@ -1,203 +1,148 @@
 'use client'
 
 import { useState } from 'react'
-import toast from 'react-hot-toast'
-import api from '@/lib/api'
-import type { SecuritySectionProps } from './types'
-import SecurityCard from './SecurityCard'
-import TwoFactorSetupModal from './TwoFactorSetupModal'
-import TwoFactorDisableModal from './TwoFactorDisableModal'
+import { Shield, KeyRound, Smartphone, LifeBuoy } from 'lucide-react'
+import { useT } from '@/lib/i18n'
+import { Button, Card, CardHeader } from '@/components/ui'
+import { Row, Note } from '../shared'
+import { ProtectionSummary } from './ProtectionSummary'
+import { PasswordSheet } from './PasswordSheet'
+import { TwoFactorSetupSheet } from './TwoFactorSetupSheet'
+import { TwoFactorDisableSheet } from './TwoFactorDisableSheet'
+import { BackupCodesSheet } from './BackupCodesSheet'
+import type { SecurityStatus } from '../types'
 
-export default function SecuritySection({ securityStatus, accessToken, onUpdate }: SecuritySectionProps) {
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-  const [show2FASetup, setShow2FASetup] = useState(false)
-  const [show2FADisable, setShow2FADisable] = useState(false)
-  const [loading, setLoading] = useState(false)
+/** Below this, the user is close enough to lockout that we say so. */
+const LOW_BACKUP_CODES = 3
 
-  // Password form
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPasswords, setShowPasswords] = useState(false)
+export default function SecuritySection({
+  securityStatus,
+  accessToken,
+  onUpdate,
+}: {
+  securityStatus: SecurityStatus
+  accessToken: string
+  onUpdate: () => void
+}) {
+  const t = useT()
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [disableOpen, setDisableOpen] = useState(false)
+  const [backupOpen, setBackupOpen] = useState(false)
 
-  // 2FA
-  const [qrCode, setQrCode] = useState('')
-  const [secret, setSecret] = useState('')
-  const [verificationCode, setVerificationCode] = useState('')
-  const [backupCodes, setBackupCodes] = useState<string[]>([])
-  const [disableCode, setDisableCode] = useState('')
-  const [disablePassword, setDisablePassword] = useState('')
-
-  const handleChangePassword = async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-    if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await api.post('/auth/identity/change-password', {
-        currentPassword,
-        newPassword,
-      }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      toast.success('Password changed successfully')
-      setShowPasswordForm(false)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      onUpdate()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to change password')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSetup2FA = async () => {
-    setLoading(true)
-    try {
-      const { data } = await api.post('/auth/identity/2fa/setup', {}, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      setQrCode(data.qrCode)
-      setSecret(data.secret)
-      setShow2FASetup(true)
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to setup 2FA')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleEnable2FA = async () => {
-    if (!verificationCode || verificationCode.length !== 6) {
-      toast.error('Please enter a valid 6-digit code')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const { data } = await api.post('/auth/identity/2fa/enable', {
-        code: verificationCode,
-      }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      setBackupCodes(data.backupCodes)
-      toast.success('2FA enabled successfully!')
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Invalid verification code')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDisable2FA = async () => {
-    if (!disableCode || disableCode.length !== 6) {
-      toast.error('Please enter a valid 6-digit code')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await api.post('/auth/identity/2fa/disable', {
-        code: disableCode,
-        password: disablePassword,
-      }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      toast.success('2FA disabled successfully')
-      setShow2FADisable(false)
-      setDisableCode('')
-      setDisablePassword('')
-      onUpdate()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to disable 2FA')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const copyBackupCodes = () => {
-    navigator.clipboard.writeText(backupCodes.join('\n'))
-    toast.success('Backup codes copied to clipboard')
-  }
-
-  const closeBackupCodesModal = () => {
-    setBackupCodes([])
-    setShow2FASetup(false)
-    setVerificationCode('')
-    setSecret('')
-    setQrCode('')
-    onUpdate()
-  }
-
-  const securityScore = (() => {
-    let score = 0
-    if (securityStatus.hasPassword) score += 20
-    if (securityStatus.twoFactorEnabled) score += 30
-    if (securityStatus.passkeysCount > 0) score += 25
-    if (securityStatus.walletsCount > 0) score += 15
-    if (securityStatus.emailVerified) score += 10
-    return score
-  })()
-
-  const getScoreColor = () => {
-    if (securityScore >= 80) return 'from-emerald-500 to-green-500'
-    if (securityScore >= 50) return 'from-amber-500 to-yellow-500'
-    return 'from-red-500 to-orange-500'
-  }
+  const { hasPassword, twoFactorEnabled, backupCodesRemaining } = securityStatus
 
   return (
     <>
-      <SecurityCard
-        securityStatus={securityStatus}
-        securityScore={securityScore}
-        getScoreColor={getScoreColor}
-        loading={loading}
-        showPasswordForm={showPasswordForm}
-        setShowPasswordForm={setShowPasswordForm}
-        currentPassword={currentPassword}
-        setCurrentPassword={setCurrentPassword}
-        newPassword={newPassword}
-        setNewPassword={setNewPassword}
-        confirmPassword={confirmPassword}
-        setConfirmPassword={setConfirmPassword}
-        showPasswords={showPasswords}
-        setShowPasswords={setShowPasswords}
-        handleChangePassword={handleChangePassword}
-        handleSetup2FA={handleSetup2FA}
-        setShow2FADisable={setShow2FADisable}
-      />
+      <Card>
+        <CardHeader
+          icon={<Shield className="h-4 w-4" aria-hidden="true" />}
+          title={t('account.security.title')}
+          description={t('account.security.subtitle')}
+        />
 
-      <TwoFactorSetupModal
-        show2FASetup={show2FASetup}
-        setShow2FASetup={setShow2FASetup}
-        qrCode={qrCode}
-        secret={secret}
-        verificationCode={verificationCode}
-        setVerificationCode={setVerificationCode}
-        backupCodes={backupCodes}
-        loading={loading}
-        handleEnable2FA={handleEnable2FA}
-        copyBackupCodes={copyBackupCodes}
-        closeBackupCodesModal={closeBackupCodesModal}
-      />
+        <div className="space-y-3">
+          <ProtectionSummary status={securityStatus} />
 
-      <TwoFactorDisableModal
-        show2FADisable={show2FADisable}
-        setShow2FADisable={setShow2FADisable}
-        disablePassword={disablePassword}
-        setDisablePassword={setDisablePassword}
-        disableCode={disableCode}
-        setDisableCode={setDisableCode}
-        loading={loading}
-        handleDisable2FA={handleDisable2FA}
+          <Row
+            icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
+            title={t('account.password.title')}
+            description={
+              hasPassword ? t('account.password.set') : t('account.password.unset')
+            }
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                block={false}
+                onClick={() => setPasswordOpen(true)}
+              >
+                {hasPassword ? t('account.password.change') : t('account.password.create')}
+              </Button>
+            }
+          />
+
+          <Row
+            icon={<Smartphone className="h-4 w-4" aria-hidden="true" />}
+            title={t('account.twoFactor.title')}
+            description={
+              twoFactorEnabled ? t('account.twoFactor.on') : t('account.twoFactor.off')
+            }
+            action={
+              twoFactorEnabled ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  block={false}
+                  onClick={() => setDisableOpen(true)}
+                >
+                  {t('account.twoFactor.disable')}
+                </Button>
+              ) : (
+                <Button size="sm" block={false} onClick={() => setSetupOpen(true)}>
+                  {t('account.twoFactor.enable')}
+                </Button>
+              )
+            }
+          />
+
+          {twoFactorEnabled && (
+            <>
+              <Row
+                icon={<LifeBuoy className="h-4 w-4" aria-hidden="true" />}
+                title={t('account.backupCodes.title')}
+                description={t('account.backupCodes.remaining', {
+                  count: backupCodesRemaining,
+                })}
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    block={false}
+                    onClick={() => setBackupOpen(true)}
+                  >
+                    {t('account.backupCodes.regenerate')}
+                  </Button>
+                }
+              />
+              {backupCodesRemaining === 0 ? (
+                <Note tone="warning">{t('account.backupCodes.none')}</Note>
+              ) : (
+                backupCodesRemaining <= LOW_BACKUP_CODES && (
+                  <Note tone="warning">
+                    {t('account.backupCodes.low', { count: backupCodesRemaining })}
+                  </Note>
+                )
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
+      <PasswordSheet
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        hasPassword={hasPassword}
+        accessToken={accessToken}
+        onDone={onUpdate}
+      />
+      <TwoFactorSetupSheet
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        accessToken={accessToken}
+        onDone={onUpdate}
+      />
+      <TwoFactorDisableSheet
+        open={disableOpen}
+        onClose={() => setDisableOpen(false)}
+        accessToken={accessToken}
+        onDone={onUpdate}
+      />
+      <BackupCodesSheet
+        open={backupOpen}
+        onClose={() => setBackupOpen(false)}
+        accessToken={accessToken}
+        onDone={onUpdate}
       />
     </>
   )

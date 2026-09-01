@@ -76,6 +76,15 @@ export class IdentityAccountService {
       data: { passwordHash: newPasswordHash },
     });
 
+    // Cut every outstanding refresh token. A password change is the move a
+    // user makes when they think someone else is in the account, and it was
+    // previously cosmetic against an attacker already holding a refresh
+    // token — that token stayed valid for its full 7 days.
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true, revokedAt: new Date() },
+    });
+
     // Notify so the user has a compromise-recovery surface (the
     // email contains the password-reset link). Fire-and-forget: the
     // password is already changed; an SMTP hiccup should not roll it

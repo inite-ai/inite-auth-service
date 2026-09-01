@@ -42,7 +42,7 @@ export function FormField({
           {label && (
             <label
               htmlFor={htmlFor}
-              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="text-sm font-medium text-[var(--text-muted)]"
             >
               {label}
             </label>
@@ -51,12 +51,12 @@ export function FormField({
         </div>
       )}
       {helper && !error && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{helper}</p>
+        <p className="text-xs text-[var(--text-faint)] mb-2">{helper}</p>
       )}
       {children}
       {error && (
         <p
-          className="mt-1 text-xs text-red-600 dark:text-red-400"
+          className="mt-1 text-xs text-[color:var(--danger)]"
           role="alert"
         >
           {error}

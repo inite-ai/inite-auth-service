@@ -21,6 +21,12 @@ export interface AccountData {
   wallets: Loadable<LinkedWallet[]>
 }
 
+/** Outcome of looking for a usable access token. */
+type TokenResult =
+  | { status: 'ok'; token: string }
+  | { status: 'unauthenticated' }
+  | { status: 'error'; message: string }
+
 function isUnauthorized(error: any): boolean {
   return error?.response?.status === 401 || error?.response?.status === 403
 }
@@ -61,30 +67,54 @@ export function useAccountData() {
     wallets: { status: 'loading' },
   })
 
-  /** Resolve a usable access token: stored one first, then the SSO session. */
-  const resolveToken = useCallback(async (): Promise<string | null> => {
+  /**
+   * Resolve a usable access token: stored one first, then the SSO session.
+   *
+   * The three outcomes are kept apart deliberately. Collapsing them into
+   * "no token" meant a 502 from a restarting backend was indistinguishable
+   * from being signed out, so a deploy bounced signed-in users to /login and
+   * cleared their stored token — the session in Redis was fine the whole
+   * time, but the page had already given up on it.
+   */
+  const resolveToken = useCallback(async (): Promise<TokenResult> => {
     const stored = authStorage.getValidToken()
-    if (stored) return stored
+    if (stored) return { status: 'ok', token: stored }
 
     try {
       const { data } = await api.get('/auth/session/me', { withCredentials: true })
       if (data.authenticated && data.access_token) {
         authStorage.save({ accessToken: data.access_token, userId: data.user.id })
-        return data.access_token as string
+        return { status: 'ok', token: data.access_token as string }
       }
-    } catch {
-      // No SSO session either — fall through to the sign-in redirect.
+      // A 200 saying "not authenticated" is a real answer, not a blip.
+      return { status: 'unauthenticated' }
+    } catch (error: any) {
+      if (isUnauthorized(error)) return { status: 'unauthenticated' }
+      return {
+        status: 'error',
+        message: error?.response?.data?.message ?? error?.message ?? 'Request failed',
+      }
     }
-    return null
   }, [])
 
   const load = useCallback(async () => {
-    const active = await resolveToken()
-    if (!active) {
+    const resolved = await resolveToken()
+
+    if (resolved.status === 'unauthenticated') {
       authStorage.clear()
       router.push('/login')
       return
     }
+
+    // Reachability problem, not an auth problem: keep the stored token and
+    // let every section offer a retry instead of ending the session.
+    if (resolved.status === 'error') {
+      const failed: Loadable<never> = { status: 'error', message: resolved.message }
+      setState({ user: failed, security: failed, passkeys: failed, wallets: failed })
+      return
+    }
+
+    const active = resolved.token
     setToken(active)
 
     const config = { headers: { Authorization: `Bearer ${active}` } }

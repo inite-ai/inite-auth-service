@@ -68,4 +68,39 @@ export class RegisterClientDto {
   @IsOptional()
   @IsUrl({ require_tld: false })
   tos_uri?: string;
+
+  // RFC 7591 §2 registered metadata that the registry does not act on but a
+  // compliant client sends anyway. They are declared here for one reason: the
+  // app runs a global ValidationPipe with forbidNonWhitelisted, which rejects
+  // the whole request on an unknown field. RFC 7591 §3.1 requires the opposite
+  // — the server MUST ignore metadata it does not understand. Accepting and
+  // ignoring them is the compliant behaviour, and without it a real MCP
+  // client (Claude sends client_uri, contacts, software_id) gets a 400 at
+  // registration and the connector flow dies before consent.
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  client_uri?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  contacts?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  software_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  software_version?: string;
+
+  @IsOptional()
+  @IsString()
+  software_statement?: string;
+
+  @IsOptional()
+  @IsIn(['web', 'native'])
+  application_type?: string;
 }

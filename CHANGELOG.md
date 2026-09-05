@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.11.1](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.0...inite-auth-service-v1.11.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **account:** stop a backend blip from signing the user out ([#173](https://github.com/inite-ai/inite-auth-service/issues/173)) ([c315461](https://github.com/inite-ai/inite-auth-service/commit/c3154618b326a0161c769e3c27a1b3d8f4cda6f4))
+* **oauth:** DCR must ignore unknown metadata, not reject it ([fe918b0](https://github.com/inite-ai/inite-auth-service/commit/fe918b04d093848ca91df5fdbf614548b6342162))
+* **oauth:** DCR must ignore unknown metadata, not reject it ([91c59f4](https://github.com/inite-ai/inite-auth-service/commit/91c59f49e26c0cbad6210b84f2d4040ebd577329))
+
 ## [1.11.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.10.1...inite-auth-service-v1.11.0) (2026-09-01)
 
 

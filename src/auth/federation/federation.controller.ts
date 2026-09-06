@@ -42,6 +42,13 @@ export class FederationController {
     'response_type',
     'nonce',
     'prompt',
+    // A federated login is an interactive login: anything dropped here is
+    // dropped for the whole flow. acr_values/resource/authorization_details
+    // used to be, so the resumed /authorize lost its step-up requirement and
+    // its RFC 8707 audience binding on every social sign-in.
+    'acr_values',
+    'resource',
+    'authorization_details',
   ];
 
   constructor(

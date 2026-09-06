@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
-import { OAuthParams } from '@/lib/oauthHelpers'
+import { OAuthParams, buildAuthorizeUrl } from '@/lib/oauthHelpers'
 import toast from 'react-hot-toast'
 import { Card, Button } from '@/components/ui'
 
@@ -30,15 +30,10 @@ function VerifyContent() {
       const params: OAuthParams | null = data.oauth_params
       if (params?.clientId && params?.redirectUri && params?.state && params?.codeChallenge) {
         // OAuth flow: сессия уже поднята (verify), сразу редирект на authorize → callback приложения с code → сессия в приложении
-        const authorizeUrl = new URL('/oauth/authorize', window.location.origin)
-        authorizeUrl.searchParams.set('response_type', 'code')
-        authorizeUrl.searchParams.set('client_id', params.clientId)
-        authorizeUrl.searchParams.set('redirect_uri', params.redirectUri)
-        authorizeUrl.searchParams.set('scope', params.scope || 'openid profile email offline_access')
-        authorizeUrl.searchParams.set('state', params.state)
-        authorizeUrl.searchParams.set('code_challenge', params.codeChallenge)
-        authorizeUrl.searchParams.set('code_challenge_method', params.codeChallengeMethod || 'S256')
-        window.location.href = authorizeUrl.toString()
+        // Пересборка идёт через общий buildAuthorizeUrl: раньше здесь был
+        // свой список из семи параметров, и resource (RFC 8707) в него не
+        // входил — токен уезжал с aud: <client_id> вместо запрошенного ресурса.
+        window.location.href = buildAuthorizeUrl(params)
         return
       }
       setMessage(data.is_new_user ? 'Account created successfully!' : 'Signed in successfully!')

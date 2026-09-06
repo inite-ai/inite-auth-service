@@ -16,7 +16,7 @@ import {
   AuthorizeQuery,
   ResolvedAuthorizeParams,
 } from './dto/oauth-requests';
-import { ParService } from './par.service';
+import { ParPayload, ParService } from './par.service';
 import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 
@@ -135,7 +135,7 @@ export class OAuthController {
       nonce: q.nonce,
       acrValues: q.acr_values,
       prompt: q.prompt,
-      // RFC 8707 — not part of the PAR request object round-trip.
+      // RFC 8707 Resource Indicator.
       resource: q.resource,
       // RFC 9396 — raw JSON, validated at code creation.
       authorizationDetails: q.authorization_details,
@@ -157,19 +157,30 @@ export class OAuthController {
     if (!pushed) {
       throw new BadRequestException('Invalid or expired request_uri');
     }
-    return {
-      ...base,
-      responseType: pushed.responseType ?? base.responseType,
-      redirectUri: pushed.redirectUri,
-      scope: pushed.scope ?? base.scope,
-      state: pushed.state ?? base.state,
-      codeChallenge: pushed.codeChallenge ?? base.codeChallenge,
-      codeChallengeMethod: pushed.codeChallengeMethod ?? base.codeChallengeMethod,
-      nonce: pushed.nonce ?? base.nonce,
-      acrValues: pushed.acrValues ?? base.acrValues,
-      prompt: pushed.prompt ?? base.prompt,
-      authorizationDetails: pushed.authorizationDetails ?? base.authorizationDetails,
-    };
+    return OAuthController.mergePushed(base, pushed);
+  }
+
+  /**
+   * RFC 9126 §4: pushed values take over the inbound query.
+   *
+   * Merged generically rather than field by field. ParPayload's keys are the
+   * ResolvedAuthorizeParams keys, so a param added to the pushed request is
+   * carried through on its own — this used to be a hand-written list, and
+   * `resource` never made it onto that list, which is how an RFC 8707
+   * indicator pushed out-of-band was dropped before it could bind the
+   * audience. `undefined` entries are stripped so a param the client did not
+   * push falls back to the query copy instead of blanking it.
+   */
+  private static mergePushed(
+    base: ResolvedAuthorizeParams,
+    pushed: ParPayload,
+  ): ResolvedAuthorizeParams {
+    const defined = Object.fromEntries(
+      Object.entries(pushed).filter(([, value]) => value !== undefined),
+    ) as Partial<ResolvedAuthorizeParams>;
+    // redirectUri stays authoritative even if blank — par.push already 400s on
+    // a missing one, so an empty value here can only mean a tampered payload.
+    return { ...base, ...defined, redirectUri: pushed.redirectUri };
   }
 
   private assertAuthorizeBasics(p: ResolvedAuthorizeParams): void {
@@ -274,6 +285,8 @@ export class OAuthController {
       codeChallenge: p.codeChallenge ?? '',
       codeChallengeMethod: p.codeChallengeMethod ?? '',
       nonce: p.nonce,
+      resource: p.resource,
+      authorizationDetails: p.authorizationDetails,
     };
     this.logger.oauth('Redirecting to login', {
       clientId: p.clientId,
@@ -287,6 +300,41 @@ export class OAuthController {
     );
   }
 
+  /**
+   * Every /authorize param that must survive the hop through the login or
+   * consent screen, as [query key, ResolvedAuthorizeParams key].
+   *
+   * One list on purpose. These used to be nine inline `if` statements, and
+   * `resource` (RFC 8707) was simply never added to them — so a resource
+   * indicator was dropped the moment a flow showed a login screen, and the
+   * issued token fell back to `aud: <client_id>`. The same omission had
+   * already swallowed `authorization_details` (RFC 9396), which the consent
+   * screen renders. `authorize-param-passthrough.spec.ts` fails if a new
+   * ResolvedAuthorizeParams field is neither listed here nor explicitly
+   * excluded, so the next param cannot go missing the same way.
+   *
+   * Not carried, deliberately: `responseType` (the resumed /authorize always
+   * asks for `code`) and `prompt` (replaying `prompt=none` after an
+   * interactive login would bounce the user straight back out).
+   */
+  private static readonly CARRIED_AUTHORIZE_PARAMS: ReadonlyArray<
+    readonly [string, keyof ResolvedAuthorizeParams]
+  > = [
+    ['client_id', 'clientId'],
+    ['redirect_uri', 'redirectUri'],
+    ['scope', 'scope'],
+    ['state', 'state'],
+    ['code_challenge', 'codeChallenge'],
+    ['code_challenge_method', 'codeChallengeMethod'],
+    ['nonce', 'nonce'],
+    // acr_values so the resumed /authorize re-checks the assurance requirement.
+    ['acr_values', 'acrValues'],
+    // RFC 8707 — without this the access token's audience defaults to client_id.
+    ['resource', 'resource'],
+    // RFC 9396 — the consent screen itemizes these before the user approves.
+    ['authorization_details', 'authorizationDetails'],
+  ];
+
   /** Build a /login or /consent redirect carrying the OAuth params forward. */
   private buildClientRedirect(
     req: Request,
@@ -295,18 +343,12 @@ export class OAuthController {
   ): string {
     const p = ctx.params;
     const url = new URL(path, process.env.FRONTEND_URL || `https://${req.headers.host}`);
-    url.searchParams.set('client_id', p.clientId);
-    url.searchParams.set('redirect_uri', p.redirectUri);
-    if (p.scope) url.searchParams.set('scope', p.scope);
-    if (p.state) url.searchParams.set('state', p.state);
-    if (p.codeChallenge) url.searchParams.set('code_challenge', p.codeChallenge);
-    if (p.codeChallengeMethod) {
-      url.searchParams.set('code_challenge_method', p.codeChallengeMethod);
+    for (const [queryKey, paramKey] of OAuthController.CARRIED_AUTHORIZE_PARAMS) {
+      const value = p[paramKey];
+      if (value) url.searchParams.set(queryKey, value);
     }
-    if (p.nonce) url.searchParams.set('nonce', p.nonce);
-    // Carry acr_values so the resumed /authorize re-checks the requirement,
-    // and step_up so the SPA forces a fresh, stronger factor.
-    if (p.acrValues) url.searchParams.set('acr_values', p.acrValues);
+    // step_up is a hint to the SPA (force a fresh, stronger factor), not an
+    // inbound /authorize param — hence it sits outside the carried list.
     if (ctx.stepUp) url.searchParams.set('step_up', '1');
     return url.toString();
   }

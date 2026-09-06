@@ -10,6 +10,8 @@ export interface OAuthParams {
   state?: string | null
   codeChallenge?: string | null
   codeChallengeMethod?: string | null
+  /** OIDC nonce — replayed into the id_token, so it has to survive the hop. */
+  nonce?: string | null
   /** Requested authentication assurance (OIDC acr_values / step-up). */
   acrValues?: string | null
   /** RFC 8707 resource indicator — binds the issued access-token audience. */
@@ -25,23 +27,45 @@ export function isOAuthFlow(params: OAuthParams): boolean {
   return !!(params.clientId && params.redirectUri)
 }
 
+/** Scope assumed when a resumed /authorize has none stashed alongside it. */
+const DEFAULT_SCOPE = 'openid profile email offline_access'
+
+/**
+ * The one list of params that must survive every client-side hop of the flow
+ * (/oauth/authorize -> /login -> /consent -> create-code), as
+ * [query key, OAuthParams key].
+ *
+ * Every builder below reads this list rather than spelling the params out, so
+ * a param can no longer be carried by two hops and dropped by the third —
+ * which is precisely how `resource` (RFC 8707) came to be honoured only in
+ * flows that never showed a login screen.
+ */
+const PASSTHROUGH: ReadonlyArray<readonly [string, keyof OAuthParams]> = [
+  ['client_id', 'clientId'],
+  ['redirect_uri', 'redirectUri'],
+  ['scope', 'scope'],
+  ['state', 'state'],
+  ['code_challenge', 'codeChallenge'],
+  ['code_challenge_method', 'codeChallengeMethod'],
+  ['nonce', 'nonce'],
+  ['acr_values', 'acrValues'],
+  ['resource', 'resource'],
+  ['authorization_details', 'authorizationDetails'],
+]
+
+function applyPassthrough(url: URL, params: OAuthParams): void {
+  for (const [queryKey, paramKey] of PASSTHROUGH) {
+    const value = params[paramKey]
+    if (value) url.searchParams.set(queryKey, value)
+  }
+}
+
 /**
  * Build consent page URL with all OAuth params
  */
 export function buildConsentUrl(params: OAuthParams): string {
   const url = new URL('/consent', window.location.origin)
-  
-  if (params.clientId) url.searchParams.set('client_id', params.clientId)
-  if (params.redirectUri) url.searchParams.set('redirect_uri', params.redirectUri)
-  if (params.scope) url.searchParams.set('scope', params.scope)
-  if (params.state) url.searchParams.set('state', params.state)
-  if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
-  if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
-  if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
-  if (params.resource) url.searchParams.set('resource', params.resource)
-  if (params.authorizationDetails)
-    url.searchParams.set('authorization_details', params.authorizationDetails)
-
+  applyPassthrough(url, params)
   return url.pathname + url.search
 }
 
@@ -50,19 +74,25 @@ export function buildConsentUrl(params: OAuthParams): string {
  */
 export function buildLoginUrl(params: OAuthParams): string {
   const url = new URL('/login', window.location.origin)
-  
-  if (params.clientId) url.searchParams.set('client_id', params.clientId)
-  if (params.redirectUri) url.searchParams.set('redirect_uri', params.redirectUri)
-  if (params.scope) url.searchParams.set('scope', params.scope)
-  if (params.state) url.searchParams.set('state', params.state)
-  if (params.codeChallenge) url.searchParams.set('code_challenge', params.codeChallenge)
-  if (params.codeChallengeMethod) url.searchParams.set('code_challenge_method', params.codeChallengeMethod)
-  if (params.acrValues) url.searchParams.set('acr_values', params.acrValues)
-  if (params.resource) url.searchParams.set('resource', params.resource)
-  if (params.authorizationDetails)
-    url.searchParams.set('authorization_details', params.authorizationDetails)
-
+  applyPassthrough(url, params)
   return url.pathname + url.search
+}
+
+/**
+ * Rebuild the /oauth/authorize request after an out-of-band login (magic
+ * link, federated callback) has already established the session.
+ *
+ * Absolute URL: callers hand it straight to window.location.
+ */
+export function buildAuthorizeUrl(params: OAuthParams): string {
+  const url = new URL('/oauth/authorize', window.location.origin)
+  url.searchParams.set('response_type', 'code')
+  applyPassthrough(url, {
+    ...params,
+    scope: params.scope || DEFAULT_SCOPE,
+    codeChallengeMethod: params.codeChallengeMethod || 'S256',
+  })
+  return url.toString()
 }
 
 /**
@@ -96,6 +126,7 @@ export async function createAuthorizationCode(
       state: params.state,
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
+      nonce: params.nonce,
       acrValues: params.acrValues,
       resource: params.resource,
       authorizationDetails: params.authorizationDetails ?? undefined,
@@ -122,6 +153,7 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     state: searchParams.get('state'),
     codeChallenge: searchParams.get('code_challenge'),
     codeChallengeMethod: searchParams.get('code_challenge_method'),
+    nonce: searchParams.get('nonce'),
     acrValues: searchParams.get('acr_values'),
     resource: searchParams.get('resource'),
     authorizationDetails: searchParams.get('authorization_details'),

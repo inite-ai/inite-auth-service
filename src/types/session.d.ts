@@ -20,6 +20,12 @@ declare module 'express-session' {
       codeChallenge: string;
       codeChallengeMethod: string;
       nonce?: string;
+      /// RFC 8707 Resource Indicator. Kept in step with the /login redirect
+      /// query above: a stored copy that quietly omits a param is exactly how
+      /// `resource` got lost on the interactive path.
+      resource?: string;
+      /// RFC 9396 raw `authorization_details` JSON.
+      authorizationDetails?: string;
     };
   }
 }

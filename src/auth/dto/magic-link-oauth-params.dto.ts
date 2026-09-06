@@ -9,8 +9,12 @@ import { IsOptional, IsString } from 'class-validator';
  * is present. That object is built from URLSearchParams.get(...), so every
  * field can be `null` (absent query param) — @IsOptional treats null/undefined
  * as "missing" and skips @IsString, matching the previously-unvalidated
- * behaviour. All nine keys it can send are whitelisted here so a live
+ * behaviour. All eleven keys it can send are whitelisted here so a live
  * OAuth-flow magic-link request is not rejected by forbidNonWhitelisted.
+ *
+ * Keep in step with OAuthParamsDto (the stored shape) and the frontend's
+ * OAuthParams — a key absent from any of the three is a param that dies at
+ * the magic link.
  */
 export class MagicLinkOAuthParamsDto {
   @IsOptional()
@@ -47,5 +51,15 @@ export class MagicLinkOAuthParamsDto {
 
   @IsOptional()
   @IsString()
+  nonce?: string;
+
+  /** RFC 8707 Resource Indicator — target resource for the issued token. */
+  @IsOptional()
+  @IsString()
   resource?: string;
+
+  /** RFC 9396 raw `authorization_details` JSON. */
+  @IsOptional()
+  @IsString()
+  authorizationDetails?: string;
 }

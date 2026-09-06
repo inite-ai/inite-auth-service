@@ -23,16 +23,11 @@ describe('OAuthRegisterController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OAuthRegisterController],
-      providers: [
-        OAuthClientRegistryService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [OAuthClientRegistryService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     controller = module.get<OAuthRegisterController>(OAuthRegisterController);
-    registry = module.get<OAuthClientRegistryService>(
-      OAuthClientRegistryService,
-    );
+    registry = module.get<OAuthClientRegistryService>(OAuthClientRegistryService);
   });
 
   it('confidential DCR returns client_id + client_secret and persists sanitized grants', async () => {
@@ -52,10 +47,7 @@ describe('OAuthRegisterController', () => {
     expect(res.client_secret_expires_at).toBe(0);
 
     const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
-    expect(persisted.allowedGrants).toEqual([
-      'authorization_code',
-      'refresh_token',
-    ]);
+    expect(persisted.allowedGrants).toEqual(['authorization_code', 'refresh_token']);
     expect(persisted.isPublic).toBe(false);
     expect(persisted.clientSecretHash).toEqual(expect.any(String));
   });
@@ -78,14 +70,37 @@ describe('OAuthRegisterController', () => {
     expect(persisted.clientSecretHash).toEqual(expect.any(String));
   });
 
-  it('strips disallowed grant types (e.g. token-exchange)', async () => {
+  // Behaviour change, 2026-09-06. This used to assert the opposite: that a
+  // withheld grant was dropped and registration answered 201. It is legal
+  // under RFC 7591 either way, and it cost an afternoon in practice — a caller
+  // reads device_code in `grant_types_supported` (correctly: RFC 8414
+  // describes the server, not a client), registers asking for it, is told
+  // yes, and only learns otherwise at /device_authorization, which refuses
+  // the client this server had just issued. Two events far enough apart to be
+  // hard to connect.
+  it.each([
+    ['urn:ietf:params:oauth:grant-type:device_code', /device grant is provisioned by an operator/],
+    [
+      'urn:ietf:params:oauth:grant-type:token-exchange',
+      /token exchange is provisioned by an operator/,
+    ],
+  ])('refuses %s and says why', async (grant, reason) => {
     const dto: RegisterClientDto = {
       redirect_uris: ['https://app.example.com/callback'],
-      grant_types: [
-        'authorization_code',
-        'urn:ietf:params:oauth:grant-type:token-exchange',
-        'urn:ietf:params:oauth:grant-type:device_code',
-      ],
+      grant_types: ['authorization_code', grant],
+      token_endpoint_auth_method: 'client_secret_post',
+    };
+
+    await expect(controller.register(dto)).rejects.toThrow(reason);
+    expect(mockPrisma.oAuthClient.create).not.toHaveBeenCalled();
+  });
+
+  it('still narrows a grant it simply does not implement', async () => {
+    // Forgiving where forgiveness costs nothing: a grant nobody offers cannot
+    // be reached later, so dropping it strands no one.
+    const dto: RegisterClientDto = {
+      redirect_uris: ['https://app.example.com/callback'],
+      grant_types: ['authorization_code', 'urn:example:grant:invented'],
       token_endpoint_auth_method: 'client_secret_post',
     };
 

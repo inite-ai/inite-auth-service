@@ -75,6 +75,7 @@ export class OAuthRequestController {
           nonce: p.nonce,
           acrValues: p.acr_values,
           prompt: p.prompt,
+          resource: p.resource,
           authorizationDetails: p.authorization_details,
         })
       ).requestUri,

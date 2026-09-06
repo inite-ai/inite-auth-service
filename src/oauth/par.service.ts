@@ -33,6 +33,8 @@ export interface ParPayload {
   nonce?: string;
   acrValues?: string;
   prompt?: string;
+  /** RFC 8707 Resource Indicator — target resource for the issued token. */
+  resource?: string;
   /** RFC 9396 raw `authorization_details` JSON string. */
   authorizationDetails?: string;
 }

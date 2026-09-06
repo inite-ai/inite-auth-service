@@ -24,7 +24,7 @@ function check<T extends object>(cls: new () => T, payload: object): T {
 }
 
 describe('phase-2b DTOs accept real frontend payloads', () => {
-  it('SendMagicLinkDto — full OAuth flow (9 oauthParams keys)', () => {
+  it('SendMagicLinkDto — full OAuth flow (11 oauthParams keys)', () => {
     const dto = check(SendMagicLinkDto, {
       email: 'a@b.com',
       oauthParams: {
@@ -34,13 +34,16 @@ describe('phase-2b DTOs accept real frontend payloads', () => {
         state: 's',
         codeChallenge: 'cc',
         codeChallengeMethod: 'S256',
+        nonce: 'n',
         acrValues: 'urn:mfa',
         prompt: 'login',
         resource: 'https://api',
+        authorizationDetails: '[{"type":"inite_mcp_resource"}]',
       },
     });
-    // whitelist must not strip the nested params.
-    expect(Object.keys(dto.oauthParams ?? {})).toHaveLength(9);
+    // whitelist must not strip the nested params — a stripped `resource` is a
+    // token issued with `aud: <client_id>` instead of the requested resource.
+    expect(Object.keys(dto.oauthParams ?? {})).toHaveLength(11);
   });
 
   it('SendMagicLinkDto — embed form (top-level clientId, no oauthParams)', () => {

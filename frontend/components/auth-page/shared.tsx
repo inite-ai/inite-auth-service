@@ -23,9 +23,11 @@ export function useOAuthParams(): OAuthParams {
       state: searchParams.get('state'),
       codeChallenge: searchParams.get('code_challenge'),
       codeChallengeMethod: searchParams.get('code_challenge_method'),
+      nonce: searchParams.get('nonce'),
       acrValues: searchParams.get('acr_values'),
       prompt: searchParams.get('prompt'),
       resource: searchParams.get('resource'),
+      authorizationDetails: searchParams.get('authorization_details'),
     }),
     [searchParams],
   )

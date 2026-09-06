@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { OAuthClient, Prisma } from '@prisma/client';
@@ -22,11 +18,31 @@ export interface RegisterClientInput {
 
 // Grants open RFC 7591 registration may request. Excludes token-exchange and
 // device_code (privilege-escalating — operator-provisioned only).
-const DCR_ALLOWED_GRANTS = [
-  'authorization_code',
-  'refresh_token',
-  'client_credentials',
-];
+const DCR_ALLOWED_GRANTS = ['authorization_code', 'refresh_token', 'client_credentials'];
+
+/**
+ * Grants this server implements but will not hand to a self-registered client,
+ * with the reason a caller is told.
+ *
+ * Kept apart from "grants we do not implement" on purpose. A client asking for
+ * something that does not exist can be quietly narrowed; a client asking for
+ * something that exists and is deliberately withheld is making a mistake it
+ * needs to hear about, because the endpoint it is heading for will refuse it
+ * and the two events are far enough apart to be hard to connect.
+ *
+ * That is not hypothetical. `/.well-known/oauth-authorization-server` lists
+ * device_code under `grant_types_supported` — correctly: RFC 8414 describes
+ * the server, not any one client. A caller reads that, registers asking for
+ * it, gets `201`, and only finds out at `/device_authorization`, which tells
+ * it the grant is not allowed for the client this same server issued moments
+ * earlier.
+ */
+const DCR_WITHHELD_GRANTS: Record<string, string> = {
+  'urn:ietf:params:oauth:grant-type:device_code':
+    'the device grant is provisioned by an operator, not through open registration',
+  'urn:ietf:params:oauth:grant-type:token-exchange':
+    'token exchange is provisioned by an operator, not through open registration',
+};
 const DCR_DEFAULT_GRANTS = ['authorization_code', 'refresh_token'];
 const DCR_SUPPORTED_SCOPES = dcrSupportedScopes();
 const DCR_DEFAULT_SCOPES = ['openid', 'profile', 'email'];
@@ -39,12 +55,16 @@ const DCR_MAX_REDIRECT_URIS = 10;
  * same wall time as the wrong-secret path. Stops timing-channel
  * enumeration of valid client_ids.
  */
-const TIMING_DUMMY_HASH =
-  '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
+const TIMING_DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0u..wfBpO5SQEihKK5xrxAGl0F3PaMtsm';
 
 /** RFC 8252 §7.3 — loopback hosts for native/CLI app redirects. */
 function isLoopbackHost(hostname: string): boolean {
-  return hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1' || hostname === 'localhost';
+  return (
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname === '::1' ||
+    hostname === 'localhost'
+  );
 }
 
 @Injectable()
@@ -59,10 +79,7 @@ export class OAuthClientRegistryService {
    * Validate OAuth client with secret (required — for token endpoint)
    */
   async validateClient(clientId: string, clientSecret: string): Promise<OAuthClient>;
-  async validateClient(
-    clientId: string,
-    clientSecret?: string,
-  ): Promise<OAuthClient> {
+  async validateClient(clientId: string, clientSecret?: string): Promise<OAuthClient> {
     const client = await this.prisma.oAuthClient.findFirst({
       where: { clientId, active: true },
     });
@@ -79,10 +96,7 @@ export class OAuthClientRegistryService {
     }
 
     if (clientSecret) {
-      const matchesCurrent = await bcrypt.compare(
-        clientSecret,
-        client.clientSecretHash,
-      );
+      const matchesCurrent = await bcrypt.compare(clientSecret, client.clientSecretHash);
 
       // Grace-period acceptance: during a rotation window, the prior
       // secret is still honoured until previousSecretExpiresAt. Run
@@ -122,10 +136,7 @@ export class OAuthClientRegistryService {
    * device_code must be approved, etc.) so dropping the secret here
    * doesn't loosen the overall guarantees.
    */
-  async validateClientWithSecret(
-    clientId: string,
-    clientSecret: string,
-  ): Promise<OAuthClient> {
+  async validateClientWithSecret(clientId: string, clientSecret: string): Promise<OAuthClient> {
     if (!clientSecret) {
       const client = await this.validateClient(clientId);
       if (!client.isPublic) {
@@ -141,9 +152,7 @@ export class OAuthClientRegistryService {
    */
   validateGrantType(client: OAuthClient, grantType: string): void {
     if (!client.allowedGrants || !client.allowedGrants.includes(grantType)) {
-      throw new BadRequestException(
-        `Grant type "${grantType}" is not allowed for this client`,
-      );
+      throw new BadRequestException(`Grant type "${grantType}" is not allowed for this client`);
     }
   }
 
@@ -267,6 +276,16 @@ export class OAuthClientRegistryService {
   }
 
   private sanitizeGrants(requested: string[] | undefined, isPublic: boolean): string[] {
+    // Say no to a withheld grant rather than dropping it and answering 201.
+    // RFC 7591 permits either, and this file already prefers the explicit
+    // refusal — see the client_credentials check below.
+    const withheld = (requested ?? []).filter((g) => g in DCR_WITHHELD_GRANTS);
+    const first = withheld[0];
+    if (first) {
+      throw new BadRequestException(
+        `grant_type "${first}" is not available through dynamic registration: ${DCR_WITHHELD_GRANTS[first]}`,
+      );
+    }
     const valid = (requested ?? []).filter((g) => DCR_ALLOWED_GRANTS.includes(g));
     const grants = valid.length > 0 ? [...new Set(valid)] : [...DCR_DEFAULT_GRANTS];
     if (grants.includes('client_credentials') && isPublic) {

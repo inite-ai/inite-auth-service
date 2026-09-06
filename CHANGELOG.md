@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.11.2](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.1...inite-auth-service-v1.11.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **dcr:** refuse a withheld grant instead of narrowing it silently ([#181](https://github.com/inite-ai/inite-auth-service/issues/181)) ([9c08a49](https://github.com/inite-ai/inite-auth-service/commit/9c08a4995fe6e9f3e4cb172ea37a58c155235cac))
+* **oauth:** carry resource indicator through the interactive login ([#183](https://github.com/inite-ai/inite-auth-service/issues/183)) ([e8c843f](https://github.com/inite-ai/inite-auth-service/commit/e8c843f2ed513f980f8e730a9f0cadf716d44b74))
+
 ## [1.11.1](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.0...inite-auth-service-v1.11.1) (2026-09-03)
 
 

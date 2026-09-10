@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-09-10)
+
+
+### Features
+
+* **oauth:** give a first-time user a workspace, behind a flag ([#194](https://github.com/inite-ai/inite-auth-service/issues/194)) ([8d2436c](https://github.com/inite-ai/inite-auth-service/commit/8d2436c8db635d703cf6d26566dfaaf0d1be08bf))
+
 ## [1.11.2](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.1...inite-auth-service-v1.11.2) (2026-09-06)
 
 

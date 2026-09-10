@@ -67,6 +67,17 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     description: 'Embed organization + role claims in issued access tokens.',
   },
   {
+    key: 'PERSONAL_WORKSPACE_PROVISIONING_ENABLED',
+    type: 'flag',
+    group: 'Tokens',
+    label: 'Personal workspace on first use',
+    description:
+      'Give a user with no organisation one (owner membership) the first time ' +
+      "they request a provisioning vertical's scopes — so an OAuth flow from " +
+      'an MCP client ends in a usable tenant instead of a token with no org claim. ' +
+      'Off = unchanged behaviour: no membership, no org.',
+  },
+  {
     key: 'JWT_ACCESS_TOKEN_EXPIRY',
     type: 'duration',
     group: 'Tokens',
@@ -132,7 +143,10 @@ export function validateSettingValue(def: SettingDef, value: string): string | n
     case 'duration':
       return /^\d+[smhd]?$/.test(value.trim()) ? null : 'must be a duration like 10m, 1h, 3600s';
     case 'csv':
-      return value.split(',').map((t) => t.trim()).filter(Boolean).length > 0
+      return value
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean).length > 0
         ? null
         : 'must be a non-empty comma-separated list';
     case 'text':

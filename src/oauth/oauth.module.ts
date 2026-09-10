@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { OAuthService } from './oauth.service';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
+import { PersonalWorkspaceService } from './personal-workspace.service';
 import { OAuthM2mService } from './oauth-m2m.service';
 import { OAuthOriginsService } from './oauth-origins.service';
 import { OAuthController } from './oauth.controller';
@@ -34,15 +35,12 @@ import { EmailModule } from '../email/email.module';
 import { ClientIdThrottlerGuard } from './client-throttler.guard';
 
 @Module({
-  imports: [
-    IdentityModule,
-    EmailModule,
-    forwardRef(() => AuthModule),
-  ],
+  imports: [IdentityModule, EmailModule, forwardRef(() => AuthModule)],
   providers: [
     OAuthService,
     OAuthClientRegistryService,
     OAuthTokenIssuerService,
+    PersonalWorkspaceService,
     OAuthM2mService,
     OAuthOriginsService,
     TokenGrantService,

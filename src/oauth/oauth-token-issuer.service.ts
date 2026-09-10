@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -11,6 +7,7 @@ import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
+import { PersonalWorkspaceService } from './personal-workspace.service';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 import { SettingsService } from '../common/settings/settings.service';
 import { sanitizeCustomClaims } from './custom-claims';
@@ -75,6 +72,10 @@ export class OAuthTokenIssuerService {
     private readonly configService: ConfigService,
     private readonly settings: SettingsService,
     @Optional() private readonly ssf?: SsfEmitterService,
+    // Optional: unit fixtures build this service with four arguments, and
+    // without it resolveOrgContext simply never provisions — the
+    // behaviour every deployment had before the flag existed.
+    @Optional() private readonly personalWorkspace?: PersonalWorkspaceService,
   ) {}
 
   /**
@@ -97,9 +98,7 @@ export class OAuthTokenIssuerService {
 
     const fallback = this.configService.get<string>('JWT_SECRET');
     if (!fallback) {
-      throw new Error(
-        'REFRESH_TOKEN_HMAC_SECRET (or JWT_SECRET fallback) must be set',
-      );
+      throw new Error('REFRESH_TOKEN_HMAC_SECRET (or JWT_SECRET fallback) must be set');
     }
     return fallback;
   }
@@ -248,11 +247,19 @@ export class OAuthTokenIssuerService {
       where: { userId: input.user.id, status: 'active' },
       include: { organization: true },
     });
-    if (memberships.length === 0) return base;
+    if (memberships.length === 0) {
+      const provisioned = await this.personalWorkspace?.provisionFor(input.user.id, input.scope);
+      if (!provisioned) return base;
+      return {
+        ...base,
+        roles: [...new Set([...metaRoles, 'owner'])],
+        org: provisioned.companyId,
+        orgId: provisioned.id,
+      };
+    }
 
     const chosen =
-      memberships.find((m) => m.organization.companyId === clientRow?.companyId)
-      ?? memberships[0]!; // memberships is non-empty (checked above)
+      memberships.find((m) => m.organization.companyId === clientRow?.companyId) ?? memberships[0]!; // memberships is non-empty (checked above)
     const roles = [...new Set([...metaRoles, ...memberships.map((m) => m.role)])];
     return {
       ...base,
@@ -268,10 +275,7 @@ export class OAuthTokenIssuerService {
   ): Promise<void> {
     const { user, clientId, scope, nonce, rotatedFrom } = input;
     const authnContext = input.authnContext ?? {};
-    const tokenLookup = hashRefreshToken(
-      refreshTokenValue,
-      this.getRefreshTokenSecret(),
-    );
+    const tokenLookup = hashRefreshToken(refreshTokenValue, this.getRefreshTokenSecret());
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -332,10 +336,7 @@ export class OAuthTokenIssuerService {
     expiresIn: number;
     scope: string;
   }> {
-    const tokenLookup = hashRefreshToken(
-      refreshTokenValue,
-      this.getRefreshTokenSecret(),
-    );
+    const tokenLookup = hashRefreshToken(refreshTokenValue, this.getRefreshTokenSecret());
 
     const matchedToken = await this.prisma.refreshToken.findUnique({
       where: { tokenLookup },
@@ -411,7 +412,10 @@ export class OAuthTokenIssuerService {
    * CAEP token-claims-change (token-revoked) signal (fire-and-forget) so
    * subscribed receivers can drop the revoked token. No-op without SSF.
    */
-  private async signalTokenRevoked(did: string | undefined, companyId: string | null): Promise<void> {
+  private async signalTokenRevoked(
+    did: string | undefined,
+    companyId: string | null,
+  ): Promise<void> {
     if (!this.ssf || !did) return;
     await this.ssf.emit({
       eventType: CAEP_EVENTS.tokenClaimsChange,

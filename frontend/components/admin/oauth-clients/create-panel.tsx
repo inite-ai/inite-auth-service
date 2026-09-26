@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ToggleRow, firstPartyCopy } from './toggle-row'
 import { Plus, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
@@ -23,6 +24,7 @@ interface CreateForm {
   allowedAudiences: string[]
   companyId: string
   backchannelLogoutUri: string
+  firstParty: boolean
   auth: AuthMethodValue
 }
 
@@ -91,6 +93,7 @@ export function CreateClientPanel({
           companyId: form.companyId.trim() || null,
           allowedAudiences: form.allowedAudiences,
           backchannelLogoutUri: form.backchannelLogoutUri.trim() || null,
+          firstParty: form.firstParty,
           ...auth.payload,
         },
         config,
@@ -156,6 +159,13 @@ export function CreateClientPanel({
             />
           </div>
         </div>
+
+        <ToggleRow
+          on={form.firstParty}
+          onToggle={() => setForm({ ...form, firstParty: !form.firstParty })}
+          ariaLabel="Toggle first-party"
+          {...firstPartyCopy(form.firstParty)}
+        />
 
         <div>
           <FieldLabel label="Grant types" />
@@ -254,6 +264,7 @@ function initialCreateForm(): CreateForm {
     allowedGrants: ['authorization_code', 'refresh_token'],
     allowedAudiences: [],
     companyId: '',
+    firstParty: true,
     backchannelLogoutUri: '',
     auth: defaultAuthValue(),
   }

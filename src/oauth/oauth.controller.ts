@@ -19,6 +19,7 @@ import {
 import { ParPayload, ParService } from './par.service';
 import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
+import { ConsentService } from './consent.service';
 
 
 @ApiTags('oauth')
@@ -33,6 +34,7 @@ export class OAuthController {
     private readonly par: ParService,
     private readonly stepUp: StepUpService,
     private readonly requestObject: RequestObjectService,
+    private readonly consent: ConsentService,
   ) {
     this.logger.setContext('OAuthController');
   }
@@ -93,6 +95,19 @@ export class OAuthController {
         requested: p.acrValues,
       });
       return this.redirectToLogin(res, req, { params: p, stepUp: true });
+    }
+
+    // Nothing to ask: INITE's own application, or scopes the person already
+    // approved. Hand the code straight back instead of showing the screen.
+    const mustAsk = await this.consent.isRequired({
+      userId,
+      clientId: p.clientId,
+      scope: grantedScope,
+      authorizationDetails: p.authorizationDetails,
+    });
+    if (!mustAsk) {
+      this.logger.oauth('Consent not needed — issuing code', { clientId: p.clientId, userId });
+      return this.issueCode(res, { params: p, grantedScope, userId, amr });
     }
 
     this.logger.oauth('Redirecting to consent', { clientId: p.clientId, userId });
@@ -242,6 +257,33 @@ export class OAuthController {
       return res.redirect(errorUrl.toString());
     }
 
+    // prompt=none cannot show the consent screen. OIDC core 3.1.2.6: answer
+    // consent_required rather than mint a code nobody agreed to — it used to
+    // hand one to any client for anyone with a session.
+    const mustAsk = await this.consent.isRequired({
+      userId,
+      clientId: p.clientId,
+      scope: grantedScope,
+      authorizationDetails: p.authorizationDetails,
+    });
+    if (mustAsk) {
+      const errorUrl = new URL(p.redirectUri);
+      errorUrl.searchParams.set('error', 'consent_required');
+      errorUrl.searchParams.set('error_description', 'The user has not consented to this client');
+      if (p.state) errorUrl.searchParams.set('state', p.state);
+      return res.redirect(errorUrl.toString());
+    }
+
+    this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });
+    return this.issueCode(res, { params: p, grantedScope, userId, amr });
+  }
+
+  /** Mint a code for a request that needs no further interaction and send it back. */
+  private async issueCode(
+    res: Response,
+    ctx: { params: ResolvedAuthorizeParams; grantedScope: string; userId: string; amr: string[] },
+  ) {
+    const { params: p, grantedScope, userId, amr } = ctx;
     const code = await this.oauthService.createAuthorizationCode({
       userId,
       clientId: p.clientId,
@@ -258,7 +300,6 @@ export class OAuthController {
       authorizationDetails: p.authorizationDetails,
     });
 
-    this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });
     const successUrl = new URL(p.redirectUri);
     successUrl.searchParams.set('code', code);
     if (p.state) successUrl.searchParams.set('state', p.state);

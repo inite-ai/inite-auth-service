@@ -87,6 +87,7 @@ export function DetailsPanel({
           ) : (
             <Badge variant="neutral">Inactive</Badge>
           )}
+          {client.firstParty && <Badge variant="accent">First-party</Badge>}
         </div>
 
         <div className="bg-[var(--bg)] border border-[var(--border)] rounded-md p-3">

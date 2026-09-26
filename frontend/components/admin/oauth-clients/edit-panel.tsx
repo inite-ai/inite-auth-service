@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ToggleRow, firstPartyCopy } from './toggle-row'
 import { Check, Loader2, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
@@ -26,6 +27,7 @@ interface EditForm {
   claimPolicy: string[]
   claimPacks: string[]
   active: boolean
+  firstParty: boolean
   auth: AuthMethodValue
 }
 
@@ -61,6 +63,7 @@ export function EditClientPanel({
       claimPolicy: [...(client.customClaims?.policy ?? [])],
       claimPacks: [...(client.customClaims?.packs ?? [])],
       active: client.active !== false,
+      firstParty: client.firstParty === true,
       auth: authValueFromClient(client),
     })
   }, [client])
@@ -94,6 +97,7 @@ export function EditClientPanel({
           backchannelLogoutUri: form.backchannelLogoutUri.trim() || null,
           customClaims: buildCustomClaimsPayload(form.claimPolicy, form.claimPacks),
           active: form.active,
+          firstParty: form.firstParty,
           ...auth.payload,
         },
         config,
@@ -178,32 +182,26 @@ export function EditClientPanel({
           />
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-md bg-[var(--bg)] border border-[var(--border)]">
-          <button
-            type="button"
-            onClick={() => setForm({ ...form, active: !form.active })}
-            className={`relative w-9 h-5 rounded-full transition-colors ${
-              form.active ? 'bg-[var(--accent)]' : 'bg-[var(--bg-overlay)]'
-            }`}
-            aria-label="Toggle active"
-          >
-            <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                form.active ? 'translate-x-4' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-[var(--text)]">
-              {form.active ? 'Active' : 'Inactive'}
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)]">
-              {form.active
-                ? 'Issuing tokens. Existing tokens remain valid.'
-                : 'Token requests rejected. Existing tokens remain valid until expiry.'}
-            </div>
-          </div>
-        </div>
+        <ToggleRow
+          on={form.active}
+          onToggle={() => setForm({ ...form, active: !form.active })}
+          ariaLabel="Toggle active"
+          title={form.active ? 'Active' : 'Inactive'}
+          hint={
+            form.active
+              ? 'Issuing tokens. Existing tokens remain valid.'
+              : 'Token requests rejected. Existing tokens remain valid until expiry.'
+          }
+        />
+
+        {!client?.clientId.startsWith('dcr_') && (
+          <ToggleRow
+            on={form.firstParty}
+            onToggle={() => setForm({ ...form, firstParty: !form.firstParty })}
+            ariaLabel="Toggle first-party"
+            {...firstPartyCopy(form.firstParty)}
+          />
+        )}
 
         <div>
           <FieldLabel label="Grant types" />

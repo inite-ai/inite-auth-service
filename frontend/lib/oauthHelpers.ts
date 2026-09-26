@@ -106,6 +106,47 @@ export function buildRedirectWithCode(redirectUri: string, code: string, state?:
 }
 
 /**
+ * Whether the consent screen has anything to ask: false for INITE's own
+ * applications and for scopes the person already approved. On any failure
+ * the answer is "ask" — showing the screen is always safe.
+ */
+export async function isConsentRequired(accessToken: string, params: OAuthParams): Promise<boolean> {
+  const query = new URLSearchParams({ client_id: params.clientId ?? '' })
+  if (params.scope) query.set('scope', params.scope)
+  if (params.authorizationDetails) query.set('authorization_details', params.authorizationDetails)
+  try {
+    const response = await fetch(`/v1/oauth/consent-check?${query}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+    })
+    if (!response.ok) return true
+    const data = await response.json()
+    return data.required !== false
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Every sign-in path lands on the consent screen. When there is nothing to
+ * ask — one of INITE's own applications, or scopes this person already
+ * approved — approve on their behalf and send them straight back, before
+ * the screen renders. Returns false when the screen has to be shown.
+ */
+export async function approveWithoutAsking(accessToken: string, params: OAuthParams): Promise<boolean> {
+  if (!params.clientId || !params.redirectUri) return false
+  if (await isConsentRequired(accessToken, params)) return false
+  try {
+    const code = await createAuthorizationCode(accessToken, params)
+    window.location.href = buildRedirectWithCode(params.redirectUri, code, params.state)
+    return true
+  } catch {
+    // The screen is still there: the person can approve by hand.
+    return false
+  }
+}
+
+/**
  * Create authorization code via API
  */
 export async function createAuthorizationCode(

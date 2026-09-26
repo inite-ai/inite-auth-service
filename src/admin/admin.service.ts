@@ -255,6 +255,7 @@ export class AdminService {
     allowedAudiences?: string[];
     backchannelLogoutUri?: string | null;
     customClaims?: unknown;
+    firstParty?: boolean;
   }) {
     return this.clients.createOAuthClient(data);
   }
@@ -274,6 +275,7 @@ export class AdminService {
       termsOfServiceUrl: string;
       backchannelLogoutUri: string | null;
       customClaims: unknown;
+      firstParty: boolean;
     }>,
   ) {
     return this.clients.updateOAuthClient(clientId, data);

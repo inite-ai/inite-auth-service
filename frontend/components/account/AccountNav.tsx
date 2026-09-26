@@ -11,6 +11,7 @@ const SECTIONS: readonly { id: string; labelKey: TKey }[] = [
   { id: 'passkeys', labelKey: 'account.passkeys.title' },
   { id: 'wallets', labelKey: 'account.wallets.title' },
   { id: 'sessions', labelKey: 'account.sessions.title' },
+  { id: 'apps', labelKey: 'account.apps.title' },
   { id: 'activity', labelKey: 'account.activity.title' },
   { id: 'data', labelKey: 'account.data.title' },
 ]

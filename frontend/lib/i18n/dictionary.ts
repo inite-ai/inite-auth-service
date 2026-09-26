@@ -266,6 +266,14 @@ export const en = {
   'account.wallets.primary': 'Primary',
 
   // Sessions / connected apps
+  'account.apps.title': 'Connected apps',
+  'account.apps.subtitle': 'Applications you let use your INITE account. You are not asked again while they stay connected.',
+  'account.apps.empty': 'No connected apps',
+  'account.apps.empty.hint': 'Apps you approve on the consent screen appear here.',
+  'account.apps.granted': 'Approved {when}',
+  'account.apps.disconnect': 'Disconnect',
+  'account.apps.disconnect.confirm': '{name} loses access and signs you out there. It will ask for your consent again next time.',
+  'account.apps.disconnected': 'App disconnected',
   'account.sessions.title': 'Where you are signed in',
   'account.sessions.subtitle': 'Apps and devices holding a live session',
   'account.sessions.thisDevice': 'This device',

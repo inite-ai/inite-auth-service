@@ -44,6 +44,7 @@ model User {
   oauthIdentities    OAuthIdentity[]
   memberships        Membership[]
   apiKeys            ApiKey[]
+  oauthConsents      OAuthConsent[]
 
   @@map("users")
 }
@@ -308,6 +309,11 @@ model OAuthClient {
   /// public key against the client's registered jwks above instead.
   tlsClientAuthSubjectDn String? @map("tlsClientAuthSubjectDn")
   active            Boolean  @default(true)
+  /// One of the deployment's own applications rather than a third party:
+  /// a signed-in person is not asked to consent to it. Toggled in the admin
+  /// (new admin-registered clients default to true). Never honoured for a
+  /// dynamically registered (`dcr_*`) client, whatever this column says.
+  firstParty        Boolean  @default(false) @map("firstParty")
   logoUrl           String?  @map("logoUrl")
   privacyPolicyUrl  String?  @map("privacyPolicyUrl")
   termsOfServiceUrl String?  @map("termsOfServiceUrl")
@@ -321,6 +327,7 @@ model OAuthClient {
 
   refreshTokens      RefreshToken[]
   authorizationCodes AuthorizationCode[]
+  consents           OAuthConsent[]
 
   @@map("oauth_clients")
 }
@@ -585,4 +592,24 @@ model FederationProvider {
   updatedAt       DateTime @updatedAt @map("updatedAt")
 
   @@map("federation_providers")
+}
+
+/// A person's standing consent to an application: the scopes they approved
+/// on the consent screen. While it covers what the application asks for,
+/// the screen is not shown again. Deleted when the person disconnects the
+/// application from their account.
+model OAuthConsent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("userId") @db.Uuid
+  clientId  String   @map("clientId")
+  scopes    String[] @default([])
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([clientId])
+  @@map("oauth_consents")
 }

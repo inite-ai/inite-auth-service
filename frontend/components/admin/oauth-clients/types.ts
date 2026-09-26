@@ -15,6 +15,8 @@ export interface OAuthClient {
   /** Sanitized vertical-facing claims (policy/packs string arrays). */
   customClaims?: { policy?: string[]; packs?: string[] } | null
   active: boolean
+  /** One of the deployment's own apps: no consent screen. */
+  firstParty?: boolean
   logoUrl?: string | null
   tokenEndpointAuthMethod?: string | null
   jwks?: unknown

@@ -14,6 +14,7 @@ import {
   PasskeysSection,
   WalletsSection,
   SessionsSection,
+  ConnectedAppsSection,
   DangerZoneSection,
 } from '@/components/account'
 import { AccountNav } from '@/components/account/AccountNav'
@@ -127,6 +128,10 @@ export default function AccountPage() {
               <>
                 <SectionAnchor id="sessions">
                   <SessionsSection accessToken={token} />
+                </SectionAnchor>
+
+                <SectionAnchor id="apps">
+                  <ConnectedAppsSection accessToken={token} />
                 </SectionAnchor>
 
                 <SectionAnchor id="activity">

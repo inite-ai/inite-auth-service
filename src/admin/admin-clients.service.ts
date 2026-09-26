@@ -32,6 +32,17 @@ function customClaimsField(raw: unknown): { customClaims: Prisma.InputJsonValue 
  * OAuth-client lifecycle management (list / read / create / update / rotate /
  * delete), split out of AdminService to keep both within the size gate.
  */
+/**
+ * A dynamically registered client (`dcr_*`) registered itself — a third
+ * party by construction — and can never be marked first-party.
+ */
+function firstPartyField(clientId: string, requested: boolean): boolean {
+  if (requested && clientId.startsWith('dcr_')) {
+    throw new BadRequestException('A dynamically registered client cannot be first-party');
+  }
+  return requested;
+}
+
 @Injectable()
 export class AdminClientsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -98,6 +109,7 @@ export class AdminClientsService {
     allowedAudiences?: string[];
     backchannelLogoutUri?: string | null;
     customClaims?: unknown;
+    firstParty?: boolean;
   } & ClientAuthMethodInput) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
@@ -117,6 +129,9 @@ export class AdminClientsService {
         allowedAudiences: data.allowedAudiences ?? [],
         companyId: data.companyId ?? null,
         backchannelLogoutUri: data.backchannelLogoutUri ?? null,
+        // A client an administrator registers is, by default, one of the
+        // deployment's own apps — no consent screen. Untick it for a partner.
+        firstParty: firstPartyField(data.clientId, data.firstParty ?? true),
         ...customClaimsField(data.customClaims),
         ...this.authMethodFields(data),
       },
@@ -144,18 +159,20 @@ export class AdminClientsService {
       termsOfServiceUrl: string;
       backchannelLogoutUri: string | null;
       customClaims: unknown;
+      firstParty: boolean;
     }> & ClientAuthMethodInput,
   ) {
     // Separate the auth-method inputs (validated + mapped) from the plain
     // column updates so the raw jwks/method values aren't written unchecked.
-    const { tokenEndpointAuthMethod, jwks, jwksUri, customClaims, ...rest } = data;
+    const { tokenEndpointAuthMethod, jwks, jwksUri, customClaims, firstParty, ...rest } = data;
+    const firstPartyFields = firstParty !== undefined ? { firstParty: firstPartyField(clientId, firstParty) } : {};
     const authFields = this.authMethodFields({ tokenEndpointAuthMethod, jwks, jwksUri });
     const claimFields =
       customClaims !== undefined ? customClaimsField(customClaims) : {};
     try {
       const client = await this.prisma.oAuthClient.update({
         where: { clientId },
-        data: { ...rest, ...claimFields, ...authFields },
+        data: { ...rest, ...claimFields, ...authFields, ...firstPartyFields },
       });
       return stripClientSecret(client);
     } catch {

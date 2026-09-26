@@ -116,6 +116,11 @@ export function ClientsTable({
                   <Badge variant={meta.color} icon={<TypeIcon className="w-3 h-3" />}>
                     {meta.label}
                   </Badge>
+                  {client.firstParty && (
+                    <Badge variant="accent" className="ml-1.5">
+                      First-party
+                    </Badge>
+                  )}
                 </td>
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">

@@ -68,37 +68,6 @@ export class SystemClientsSeeder implements OnApplicationBootstrap {
         );
       }
     }
-    try {
-      await this.applyFirstParty(process.env.OAUTH_FIRST_PARTY_CLIENTS);
-    } catch (err) {
-      this.logger.error(`Failed to apply OAUTH_FIRST_PARTY_CLIENTS: ${(err as Error).message}`);
-    }
-  }
-
-  /**
-   * Mark the deployment's own applications first-party — no consent screen —
-   * from a comma-separated list of client ids. When the variable is set it is
-   * the whole truth: listed clients are first-party, every other one is not.
-   * Unset, nothing changes. Dynamically registered (`dcr_*`) clients are
-   * third parties by construction and are never marked, even if listed.
-   */
-  async applyFirstParty(raw: string | undefined): Promise<void> {
-    if (raw === undefined) return;
-    const ids = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && !s.startsWith('dcr_'));
-    const [on, off] = await this.prisma.$transaction([
-      this.prisma.oAuthClient.updateMany({
-        where: { clientId: { in: ids }, firstParty: false },
-        data: { firstParty: true },
-      }),
-      this.prisma.oAuthClient.updateMany({
-        where: { clientId: { notIn: ids }, firstParty: true },
-        data: { firstParty: false },
-      }),
-    ]);
-    this.logger.log(`First-party clients: ${ids.length} listed, ${on.count} marked, ${off.count} unmarked.`);
   }
 
   private async seedOne(c: SystemClient): Promise<void> {

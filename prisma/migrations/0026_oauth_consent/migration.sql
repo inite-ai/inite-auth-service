@@ -4,8 +4,8 @@
 -- application, and prompt=none handed out codes with no consent check at
 -- all. oauth_consents records what a person approved per application, so
 -- the screen appears once (and again only for new scopes); firstParty marks
--- INITE's own applications, which need no consent. It defaults to false and
--- is set at boot from OAUTH_FIRST_PARTY_CLIENTS, never for dcr_* clients.
+-- the deployment's own applications, which need no consent. Toggled per
+-- client in the admin; never true for a dcr_* (self-registered) client.
 ALTER TABLE "oauth_clients"
   ADD COLUMN IF NOT EXISTS "firstParty" BOOLEAN NOT NULL DEFAULT false;
 
@@ -26,3 +26,9 @@ ALTER TABLE "oauth_consents"
   ADD CONSTRAINT "oauth_consents_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "oauth_consents"
   ADD CONSTRAINT "oauth_consents_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "oauth_clients"("clientId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Backfill: a client an administrator registered is one of the deployment's
+-- own apps (the admin now defaults new ones to first-party too); clients
+-- that registered themselves (dcr_*) are third parties. Anything wrong here
+-- is one click in the admin to correct.
+UPDATE "oauth_clients" SET "firstParty" = true WHERE "clientId" NOT LIKE 'dcr\_%';

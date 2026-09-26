@@ -142,6 +142,8 @@ export class AdminController {
       companyId?: string | null;
       allowedAudiences?: string[];
       customClaims?: unknown;
+      /** One of the deployment's own apps: no consent screen. Default true. */
+      firstParty?: boolean;
       tokenEndpointAuthMethod?: string;
       jwks?: unknown;
       jwksUri?: string | null;
@@ -183,6 +185,7 @@ export class AdminController {
       privacyPolicyUrl: string;
       termsOfServiceUrl: string;
       customClaims: unknown;
+      firstParty: boolean;
       tokenEndpointAuthMethod: string;
       jwks: unknown;
       jwksUri: string | null;

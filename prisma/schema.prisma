@@ -309,9 +309,9 @@ model OAuthClient {
   /// public key against the client's registered jwks above instead.
   tlsClientAuthSubjectDn String? @map("tlsClientAuthSubjectDn")
   active            Boolean  @default(true)
-  /// One of INITE's own applications (billing, rent, club, …) rather than a
-  /// third party. A signed-in person is not asked to consent to it: the
-  /// authorization server hands the code straight back. Never true for a
+  /// One of the deployment's own applications rather than a third party:
+  /// a signed-in person is not asked to consent to it. Toggled in the admin
+  /// (new admin-registered clients default to true). Never honoured for a
   /// dynamically registered (`dcr_*`) client, whatever this column says.
   firstParty        Boolean  @default(false) @map("firstParty")
   logoUrl           String?  @map("logoUrl")

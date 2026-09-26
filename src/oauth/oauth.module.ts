@@ -19,6 +19,7 @@ import { DpopService } from './dpop.service';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { SystemClientsSeeder } from './system-clients.seeder';
+import { ConsentService } from './consent.service';
 import { DcrReaperService } from './dcr-reaper.service';
 import { ClientJwksService } from './client-jwks.service';
 import { ClientAssertionService } from './client-assertion.service';
@@ -53,6 +54,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     ParService,
     DeviceFlowService,
     SystemClientsSeeder,
+    ConsentService,
     DcrReaperService,
     ClientJwksService,
     ClientAssertionService,

@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
+  Param,
   Query,
   Body,
   Res,
@@ -27,6 +29,7 @@ import { CreateCodeInput } from './dto/create-code.input';
 import { BackchannelLogoutService } from './backchannel-logout.service';
 import { StepUpService } from './step-up.service';
 import { ApiKeysService } from './api-keys.service';
+import { ConsentService } from './consent.service';
 
 
 @ApiTags('oauth')
@@ -44,6 +47,7 @@ export class OAuthSessionController {
     private readonly backchannelLogout: BackchannelLogoutService,
     private readonly stepUp: StepUpService,
     private readonly apiKeys: ApiKeysService,
+    private readonly consent: ConsentService,
   ) {
     this.logger.setContext('OAuthSessionController');
   }
@@ -280,8 +284,55 @@ export class OAuthSessionController {
       authorizationDetails: input.authorizationDetails,
     });
 
+    // The person approved on the consent screen (or had nothing to be asked):
+    // remember it, so the screen does not come back for these scopes.
+    await this.consent.record(userId, input.clientId, grantedScope);
+
     this.logger.oauth('Code created', { clientId: input.clientId, userId });
     return { code };
+  }
+
+  /**
+   * Whether the consent screen has anything to ask. The screen calls this
+   * on load and, when the answer is no, approves by itself — sign-in paths
+   * (password, passkey, wallet) all land on /consent directly.
+   */
+  // eslint-disable-next-line max-params -- NestJS route handler (parameters are @Body/@Req/@Res/@Param/@Query)
+  @Get('consent-check')
+  @UseGuards(JwtOrSessionGuard)
+  async consentCheck(
+    @Req() req: Request,
+    @Query('client_id') clientId: string,
+    @Query('scope') scope?: string,
+    @Query('authorization_details') authorizationDetails?: string,
+  ) {
+    if (!clientId) throw new BadRequestException('client_id is required');
+    const userId = (req.user as { userId: string }).userId;
+    const required = await this.consent.isRequired({
+      userId,
+      clientId,
+      scope: this.oauthService.normalizeScope(scope || ''),
+      authorizationDetails: authorizationDetails || undefined,
+    });
+    return { required };
+  }
+
+  /** The applications the signed-in person has let in. */
+  @Get('consents')
+  @UseGuards(JwtOrSessionGuard)
+  async listConsents(@Req() req: Request) {
+    const userId = (req.user as { userId: string }).userId;
+    return this.consent.list(userId);
+  }
+
+  /** Disconnect an application: forget the consent, revoke its refresh tokens. */
+  @Delete('consents/:clientId')
+  @UseGuards(JwtOrSessionGuard)
+  async revokeConsent(@Req() req: Request, @Param('clientId') clientId: string) {
+    const userId = (req.user as { userId: string }).userId;
+    const result = await this.consent.revoke(userId, clientId);
+    this.logger.oauth('Consent revoked', { clientId, userId, revokedTokens: result.revokedTokens });
+    return result;
   }
 
   /**

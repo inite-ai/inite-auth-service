@@ -107,6 +107,10 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ADMIN_NAME=${ADMIN_NAME}
       - COOKIE_DOMAIN=auth.inite.ai
+      # INITE's own applications: signed-in people are not shown a consent
+      # screen for them. The whole list — clients not named here are asked
+      # (once; the answer is remembered). dcr_* clients are never first-party.
+      - OAUTH_FIRST_PARTY_CLIENTS=inite-billing,inite-rent,inite-club,inite-solutions,inite-education,inite-events,inite-estate,inite-ai,content-generator,world,amneziawg-vpn,ideaudit-dashboard,brain-landing,mikefluff,smart-chat,smart-chat-admin,inite-cli
       - SESSION_SECRET=${JWT_SECRET}
     ports:
       - "3002:3002"

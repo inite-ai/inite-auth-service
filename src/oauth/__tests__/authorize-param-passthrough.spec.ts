@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { OAuthController } from '../oauth.controller';
+import { ConsentService } from '../consent.service';
 import { OAuthService } from '../oauth.service';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { ParService, ParPayload } from '../par.service';
@@ -85,7 +86,8 @@ interface Harness {
   res: { redirect: jest.Mock };
 }
 
-function harness(): Harness {
+/** consentRequired: whether the consent service says the person must be asked. */
+function harness({ consentRequired = true }: { consentRequired?: boolean } = {}): Harness {
   const createAuthorizationCode = jest.fn().mockResolvedValue('auth-code-1');
   const parConsume = jest.fn().mockResolvedValue(null);
 
@@ -111,6 +113,10 @@ function harness(): Harness {
 
   const requestObject = { resolve: jest.fn() } as unknown as RequestObjectService;
 
+  const consent = {
+    isRequired: jest.fn().mockResolvedValue(consentRequired),
+  } as unknown as ConsentService;
+
   return {
     controller: new OAuthController(
       oauthService,
@@ -118,6 +124,7 @@ function harness(): Harness {
       par,
       stepUp,
       requestObject,
+      consent,
     ),
     createAuthorizationCode,
     parConsume,
@@ -220,7 +227,7 @@ describe('/authorize → login/consent param passthrough', () => {
 
 describe('/authorize → authorization code binding', () => {
   it('binds the requested resource to the code it mints', async () => {
-    const h = harness();
+    const h = harness({ consentRequired: false });
     await h.controller.authorize(
       toQuery({ ...ALL_PARAMS, prompt: 'none' }),
       request({ userId: 'user-1', amr: ['pwd'] }),
@@ -266,3 +273,43 @@ describe('/authorize → authorization code binding', () => {
     );
   });
 });
+
+describe('/authorize → consent', () => {
+  const previousFrontend = process.env.FRONTEND_URL;
+  beforeAll(() => {
+    process.env.FRONTEND_URL = FRONTEND;
+  });
+  afterAll(() => {
+    if (previousFrontend === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontend;
+  });
+
+  it('prompt=none answers consent_required instead of minting a code nobody agreed to', async () => {
+    const h = harness({ consentRequired: true });
+    await h.controller.authorize(
+      toQuery({ ...ALL_PARAMS, prompt: 'none' }),
+      request({ userId: 'user-1', amr: ['pwd'] }),
+      h.res as unknown as Response,
+    );
+
+    const url = redirectedTo(h.res);
+    expect(url.searchParams.get('error')).toBe('consent_required');
+    expect(url.searchParams.get('state')).toBe(ALL_PARAMS.state);
+    expect(h.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('skips the consent screen when there is nothing to ask', async () => {
+    const h = harness({ consentRequired: false });
+    await h.controller.authorize(
+      toQuery(ALL_PARAMS),
+      request({ userId: 'user-1', amr: ['pwd'] }),
+      h.res as unknown as Response,
+    );
+
+    const url = redirectedTo(h.res);
+    expect(url.pathname).not.toBe('/consent');
+    expect(url.searchParams.get('code')).toBe('auth-code-1');
+    expect(url.searchParams.get('state')).toBe(ALL_PARAMS.state);
+  });
+});
+

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut, ExternalLink, AppWindow } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
-import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, parseAuthorizationDetails, OAuthParams } from '@/lib/oauthHelpers'
+import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, parseAuthorizationDetails, approveWithoutAsking, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
 import { AppHeader } from '@/components/AppHeader'
 import { ConsentGrants } from '@/components/ConsentGrants'
@@ -85,6 +85,9 @@ function ConsentContent() {
         router.push(buildLoginUrl(params))
         return
       }
+
+      // Nothing to ask (own app, or scopes already approved): straight back.
+      if (await approveWithoutAsking(token, params)) return
 
       try {
         const payload = JSON.parse(atob(token.split('.')[1]))

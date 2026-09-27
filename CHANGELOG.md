@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-09-27)
+
+
+### Features
+
+* **oauth:** give a first-time user a workspace, behind a flag ([#194](https://github.com/inite-ai/inite-auth-service/issues/194)) ([8d2436c](https://github.com/inite-ai/inite-auth-service/commit/8d2436c8db635d703cf6d26566dfaaf0d1be08bf))
+* **oauth:** remember consent, skip it for first-party apps, enforce it on prompt=none ([#204](https://github.com/inite-ai/inite-auth-service/issues/204)) ([cf43b43](https://github.com/inite-ai/inite-auth-service/commit/cf43b438feaae1c60714ef4e1a4a5652dd330bef))
+
+
+### Bug Fixes
+
+* **oauth:** signing out of INITE signs the user out of the relying parties ([#207](https://github.com/inite-ai/inite-auth-service/issues/207)) ([d5bd427](https://github.com/inite-ai/inite-auth-service/commit/d5bd427c69992a4ce7cd635c5a6ac61826bf8a92))
+* **passkey:** an account with a passkey starts by proving the email ([#206](https://github.com/inite-ai/inite-auth-service/issues/206)) ([b1d79a3](https://github.com/inite-ai/inite-auth-service/commit/b1d79a3dcabbc3fc616eb1c441f66b11bb92544e))
+
 ## [1.11.2](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.1...inite-auth-service-v1.11.2) (2026-09-06)
 
 

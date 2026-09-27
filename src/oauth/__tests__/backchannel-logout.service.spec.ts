@@ -6,7 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('BackchannelLogoutService', () => {
   let svc: BackchannelLogoutService;
-  let prisma: { oAuthClient: { findMany: jest.Mock } };
+  let prisma: { oAuthClient: { findMany: jest.Mock }; refreshToken: { updateMany: jest.Mock } };
   let jwt: { sign: jest.Mock };
   let fetchMock: jest.Mock;
 
@@ -14,6 +14,9 @@ describe('BackchannelLogoutService', () => {
     prisma = {
       oAuthClient: {
         findMany: jest.fn(),
+      },
+      refreshToken: {
+        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
       },
     };
     jwt = {
@@ -119,5 +122,34 @@ describe('BackchannelLogoutService', () => {
     // swallows the error.
     expect(n).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  describe('endRelyingPartySessions', () => {
+    it('notifies the RPs first, then revokes the user\'s refresh tokens', async () => {
+      const order: string[] = [];
+      prisma.oAuthClient.findMany.mockImplementation(async () => {
+        order.push('select-recipients');
+        return [{ clientId: 'rp-a', backchannelLogoutUri: 'https://a.example.com/logout' }];
+      });
+      prisma.refreshToken.updateMany.mockImplementation(async () => {
+        order.push('revoke');
+        return { count: 3 };
+      });
+
+      const out = await svc.endRelyingPartySessions({ userDid: 'did:k:1', sid: 's' });
+
+      expect(out).toEqual({ notified: 1, revoked: 3 });
+      expect(order).toEqual(['select-recipients', 'revoke']);
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { revoked: false, user: { did: 'did:k:1' } },
+        data: { revoked: true, revokedAt: expect.any(Date) },
+      });
+    });
+
+    it('still revokes when the fan-out fails', async () => {
+      prisma.oAuthClient.findMany.mockRejectedValue(new Error('db down'));
+      const out = await svc.endRelyingPartySessions({ userDid: 'did:k:1' });
+      expect(out).toEqual({ notified: 0, revoked: 3 });
+    });
   });
 });

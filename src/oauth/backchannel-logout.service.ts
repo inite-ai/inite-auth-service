@@ -47,6 +47,30 @@ export class BackchannelLogoutService {
    * await but the rest of /oauth/logout MUST NOT block on RP
    * responses past the per-call DELIVERY_TIMEOUT_MS budget.
    */
+  /**
+   * Sign-out at the IdP ends the user's sessions at the RPs too: notify every
+   * RP that registered a back-channel URI, then revoke the user's refresh
+   * tokens, so an RP that did not register one (or was down) loses the
+   * session at its next refresh instead of keeping it for as long as the
+   * refresh token lives. Notify first: fanOut picks its recipients by the
+   * refresh tokens this revokes.
+   *
+   * Refresh tokens are not bound to an IdP session, so this signs the user
+   * out of the RPs on every device, which is also what the sub-level
+   * logout_token tells the RPs to do.
+   */
+  async endRelyingPartySessions(opts: { userDid: string; sid?: string }): Promise<{ notified: number; revoked: number }> {
+    const notified = await this.fanOut(opts).catch((e: unknown) => {
+      this.logger.warn(`back-channel fan-out failed: ${e instanceof Error ? e.message : String(e)}`);
+      return 0;
+    });
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { revoked: false, user: { did: opts.userDid } },
+      data: { revoked: true, revokedAt: new Date() },
+    });
+    return { notified, revoked: count };
+  }
+
   async fanOut(opts: { userDid: string; sid?: string }): Promise<number> {
     const activeClients = await this.prisma.oAuthClient.findMany({
       where: {

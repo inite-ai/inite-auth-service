@@ -22,6 +22,15 @@ import { RedisService } from '../common/redis.service';
 // unique and unreplayable — relying on a client-supplied "expectedChallenge"
 // (the previous behavior) defeated the entire mechanism.
 const CHALLENGE_TTL_SECONDS = 5 * 60;
+
+type Transport = 'usb' | 'nfc' | 'ble' | 'internal' | 'hybrid';
+const TRANSPORTS: readonly string[] = ['usb', 'nfc', 'ble', 'internal', 'hybrid'];
+
+/** The transports the authenticator reported at registration, or none (= any). */
+function transportsOf(stored: unknown): Transport[] | undefined {
+  const list = Array.isArray(stored) ? stored.filter((t): t is Transport => typeof t === 'string' && TRANSPORTS.includes(t)) : [];
+  return list.length > 0 ? list : undefined;
+}
 const REGISTRATION_KEY = (userId: string) => `webauthn:reg:${userId}`;
 const AUTHENTICATION_KEY = (challenge: string) => `webauthn:auth:${challenge}`;
 
@@ -116,11 +125,15 @@ export class PasskeyService {
       excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => ({
         id: passkey.credentialId,
         type: 'public-key' as const,
-        transports: ['internal'] as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
+        transports: transportsOf(passkey.transports),
       })) : undefined,
+      // No authenticatorAttachment: 'platform' only ruled out security keys and
+      // a phone scanned by QR, which the sign-in page offers. Resident keys are
+      // required because sign-in is discoverable-only (see
+      // generateAuthenticationOptions): a credential the authenticator does not
+      // store could never be offered back.
       authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        residentKey: 'preferred',
+        residentKey: 'required',
         userVerification: 'preferred',
       },
     });
@@ -130,8 +143,6 @@ export class PasskeyService {
       options.challenge,
       CHALLENGE_TTL_SECONDS,
     );
-
-    (options as { hints?: string[] }).hints = ['client-device'];
 
     return options;
   }
@@ -196,38 +207,17 @@ export class PasskeyService {
   /**
    * Generate authentication options for WebAuthn
    */
-  async generateAuthenticationOptions(
-    email?: string,
-  ): Promise<PublicKeyCredentialRequestOptionsJSON> {
-    let allowCredentials = undefined;
-
-    if (email) {
-      const user = await this.prisma.user.findUnique({ where: { email } });
-      if (user) {
-        const passkeys = await this.prisma.passkey.findMany({
-          where: { userId: user.id },
-        });
-
-        if (passkeys.length > 0) {
-          allowCredentials = passkeys.map((passkey) => {
-            const transports = (passkey.transports as string[])?.length > 0
-              ? passkey.transports as string[]
-              : ['internal'];
-
-            return {
-              id: passkey.credentialId,
-              type: 'public-key' as const,
-              transports: transports as ('usb' | 'nfc' | 'ble' | 'internal' | 'hybrid')[],
-            };
-          });
-        }
-      }
-    }
-
+  /**
+   * Discoverable-credential sign-in only: no allowCredentials. Scoping the
+   * challenge to an email returned that address's credential ids to whoever
+   * asked, which answered "does this email have an account with a passkey".
+   * The authenticator already knows which of its credentials belong to this
+   * RP and offers them itself.
+   */
+  async generateAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
     const options = await generateAuthenticationOptions({
       rpID: this.rpID,
       userVerification: 'preferred',
-      allowCredentials,
     });
 
     // Authentication is pre-identification — there's no userId to key the
@@ -239,8 +229,6 @@ export class PasskeyService {
       '1',
       CHALLENGE_TTL_SECONDS,
     );
-
-    (options as { hints?: string[] }).hints = ['client-device'];
 
     return options;
   }
@@ -323,6 +311,8 @@ export class PasskeyService {
     return {
       verified: true,
       user: passkey.user,
+      /** Biometric or PIN at the authenticator, not only a touch. */
+      userVerified: verification.authenticationInfo.userVerified,
     };
   }
 

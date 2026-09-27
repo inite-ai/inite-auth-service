@@ -5,10 +5,13 @@ import {
   Body,
   UseGuards,
   Req,
+  Res,
+  HttpCode,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
@@ -19,7 +22,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
 import { CurrentUserId } from './decorators/current-user.decorator';
-import { PreparePasskeyRegistrationDto } from './dto/prepare-passkey-registration.dto';
+import { establishSession } from './session/establish-session';
 import { PasskeyResponseDto } from './dto/passkey-response.dto';
 import { PasskeyAuthenticationOptionsDto } from './dto/passkey-authentication-options.dto';
 import { DeletePasskeyDto } from './dto/delete-passkey.dto';
@@ -28,75 +31,31 @@ import { DeletePasskeyDto } from './dto/delete-passkey.dto';
 @Controller({ path: 'auth', version: '1' })
 export class PasskeyController {
   private readonly logger = new LoggerService();
+  private readonly sessionSecret: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly passkeyService: PasskeyService,
+    private readonly config: ConfigService,
   ) {
     this.logger.setContext('PasskeyController');
+    this.sessionSecret =
+      this.config.get<string>('SESSION_SECRET') ||
+      this.config.get<string>('JWT_SECRET') ||
+      '';
   }
 
   // ==================== Passkey Auth (WebAuthn) ====================
 
-  @Post('passkey/prepare-registration')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async preparePasskeyRegistration(
-    @Body() body: PreparePasskeyRegistrationDto,
-    @Req() req: Request,
-  ) {
-    // SECURITY: this endpoint is unauthenticated. Existing users CANNOT be
-    // logged in here (would be account takeover by email enumeration) — the
-    // service throws if email exists. To add a passkey to an existing
-    // account, call /auth/passkey/registration/options with the user's
-    // current JWT/session instead.
-    const result = await this.authService.createUserForPasskey(
-      body.email,
-      body.name,
-    );
-
-    // Set userId in session for SSO
-    if (req.session) {
-      req.session.userId = result.user.id;
-      // The user has presented an email and bootstrapped a passkey
-      // registration. They have NOT yet authenticated with the
-      // passkey itself (no assertion verified), so we record the
-      // weaker 'magic-link'-class AMR for now. After they verify
-      // their first passkey, the next session refresh upgrades AMR
-      // to 'fido' on verifyAuthentication.
-      req.session.amr = ['magic-link'];
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err: unknown) => {
-          if (err) {
-            this.logger.error('Session save error', err instanceof Error ? err.message : String(err), { action: 'passkey-prepare' });
-            reject(err);
-          } else {
-            this.logger.session('Saved after passkey prepare', {
-              sessionId: req.session.id,
-              userId: req.session.userId,
-            });
-            resolve();
-          }
-        });
-      });
-    }
-
-    this.logger.auth('Passkey registration prepared', {
-      email: body.email,
-      userId: result.user.id,
-      isExistingUser: result.isExistingUser,
-    });
-
-    return {
-      access_token: result.accessToken,
-      user: {
-        id: result.user.id,
-        did: result.user.did,
-        email: result.user.email,
-        name: result.user.name,
-      },
-      isExistingUser: result.isExistingUser,
-    };
-  }
+  // There is no unauthenticated way to create an account with a passkey.
+  // POST /passkey/prepare-registration used to take any email that was not
+  // yet registered, create the account with emailVerified: true, start a
+  // session and hand back a token — before the email was proven and before a
+  // passkey existed. Anyone could claim somebody else's address, and any RP
+  // trusting email_verified would treat them as its owner. A new passkey
+  // account now starts with the email one-time code (/auth/otp/request +
+  // /auth/otp/verify), which proves the address and creates the account, and
+  // then registers the passkey through the authenticated endpoints below.
 
   @Post('passkey/registration/options')
   @UseGuards(JwtAuthGuard)
@@ -124,11 +83,15 @@ export class PasskeyController {
   }
 
   @Post('passkey/authentication/options')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async generateAuthenticationOptions(
-    @Body() body: PasskeyAuthenticationOptionsDto,
+    // `email` is accepted for old clients and ignored: scoping the challenge
+    // to it returned that address's credential ids, which told anyone asking
+    // whether an email has an account with a passkey.
+    @Body() _body: PasskeyAuthenticationOptionsDto,
   ) {
-    this.logger.auth('Passkey auth options requested', { email: body.email });
-    return await this.passkeyService.generateAuthenticationOptions(body.email);
+    return await this.passkeyService.generateAuthenticationOptions();
   }
 
   @Post('passkey/authentication/verify')
@@ -136,20 +99,25 @@ export class PasskeyController {
   async verifyAuthentication(
     @Body() body: PasskeyResponseDto,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
     // body.challenge ignored — see verifyRegistration for rationale.
     const result = await this.passkeyService.verifyAuthenticationResponse(
       body.response as unknown as AuthenticationResponseJSON,
     );
 
-    const accessToken = await this.authService['generateAccessToken'](result.user);
+    const accessToken = this.authService.generateTokenForUser(result.user);
 
-    if (req.session) {
-      req.session.userId = result.user.id;
-      // FIDO2/WebAuthn assertion verified — strongest AMR class.
-      req.session.amr = ['fido'];
-      this.logger.session('Set after passkey auth', { userId: result.user.id });
-    }
+    // The same session contract as OTP, wallet and federation: regenerate
+    // (no fixation), bind, set the signed cookie. Setting req.session.userId
+    // in place kept whatever session id the browser arrived with.
+    // `mfa` only when the authenticator verified the user (biometric or PIN):
+    // a bare touch proves possession of the key, not who is holding it.
+    await establishSession(req, res, {
+      sessionSecret: this.sessionSecret,
+      userId: result.user.id,
+      amr: result.userVerified ? ['fido', 'mfa'] : ['fido'],
+    });
 
     this.authService.notifyNewDeviceIfNeeded(result.user.id, {
       userAgent: req.get('user-agent') || req.headers['user-agent'],

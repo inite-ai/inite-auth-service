@@ -187,10 +187,11 @@ export class OAuthSessionController {
    */
   private fanOutBackchannel(userDid: string, sid: string | undefined): void {
     this.backchannelLogout
-      .fanOut({ userDid, sid })
-      .then((count) =>
+      .endRelyingPartySessions({ userDid, sid })
+      .then(({ notified, revoked }) =>
         this.logger.session('Back-channel logout fan-out', {
-          recipients: count,
+          recipients: notified,
+          refreshTokensRevoked: revoked,
           sub: userDid,
         }),
       )

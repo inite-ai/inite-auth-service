@@ -66,49 +66,6 @@ export class AuthService {
   }
 
   /**
-   * Create user account for passkey registration (no password).
-   *
-   * SECURITY: this endpoint is unauthenticated and MUST NOT mint a session
-   * for an already-existing email — that path was an account takeover
-   * (anyone could log in as any user by passing allowExisting:true).
-   * Existing users who want to add a passkey go through the authenticated
-   * /auth/passkey/registration/options flow with their existing JWT/session.
-   */
-  async createUserForPasskey(
-    email: string,
-    name?: string,
-  ): Promise<{ user: User; accessToken: string; isExistingUser: false }> {
-    const existingUser = await this.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      throw new BadRequestException(
-        'User with this email already exists. Please sign in instead.',
-      );
-    }
-
-    let user = await this.identityService.createIdentity(email, name);
-
-    user = await this.prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerified: true },
-    });
-
-    try {
-      // `email` is set for every persisted user in these flows; `name` is optional.
-      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
-      if (emailSent) {
-        this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
-      } else {
-        this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
-      }
-    } catch (error: unknown) {
-      this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
-    }
-
-    const accessToken = this.generateAccessToken(user);
-    return { user, accessToken, isExistingUser: false };
-  }
-
-  /**
    * Register with email/password (legacy)
    */
   async registerWithPassword(

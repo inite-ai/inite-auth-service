@@ -23,7 +23,13 @@ interface PasskeyAuthProps {
 export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: PasskeyAuthProps) {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
+  // Registration: the email is proven with a one-time code before anything is
+  // created, then the passkey is added to the now signed-in account. 'failed'
+  // is a signed-in user whose authenticator said no: they may retry or go on.
+  const [step, setStep] = useState<'email' | 'code' | 'failed'>('email')
+  const signedInToken = useRef<string | null>(null)
   const router = useRouter()
   // Guards the conditional-UI ceremony so React Strict Mode's double-invoke
   // (and mode toggles) don't kick off two concurrent autofill requests.
@@ -47,7 +53,11 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       userId: data.user?.id,
     })
 
-    // window.location.href for OAuth to force a full reload + session check.
+    proceed()
+  }
+
+  // window.location.href for OAuth to force a full reload + session check.
+  const proceed = () => {
     if (isOAuthFlow(oauthParams)) {
       window.location.href = buildConsentUrl(oauthParams)
     } else {
@@ -92,12 +102,9 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
   const handlePasskeyLogin = async () => {
     setLoading(true)
     try {
-      // Get authentication options. With an email we scope to that user's
-      // credentials; without one the server returns a discoverable-credential
-      // challenge (empty allowCredentials).
-      const { data: options } = await api.post('/auth/passkey/authentication/options', {
-        email: email || undefined,
-      })
+      // Discoverable-credential challenge: the authenticator offers the
+      // passkeys it holds for this site. The server no longer scopes by email.
+      const { data: options } = await api.post('/auth/passkey/authentication/options', {})
 
       // Start WebAuthn authentication (v13 signature: { optionsJSON }).
       const response = await startAuthentication({ optionsJSON: options })
@@ -106,10 +113,12 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       console.error('Passkey auth error:', error)
       const message = error.response?.data?.message || 'Authentication failed'
 
-      // If passkey not found, suggest registering
+      // Not switching to registration here: for someone who already has an
+      // account that only led to "already exists" and back again.
       if (message.includes('not found')) {
-        toast.error('Passkey not found. Try registering a new passkey for your account.')
-        setMode('register')
+        toast.error(
+          'This passkey is not registered here. Sign in with an email code, then add a passkey.',
+        )
       } else {
         toast.error(message)
       }
@@ -118,81 +127,80 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
     }
   }
 
-  const handlePasskeyRegister = async () => {
+  const requestCode = async () => {
     if (!email) {
       toast.error('Please enter your email')
       return
     }
-
     setLoading(true)
     try {
-      // Create the account. Backend rejects with 400 if email already
-      // exists — surface that as a "sign in first" hint. (Older builds
-      // accepted allowExisting:true and minted a session for the existing
-      // user, which was an account takeover.)
-      let checkData: any
-      try {
-        const { data } = await api.post('/auth/passkey/prepare-registration', {
-          email,
-        })
-        checkData = data
-      } catch (error: any) {
-        const message: string = error.response?.data?.message || ''
-        if (
-          error.response?.status === 400 &&
-          message.toLowerCase().includes('already exists')
-        ) {
-          toast.error(
-            'This email already has an account. Sign in first using Magic Link or Password, then add a passkey in account settings.',
-          )
-          setMode('login')
-          setLoading(false)
-          return
-        }
-        throw error
-      }
-
-      // New user — proceed with passkey registration
-      const { data: options } = await api.post(
-        '/auth/passkey/registration/options',
-        {},
-        { headers: { Authorization: `Bearer ${checkData.access_token}` } }
-      )
-
-      // Start WebAuthn registration (v13 signature: { optionsJSON }).
-      const response = await startRegistration({ optionsJSON: options })
-
-      // Verify registration. Server reads the expected challenge from
-      // Redis (where /options stored it) — never trust the client to
-      // supply it.
-      await api.post(
-        '/auth/passkey/registration/verify',
-        { response },
-        { headers: { Authorization: `Bearer ${checkData.access_token}` } }
-      )
-
-      toast.success('Passkey registered successfully!')
-
-      // Save auth data
-      authStorage.save({
-        accessToken: checkData.access_token,
-        userId: checkData.user?.id,
-      })
-
-      // Redirect based on flow
-      if (isOAuthFlow(oauthParams)) {
-        setTimeout(() => {
-          window.location.href = buildConsentUrl(oauthParams)
-        }, 100)
-      } else {
-        router.push('/account')
-      }
+      // Always-generic response server-side: it does not say whether the
+      // address already has an account. It does not need to — the code works
+      // for both, and an existing account simply gets a passkey added.
+      await api.post('/auth/otp/request', { email })
+      setStep('code')
+      toast.success('Code sent — check your email')
     } catch (error: any) {
-      console.error('Passkey registration error:', error)
-      toast.error(error.response?.data?.message || 'Registration failed')
+      toast.error(error.response?.data?.message || 'Could not send a code')
     } finally {
       setLoading(false)
     }
+  }
+
+  const createPasskey = async (token: string) => {
+    const auth = { headers: { Authorization: `Bearer ${token}` } }
+    const { data: options } = await api.post('/auth/passkey/registration/options', {}, auth)
+    // Server keeps the expected challenge in Redis; the client never sends it.
+    const response = await startRegistration({ optionsJSON: options })
+    await api.post('/auth/passkey/registration/verify', { response }, auth)
+    toast.success('Passkey added')
+    proceed()
+  }
+
+  const verifyCodeAndRegister = async () => {
+    if (!/^\d{6}$/.test(code)) {
+      toast.error('Enter the 6-digit code')
+      return
+    }
+    setLoading(true)
+    try {
+      // Proves the address, creates the account if there is none, and starts
+      // the session — the same call the email-code sign-in makes.
+      const { data } = await api.post('/auth/otp/verify', { email, code })
+      signedInToken.current = data.access_token
+      authStorage.save({ accessToken: data.access_token, userId: data.user?.id })
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Invalid or expired code')
+      setLoading(false)
+      return
+    }
+    try {
+      await createPasskey(signedInToken.current!)
+    } catch (error: any) {
+      console.error('Passkey registration error:', error)
+      toast.error(error.response?.data?.message || 'The passkey was not created')
+      setStep('failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const retryPasskey = async () => {
+    if (!signedInToken.current) return
+    setLoading(true)
+    try {
+      await createPasskey(signedInToken.current)
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'The passkey was not created')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const switchMode = () => {
+    setMode(mode === 'login' ? 'register' : 'login')
+    setStep('email')
+    setCode('')
   }
 
   return (
@@ -200,47 +208,99 @@ export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: Pass
       <CardHeader
         icon={<Fingerprint className="w-8 h-8 text-white" />}
         iconClassName="from-violet-500 to-purple-600"
-        title={mode === 'login' ? 'Sign in with Passkey' : 'Register Passkey'}
-        description={mode === 'login' 
-          ? 'Use your fingerprint, face, or security key' 
-          : 'Create a new passkey for passwordless login'
+        title={mode === 'login' ? 'Sign in with Passkey' : 'Create a passkey'}
+        description={mode === 'login'
+          ? 'Use your fingerprint, face, or security key'
+          : 'Confirm your email with a code, then save a passkey on this device'
         }
       />
 
       <div className="space-y-6">
-        <Input
-          type="email"
-          name="username"
-          // "username webauthn" lets supporting browsers surface saved
-          // passkeys in the autofill dropdown for this field, driving the
-          // conditional-UI ceremony started on mount.
-          autoComplete="username webauthn"
-          label={mode === 'register' ? 'Email' : 'Email (optional)'}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={mode === 'register' ? 'your@email.com' : 'Filter by email...'}
-          required={mode === 'register'}
-        />
+        {mode === 'login' && (
+          <>
+            <Input
+              type="email"
+              name="username"
+              // "username webauthn" lets supporting browsers surface saved
+              // passkeys in the autofill dropdown for this field, driving the
+              // conditional-UI ceremony started on mount. Nothing typed here
+              // is sent: the browser offers the passkeys it has for this site.
+              autoComplete="username webauthn"
+              label="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+            />
+            <Button onClick={handlePasskeyLogin} loading={loading} icon={<Fingerprint className="w-5 h-5" />}>
+              {loading ? 'Authenticating...' : 'Sign in with a passkey'}
+            </Button>
+          </>
+        )}
 
-        <Button
-          onClick={mode === 'login' ? handlePasskeyLogin : handlePasskeyRegister}
-          loading={loading}
-          disabled={mode === 'register' && !email}
-          icon={<Fingerprint className="w-5 h-5" />}
-        >
-          {loading 
-            ? (mode === 'login' ? 'Authenticating...' : 'Registering...')
-            : (mode === 'login' ? 'Authenticate' : 'Register Passkey')
-          }
-        </Button>
+        {mode === 'register' && step === 'email' && (
+          <>
+            <Input
+              type="email"
+              name="email"
+              autoComplete="email"
+              label="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+            />
+            <Button onClick={requestCode} loading={loading} disabled={!email} icon={<Fingerprint className="w-5 h-5" />}>
+              {loading ? 'Sending…' : 'Send a code'}
+            </Button>
+          </>
+        )}
+
+        {mode === 'register' && step === 'code' && (
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              We sent a 6-digit code to <span className="font-medium">{email}</span>. Enter it, then confirm the passkey on your device.
+            </p>
+            <Input
+              type="text"
+              name="one-time-code"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              label="Code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              required
+            />
+            <Button onClick={verifyCodeAndRegister} loading={loading} disabled={code.length !== 6} icon={<Fingerprint className="w-5 h-5" />}>
+              {loading ? 'Creating your passkey…' : 'Confirm and create passkey'}
+            </Button>
+            <button type="button" onClick={() => setStep('email')} className="text-sm text-gray-500 hover:underline">
+              Use a different email
+            </button>
+          </>
+        )}
+
+        {mode === 'register' && step === 'failed' && (
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              You are signed in, but the passkey was not created. Try again, or continue and add one later in account settings.
+            </p>
+            <Button onClick={retryPasskey} loading={loading} icon={<Fingerprint className="w-5 h-5" />}>
+              Try again
+            </Button>
+            <button type="button" onClick={proceed} className="text-sm text-violet-600 dark:text-violet-400 hover:underline">
+              Continue without a passkey
+            </button>
+          </>
+        )}
       </div>
 
       <div className="mt-6 text-center">
         <button
-          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+          onClick={switchMode}
           className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
         >
-          {mode === 'login' ? "Don't have a passkey? Register one" : 'Already have a passkey? Sign in'}
+          {mode === 'login' ? "Don't have a passkey? Create one" : 'Already have a passkey? Sign in'}
         </button>
       </div>
 

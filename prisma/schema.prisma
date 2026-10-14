@@ -491,6 +491,10 @@ model RefreshToken {
   /// RFC 9396 authorization_details carried forward across rotation so
   /// refresh-issued access tokens keep the same granted permissions.
   authorizationDetails Json? @map("authorizationDetails")
+  /// RFC 8707 resource the access token was bound to, carried across
+  /// rotation: without it a refreshed MCP token fell back to the clientId
+  /// audience and the resource server answered 401 on the next call.
+  resource    String?   @map("resource")
   expiresAt   DateTime  @map("expiresAt")
   rotatedFrom String?   @map("rotatedFrom") @db.Uuid
   revoked     Boolean   @default(false)

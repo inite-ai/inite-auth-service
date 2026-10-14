@@ -288,8 +288,6 @@ export class OAuthTokenIssuerService {
       select: { companyId: true },
     });
 
-    const device = currentDeviceMetadata();
-
     await this.prisma.refreshToken.create({
       data: {
         tokenLookup,
@@ -299,9 +297,10 @@ export class OAuthTokenIssuerService {
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
-        ip: device.ip,
-        userAgent: device.userAgent,
+        ...currentDeviceMetadata(), // ip, userAgent
         lastUsedAt: new Date(),
+        // RFC 8707: persist the bound resource so rotation keeps the audience.
+        resource: input.audience ?? null,
         // RFC 9396: persist the grant so rotation re-emits the same details.
         authorizationDetails: input.authorizationDetails?.length
           ? (input.authorizationDetails as unknown as Prisma.InputJsonValue)
@@ -384,6 +383,8 @@ export class OAuthTokenIssuerService {
       rotatedFrom: matchedToken.id,
       nonce: matchedToken.nonce ?? undefined,
       authnContext: { amr: matchedToken.amr ?? [] },
+      // RFC 8707: a token bound to a resource stays bound after rotation.
+      audience: matchedToken.resource ?? undefined,
       // RFC 9396: carry the grant across rotation.
       authorizationDetails:
         (matchedToken.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,

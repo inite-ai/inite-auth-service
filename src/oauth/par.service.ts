@@ -37,6 +37,8 @@ export interface ParPayload {
   resource?: string;
   /** RFC 9396 raw `authorization_details` JSON string. */
   authorizationDetails?: string;
+  /** OIDC ui_locales display hint. */
+  uiLocales?: string;
 }
 
 @Injectable()

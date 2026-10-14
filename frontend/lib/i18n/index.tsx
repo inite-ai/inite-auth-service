@@ -11,6 +11,8 @@ import {
 import type { ReactNode } from 'react'
 import { en, type Dict, type TKey } from './dictionary'
 import { ru } from './ru'
+import { pt } from './pt'
+import { es } from './es'
 
 /**
  * Self-contained i18n provider. No external dependency — small enough
@@ -23,12 +25,13 @@ import { ru } from './ru'
  * convenience).
  *
  * Adding a language:
- * 1. Create `lib/i18n/<code>.ts` exporting a `Partial<Dict>`.
+ * 1. Create `lib/i18n/<code>.ts` and `lib/i18n/account/<code>.ts`, each
+ *    exporting a `Partial<Dict>` (the split keeps files under the size gate).
  * 2. Register it in {@link LOCALES} below.
  * 3. That's it — the switcher and provider pick it up automatically.
  */
 
-export type LocaleCode = 'en' | 'ru'
+export type LocaleCode = 'en' | 'ru' | 'pt' | 'es'
 
 export const LOCALES: Record<
   LocaleCode,
@@ -36,6 +39,8 @@ export const LOCALES: Record<
 > = {
   en: { label: 'English', flag: '🇺🇸', dict: en },
   ru: { label: 'Русский', flag: '🇷🇺', dict: ru },
+  pt: { label: 'Português', flag: '🇧🇷', dict: pt },
+  es: { label: 'Español', flag: '🇲🇽', dict: es },
 }
 
 const COOKIE = 'inite.locale'
@@ -49,6 +54,29 @@ interface LocaleCtx {
 
 const Ctx = createContext<LocaleCtx | null>(null)
 
+function isLocaleCode(code: string): code is LocaleCode {
+  return Object.prototype.hasOwnProperty.call(LOCALES, code)
+}
+
+/**
+ * First supported locale in a list of BCP 47 tags, matched on the primary
+ * subtag: `pt-BR` → `pt`, `es-419` → `es`. Used for both the OIDC
+ * `ui_locales` param (space-separated, preference order) and
+ * `navigator.languages`.
+ */
+export function pickLocale(tags: ReadonlyArray<string>): LocaleCode | null {
+  for (const tag of tags) {
+    const primary = tag.trim().toLowerCase().split(/[-_]/)[0] ?? ''
+    if (isLocaleCode(primary)) return primary
+  }
+  return null
+}
+
+function writeCookie(code: LocaleCode): void {
+  if (typeof document === 'undefined') return
+  document.cookie = `${COOKIE}=${code}; path=/; max-age=${MAX_AGE}; SameSite=Lax`
+}
+
 function readCookie(): LocaleCode | null {
   if (typeof document === 'undefined') return null
   const match = document.cookie.match(
@@ -56,15 +84,36 @@ function readCookie(): LocaleCode | null {
   )
   if (!match) return null
   const code = decodeURIComponent(match[1] ?? '')
-  return code === 'en' || code === 'ru' ? code : null
+  return isLocaleCode(code) ? code : null
 }
 
+/**
+ * OIDC `ui_locales` (Core §3.1.2.1): the relying party says which language
+ * the person was just reading. /authorize carries it onto /login and
+ * /consent; any page that sees it in its own URL honours it.
+ */
+function readUiLocales(): LocaleCode | null {
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('ui_locales')
+  return raw ? pickLocale(raw.split(/\s+/)) : null
+}
+
+/** ui_locales → cookie → browser languages → en. */
 function detectInitial(): LocaleCode {
+  const fromRp = readUiLocales()
+  if (fromRp) {
+    // Persist it: the next hops (magic-link landing, consent, account)
+    // carry no ui_locales of their own and fall back to the cookie.
+    writeCookie(fromRp)
+    return fromRp
+  }
   const fromCookie = readCookie()
   if (fromCookie) return fromCookie
   if (typeof navigator === 'undefined') return 'en'
-  const browser = navigator.language?.split('-')[0]
-  return browser === 'ru' ? 'ru' : 'en'
+  const browser = navigator.languages?.length
+    ? navigator.languages
+    : [navigator.language ?? '']
+  return pickLocale(browser) ?? 'en'
 }
 
 function interpolate(
@@ -90,9 +139,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((code: LocaleCode) => {
     setLocaleState(code)
-    if (typeof document !== 'undefined') {
-      document.cookie = `${COOKIE}=${code}; path=/; max-age=${MAX_AGE}; SameSite=Lax`
-    }
+    writeCookie(code)
   }, [])
 
   const t = useCallback(

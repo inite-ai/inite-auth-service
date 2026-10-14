@@ -53,10 +53,10 @@ export default function AuthPage({ variant }: AuthPageProps) {
   }, [stepUp])
 
   const isRegister = variant === 'register'
-  const heroTitle = isRegister ? 'Create your INITE account' : 'Sign in to INITE'
+  const heroTitle = isRegister ? t('auth.hero.register.title') : t('auth.welcome.title')
   const heroSubtitle = isRegister
-    ? 'Pick how you want to register — you can add more methods later.'
-    : 'Pick how you want to sign in.'
+    ? t('auth.hero.register.subtitle')
+    : t('auth.hero.login.subtitle')
 
   const methods: Array<{
     id: AuthMethod
@@ -80,8 +80,8 @@ export default function AuthPage({ variant }: AuthPageProps) {
     },
     {
       id: 'otp',
-      name: 'Email code',
-      description: 'Get a 6-digit one-time code by email',
+      name: t('auth.method.otp'),
+      description: t('auth.method.otp.hint'),
       icon: KeyRound,
     },
     {
@@ -92,8 +92,8 @@ export default function AuthPage({ variant }: AuthPageProps) {
     },
     {
       id: 'wallet',
-      name: 'Ethereum wallet',
-      description: 'Sign in with your Web3 wallet',
+      name: t('auth.method.wallet'),
+      description: t('auth.method.wallet.hint'),
       icon: Wallet,
     },
   ]
@@ -116,7 +116,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
               onClick={() => setShowAllMethods(true)}
               className="mt-6 w-full inline-flex items-center justify-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
             >
-              Use another sign-in method
+              {t('auth.stepUp.otherMethod')}
             </button>
           </motion.div>
         ) : !selectedMethod ? (
@@ -134,7 +134,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
               </p>
               {oauthParams.clientId && (
                 <p className="mt-3 text-xs text-[var(--text-faint)]">
-                  for{' '}
+                  {t('auth.hero.forClient')}{' '}
                   <span className="font-mono text-[var(--text-muted)]">
                     {oauthParams.clientId}
                   </span>
@@ -145,8 +145,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
                   role="status"
                   className="mt-4 text-xs text-[var(--accent)] bg-[var(--accent-faint)] border border-[color:var(--accent)]/30 rounded-md px-3 py-2"
                 >
-                  This app needs a higher security level. Please re-authenticate
-                  with a passkey or a second factor to continue.
+                  {t('auth.stepUp.notice')}
                 </p>
               )}
             </motion.div>
@@ -190,7 +189,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
             <SocialLogin oauthParams={oauthParams} />
 
             <div className="mt-6 text-sm text-[var(--text-muted)]">
-              {isRegister ? 'Already have an account? ' : "Don't have an account? "}
+              {isRegister ? t('auth.switch.haveAccount') : t('auth.switch.noAccount')}{' '}
               <a
                 href={buildTargetHref(
                   isRegister ? '/login' : '/register',
@@ -198,18 +197,18 @@ export default function AuthPage({ variant }: AuthPageProps) {
                 )}
                 className="text-[var(--accent)] hover:text-[var(--accent-hover)]"
               >
-                {isRegister ? 'Sign in' : 'Create one'}
+                {isRegister ? t('auth.switch.signIn') : t('auth.switch.create')}
               </a>
             </div>
 
             <p className="mt-12 text-xs text-[var(--text-faint)] leading-relaxed">
-              By continuing, you agree to INITE&apos;s{' '}
+              {t('auth.legal.prefix')}{' '}
               <a href="/terms" className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                Terms of Service
+                {t('auth.legal.terms')}
               </a>{' '}
-              and{' '}
+              {t('auth.legal.and')}{' '}
               <a href="/privacy" className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                Privacy Policy
+                {t('auth.legal.privacy')}
               </a>
               .
             </p>
@@ -226,7 +225,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
               className="mb-5 inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              All methods
+              {t('auth.allMethods')}
             </button>
 
             {selectedMethod === 'passkey' && (

@@ -18,6 +18,8 @@ export interface OAuthParams {
   resource?: string | null
   /** RFC 9396 raw `authorization_details` JSON (validated server-side). */
   authorizationDetails?: string | null
+  /** OIDC ui_locales — the language the relying party was showing. */
+  uiLocales?: string | null
 }
 
 /**
@@ -51,6 +53,7 @@ const PASSTHROUGH: ReadonlyArray<readonly [string, keyof OAuthParams]> = [
   ['acr_values', 'acrValues'],
   ['resource', 'resource'],
   ['authorization_details', 'authorizationDetails'],
+  ['ui_locales', 'uiLocales'],
 ]
 
 function applyPassthrough(url: URL, params: OAuthParams): void {
@@ -198,6 +201,7 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     acrValues: searchParams.get('acr_values'),
     resource: searchParams.get('resource'),
     authorizationDetails: searchParams.get('authorization_details'),
+    uiLocales: searchParams.get('ui_locales'),
   }
 }
 

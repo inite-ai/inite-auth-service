@@ -288,8 +288,6 @@ export class OAuthTokenIssuerService {
       select: { companyId: true },
     });
 
-    const device = currentDeviceMetadata();
-
     await this.prisma.refreshToken.create({
       data: {
         tokenLookup,
@@ -299,8 +297,7 @@ export class OAuthTokenIssuerService {
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
-        ip: device.ip,
-        userAgent: device.userAgent,
+        ...currentDeviceMetadata(), // ip, userAgent
         lastUsedAt: new Date(),
         // RFC 8707: persist the bound resource so rotation keeps the audience.
         resource: input.audience ?? null,

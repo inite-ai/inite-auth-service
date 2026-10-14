@@ -241,6 +241,14 @@ export class HealthController {
         'RS256', 'PS256', 'ES256', 'EdDSA',
       ],
       code_challenge_methods_supported: ['S256'],
+      // RFC 8707 Resource Indicators. The RFC registers only the `resource`
+      // request parameter and the invalid_target error — it defines no
+      // discovery metadata, so this is the de-facto field name clients look
+      // for, served as "additional metadata" under RFC 8414 §2. Unconditional
+      // because `resource` is honoured everywhere it can appear: /authorize
+      // (interactive logins included), /par, and the RFC 8693 token exchange,
+      // with resolveCodeAudience() binding the access-token audience to it.
+      resource_indicators_supported: true,
       scopes_supported: supportedScopes(),
       claims_supported: [
         'sub',

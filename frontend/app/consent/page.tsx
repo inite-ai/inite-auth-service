@@ -10,6 +10,7 @@ import { Button, Card } from '@/components/ui'
 import { AppHeader } from '@/components/AppHeader'
 import { ConsentGrants } from '@/components/ConsentGrants'
 import api from '@/lib/api'
+import { useT, type TKey } from '@/lib/i18n'
 
 interface UserInfo {
   id: string
@@ -26,19 +27,20 @@ interface ClientInfo {
 }
 
 // Scope descriptions
-const SCOPE_INFO: Record<string, { icon: typeof Key; label: string; description: string }> = {
-  'openid': { icon: Key, label: 'Identity', description: 'Verify your identity' },
-  'profile': { icon: User, label: 'Profile', description: 'Access your name and avatar' },
-  'email': { icon: Mail, label: 'Email', description: 'View your email address' },
-  'admin': { icon: Shield, label: 'Admin', description: 'Administrative access' },
-  'offline_access': { icon: Key, label: 'Offline', description: 'Stay signed in with refresh tokens' },
-  'brain:read': { icon: Key, label: 'Memory read', description: 'Search and read your memory (brain)' },
-  'brain:write': { icon: Key, label: 'Memory write', description: 'Record facts into your memory (brain)' },
-  'brain:admin': { icon: Shield, label: 'Memory admin', description: 'Operate your memory tenant (brain)' },
-  'brain:read_pii': { icon: Shield, label: 'Memory PII', description: 'Read personally identifiable memory fields' },
+const SCOPE_INFO: Record<string, { icon: typeof Key; label: string; description: TKey }> = {
+  'openid': { icon: Key, label: 'Identity', description: 'consent.scope.openid' },
+  'profile': { icon: User, label: 'Profile', description: 'consent.scope.profile' },
+  'email': { icon: Mail, label: 'Email', description: 'consent.scope.email' },
+  'admin': { icon: Shield, label: 'Admin', description: 'consent.scope.admin' },
+  'offline_access': { icon: Key, label: 'Offline', description: 'consent.scope.offline_access' },
+  'brain:read': { icon: Key, label: 'Memory read', description: 'consent.scope.brain:read' },
+  'brain:write': { icon: Key, label: 'Memory write', description: 'consent.scope.brain:write' },
+  'brain:admin': { icon: Shield, label: 'Memory admin', description: 'consent.scope.brain:admin' },
+  'brain:read_pii': { icon: Shield, label: 'Memory PII', description: 'consent.scope.brain:read_pii' },
 }
 
 function ConsentContent() {
+  const t = useT()
   const searchParams = useSearchParams()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -185,7 +187,7 @@ function ConsentContent() {
       <div className="min-h-screen bg-[var(--bg)] p-4">
         <Card className="max-w-md w-full text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-red-600 mb-2">Authorization Error</h1>
+          <h1 className="text-xl font-bold text-red-600 mb-2">{t('consent.error.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400">{error}</p>
         </Card>
       </div>
@@ -194,7 +196,7 @@ function ConsentContent() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      <AppHeader hideUserMenu context="Authorize app" />
+      <AppHeader hideUserMenu context={t('consent.header')} />
       <motion.div
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -212,11 +214,11 @@ function ConsentContent() {
               )}
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Confirm Sign In
+              {t('consent.title')}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               <span className="font-semibold text-blue-600">{clientInfo?.name || oauthParams?.clientId}</span>
-              {' '}wants to access your account
+              {' '}{t('consent.wantsAccess')}
             </p>
           </div>
 
@@ -228,7 +230,7 @@ function ConsentContent() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-gray-900 dark:text-white truncate">
-                  {user.name || 'User'}
+                  {user.name || t('consent.user')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                   {user.email}
@@ -242,21 +244,21 @@ function ConsentContent() {
               className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               <LogOut className="w-4 h-4 shrink-0" />
-              Use another account
+              {t('consent.switchAccount')}
             </button>
           </div>
 
           {/* Permissions */}
           <div className="mb-8">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              This will allow the app to:
+              {t('consent.permissions')}
             </h3>
             <ul className="space-y-2">
               {getScopes().map(({ scope, icon: Icon, label, description }) => (
                 <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
                   <Icon className="w-5 h-5 text-green-500 flex-shrink-0" />
                   <div>
-                    <span className="text-sm">{description}</span>
+                    <span className="text-sm">{t(description)}</span>
                   </div>
                 </li>
               ))}
@@ -274,7 +276,7 @@ function ConsentContent() {
               disabled={loading}
               className="flex-1"
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleApprove}
@@ -282,7 +284,7 @@ function ConsentContent() {
               icon={!loading && <CheckCircle className="w-5 h-5" />}
               className="flex-1 from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
             >
-              {loading ? 'Authorizing...' : 'Allow'}
+              {loading ? t('consent.allowing') : t('consent.allow')}
             </Button>
           </div>
 
@@ -296,7 +298,7 @@ function ConsentContent() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 hover:text-blue-400 transition"
                 >
-                  Privacy Policy <ExternalLink className="w-3 h-3" />
+                  {t('consent.privacy')} <ExternalLink className="w-3 h-3" />
                 </a>
               )}
               {clientInfo.termsOfServiceUrl && (
@@ -306,7 +308,7 @@ function ConsentContent() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 hover:text-blue-400 transition"
                 >
-                  Terms of Service <ExternalLink className="w-3 h-3" />
+                  {t('consent.terms')} <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
@@ -314,7 +316,7 @@ function ConsentContent() {
 
           {/* Footer */}
           <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
-            By clicking Allow, you authorize this app to use your information in accordance with their terms.
+            {t('consent.footer')}
           </p>
         </Card>
       </motion.div>

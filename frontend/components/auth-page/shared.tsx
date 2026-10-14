@@ -28,6 +28,7 @@ export function useOAuthParams(): OAuthParams {
       prompt: searchParams.get('prompt'),
       resource: searchParams.get('resource'),
       authorizationDetails: searchParams.get('authorization_details'),
+      uiLocales: searchParams.get('ui_locales'),
     }),
     [searchParams],
   )
@@ -118,6 +119,7 @@ export function buildTargetHref(
     state,
     codeChallenge,
     codeChallengeMethod,
+    uiLocales,
   }: OAuthParams,
 ) {
   if (!clientId) return target
@@ -128,6 +130,7 @@ export function buildTargetHref(
   if (state) params.set('state', state)
   if (codeChallenge) params.set('code_challenge', codeChallenge)
   if (codeChallengeMethod) params.set('code_challenge_method', codeChallengeMethod)
+  if (uiLocales) params.set('ui_locales', uiLocales)
   return `${target}?${params.toString()}`
 }
 

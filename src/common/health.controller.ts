@@ -241,6 +241,8 @@ export class HealthController {
         'RS256', 'PS256', 'ES256', 'EdDSA',
       ],
       code_challenge_methods_supported: ['S256'],
+      // OIDC Discovery §3 — languages the login/consent UI can render.
+      ui_locales_supported: ['en', 'ru', 'pt-BR', 'es-419'],
       scopes_supported: supportedScopes(),
       claims_supported: [
         'sub',

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { LogIn } from 'lucide-react'
 import { OAuthParams } from '@/lib/oauthHelpers'
+import { useT, type TKey } from '@/lib/i18n'
 
 interface Provider {
   id: string
@@ -16,10 +17,9 @@ interface SocialLoginProps {
 
 // Human-readable copy for the redirect error codes the backend sets on the
 // /login URL when a federated callback fails.
-const ERROR_COPY: Record<string, string> = {
-  email_conflict:
-    'An account already exists for that email. Sign in with your existing method, then link this provider from account settings.',
-  federation_failed: 'Social sign-in failed. Please try again.',
+const ERROR_COPY: Record<string, TKey> = {
+  email_conflict: 'auth.social.error.emailConflict',
+  federation_failed: 'auth.social.error.failed',
 }
 
 /**
@@ -28,6 +28,7 @@ const ERROR_COPY: Record<string, string> = {
  * any in-flight OAuth-authorize params so the flow resumes after the round-trip.
  */
 export default function SocialLogin({ oauthParams }: SocialLoginProps) {
+  const t = useT()
   const [providers, setProviders] = useState<Provider[]>([])
   const searchParams = useSearchParams()
   const error = searchParams.get('federation_error')
@@ -71,7 +72,7 @@ export default function SocialLogin({ oauthParams }: SocialLoginProps) {
           role="alert"
           className="mb-4 text-xs text-[color:var(--danger)] bg-[color:var(--danger)]/10 border border-[color:var(--danger)]/30 rounded-md px-3 py-2"
         >
-          {ERROR_COPY[error] ?? ERROR_COPY.federation_failed}
+          {t(ERROR_COPY[error] ?? ERROR_COPY.federation_failed)}
         </p>
       )}
 
@@ -79,7 +80,7 @@ export default function SocialLogin({ oauthParams }: SocialLoginProps) {
         <>
           <div className="flex items-center gap-3 mb-4">
             <span className="h-px flex-1 bg-[var(--border)]" />
-            <span className="text-xs text-[var(--text-faint)]">or continue with</span>
+            <span className="text-xs text-[var(--text-faint)]">{t('auth.social.or')}</span>
             <span className="h-px flex-1 bg-[var(--border)]" />
           </div>
 

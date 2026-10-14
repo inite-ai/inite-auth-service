@@ -77,6 +77,7 @@ export class OAuthRequestController {
           prompt: p.prompt,
           resource: p.resource,
           authorizationDetails: p.authorization_details,
+          uiLocales: p.ui_locales,
         })
       ).requestUri,
       expires_in: 60,

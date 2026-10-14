@@ -26,6 +26,8 @@ export interface AuthorizeQuery {
   resource?: string;
   /** RFC 9396 — JSON-encoded array of typed authorization_details objects. */
   authorization_details?: string;
+  /** OIDC Core §3.1.2.1 — space-separated BCP 47 tags, preferred first. */
+  ui_locales?: string;
 }
 
 /** Authorize params after PAR (request_uri) resolution, normalized to camelCase. */
@@ -44,6 +46,8 @@ export interface ResolvedAuthorizeParams {
   resource?: string;
   /** RFC 9396 — raw JSON `authorization_details` string, validated downstream. */
   authorizationDetails?: string;
+  /** OIDC ui_locales — a display hint for the login/consent screens only. */
+  uiLocales?: string;
 }
 
 export interface TokenRequestBody {

@@ -41,6 +41,7 @@ const ALL_PARAMS: Required<ResolvedAuthorizeParams> = {
   acrValues: 'urn:inite:aal2',
   resource: 'https://inite.ai/api/mcp',
   authorizationDetails: '[{"type":"inite_mcp_resource","actions":["read"]}]',
+  uiLocales: 'pt-BR es',
 };
 
 /** camelCase param -> the query key it travels as. */
@@ -57,6 +58,7 @@ const QUERY_KEY: Record<keyof ResolvedAuthorizeParams, keyof AuthorizeQuery> = {
   acrValues: 'acr_values',
   resource: 'resource',
   authorizationDetails: 'authorization_details',
+  uiLocales: 'ui_locales',
 };
 
 /**
@@ -271,6 +273,51 @@ describe('/authorize → authorization code binding', () => {
     expect(redirectedTo(h.res).searchParams.get('resource')).toBe(
       'https://inite.ai/api/pushed',
     );
+  });
+});
+
+describe('/authorize → ui_locales', () => {
+  const previousFrontend = process.env.FRONTEND_URL;
+  beforeAll(() => {
+    process.env.FRONTEND_URL = FRONTEND;
+  });
+  afterAll(() => {
+    if (previousFrontend === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontend;
+  });
+
+  it('hands ui_locales to the login screen so it opens in the RP language', async () => {
+    const h = harness();
+    await h.controller.authorize(
+      { ...toQuery(ALL_PARAMS), ui_locales: 'es' },
+      request(undefined),
+      h.res as unknown as Response,
+    );
+    const url = redirectedTo(h.res);
+    expect(url.pathname).toBe('/login');
+    expect(url.searchParams.get('ui_locales')).toBe('es');
+  });
+
+  it('honours ui_locales pushed via PAR', async () => {
+    const h = harness();
+    h.parConsume.mockResolvedValue({
+      clientId: ALL_PARAMS.clientId,
+      redirectUri: ALL_PARAMS.redirectUri,
+      responseType: 'code',
+      codeChallenge: ALL_PARAMS.codeChallenge,
+      codeChallengeMethod: 'S256',
+      uiLocales: 'pt-BR',
+    } satisfies ParPayload);
+    await h.controller.authorize(
+      {
+        response_type: 'code',
+        client_id: ALL_PARAMS.clientId,
+        request_uri: 'urn:ietf:params:oauth:request_uri:ref',
+      },
+      request(undefined),
+      h.res as unknown as Response,
+    );
+    expect(redirectedTo(h.res).searchParams.get('ui_locales')).toBe('pt-BR');
   });
 });
 

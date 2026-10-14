@@ -154,6 +154,8 @@ export class OAuthController {
       resource: q.resource,
       // RFC 9396 — raw JSON, validated at code creation.
       authorizationDetails: q.authorization_details,
+      // OIDC ui_locales — only ever shown to the login/consent UI.
+      uiLocales: q.ui_locales,
     };
   }
 
@@ -374,6 +376,8 @@ export class OAuthController {
     ['resource', 'resource'],
     // RFC 9396 — the consent screen itemizes these before the user approves.
     ['authorization_details', 'authorizationDetails'],
+    // OIDC ui_locales — the login screen opens in the RP's language.
+    ['ui_locales', 'uiLocales'],
   ];
 
   /** Build a /login or /consent redirect carrying the OAuth params forward. */

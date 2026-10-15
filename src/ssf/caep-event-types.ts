@@ -7,6 +7,9 @@ export const CAEP_EVENTS = {
   credentialChange: 'https://schemas.openid.net/secevent/caep/event-type/credential-change',
   tokenClaimsChange: 'https://schemas.openid.net/secevent/caep/event-type/token-claims-change',
   accountDisabled: 'https://schemas.openid.net/secevent/risc/event-type/account-disabled',
+  // The account and its data are gone for good. Receivers that keep a local
+  // shadow of the user (e.g. inite.studio) delete it on this.
+  accountPurged: 'https://schemas.openid.net/secevent/risc/event-type/account-purged',
 } as const;
 
 export type CaepEventType = (typeof CAEP_EVENTS)[keyof typeof CAEP_EVENTS];

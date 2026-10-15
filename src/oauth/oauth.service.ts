@@ -11,6 +11,7 @@ import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.in
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 import { AuthorizationDetailsService } from './authorization-details.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
+import { grantableScope } from './oauth-scopes.registry';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -52,11 +53,12 @@ export class OAuthService {
   }
 
   /**
-   * Normalize scope
+   * Normalize the requested scope into the one to grant. With a clientId, a
+   * dynamically registered client is capped to the open-registration scopes
+   * (see grantableScope).
    */
-  normalizeScope(requestedScope: string): string {
-    const scopes = this.parseScope(requestedScope);
-    return scopes.length > 0 ? scopes.join(' ') : 'openid profile email';
+  normalizeScope(requestedScope: string, clientId?: string): string {
+    return grantableScope(clientId, requestedScope);
   }
 
   /**
@@ -331,14 +333,6 @@ export class OAuthService {
 
   getFrontendUrl(): string {
     return this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
-  }
-
-  /**
-   * Parse scope string into entitlements array
-   */
-  private parseScope(scope: string): string[] {
-    if (!scope) return [];
-    return scope.split(' ').filter(Boolean);
   }
 
   /**

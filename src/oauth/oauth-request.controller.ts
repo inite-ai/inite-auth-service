@@ -22,6 +22,21 @@ import { DeviceFlowService } from './device-flow.service';
 import { AuthorizeQuery } from './dto/oauth-requests';
 
 
+/**
+ * RFC 8628 verification_uri: the page a person opens to type the code. That
+ * is the sign-in UI's /device, not this API's /v1/oauth/device (which answers
+ * JSON) — built from the request host, the device was sent to a JSON error.
+ * Falls back to the request host when FRONTEND_URL is unset (single-host dev).
+ */
+export function deviceVerificationUri(req: Request): string {
+  const frontend = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '');
+  if (frontend) return `${frontend}/device`;
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+    ?? req.protocol
+    ?? 'https';
+  return `${proto}://${req.headers.host ?? ''}/v1/oauth/device`;
+}
+
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
 export class OAuthRequestController {
@@ -100,22 +115,18 @@ export class OAuthRequestController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async deviceAuthorization(
     @Body('client_id') clientId: string,
-    @Body('scope') scope: string,
+    @Body() body: { scope?: string; resource?: string },
     @Req() req: Request,
   ) {
     if (!clientId) throw new BadRequestException('client_id is required');
     const client = await this.clientRegistry.validateClient(clientId);
     this.clientRegistry.validateGrantType(client, DeviceFlowService.GRANT_TYPE);
 
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?? req.protocol
-      ?? 'https';
-    const host = req.headers.host ?? '';
-    const verificationUri = `${proto}://${host}/v1/oauth/device`;
     return await this.deviceFlow.issue({
       client,
-      scope,
-      verificationUri,
+      scope: body?.scope,
+      resource: body?.resource,
+      verificationUri: deviceVerificationUri(req),
     });
   }
 
@@ -138,9 +149,12 @@ export class OAuthRequestController {
     if (!row) {
       throw new BadRequestException('Invalid or expired user_code');
     }
+    const client = await this.clientRegistry.getClientInfo(row.clientId).catch(() => null);
     return {
       user_code: row.userCode,
       client_id: row.clientId,
+      client_name: client?.name ?? null,
+      resource: row.resource ?? null,
       scope: row.scope ?? null,
       status: row.status,
       expires_at: row.expiresAt,

@@ -255,7 +255,7 @@ export class OAuthSessionController {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
-    const grantedScope = this.oauthService.normalizeScope(input.scope || '');
+    const grantedScope = this.oauthService.normalizeScope(input.scope || '', input.clientId);
 
     // Step-up: record the acr the session ACTUALLY achieved (from amr), not the
     // client-requested value — an RP requiring aal2 then rejects an id_token
@@ -312,7 +312,7 @@ export class OAuthSessionController {
     const required = await this.consent.isRequired({
       userId,
       clientId,
-      scope: this.oauthService.normalizeScope(scope || ''),
+      scope: this.oauthService.normalizeScope(scope || '', clientId),
       authorizationDetails: authorizationDetails || undefined,
     });
     return { required };

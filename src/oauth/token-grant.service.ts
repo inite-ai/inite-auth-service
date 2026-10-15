@@ -131,6 +131,8 @@ export class TokenGrantService {
       user,
       clientId: clientId as string,
       scope: approved.scope ?? '',
+      // RFC 8707: the resource named at /device_authorization is the audience.
+      ...(approved.resource ? { audience: approved.resource } : {}),
     });
 
     this.metrics.tokensIssued.inc({ grant_type: 'device_code' });

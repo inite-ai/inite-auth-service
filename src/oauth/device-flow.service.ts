@@ -66,6 +66,8 @@ export class DeviceFlowService {
   async issue(opts: {
     client: OAuthClient;
     scope?: string;
+    /** RFC 8707 resource indicator; becomes the access token's audience. */
+    resource?: string;
     verificationUri: string;
   }): Promise<{
     device_code: string;
@@ -75,6 +77,7 @@ export class DeviceFlowService {
     expires_in: number;
     interval: number;
   }> {
+    const resource = DeviceFlowService.resolveResource(opts.client, opts.resource);
     const deviceCode = randomBytes(40).toString('base64url');
     const deviceCodeHash = hashDeviceCode(deviceCode);
     const userCode = await this.uniqueUserCode();
@@ -86,6 +89,7 @@ export class DeviceFlowService {
         userCode,
         clientId: opts.client.clientId,
         scope: opts.scope ?? null,
+        resource,
         status: 'pending',
         expiresAt,
         interval: DEFAULT_INTERVAL_SECONDS,
@@ -100,6 +104,39 @@ export class DeviceFlowService {
       expires_in: DEFAULT_TTL_SECONDS,
       interval: DEFAULT_INTERVAL_SECONDS,
     };
+  }
+
+  /**
+   * RFC 8707 §2 for the device grant: the resource must be an absolute URI
+   * with no fragment, and a client that restricts `allowedAudiences` can only
+   * name one of them (the same rule as the authorization_code flow). Both
+   * failures are `invalid_target`. Absent → null (clientId audience).
+   */
+  static resolveResource(client: OAuthClient, resource?: string | null): string | null {
+    if (!resource) return null;
+    let url: URL;
+    try {
+      url = new URL(resource);
+    } catch {
+      throw new BadRequestException({
+        error: 'invalid_target',
+        error_description: 'resource must be an absolute URI',
+      });
+    }
+    if (resource.includes('#') || url.hash) {
+      throw new BadRequestException({
+        error: 'invalid_target',
+        error_description: 'resource must not contain a fragment',
+      });
+    }
+    const allowed = client.allowedAudiences ?? [];
+    if (allowed.length > 0 && !allowed.includes(resource)) {
+      throw new BadRequestException({
+        error: 'invalid_target',
+        error_description: `Resource "${resource}" is not allowed for this client`,
+      });
+    }
+    return resource;
   }
 
   /**

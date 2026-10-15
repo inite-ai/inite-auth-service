@@ -15,6 +15,8 @@ import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
 import { AppHeader } from '@/components/AppHeader'
+import { ScopeList } from '@/components/ScopeList'
+import { useT } from '@/lib/i18n'
 
 /**
  * OAuth 2.0 Device Authorization Grant (RFC 8628) — verification UI.
@@ -24,6 +26,7 @@ import { AppHeader } from '@/components/AppHeader'
  * a one-screen approve/deny.
  */
 function DeviceVerifyContent() {
+  const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -33,7 +36,9 @@ function DeviceVerifyContent() {
   const [device, setDevice] = useState<{
     user_code: string
     client_id: string
+    client_name?: string | null
     scope: string | null
+    resource?: string | null
     status: string
     expires_at: string
   } | null>(null)
@@ -73,7 +78,7 @@ function DeviceVerifyContent() {
   const lookupCode = async (codeOverride?: string) => {
     const code = (codeOverride ?? userCode).trim().toUpperCase()
     if (!code) {
-      toast.error('Enter the code shown on your device')
+      toast.error(t('device.enterCode'))
       return
     }
     setLookupBusy(true)
@@ -81,7 +86,7 @@ function DeviceVerifyContent() {
       const { data } = await api.get(`/oauth/device?user_code=${encodeURIComponent(code)}`)
       setDevice(data)
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Code not found or expired'
+      const msg = err?.response?.data?.message ?? t('device.notFound')
       toast.error(msg)
       setDevice(null)
     } finally {
@@ -110,7 +115,7 @@ function DeviceVerifyContent() {
       )
       setResult(decision === 'approve' ? 'approved' : 'denied')
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Approval failed')
+      toast.error(err?.response?.data?.message ?? t('device.approvalFailed'))
     } finally {
       setActionBusy(false)
     }
@@ -133,9 +138,9 @@ function DeviceVerifyContent() {
           className="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 max-w-md w-full text-center"
         >
           <Shield className="w-12 h-12 text-violet-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">Sign in to continue</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">{t('device.signIn.title')}</h1>
           <p className="text-slate-400 text-sm mb-6">
-            You need to be signed in to approve a device.
+            {t('device.signIn.body')}
           </p>
           <button
             onClick={() =>
@@ -147,7 +152,7 @@ function DeviceVerifyContent() {
             }
             className="w-full px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl font-medium hover:opacity-90 transition"
           >
-            Sign in
+            {t('common.signIn')}
           </button>
         </motion.div>
       </div>
@@ -169,12 +174,10 @@ function DeviceVerifyContent() {
             <XCircle className="w-16 h-16 text-rose-400 mx-auto mb-4" />
           )}
           <h1 className="text-2xl font-bold text-white mb-2">
-            {ok ? 'Device approved' : 'Device denied'}
+            {ok ? t('device.approved.title') : t('device.denied.title')}
           </h1>
           <p className="text-slate-400 text-sm">
-            {ok
-              ? 'You can close this tab. The device will finish signing in shortly.'
-              : 'You denied this device. It will not receive access.'}
+            {ok ? t('device.approved.body') : t('device.denied.body')}
           </p>
         </motion.div>
       </div>
@@ -183,7 +186,7 @@ function DeviceVerifyContent() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      <AppHeader context="Authorize device" />
+      <AppHeader context={t('device.header')} />
       <motion.div
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -192,9 +195,9 @@ function DeviceVerifyContent() {
       >
         <div className="text-center mb-6">
           <Tv className="w-12 h-12 text-violet-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-white mb-1">Authorize device</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">{t('device.title')}</h1>
           <p className="text-slate-400 text-sm">
-            Enter the code shown on your TV / CLI / IoT device.
+            {t('device.prompt')}
           </p>
         </div>
 
@@ -217,7 +220,7 @@ function DeviceVerifyContent() {
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  Continue
+                  {t('device.continue')}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -228,17 +231,16 @@ function DeviceVerifyContent() {
         {device && (
           <div className="space-y-4">
             <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
-                Device wants to sign in as
+              <p className="text-white text-sm">
+                <span className="font-semibold">{device.client_name || device.client_id}</span>{' '}
+                {t('device.wants')}
               </p>
-              <p className="text-white font-mono text-sm">{device.client_id}</p>
-              {device.scope && (
-                <>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mt-3 mb-1">
-                    Requested scopes
-                  </p>
-                  <p className="text-slate-300 text-sm font-mono">{device.scope}</p>
-                </>
+              <p className="text-xs text-slate-500 mt-3 mb-2">{t('device.permissions')}</p>
+              <ScopeList scope={device.scope} />
+              {device.resource && (
+                <p className="text-xs text-slate-500 mt-3 break-all">
+                  {t('device.resource', { resource: device.resource })}
+                </p>
               )}
             </div>
 
@@ -248,7 +250,7 @@ function DeviceVerifyContent() {
                 disabled={actionBusy}
                 className="flex-1 px-4 py-3 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 transition disabled:opacity-50"
               >
-                Deny
+                {t('device.deny')}
               </button>
               <button
                 onClick={() => decide('approve')}
@@ -256,7 +258,7 @@ function DeviceVerifyContent() {
                 className="flex-1 px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-400 transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {actionBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-                Approve
+                {t('device.approve')}
               </button>
             </div>
           </div>

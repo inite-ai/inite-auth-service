@@ -65,7 +65,7 @@ export class OAuthController {
       throw new BadRequestException('Invalid redirect_uri');
     }
     this.clientRegistry.validateGrantType(client, 'authorization_code');
-    const grantedScope = this.oauthService.normalizeScope(p.scope || '');
+    const grantedScope = this.oauthService.normalizeScope(p.scope || '', p.clientId);
     this.assertPkce(p);
 
     const userId = req.session?.userId;

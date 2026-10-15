@@ -551,6 +551,9 @@ model DeviceAuthorization {
   userCode     String   @unique @map("userCode")
   clientId     String   @map("clientId")
   scope        String?
+  /// RFC 8707 resource the device asked a token for; becomes the access
+  /// token's audience. Null = default (clientId) audience.
+  resource     String?
   /// Set when the user approves; null while pending.
   userId       String?  @map("userId") @db.Uuid
   /// 'pending' | 'approved' | 'denied' | 'expired'

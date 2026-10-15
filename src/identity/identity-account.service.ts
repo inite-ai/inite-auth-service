@@ -1,17 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Optional } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { IdentityService } from './identity.service';
 import { omit } from '../common/sanitize';
 import * as bcrypt from 'bcryptjs';
+import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 @Injectable()
 export class IdentityAccountService {
+  // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly identityService: IdentityService,
+    @Optional() private readonly ssf?: SsfEmitterService,
   ) {}
 
   /**
@@ -172,7 +176,7 @@ export class IdentityAccountService {
   async deleteAccount(userId: string, password: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true },
+      select: { id: true, did: true, passwordHash: true },
     });
 
     if (!user) {
@@ -188,5 +192,15 @@ export class IdentityAccountService {
 
     // Cascade delete handles related records
     await this.prisma.user.delete({ where: { id: userId } });
+
+    // Relying parties keep their own copy of the user keyed by DID; without
+    // this they never learn the account is gone and keep its data forever.
+    if (user.did) {
+      await this.ssf?.emit({
+        eventType: CAEP_EVENTS.accountPurged,
+        subject: user.did,
+        claims: { reason: 'user_delete' },
+      });
+    }
   }
 }

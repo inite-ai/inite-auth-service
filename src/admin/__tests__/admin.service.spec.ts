@@ -4,6 +4,8 @@ import { AdminClientsService } from '../admin-clients.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { BackchannelLogoutService } from '../../oauth/backchannel-logout.service';
+import { SsfEmitterService } from '../../ssf/ssf-emitter.service';
+import { CAEP_EVENTS } from '../../ssf/caep-event-types';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -468,6 +470,49 @@ describe('AdminService', () => {
       mockPrisma.oAuthClient.findUnique.mockResolvedValue(null);
       const result = await service.rotateClientSecret('ghost');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('deleteUser', () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    function withSsf() {
+      const ssf = { emit: jest.fn().mockResolvedValue(undefined) };
+      const s = new AdminService(
+        mockPrisma as unknown as PrismaService,
+        {} as unknown as AdminClientsService,
+        undefined,
+        undefined,
+        ssf as unknown as SsfEmitterService,
+      );
+      return { s, ssf };
+    }
+
+    it('tells relying parties the account is purged, by DID, after the row is gone', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ did: 'did:key:abc' });
+      mockPrisma.user.delete.mockResolvedValue({});
+      const { s, ssf } = withSsf();
+
+      await s.deleteUser(userId);
+
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(ssf.emit).toHaveBeenCalledWith({
+        eventType: CAEP_EVENTS.accountPurged,
+        subject: 'did:key:abc',
+        claims: { reason: 'admin_delete' },
+      });
+      expect(mockPrisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        ssf.emit.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('does not announce a purge when the delete fails', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ did: 'did:key:abc' });
+      mockPrisma.user.delete.mockRejectedValue(new Error('fk'));
+      const { s, ssf } = withSsf();
+
+      await expect(s.deleteUser(userId)).rejects.toThrow('fk');
+      expect(ssf.emit).not.toHaveBeenCalled();
     });
   });
 });

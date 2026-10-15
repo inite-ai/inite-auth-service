@@ -12,6 +12,8 @@ import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
 import { stripUserSecrets } from '../common/sanitize';
 import { AdminClientsService } from './admin-clients.service';
+import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 @Injectable()
 export class AdminService {
@@ -23,6 +25,7 @@ export class AdminService {
     private readonly clients: AdminClientsService,
     @Optional() private readonly audit?: OAuthAuditService,
     @Optional() private readonly backchannelLogout?: BackchannelLogoutService,
+    @Optional() private readonly ssf?: SsfEmitterService,
   ) {}
 
   // ==================== Users ====================
@@ -136,8 +139,18 @@ export class AdminService {
   }
 
   async deleteUser(userId: string) {
+    // The DID is the `sub` every relying party knows the user by, and it is
+    // gone with the row — read it first.
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { did: true } });
     // Cascade delete handles related records
     await this.prisma.user.delete({ where: { id: userId } });
+    if (user?.did) {
+      await this.ssf?.emit({
+        eventType: CAEP_EVENTS.accountPurged,
+        subject: user.did,
+        claims: { reason: 'admin_delete' },
+      });
+    }
     return { success: true };
   }
 

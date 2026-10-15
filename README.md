@@ -127,10 +127,13 @@ they may go.
    (or sends an `inite_wallet` authorization detail). The person sees the
    limits ($10 a payment, $20 a day, $50 a month by default) and approves
    with a passkey.
-4. **The wallet is the person's.** USDC on Base in a Turnkey wallet whose only
+4. **The person approves the agent in the wallet too**, from the INITE ID
+   account, with the wallet passkey: the agent gets its own key there, which
+   the wallet provider (Turnkey) lets sign at most one payment of the limit.
+5. **The wallet is the person's.** USDC on Base in a Turnkey wallet whose only
    key is the person's passkey, shown in the INITE ID account. INITE billing
    enforces the limits; it cannot move the money on its own.
-5. **One click stops it.** Disconnecting the app retires the agent, its DID
+6. **One click stops it.** Disconnecting the app retires the agent, its DID
    document answers 410, and resource servers get a CAEP `session-revoked`.
 
 Guide: [/docs/agents](https://auth.inite.ai/docs/agents) ·

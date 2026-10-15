@@ -1,16 +1,17 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, ExternalLink, KeyRound, WalletCards } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { useT } from '@/lib/i18n'
-import { Badge, Button, Card, CardHeader, CopyButton, SkeletonRow } from '@/components/ui'
-import { EmptyState, Row, SectionError, formatRelativeDays } from '../shared'
-import { formatAddress } from '../wallets/chains'
-import { explorer, failure } from './qr'
-import { TopUpSheet } from './TopUpSheet'
-import { WithdrawSheet } from './WithdrawSheet'
-import { useIniteWallet, type WalletActivity } from './use-inite-wallet'
+import { useState } from 'react';
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, KeyRound, WalletCards } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useT } from '@/lib/i18n';
+import { Badge, Button, Card, CardHeader, CopyButton, SkeletonRow } from '@/components/ui';
+import { EmptyState, Row, SectionError, formatRelativeDays } from '../shared';
+import { formatAddress } from '../wallets/chains';
+import { explorer, failure } from './qr';
+import { TopUpSheet } from './TopUpSheet';
+import { WithdrawSheet } from './WithdrawSheet';
+import { WalletAgents } from './WalletAgents';
+import { useIniteWallet, type WalletActivity } from './use-inite-wallet';
 
 /**
  * The person's INITE wallet: their own USDC on Base, kept by billing under
@@ -22,13 +23,14 @@ export default function IniteWalletSection({
   accessToken,
   label,
 }: {
-  accessToken: string
-  label: string
+  accessToken: string;
+  label: string;
 }) {
-  const t = useT()
-  const { state, reload, open, topUpByPix, topUp, withdraw } = useIniteWallet(accessToken, label)
-  const [creating, setCreating] = useState(false)
-  const [sheet, setSheet] = useState<'topUp' | 'withdraw' | null>(null)
+  const t = useT();
+  const { state, reload, open, topUpByPix, topUp, withdraw, agents, approveAgent, revokeAgent } =
+    useIniteWallet(accessToken, label);
+  const [creating, setCreating] = useState(false);
+  const [sheet, setSheet] = useState<'topUp' | 'withdraw' | null>(null);
 
   const header = (
     <CardHeader
@@ -36,7 +38,7 @@ export default function IniteWalletSection({
       title={t('account.initeWallet.title')}
       description={t('account.initeWallet.subtitle')}
     />
-  )
+  );
 
   if (state.status === 'loading') {
     return (
@@ -44,7 +46,7 @@ export default function IniteWalletSection({
         {header}
         <SkeletonRow />
       </Card>
-    )
+    );
   }
   if (state.status === 'error') {
     return (
@@ -57,24 +59,24 @@ export default function IniteWalletSection({
           onRetry={reload}
         />
       </Card>
-    )
+    );
   }
 
-  const { wallet, canOpen, canWithdraw, topups, history = [] } = state.data
+  const { wallet, canOpen, canWithdraw, topups, history = [] } = state.data;
 
   const create = async () => {
-    setCreating(true)
+    setCreating(true);
     try {
-      await open()
-      toast.success(t('account.initeWallet.created'))
+      await open();
+      toast.success(t('account.initeWallet.created'));
     } catch (error) {
-      const reason = failure(error)
-      if (reason === 'cancelled') toast(t('account.initeWallet.cancelled'))
-      else toast.error(reason ?? t('error.network'))
+      const reason = failure(error);
+      if (reason === 'cancelled') toast(t('account.initeWallet.cancelled'));
+      else toast.error(reason ?? t('error.network'));
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
-  }
+  };
 
   if (!wallet) {
     return (
@@ -93,7 +95,7 @@ export default function IniteWalletSection({
           }
         />
       </Card>
-    )
+    );
   }
 
   return (
@@ -137,6 +139,8 @@ export default function IniteWalletSection({
           </div>
         </div>
 
+        <WalletAgents agents={agents} approve={approveAgent} revoke={revokeAgent} />
+
         {history.length > 0 && (
           <div className="mt-5 space-y-2 border-t border-[var(--border)] pt-4">
             <p className="text-xs text-[var(--text-faint)]">{t('account.initeWallet.history')}</p>
@@ -165,12 +169,12 @@ export default function IniteWalletSection({
         withdraw={withdraw}
       />
     </>
-  )
+  );
 }
 
 function ActivityRow({ item }: { item: WalletActivity }) {
-  const t = useT()
-  const incoming = item.kind === 'topup'
+  const t = useT();
+  const incoming = item.kind === 'topup';
   return (
     <Row
       icon={
@@ -189,7 +193,9 @@ function ActivityRow({ item }: { item: WalletActivity }) {
         <span className="flex flex-wrap items-center gap-2">
           <span>
             {incoming
-              ? t('account.initeWallet.history.topup', { rail: item.rail === 'HODLE' ? 'PIX' : (item.rail ?? '') })
+              ? t('account.initeWallet.history.topup', {
+                  rail: item.rail === 'HODLE' ? 'PIX' : (item.rail ?? ''),
+                })
               : t('account.initeWallet.history.withdrawal', { to: formatAddress(item.to ?? '') })}
           </span>
           <span className="text-[var(--text-faint)]">{formatRelativeDays(item.createdAt)}</span>
@@ -205,12 +211,14 @@ function ActivityRow({ item }: { item: WalletActivity }) {
           )}
         </span>
       }
-      action={<Badge variant="neutral">{t(`account.initeWallet.status.${item.status}` as never)}</Badge>}
+      action={
+        <Badge variant="neutral">{t(`account.initeWallet.status.${item.status}` as never)}</Badge>
+      }
     />
-  )
+  );
 }
 
 /** 12.500000 → 12.5 */
 function trim(amount: string): string {
-  return amount.includes('.') ? amount.replace(/\.?0+$/, '') : amount
+  return amount.includes('.') ? amount.replace(/\.?0+$/, '') : amount;
 }

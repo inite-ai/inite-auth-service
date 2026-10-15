@@ -133,7 +133,10 @@ they may go.
 5. **The wallet is the person's.** USDC on Base in a Turnkey wallet whose only
    key is the person's passkey, shown in the INITE ID account. INITE billing
    enforces the limits; it cannot move the money on its own.
-6. **One click stops it.** Disconnecting the app retires the agent, its DID
+6. **Or allow a site instead of an agent.** A shop can charge the wallet for
+   its own orders, up to limits the person sets once on
+   `/account/wallet/approve` (billing's `pay-from-wallet`).
+7. **One click stops it.** Disconnecting the app retires the agent, its DID
    document answers 410, and resource servers get a CAEP `session-revoked`.
 
 Guide: [/docs/agents](https://auth.inite.ai/docs/agents) ·

@@ -10,6 +10,7 @@ import {
   Mail,
   CheckCircle2,
   Bot,
+  UserCheck,
 } from 'lucide-react'
 import { LANDING_FAQ } from '@/lib/seo'
 
@@ -51,6 +52,11 @@ const FEATURES = [
     desc: 'Every user gets a did:key — portable across the INITE ecosystem and out of it.',
   },
   {
+    icon: UserCheck,
+    title: 'AI agents, with limits',
+    desc: 'An agent signs in for a person with its own ID. Paying from the person’s INITE wallet takes their passkey and stays within the limits they set.',
+  },
+  {
     icon: Bot,
     title: 'AI-ready (MCP)',
     desc: 'Six auth-admin tools and three skills shipped via @inite/auth-admin — Claude Desktop, Cursor, Goose, n8n provision clients and respond to incidents through MCP.',
@@ -64,6 +70,15 @@ const CHECKLIST = [
   'Audit log surfaced to users and admins',
   'Embed-ready: CORS + CSP per partner',
   'Self-hostable, OSS license',
+]
+
+const AGENT_POINTS = [
+  'Each connected app gets its own agent ID, tied to you',
+  'You see what it asks for and approve on one screen',
+  'Paying from your INITE wallet needs your passkey',
+  'Limits per payment, per day and per month',
+  'Your money stays yours: only your passkey can move it',
+  'Disconnect it in your account and it stops at once',
 ]
 
 const SDK_SNIPPET = `import { IniteAuth } from '@inite/auth-sdk'
@@ -135,6 +150,34 @@ export function LandingBody() {
               key={line}
               className="flex items-start gap-2 text-sm text-[var(--text)]"
             >
+              <CheckCircle2 className="w-4 h-4 mt-0.5 text-[color:var(--success)] shrink-0" />
+              {line}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="py-12 border-t border-[var(--border)] grid md:grid-cols-2 gap-10">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text)] tracking-tight">
+            Let an AI agent act for you, within limits you set.
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)] leading-relaxed">
+            Your assistant can sign in, buy and pay for you. Every service it
+            visits sees who it is and whose agent it is, and you can switch it
+            off from your account in one click.
+          </p>
+          <Link
+            href="/docs/agents"
+            className="mt-4 text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1"
+          >
+            How agents and the wallet work
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+        <ul className="space-y-2.5">
+          {AGENT_POINTS.map((line) => (
+            <li key={line} className="flex items-start gap-2 text-sm text-[var(--text)]">
               <CheckCircle2 className="w-4 h-4 mt-0.5 text-[color:var(--success)] shrink-0" />
               {line}
             </li>

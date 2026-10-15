@@ -121,6 +121,7 @@ export const pt: Partial<Dict> = {
   'consent.scope.brain:read_pii': 'Leia campos da memória com dados pessoais',
   'consent.scope.mikefluff:purchase': 'Inicie compras de livros no mikefluff.com por você (o pagamento você confirma)',
   'consent.scope.mikefluff:booking': 'Agende chamadas com Mike Fluff em seu nome, com seu nome e e-mail',
+  'consent.scope.wallet:pay': 'Pagar com a sua carteira INITE dentro dos limites abaixo, aprovado com a sua passkey',
   'consent.scope.other': 'Use a permissão “{scope}”',
   'device.header': 'Autorizar dispositivo',
   'device.title': 'Autorizar um dispositivo ou agente',

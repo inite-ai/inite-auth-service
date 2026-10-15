@@ -120,6 +120,7 @@ export const en = {
   'consent.scope.brain:read_pii': 'Read personally identifiable memory fields',
   'consent.scope.mikefluff:purchase': 'Start buying books on mikefluff.com for you (you still confirm the payment)',
   'consent.scope.mikefluff:booking': 'Book calls with Mike Fluff in your name, with your name and email',
+  'consent.scope.wallet:pay': 'Pay from your INITE wallet within the limits below, approved with your passkey',
   'consent.scope.other': 'Use the permission “{scope}”',
   'device.header': 'Authorize device',
   'device.title': 'Authorize a device or agent',

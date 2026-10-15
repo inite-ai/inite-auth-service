@@ -53,4 +53,28 @@ export const enWallet = {
   'account.initeWallet.withdraw.submit': 'Confirm with passkey',
   'account.initeWallet.withdraw.sent': 'Sent.',
   'account.initeWallet.withdraw.pending': 'Sent. Waiting for the network to confirm it.',
-}
+  'account.initeWallet.agents.title': 'AI agents',
+  'account.initeWallet.agents.status.pending': 'Waiting for you',
+  'account.initeWallet.agents.status.active': 'Can pay',
+  'account.initeWallet.agents.status.revoked': 'Revoked',
+  'account.initeWallet.agents.usage':
+    'Today ${today} of ${daily} · this month ${month} of ${monthly} · up to ${each} a payment',
+  'account.initeWallet.agents.waiting':
+    'Asked to pay from your wallet. Set its limits and approve with the wallet passkey.',
+  'account.initeWallet.agents.approve': 'Review',
+  'account.initeWallet.agents.revoke': 'Revoke',
+  'account.initeWallet.agents.revoke.confirm':
+    'The agent can no longer pay from your wallet. Payments it already made stay made.',
+  'account.initeWallet.agents.revoked': 'Agent revoked',
+  'account.initeWallet.agents.approved': 'Agent approved',
+  'account.initeWallet.agents.approveTitle': 'Let {name} pay',
+  'account.initeWallet.agents.approveHint':
+    'The agent pays by itself on sites that accept x402, up to these limits. You can revoke it at any time.',
+  'account.initeWallet.agents.perPayment': 'Up to, per payment ($)',
+  'account.initeWallet.agents.daily': 'Up to, per day ($)',
+  'account.initeWallet.agents.monthly': 'Up to, per month ($)',
+  'account.initeWallet.agents.merchants': 'Only on: {sites}',
+  'account.initeWallet.agents.twice':
+    'Your browser asks for the wallet passkey twice: to add the agent, then to set its payment limit.',
+  'account.initeWallet.agents.confirm': 'Approve with passkey',
+};

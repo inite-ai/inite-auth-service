@@ -145,6 +145,10 @@ export const LANDING_FAQ: Array<{ q: string; a: string }> = [
     a: 'Through the Model Context Protocol. The @inite/auth-admin package exposes six auth-administration tools and three guided skills that any MCP client — Claude Desktop, Cursor, Goose, n8n — can call to register and rotate OAuth clients, inspect audit trails and revoke sessions, acting as the signed-in administrator rather than a separate service identity.',
   },
   {
+    q: 'Can an AI agent pay on my behalf?',
+    a: 'Yes, from your INITE wallet: your own USDC on Base, which only your passkey can move. When an agent asks to pay, the consent screen shows its limits (by default $10 a payment, $20 a day, $50 a month) and you approve with a passkey. Each agent has its own ID, so services see whose agent is paying, and disconnecting it in your account stops it at once.',
+  },
+  {
     q: 'How is INITE Identity secured by default?',
     a: 'Hardening is opt-out, not opt-in: account lockout with exponential backoff, rejection of passwords found in known breaches, per-IP credential-stuffing defence, and an audit log queryable by both end users and operators. CORS and CSP auto-allow only registered partner origins.',
   },

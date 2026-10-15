@@ -27,6 +27,31 @@ export function withWalletAcr(acrValues: string | undefined): string {
   return values.includes(WALLET_ACR) ? values.join(' ') : [WALLET_ACR, ...values].join(' ');
 }
 
+/** The scope an MCP client asks for to pay from the wallet; stands for a default grant. */
+export const WALLET_SCOPE = 'wallet:pay';
+
+/**
+ * The raw `authorization_details` for an /authorize that asks for
+ * `wallet:pay`: the given details plus a default `inite_wallet` grant, unless
+ * one is already there. MCP clients request scopes only; this is how their
+ * request for the wallet reaches the consent screen, its limits and its
+ * passkey. Malformed details are passed through for the parser to refuse.
+ */
+export function withWalletScopeGrant(scope: string, raw: string | undefined): string | undefined {
+  if (!scope.split(/\s+/).includes(WALLET_SCOPE) || rawHasWalletGrant(raw)) return raw;
+  let details: unknown[] = [];
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return raw;
+      details = parsed;
+    } catch {
+      return raw;
+    }
+  }
+  return JSON.stringify([...details, { type: WALLET_AUTHORIZATION_DETAILS_TYPE }]);
+}
+
 /** What an agent gets when it asks for the wallet without naming limits. */
 export const DEFAULT_WALLET_LIMITS = { per_payment: '10', daily: '20', monthly: '50' };
 
@@ -134,9 +159,7 @@ export function normalizeWalletGrant(detail: Record<string, unknown>): WalletGra
   const daily = amount(limits.daily, 'daily');
   const monthly = amount(limits.monthly, 'monthly');
   if (Number(perPayment) > Number(daily) || Number(daily) > Number(monthly)) {
-    throw new WalletGrantError(
-      'inite_wallet limits must satisfy per_payment ≤ daily ≤ monthly',
-    );
+    throw new WalletGrantError('inite_wallet limits must satisfy per_payment ≤ daily ≤ monthly');
   }
   const sites = merchants(detail.merchants);
   return {

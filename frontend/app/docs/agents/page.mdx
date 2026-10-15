@@ -1,0 +1,77 @@
+import { buildDocsMetadata, buildDocsJsonLd, jsonLdScript } from '@/lib/seo'
+
+export const page = {
+  slug: 'agents',
+  title: 'AI agents and the INITE wallet · INITE Docs',
+  description:
+    'How an AI agent acts for a person with INITE: its own identity, a consent screen, spending limits approved with a passkey, and one click to cut it off.',
+}
+
+export const metadata = buildDocsMetadata(page)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildDocsJsonLd(page)) }}
+/>
+
+# AI agents and the INITE wallet
+
+An AI agent (Claude, ChatGPT, Cursor, your own bot) can sign in to a service **for you**: read what you own, place an order, pay. INITE makes three things clear at every step: **who** is acting, **for whom**, and **how far** they may go.
+
+## In plain words
+
+1. **You let the agent in.** The agent sends you to INITE. You see which app is asking and what it wants, and you approve or refuse.
+2. **It gets its own name.** Each app you connect becomes *your* agent, with its own ID. Services see "agent X, acting for you". If two people connect the same app, those are two different agents.
+3. **Money needs your passkey.** If the agent asks to pay from your INITE wallet, you see the limits ($10 a payment, $20 a day, $50 a month by default). You approve with a passkey (Face ID, Touch ID, Windows Hello or a security key). A password or an email link is not enough. Then, in the wallet section of your account, you confirm the agent and its limits once more with the wallet passkey. That gives the agent its own key in your wallet, which can sign nothing bigger than one payment of your limit.
+4. **You can cut it off at any time.** In your account, under **Connected apps**, press **Disconnect**. The agent loses access at once, its ID is retired, and the wallet stops accepting its payments.
+
+## Your INITE wallet
+
+Your account has an **INITE wallet**: your own USDC (a digital dollar) on the Base network.
+
+- **Only you can move the money.** The wallet is created with a passkey of its own, and that passkey is its only key. INITE shows the wallet and passes on what you sign; it cannot spend from it.
+- **Top up** by sending USDC on Base to its address from any wallet or exchange, or in Brazil by **PIX**: the reais are converted and arrive in your wallet as USDC.
+- **Withdraw** to any address on Base. You confirm with the passkey, and INITE pays the network fee.
+- **Agents pay within your limits** on any site that accepts x402 payments. The limits are enforced twice: by INITE billing, and by the wallet provider (Turnkey) itself.
+
+Keep the wallet passkey synced (iCloud Keychain, Google Password Manager or a password manager). If every copy of it is lost, so is access to the wallet.
+
+## For developers
+
+### Ask for the wallet
+
+An MCP client asks for the scope **`wallet:pay`**. INITE turns it into a wallet grant with the default limits, shows the limits on the consent screen and asks the person for a passkey. Clients that speak RFC 9396 can send the grant themselves, with their own limits:
+
+```json
+[{ "type": "inite_wallet",
+   "limits": { "currency": "USD", "per_payment": "10", "daily": "20", "monthly": "50" },
+   "asset": "USDC", "network": "eip155:8453",
+   "merchants": ["https://shop.example"] }]
+```
+
+- Limits are in dollars, with `per_payment ≤ daily ≤ monthly`; the maximums are 1 000 / 2 000 / 10 000.
+- `merchants` (optional) limits payments to these sites.
+- The grant is approved only with a passkey (`acr_values=phr`).
+
+### What the token says
+
+```json
+{ "sub": "did:key:… (the person)",
+  "act": { "sub": "did:web:auth-api.inite.ai:agents:…", "client_id": "dcr_…" },
+  "aud": "https://your-resource.example/mcp",
+  "authorization_details": [{ "type": "inite_wallet", "limits": { … } }] }
+```
+
+- `sub` is the person. Attribute data and orders to them.
+- `act.sub` is the agent. Keep per-agent limits and logs against it.
+- INITE's own applications get no `act`.
+
+### Who the agent is
+
+`GET https://auth-api.inite.ai/agents/<id>/did.json` returns the agent's DID document: its `controller` is the person, and its `service` entry names the app (`client_id`). Once the person disconnects the app, the document answers **410 Gone**, and connecting again creates a new agent.
+
+### Hearing about a disconnect
+
+Subscribed receivers get a CAEP `session-revoked` event with `{ agent, client_id, reason: "agent_disconnected" }`. A resource server can also check the DID document before acting.
+
+More detail: [INTEGRATION-GUIDE.md](https://github.com/inite-ai/inite-auth-service/blob/main/INTEGRATION-GUIDE.md#ai-agents-who-is-acting-and-on-whose-behalf).

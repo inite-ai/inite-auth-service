@@ -1,4 +1,4 @@
-import type { Dict } from '../dictionary'
+import type { Dict } from '../dictionary';
 
 /** INITE wallet strings, Spanish. Merged into `es` by ../es.ts. */
 export const esWallet: Partial<Dict> = {
@@ -52,4 +52,28 @@ export const esWallet: Partial<Dict> = {
   'account.initeWallet.withdraw.submit': 'Confirmar con passkey',
   'account.initeWallet.withdraw.sent': 'Enviado.',
   'account.initeWallet.withdraw.pending': 'Enviado. Esperando la confirmación de la red.',
-}
+  'account.initeWallet.agents.title': 'Agentes de IA',
+  'account.initeWallet.agents.status.pending': 'Te espera',
+  'account.initeWallet.agents.status.active': 'Puede pagar',
+  'account.initeWallet.agents.status.revoked': 'Revocado',
+  'account.initeWallet.agents.usage':
+    'Hoy ${today} de ${daily} · este mes ${month} de ${monthly} · hasta ${each} por pago',
+  'account.initeWallet.agents.waiting':
+    'Pidió pagar con tu billetera. Fija sus límites y apruébalo con la passkey de la billetera.',
+  'account.initeWallet.agents.approve': 'Revisar',
+  'account.initeWallet.agents.revoke': 'Revocar',
+  'account.initeWallet.agents.revoke.confirm':
+    'El agente ya no podrá pagar con tu billetera. Los pagos ya hechos se mantienen.',
+  'account.initeWallet.agents.revoked': 'Agente revocado',
+  'account.initeWallet.agents.approved': 'Agente aprobado',
+  'account.initeWallet.agents.approveTitle': 'Dejar pagar a {name}',
+  'account.initeWallet.agents.approveHint':
+    'El agente paga por su cuenta en sitios que aceptan x402, hasta estos límites. Puedes revocarlo cuando quieras.',
+  'account.initeWallet.agents.perPayment': 'Hasta, por pago ($)',
+  'account.initeWallet.agents.daily': 'Hasta, por día ($)',
+  'account.initeWallet.agents.monthly': 'Hasta, por mes ($)',
+  'account.initeWallet.agents.merchants': 'Solo en: {sites}',
+  'account.initeWallet.agents.twice':
+    'El navegador pide la passkey de la billetera dos veces: para añadir al agente y para fijar su límite por pago.',
+  'account.initeWallet.agents.confirm': 'Aprobar con passkey',
+};

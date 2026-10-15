@@ -1,12 +1,12 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import toast from 'react-hot-toast'
-import { ExternalLink } from 'lucide-react'
-import { useT } from '@/lib/i18n'
-import { Button, Input, Sheet } from '@/components/ui'
-import { explorer, failure } from './qr'
-import type { WalletActivity } from './use-inite-wallet'
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { ExternalLink } from 'lucide-react';
+import { useT } from '@/lib/i18n';
+import { Button, Input, Sheet } from '@/components/ui';
+import { explorer, failure } from './qr';
+import type { WalletActivity } from './use-inite-wallet';
 
 /** Send USDC out of the wallet. The passkey approves it; INITE pays the network fee. */
 export function WithdrawSheet({
@@ -15,36 +15,36 @@ export function WithdrawSheet({
   balance,
   withdraw,
 }: {
-  open: boolean
-  onClose: () => void
-  balance: string | null
-  withdraw: (to: string, amount: string) => Promise<WalletActivity>
+  open: boolean;
+  onClose: () => void;
+  balance: string | null;
+  withdraw: (to: string, amount: string) => Promise<WalletActivity>;
 }) {
-  const t = useT()
-  const [to, setTo] = useState('')
-  const [amount, setAmount] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [sent, setSent] = useState<WalletActivity | null>(null)
+  const t = useT();
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<WalletActivity | null>(null);
 
   const close = () => {
-    setSent(null)
-    setTo('')
-    setAmount('')
-    onClose()
-  }
+    setSent(null);
+    setTo('');
+    setAmount('');
+    onClose();
+  };
 
   const submit = async () => {
-    setBusy(true)
+    setBusy(true);
     try {
-      setSent(await withdraw(to.trim(), amount.trim().replace(',', '.')))
+      setSent(await withdraw(to.trim(), amount.trim().replace(',', '.')));
     } catch (error) {
-      const reason = failure(error)
-      if (reason === 'cancelled') toast(t('account.initeWallet.cancelled'))
-      else toast.error(reason ?? t('error.network'))
+      const reason = failure(error);
+      if (reason === 'cancelled') toast(t('account.initeWallet.cancelled'));
+      else toast.error(reason ?? t('error.network'));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
 
   return (
     <Sheet
@@ -93,12 +93,14 @@ export function WithdrawSheet({
             helper={balance ? `${t('account.initeWallet.balance')}: ${balance} USDC` : undefined}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <p className="text-xs text-[var(--text-faint)]">{t('account.initeWallet.withdraw.hint')}</p>
+          <p className="text-xs text-[var(--text-faint)]">
+            {t('account.initeWallet.withdraw.hint')}
+          </p>
           <Button loading={busy} disabled={!to || !amount} onClick={submit}>
             {t('account.initeWallet.withdraw.submit')}
           </Button>
         </div>
       )}
     </Sheet>
-  )
+  );
 }

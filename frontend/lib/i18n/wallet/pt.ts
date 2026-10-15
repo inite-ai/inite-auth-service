@@ -1,4 +1,4 @@
-import type { Dict } from '../dictionary'
+import type { Dict } from '../dictionary';
 
 /** INITE wallet strings, Portuguese. Merged into `pt` by ../pt.ts. */
 export const ptWallet: Partial<Dict> = {
@@ -52,4 +52,28 @@ export const ptWallet: Partial<Dict> = {
   'account.initeWallet.withdraw.submit': 'Confirmar com passkey',
   'account.initeWallet.withdraw.sent': 'Enviado.',
   'account.initeWallet.withdraw.pending': 'Enviado. Aguardando a confirmação da rede.',
-}
+  'account.initeWallet.agents.title': 'Agentes de IA',
+  'account.initeWallet.agents.status.pending': 'Aguardando você',
+  'account.initeWallet.agents.status.active': 'Pode pagar',
+  'account.initeWallet.agents.status.revoked': 'Revogado',
+  'account.initeWallet.agents.usage':
+    'Hoje ${today} de ${daily} · este mês ${month} de ${monthly} · até ${each} por pagamento',
+  'account.initeWallet.agents.waiting':
+    'Pediu para pagar com a sua carteira. Defina os limites e aprove com a passkey da carteira.',
+  'account.initeWallet.agents.approve': 'Revisar',
+  'account.initeWallet.agents.revoke': 'Revogar',
+  'account.initeWallet.agents.revoke.confirm':
+    'O agente não poderá mais pagar com a sua carteira. Os pagamentos já feitos continuam feitos.',
+  'account.initeWallet.agents.revoked': 'Agente revogado',
+  'account.initeWallet.agents.approved': 'Agente aprovado',
+  'account.initeWallet.agents.approveTitle': 'Deixar {name} pagar',
+  'account.initeWallet.agents.approveHint':
+    'O agente paga sozinho em sites que aceitam x402, até estes limites. Você pode revogá-lo a qualquer momento.',
+  'account.initeWallet.agents.perPayment': 'Até, por pagamento ($)',
+  'account.initeWallet.agents.daily': 'Até, por dia ($)',
+  'account.initeWallet.agents.monthly': 'Até, por mês ($)',
+  'account.initeWallet.agents.merchants': 'Só em: {sites}',
+  'account.initeWallet.agents.twice':
+    'O navegador pede a passkey da carteira duas vezes: para adicionar o agente e para definir o limite por pagamento.',
+  'account.initeWallet.agents.confirm': 'Aprovar com passkey',
+};

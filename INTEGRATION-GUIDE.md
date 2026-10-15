@@ -680,6 +680,9 @@ wallet. The grant is checked and normalised:
   "asset": "USDC", "network": "eip155:8453", "merchants": ["https://shop.example"] }
 ```
 
+- An MCP client that only speaks scopes asks for **`wallet:pay`**: `/authorize`
+  adds a default `inite_wallet` grant, so the person still sees the limits
+  and approves with a passkey.
 - Missing limits get the defaults above; the maximums are 1000/2000/10000.
 - A grant must satisfy `per_payment ≤ daily ≤ monthly`.
 - It is approved with a **passkey only**: `/authorize` itself requests

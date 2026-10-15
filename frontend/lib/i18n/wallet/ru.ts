@@ -1,4 +1,4 @@
-import type { Dict } from '../dictionary'
+import type { Dict } from '../dictionary';
 
 /** INITE wallet strings, Russian. Merged into `ru` by ../ru.ts. */
 export const ruWallet: Partial<Dict> = {
@@ -52,4 +52,28 @@ export const ruWallet: Partial<Dict> = {
   'account.initeWallet.withdraw.submit': 'Подтвердить passkey',
   'account.initeWallet.withdraw.sent': 'Отправлено.',
   'account.initeWallet.withdraw.pending': 'Отправлено. Ждём подтверждения сети.',
-}
+  'account.initeWallet.agents.title': 'ИИ-агенты',
+  'account.initeWallet.agents.status.pending': 'Ждёт вас',
+  'account.initeWallet.agents.status.active': 'Может платить',
+  'account.initeWallet.agents.status.revoked': 'Отключён',
+  'account.initeWallet.agents.usage':
+    'Сегодня ${today} из ${daily} · в этом месяце ${month} из ${monthly} · до ${each} за платёж',
+  'account.initeWallet.agents.waiting':
+    'Просит платить из вашего кошелька. Задайте лимиты и одобрите passkey кошелька.',
+  'account.initeWallet.agents.approve': 'Посмотреть',
+  'account.initeWallet.agents.revoke': 'Отключить',
+  'account.initeWallet.agents.revoke.confirm':
+    'Агент больше не сможет платить из кошелька. Уже сделанные платежи останутся.',
+  'account.initeWallet.agents.revoked': 'Агент отключён',
+  'account.initeWallet.agents.approved': 'Агент одобрен',
+  'account.initeWallet.agents.approveTitle': 'Разрешить {name} платить',
+  'account.initeWallet.agents.approveHint':
+    'Агент сам платит на сайтах с x402 в пределах этих лимитов. Отключить его можно в любой момент.',
+  'account.initeWallet.agents.perPayment': 'До, за платёж ($)',
+  'account.initeWallet.agents.daily': 'До, в день ($)',
+  'account.initeWallet.agents.monthly': 'До, в месяц ($)',
+  'account.initeWallet.agents.merchants': 'Только на: {sites}',
+  'account.initeWallet.agents.twice':
+    'Браузер дважды попросит passkey кошелька: чтобы добавить агента и чтобы задать его лимит на платёж.',
+  'account.initeWallet.agents.confirm': 'Одобрить passkey',
+};

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
@@ -21,6 +22,7 @@ import {
 import { AccountNav } from '@/components/account/AccountNav'
 import { SectionAnchor, SectionError } from '@/components/account/shared'
 import { useAccountData, type Loadable } from '@/components/account/use-account-data'
+import { AFTER_LOGIN_KEY } from '@/components/account/wallet-approve/use-site-approval'
 
 export default function AccountPage() {
   const t = useT()
@@ -43,6 +45,18 @@ export default function AccountPage() {
   }
 
   const currentUser = user.status === 'ready' ? user.data : null
+
+  // Back to a page that sent the person to sign in (the wallet approve page).
+  useEffect(() => {
+    if (!token) return
+    try {
+      const next = sessionStorage.getItem(AFTER_LOGIN_KEY)
+      sessionStorage.removeItem(AFTER_LOGIN_KEY)
+      if (next && next.startsWith('/account/wallet/approve?')) router.replace(next)
+    } catch {
+      // storage off: nothing to resume
+    }
+  }, [token, router])
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">

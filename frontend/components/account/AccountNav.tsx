@@ -9,6 +9,7 @@ const SECTIONS: readonly { id: string; labelKey: TKey }[] = [
   { id: 'profile', labelKey: 'account.profile.title' },
   { id: 'security', labelKey: 'account.security.title' },
   { id: 'passkeys', labelKey: 'account.passkeys.title' },
+  { id: 'inite-wallet', labelKey: 'account.initeWallet.title' },
   { id: 'wallets', labelKey: 'account.wallets.title' },
   { id: 'sessions', labelKey: 'account.sessions.title' },
   { id: 'apps', labelKey: 'account.apps.title' },

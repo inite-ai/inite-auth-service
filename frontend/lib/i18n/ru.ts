@@ -1,5 +1,6 @@
 import type { Dict } from './dictionary'
 import { ruAccount } from './account/ru'
+import { ruWallet } from './wallet/ru'
 
 /**
  * Russian translation. Keys missing from this file fall back to
@@ -193,4 +194,5 @@ export const ru: Partial<Dict> = {
 
   // ---------- Аккаунт ----------
   ...ruAccount,
+  ...ruWallet,
 }

@@ -1,4 +1,5 @@
 import { enAccount } from './account/en'
+import { enWallet } from './wallet/en'
 
 /**
  * Translation dictionary type and the English source-of-truth.
@@ -205,6 +206,7 @@ export const en = {
   'error.rateLimit': "You're trying that too often. Wait a moment.",
 
   ...enAccount,
+  ...enWallet,
 } as const
 
 /**

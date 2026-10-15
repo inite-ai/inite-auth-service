@@ -1,5 +1,6 @@
 import type { Dict } from './dictionary'
 import { esAccount } from './account/es'
+import { esWallet } from './wallet/es'
 
 /**
  * Spanish (neutral Latin American) translation. Keys missing from this
@@ -207,4 +208,5 @@ export const es: Partial<Dict> = {
   'error.rateLimit': 'Demasiados intentos. Espera un momento.',
 
   ...esAccount,
+  ...esWallet,
 }

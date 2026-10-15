@@ -13,6 +13,7 @@ import {
   SecurityAuditSection,
   PasskeysSection,
   WalletsSection,
+  IniteWalletSection,
   SessionsSection,
   ConnectedAppsSection,
   DangerZoneSection,
@@ -106,6 +107,15 @@ export default function AccountPage() {
                 )}
               />
             </SectionAnchor>
+
+            {token && (
+              <SectionAnchor id="inite-wallet">
+                <IniteWalletSection
+                  accessToken={token}
+                  label={currentUser?.email ? `INITE wallet · ${currentUser.email}` : 'INITE wallet'}
+                />
+              </SectionAnchor>
+            )}
 
             <SectionAnchor id="wallets">
               <Resource

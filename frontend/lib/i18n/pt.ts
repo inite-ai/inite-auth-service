@@ -1,5 +1,6 @@
 import type { Dict } from './dictionary'
 import { ptAccount } from './account/pt'
+import { ptWallet } from './wallet/pt'
 
 /**
  * Brazilian Portuguese (pt-BR) translation. Keys missing from this file
@@ -206,4 +207,5 @@ export const pt: Partial<Dict> = {
   'error.rateLimit': 'Muitas tentativas. Aguarde um pouco.',
 
   ...ptAccount,
+  ...ptWallet,
 }

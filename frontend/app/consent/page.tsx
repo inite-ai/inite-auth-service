@@ -2,15 +2,16 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Loader2, Shield, CheckCircle, XCircle, User, Mail, Key, LogOut, ExternalLink, AppWindow } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, User, LogOut, ExternalLink, AppWindow } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
 import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, parseAuthorizationDetails, approveWithoutAsking, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
 import { AppHeader } from '@/components/AppHeader'
 import { ConsentGrants } from '@/components/ConsentGrants'
+import { ScopeList } from '@/components/ScopeList'
 import api from '@/lib/api'
-import { useT, type TKey } from '@/lib/i18n'
+import { useT } from '@/lib/i18n'
 
 interface UserInfo {
   id: string
@@ -24,19 +25,6 @@ interface ClientInfo {
   logoUrl?: string
   privacyPolicyUrl?: string
   termsOfServiceUrl?: string
-}
-
-// Scope descriptions
-const SCOPE_INFO: Record<string, { icon: typeof Key; label: string; description: TKey }> = {
-  'openid': { icon: Key, label: 'Identity', description: 'consent.scope.openid' },
-  'profile': { icon: User, label: 'Profile', description: 'consent.scope.profile' },
-  'email': { icon: Mail, label: 'Email', description: 'consent.scope.email' },
-  'admin': { icon: Shield, label: 'Admin', description: 'consent.scope.admin' },
-  'offline_access': { icon: Key, label: 'Offline', description: 'consent.scope.offline_access' },
-  'brain:read': { icon: Key, label: 'Memory read', description: 'consent.scope.brain:read' },
-  'brain:write': { icon: Key, label: 'Memory write', description: 'consent.scope.brain:write' },
-  'brain:admin': { icon: Shield, label: 'Memory admin', description: 'consent.scope.brain:admin' },
-  'brain:read_pii': { icon: Shield, label: 'Memory PII', description: 'consent.scope.brain:read_pii' },
 }
 
 function ConsentContent() {
@@ -101,13 +89,6 @@ function ConsentContent() {
 
     init()
   }, [searchParams, router])
-
-  const getScopes = () => {
-    const requested = (oauthParams?.scope || 'openid profile email').split(' ')
-    return requested
-      .filter(s => SCOPE_INFO[s])
-      .map(s => ({ scope: s, ...SCOPE_INFO[s] }))
-  }
 
   // RFC 9396 fine-grained grants. Malformed JSON is shown as a warning
   // and stripped before the code is created — never forwarded blind.
@@ -253,16 +234,7 @@ function ConsentContent() {
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               {t('consent.permissions')}
             </h3>
-            <ul className="space-y-2">
-              {getScopes().map(({ scope, icon: Icon, label, description }) => (
-                <li key={scope} className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                  <Icon className="w-5 h-5 text-green-500 flex-shrink-0" />
-                  <div>
-                    <span className="text-sm">{t(description)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <ScopeList scope={oauthParams.scope} />
           </div>
 
           {/* Fine-grained agent grants (RFC 9396) */}

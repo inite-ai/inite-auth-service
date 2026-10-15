@@ -50,6 +50,11 @@ verifiable credentials, wallet sign-in) as first-class**, not an afterthought.
   exponential-backoff lockout and HIBP breach checks.
 - **Web3-native** — every user gets a `did:key`; link Ethereum (SIWE) or TON
   wallets; issue and verify W3C Verifiable Credentials.
+- **AI agents as first-class users** — an app a person connects becomes *their
+  agent*, with its own `did:web` and an `act` claim in every token. It may pay
+  from the person's INITE wallet only within limits they approved with a
+  passkey, and one click in the account cuts it off. See
+  [AI agents & the wallet](#ai-agents--the-inite-wallet).
 - **Multi-tenant** — per-client config, scopes, audience binding, tenant-scoped
   admin and audit log.
 - **Operable** — Prometheus metrics, OpenTelemetry traces, health/ready probes,
@@ -107,6 +112,29 @@ token refresh): [INTEGRATION-GUIDE.md](INTEGRATION-GUIDE.md). Or use the SDK:
 import { IniteAuth } from '@inite/auth-sdk'; // MIT — packages/sdk
 const auth = new IniteAuth({ baseUrl: 'https://auth.example.com', clientId: 'my-app' });
 ```
+
+## AI agents & the INITE wallet
+
+An AI agent (Claude, ChatGPT, Cursor, your own bot) can sign in **for** a
+person. INITE keeps three things clear: who is acting, for whom, and how far
+they may go.
+
+1. **The person lets the agent in** on an ordinary consent screen.
+2. **The agent gets its own identity**: one per person and app,
+   `did:web:auth-api.inite.ai:agents:<id>`. Every token it gets says
+   `sub` = the person, `act.sub` = the agent.
+3. **Paying needs a passkey.** An MCP client asks for the scope `wallet:pay`
+   (or sends an `inite_wallet` authorization detail). The person sees the
+   limits ($10 a payment, $20 a day, $50 a month by default) and approves
+   with a passkey.
+4. **The wallet is the person's.** USDC on Base in a Turnkey wallet whose only
+   key is the person's passkey, shown in the INITE ID account. INITE billing
+   enforces the limits; it cannot move the money on its own.
+5. **One click stops it.** Disconnecting the app retires the agent, its DID
+   document answers 410, and resource servers get a CAEP `session-revoked`.
+
+Guide: [/docs/agents](https://auth.inite.ai/docs/agents) ·
+details: [INTEGRATION-GUIDE.md](INTEGRATION-GUIDE.md#ai-agents-who-is-acting-and-on-whose-behalf).
 
 ## Standards & RFC coverage
 

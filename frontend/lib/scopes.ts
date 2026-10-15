@@ -1,4 +1,4 @@
-import { CalendarCheck, Key, Mail, Shield, ShoppingCart, User, type LucideIcon } from 'lucide-react'
+import { CalendarCheck, Key, Mail, Shield, ShoppingCart, User, type LucideIcon, WalletCards } from 'lucide-react'
 import type { TKey } from '@/lib/i18n'
 
 /**
@@ -21,6 +21,7 @@ const SCOPE_INFO: Record<string, { icon: LucideIcon; description: TKey }> = {
   'brain:read_pii': { icon: Shield, description: 'consent.scope.brain:read_pii' },
   'mikefluff:purchase': { icon: ShoppingCart, description: 'consent.scope.mikefluff:purchase' },
   'mikefluff:booking': { icon: CalendarCheck, description: 'consent.scope.mikefluff:booking' },
+  'wallet:pay': { icon: WalletCards, description: 'consent.scope.wallet:pay' },
 }
 
 export interface ScopeLine {

@@ -112,6 +112,7 @@ export const ru: Partial<Dict> = {
   'consent.scope.brain:read_pii': 'Читать персональные данные в памяти',
   'consent.scope.mikefluff:purchase': 'Начинать покупку книг на mikefluff.com за вас (оплату вы подтверждаете сами)',
   'consent.scope.mikefluff:booking': 'Записывать вас на звонок с Майком Флаффом от вашего имени и с вашей почтой',
+  'consent.scope.wallet:pay': 'Платить из вашего кошелька INITE в пределах лимитов ниже, с подтверждением passkey',
   'consent.scope.other': 'Использовать разрешение «{scope}»',
   'device.header': 'Вход с устройства',
   'device.title': 'Разрешить вход устройству или агенту',

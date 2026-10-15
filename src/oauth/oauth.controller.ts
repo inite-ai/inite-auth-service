@@ -1,27 +1,16 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Res,
-  Req,
-  BadRequestException,
-} from '@nestjs/common';
+import { Controller, Get, Query, Res, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { OAuthService } from './oauth.service';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { LoggerService } from '../common/logger.service';
-import {
-  AuthorizeQuery,
-  ResolvedAuthorizeParams,
-} from './dto/oauth-requests';
+import { AuthorizeQuery, ResolvedAuthorizeParams } from './dto/oauth-requests';
 import { ParPayload, ParService } from './par.service';
 import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
-import { rawHasWalletGrant, withWalletAcr } from './wallet-grant';
-
+import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -51,11 +40,7 @@ export class OAuthController {
    */
   @Get('authorize')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  async authorize(
-    @Query() query: AuthorizeQuery,
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
+  async authorize(@Query() query: AuthorizeQuery, @Req() req: Request, @Res() res: Response) {
     const p = await this.resolveAuthorizeParams(query);
 
     // Order matters: validate the basics, then the client, then PKCE —
@@ -69,6 +54,8 @@ export class OAuthController {
     const grantedScope = this.oauthService.normalizeScope(p.scope || '', p.clientId);
     this.assertPkce(p);
 
+    // `wallet:pay` is the wallet grant with its default limits.
+    p.authorizationDetails = withWalletScopeGrant(grantedScope, p.authorizationDetails);
     // A request for the person's wallet is approved with a passkey: ask for
     // it before the consent screen, through the ordinary step-up.
     if (rawHasWalletGrant(p.authorizationDetails)) p.acrValues = withWalletAcr(p.acrValues);
@@ -124,9 +111,7 @@ export class OAuthController {
    * ignored (other than client_id, which binds the PAR consumption) and the
    * pushed values take over. Returns the normalized, camelCase params.
    */
-  private async resolveAuthorizeParams(
-    q: AuthorizeQuery,
-  ): Promise<ResolvedAuthorizeParams> {
+  private async resolveAuthorizeParams(q: AuthorizeQuery): Promise<ResolvedAuthorizeParams> {
     // JAR (RFC 9101): a signed request object's claims take precedence over
     // the query. Mutually exclusive with request_uri (PAR).
     let effective = q;
@@ -134,7 +119,10 @@ export class OAuthController {
       if (q.request_uri) {
         throw new BadRequestException('request and request_uri are mutually exclusive');
       }
-      const merged = await this.requestObject.resolve({ request: q.request, clientId: q.client_id });
+      const merged = await this.requestObject.resolve({
+        request: q.request,
+        clientId: q.client_id,
+      });
       effective = { ...q, ...merged };
     }
     const base = this.queryToParams(effective);
@@ -224,9 +212,7 @@ export class OAuthController {
     // We advertise S256-only in the OIDC discovery document, so reject the
     // weaker `plain` method instead of silently accepting it.
     if (p.codeChallengeMethod && p.codeChallengeMethod !== 'S256') {
-      throw new BadRequestException(
-        'Only the S256 code_challenge_method is supported',
-      );
+      throw new BadRequestException('Only the S256 code_challenge_method is supported');
     }
   }
 

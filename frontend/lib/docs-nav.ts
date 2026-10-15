@@ -56,6 +56,12 @@ export const DOCS_GROUPS: DocGroup[] = [
     heading: 'AI integration',
     pages: [
       {
+        slug: 'agents',
+        title: 'AI agents & the wallet',
+        description:
+          'Agents with their own identity, consent with limits, payments approved by passkey, one-click disconnect.',
+      },
+      {
         slug: 'mcp',
         title: 'MCP for assistants',
         description:

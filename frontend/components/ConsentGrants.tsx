@@ -1,6 +1,7 @@
 'use client'
 
-import { AlertTriangle, Bot, Wrench } from 'lucide-react'
+import { AlertTriangle, Bot, Wallet, Wrench } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { ParsedAuthorizationDetail } from '@/lib/oauthHelpers'
 
 /**
@@ -13,6 +14,7 @@ import type { ParsedAuthorizationDetail } from '@/lib/oauthHelpers'
  */
 
 const MCP_TYPE = 'inite_mcp_resource'
+const WALLET_TYPE = 'inite_wallet'
 
 // Human labels for known brain MCP actions. Unknown actions render
 // verbatim in mono — visible, never hidden.
@@ -50,7 +52,8 @@ export function ConsentGrants({
   if (!details || details.length === 0) return null
 
   const mcp = details.filter((d) => d.type === MCP_TYPE)
-  const other = details.filter((d) => d.type !== MCP_TYPE)
+  const wallet = details.filter((d) => d.type === WALLET_TYPE)
+  const other = details.filter((d) => d.type !== MCP_TYPE && d.type !== WALLET_TYPE)
 
   return (
     <div className="mb-6">
@@ -89,6 +92,9 @@ export function ConsentGrants({
           </p>
         </>
       )}
+      {wallet.map((d, i) => (
+        <WalletGrant key={i} detail={d} />
+      ))}
       {other.length > 0 && (
         <details className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           <summary className="cursor-pointer">
@@ -99,6 +105,47 @@ export function ConsentGrants({
           </pre>
         </details>
       )}
+    </div>
+  )
+}
+
+interface WalletLimits {
+  per_payment?: string
+  daily?: string
+  monthly?: string
+}
+
+/**
+ * An agent asking to spend from the person's INITE wallet: the limits and
+ * where, in plain words — the person approves it with a passkey. The
+ * defaults shown are the ones the server applies when the agent names none.
+ */
+function WalletGrant({ detail }: { detail: ParsedAuthorizationDetail }) {
+  const t = useT()
+  const limits = (detail.limits ?? {}) as WalletLimits
+  const merchants = Array.isArray(detail.merchants) ? (detail.merchants as string[]) : []
+  const lines = [
+    t('consent.wallet.perPayment', { amount: limits.per_payment ?? '10' }),
+    t('consent.wallet.daily', { amount: limits.daily ?? '20' }),
+    t('consent.wallet.monthly', { amount: limits.monthly ?? '50' }),
+    merchants.length
+      ? t('consent.wallet.merchants', { sites: merchants.map((m) => m.replace(/^https:\/\//, '')).join(', ') })
+      : t('consent.wallet.anywhere'),
+  ]
+  return (
+    <div className="mb-3 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+      <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-2">
+        <Wallet className="w-4 h-4 text-emerald-600" />
+        {t('consent.wallet.title')}
+      </h3>
+      <ul className="space-y-1 mb-2">
+        {lines.map((line) => (
+          <li key={line} className="text-sm text-gray-700 dark:text-gray-300">
+            {line}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-gray-500 dark:text-gray-400">{t('consent.wallet.note')}</p>
     </div>
   )
 }

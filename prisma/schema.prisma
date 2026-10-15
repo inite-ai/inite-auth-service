@@ -45,6 +45,7 @@ model User {
   memberships        Membership[]
   apiKeys            ApiKey[]
   oauthConsents      OAuthConsent[]
+  agents             Agent[]
 
   @@map("users")
 }
@@ -53,13 +54,13 @@ model User {
 /// tenant string denormalized on OAuthClient/RefreshToken/AuthorizationCode/
 /// OAuthAuditLog, so every existing companyId-scoped query keeps working.
 model Organization {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @unique @map("companyId")
-  slug        String   @unique
-  name        String
-  metadata    Json?
-  createdAt   DateTime @default(now()) @map("createdAt")
-  updatedAt   DateTime @updatedAt @map("updatedAt")
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @unique @map("companyId")
+  slug      String   @unique
+  name      String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
 
   memberships Membership[]
   roles       OrgRole[]
@@ -251,83 +252,84 @@ model Wallet {
 }
 
 model OAuthClient {
-  id                String   @id @default(uuid()) @db.Uuid
-  clientId          String   @unique @map("clientId")
-  clientSecretHash  String   @map("clientSecretHash")
+  id                      String    @id @default(uuid()) @db.Uuid
+  clientId                String    @unique @map("clientId")
+  clientSecretHash        String    @map("clientSecretHash")
   /// Previous client_secret hash retained during the grace window
   /// after rotation. validateClient accepts both current and previous
   /// hashes until `previousSecretExpiresAt`, giving deployed callers
   /// time to roll forward without an outage.
-  previousSecretHash       String?   @map("previousSecretHash")
-  previousSecretExpiresAt  DateTime? @map("previousSecretExpiresAt")
-  name              String
-  redirectUris      String[] @map("redirectUris")
-  allowedScopes     String[] @default([]) @map("allowedScopes")
-  allowedGrants     String[] @default(["authorization_code", "refresh_token"]) @map("allowedGrants")
+  previousSecretHash      String?   @map("previousSecretHash")
+  previousSecretExpiresAt DateTime? @map("previousSecretExpiresAt")
+  name                    String
+  redirectUris            String[]  @map("redirectUris")
+  allowedScopes           String[]  @default([]) @map("allowedScopes")
+  allowedGrants           String[]  @default(["authorization_code", "refresh_token"]) @map("allowedGrants")
   /// Tenant identifier embedded as `sub` in JWTs issued via the
   /// client_credentials grant. Null for user-flow clients (those use
   /// the user's DID as sub). Set for machine clients calling brain
   /// or other horizontal services that key data by company.
-  companyId         String?  @map("companyId")
+  companyId               String?   @map("companyId")
   /// Permitted audiences for M2M JWTs. Without this allow-list a
   /// stolen client_credentials pair could mint tokens for any
   /// downstream service. Empty array = "no constraint" (issuer falls
   /// back to clientId as audience). Set explicitly when provisioning
   /// machine clients via the admin UI.
-  allowedAudiences  String[] @default([]) @map("allowedAudiences")
+  allowedAudiences        String[]  @default([]) @map("allowedAudiences")
   /// Vertical-facing claims stamped on every token issued to/for this
   /// client. Sanitized at issue time (custom-claims.ts): only the
   /// allow-listed keys (`policy`, `packs`) survive, values must be
   /// identifier-charset string arrays, registered claims can't be
   /// overridden. This is how a tenant pins ABAC policy sets to an
   /// agent's OAuth client.
-  customClaims      Json?    @map("customClaims")
+  customClaims            Json?     @map("customClaims")
   /// Marks the client as a public client (RFC 6749 §2.1) — no
   /// client_secret. Token-endpoint authentication relies on PKCE
   /// (authorization_code) or the device_code itself (device flow)
   /// instead of a shared secret. Set true for CLIs, native apps,
   /// and other zero-trust environments.
-  isPublic          Boolean  @default(false) @map("isPublic")
+  isPublic                Boolean   @default(false) @map("isPublic")
   /// Confidential-client authentication method (RFC 7591
   /// token_endpoint_auth_method). "client_secret_post" (default) uses the
   /// shared secret; "private_key_jwt" (RFC 7523) authenticates with a signed
   /// JWT assertion verified against the client's registered keys below;
   /// "none" is a public client.
-  tokenEndpointAuthMethod String @default("client_secret_post") @map("tokenEndpointAuthMethod")
+  tokenEndpointAuthMethod String    @default("client_secret_post") @map("tokenEndpointAuthMethod")
   /// RFC 7591 client key material used to verify private_key_jwt client
   /// assertions AND signed request objects (JAR, RFC 9101). Exactly one of
   /// jwks (inline JWK Set) / jwksUri (remote) is set for a private_key_jwt
   /// client.
-  jwks              Json?    @map("jwks")
-  jwksUri           String?  @map("jwksUri")
+  jwks                    Json?     @map("jwks")
+  jwksUri                 String?   @map("jwksUri")
   /// Optional pin for the alg a JAR request object must be signed with.
-  requestObjectSigningAlg String? @map("requestObjectSigningAlg")
+  requestObjectSigningAlg String?   @map("requestObjectSigningAlg")
   /// RFC 8705 mTLS: the expected X.500 subject DN of the client certificate
   /// when tokenEndpointAuthMethod is "tls_client_auth" (PKI mode). The presented
   /// cert must chain to MTLS_TRUSTED_CA_CERT AND match this subject. The
   /// "self_signed_tls_client_auth" variant needs no DN — it matches the cert's
   /// public key against the client's registered jwks above instead.
-  tlsClientAuthSubjectDn String? @map("tlsClientAuthSubjectDn")
-  active            Boolean  @default(true)
+  tlsClientAuthSubjectDn  String?   @map("tlsClientAuthSubjectDn")
+  active                  Boolean   @default(true)
   /// One of the deployment's own applications rather than a third party:
   /// a signed-in person is not asked to consent to it. Toggled in the admin
   /// (new admin-registered clients default to true). Never honoured for a
   /// dynamically registered (`dcr_*`) client, whatever this column says.
-  firstParty        Boolean  @default(false) @map("firstParty")
-  logoUrl           String?  @map("logoUrl")
-  privacyPolicyUrl  String?  @map("privacyPolicyUrl")
-  termsOfServiceUrl String?  @map("termsOfServiceUrl")
+  firstParty              Boolean   @default(false) @map("firstParty")
+  logoUrl                 String?   @map("logoUrl")
+  privacyPolicyUrl        String?   @map("privacyPolicyUrl")
+  termsOfServiceUrl       String?   @map("termsOfServiceUrl")
   /// OIDC Back-Channel Logout (https://openid.net/specs/openid-connect-backchannel-1_0.html).
   /// When set, /oauth/logout POSTs a signed logout_token to this URL
   /// so the RP can invalidate its local session before the user's next
   /// request. Required for SSO sign-out parity across multiple RPs.
-  backchannelLogoutUri String? @map("backchannelLogoutUri")
-  createdAt         DateTime @default(now()) @map("createdAt")
-  updatedAt         DateTime @updatedAt @map("updatedAt")
+  backchannelLogoutUri    String?   @map("backchannelLogoutUri")
+  createdAt               DateTime  @default(now()) @map("createdAt")
+  updatedAt               DateTime  @updatedAt @map("updatedAt")
 
   refreshTokens      RefreshToken[]
   authorizationCodes AuthorizationCode[]
   consents           OAuthConsent[]
+  agents             Agent[]
 
   @@map("oauth_clients")
 }
@@ -398,22 +400,22 @@ model ClientAssertionJti {
 /// Replaces console-only logging so security forensics and
 /// compliance reviews don't depend on container log retention.
 model OAuthAuditLog {
-  id            String   @id @default(uuid()) @db.Uuid
-  ts            DateTime @default(now())
-  event         String
-  clientId      String?
+  id           String   @id @default(uuid()) @db.Uuid
+  ts           DateTime @default(now())
+  event        String
+  clientId     String?
   /// Tenant scope, denormalised from the OAuthClient at write-time.
   /// Lets scoped admin reads filter without a join (and ensures the
   /// filter still works after a client is deleted/renamed).
-  companyId     String?
-  sub           String?
-  scopes        String[] @default([])
-  audience      String?
-  ip            String?
-  userAgent     String?
-  success       Boolean
-  errorMessage  String?
-  metadata      Json?
+  companyId    String?
+  sub          String?
+  scopes       String[] @default([])
+  audience     String?
+  ip           String?
+  userAgent    String?
+  success      Boolean
+  errorMessage String?
+  metadata     Json?
 
   @@index([clientId, ts(sort: Desc)], map: "oauth_audit_log_clientId_ts_idx")
   @@index([event, ts(sort: Desc)], map: "oauth_audit_log_event_ts_idx")
@@ -422,41 +424,41 @@ model OAuthAuditLog {
 }
 
 model AuthorizationCode {
-  id                  String   @id @default(uuid()) @db.Uuid
-  code                String   @unique
-  userId              String   @map("userId") @db.Uuid
-  clientId            String   @map("clientId")
+  id                   String   @id @default(uuid()) @db.Uuid
+  code                 String   @unique
+  userId               String   @map("userId") @db.Uuid
+  clientId             String   @map("clientId")
   /// Tenant scope, denormalised from OAuthClient at create-time. Null
   /// for user-flow clients (no tenant), set for company-keyed M2M.
-  companyId           String?  @map("companyId")
-  redirectUri         String   @map("redirectUri")
-  scope               String?
+  companyId            String?  @map("companyId")
+  redirectUri          String   @map("redirectUri")
+  scope                String?
   /// OIDC nonce parameter (core §3.1.2.1). Persisted at /authorize and
   /// embedded into the id_token at /token. Required to bind a given
   /// id_token to the original authorization request — without it, an
   /// attacker who intercepts a code can replay a stolen id_token.
-  nonce               String?
+  nonce                String?
   /// Requested ACR values (OIDC core §3.1.2.1). Whitespace-separated
   /// list passed verbatim from /authorize. The IdP echoes the matched
   /// value back via id_token.acr — RPs use it to enforce step-up auth.
-  acrValues           String?  @map("acrValues")
+  acrValues            String?  @map("acrValues")
   /// Authentication Methods References — list of methods (pwd, fido,
   /// otp, mfa, magic-link) that built the session, captured at the
   /// time the auth code was issued. Embedded into id_token.amr.
-  amr                 String[] @default([]) @map("amr")
-  codeChallenge       String?  @map("codeChallenge")
-  codeChallengeMethod String?  @map("codeChallengeMethod")
+  amr                  String[] @default([]) @map("amr")
+  codeChallenge        String?  @map("codeChallenge")
+  codeChallengeMethod  String?  @map("codeChallengeMethod")
   /// RFC 8707 Resource Indicator. The protected resource the RP requested
   /// this code be exchanged for; at /token it binds the issued access
   /// token's `aud` (validated against the client's allowedAudiences).
-  resource            String?
+  resource             String?
   /// RFC 9396 Rich Authorization Requests. The validated `authorization_details`
   /// JSON array (typed permission objects) captured at /authorize or /par; at
   /// /token it is echoed to the client and embedded as an access-token claim.
-  authorizationDetails Json?   @map("authorizationDetails")
-  expiresAt           DateTime @map("expiresAt")
-  used                Boolean  @default(false)
-  createdAt           DateTime @default(now()) @map("createdAt")
+  authorizationDetails Json?    @map("authorizationDetails")
+  expiresAt            DateTime @map("expiresAt")
+  used                 Boolean  @default(false)
+  createdAt            DateTime @default(now()) @map("createdAt")
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
@@ -466,47 +468,47 @@ model AuthorizationCode {
 }
 
 model RefreshToken {
-  id          String    @id @default(uuid()) @db.Uuid
+  id                   String    @id @default(uuid()) @db.Uuid
   // Deterministic HMAC-SHA256(REFRESH_TOKEN_HMAC_SECRET, rawToken) used for
   // O(1) indexed lookup AND verification (knowing the lookup proves the
   // token was minted with this server's HMAC secret). Replaces the previous
   // bcrypt-based scan-all-rows-and-compare approach.
-  tokenLookup String?   @unique @map("tokenLookup")
+  tokenLookup          String?   @unique @map("tokenLookup")
   // Legacy bcrypt-hashed value, only present on rows minted before the
   // refresh-token rewrite. New rows leave this null. Cleanup cron will
   // delete legacy rows once they expire (max 7d).
-  tokenHash   String?   @map("tokenHash")
-  userId      String    @map("userId") @db.Uuid
-  clientId    String    @map("clientId")
+  tokenHash            String?   @map("tokenHash")
+  userId               String    @map("userId") @db.Uuid
+  clientId             String    @map("clientId")
   /// Tenant scope, denormalised from OAuthClient at issue-time.
-  companyId   String?   @map("companyId")
-  scope       String?
+  companyId            String?   @map("companyId")
+  scope                String?
   /// OIDC nonce carried forward across refresh-token rotation, so
   /// id_tokens minted via refresh still embed the same nonce as the
   /// original (OIDC core §12.1).
-  nonce       String?
+  nonce                String?
   /// Carry AMR forward across rotation so refresh-issued id_tokens
   /// keep the original authentication context.
-  amr         String[] @default([]) @map("amr")
+  amr                  String[]  @default([]) @map("amr")
   /// RFC 9396 authorization_details carried forward across rotation so
   /// refresh-issued access tokens keep the same granted permissions.
-  authorizationDetails Json? @map("authorizationDetails")
+  authorizationDetails Json?     @map("authorizationDetails")
   /// RFC 8707 resource the access token was bound to, carried across
   /// rotation: without it a refreshed MCP token fell back to the clientId
   /// audience and the resource server answered 401 on the next call.
-  resource    String?   @map("resource")
-  expiresAt   DateTime  @map("expiresAt")
-  rotatedFrom String?   @map("rotatedFrom") @db.Uuid
-  revoked     Boolean   @default(false)
-  revokedAt   DateTime? @map("revokedAt")
-  createdAt   DateTime  @default(now()) @map("createdAt")
+  resource             String?   @map("resource")
+  expiresAt            DateTime  @map("expiresAt")
+  rotatedFrom          String?   @map("rotatedFrom") @db.Uuid
+  revoked              Boolean   @default(false)
+  revokedAt            DateTime? @map("revokedAt")
+  createdAt            DateTime  @default(now()) @map("createdAt")
   /// Device metadata for the user-visible session list, stamped from the
   /// request context at issue time and refreshed on rotation. Nullable:
   /// rows minted before migration 0025 have none, and the account UI shows
   /// "Unknown device" for those rather than inventing one.
-  ip          String?   @map("ip")
-  userAgent   String?   @map("userAgent")
-  lastUsedAt  DateTime? @map("lastUsedAt")
+  ip                   String?   @map("ip")
+  userAgent            String?   @map("userAgent")
+  lastUsedAt           DateTime? @map("lastUsedAt")
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
@@ -541,29 +543,29 @@ model MagicLink {
 /// browser session; the client polls /token with device_code until
 /// status transitions to APPROVED.
 model DeviceAuthorization {
-  id           String   @id @default(uuid()) @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
   /// Long random opaque code returned to the device; client polls
   /// /token with this. Hashed at rest via SHA-256 so a DB read can't
   /// approve random codes.
-  deviceCodeHash String @unique @map("deviceCodeHash")
+  deviceCodeHash String    @unique @map("deviceCodeHash")
   /// Short user-facing code (8 chars, format XXXX-XXXX). Stored
   /// plain because the user needs to type it.
-  userCode     String   @unique @map("userCode")
-  clientId     String   @map("clientId")
-  scope        String?
+  userCode       String    @unique @map("userCode")
+  clientId       String    @map("clientId")
+  scope          String?
   /// RFC 8707 resource the device asked a token for; becomes the access
   /// token's audience. Null = default (clientId) audience.
-  resource     String?
+  resource       String?
   /// Set when the user approves; null while pending.
-  userId       String?  @map("userId") @db.Uuid
+  userId         String?   @map("userId") @db.Uuid
   /// 'pending' | 'approved' | 'denied' | 'expired'
-  status       String   @default("pending")
-  expiresAt    DateTime @map("expiresAt")
+  status         String    @default("pending")
+  expiresAt      DateTime  @map("expiresAt")
   /// Last poll timestamp — used to enforce the spec's `slow_down`
   /// response when a client polls below `interval`.
-  lastPolledAt DateTime? @map("lastPolledAt")
-  interval     Int      @default(5)
-  createdAt    DateTime @default(now()) @map("createdAt")
+  lastPolledAt   DateTime? @map("lastPolledAt")
+  interval       Int       @default(5)
+  createdAt      DateTime  @default(now()) @map("createdAt")
 
   @@index([userCode])
   @@index([expiresAt])
@@ -605,6 +607,31 @@ model FederationProvider {
 /// on the consent screen. While it covers what the application asks for,
 /// the screen is not shown again. Deleted when the person disconnects the
 /// application from their account.
+/// An AI agent acting for a person: a third-party application one person let
+/// in. The same program let in by two people is two agents. It has its own
+/// DID (did:web under this server), named in the `act` claim of every token
+/// the application gets for that person, so a resource server knows both on
+/// whose behalf and by whom a request is made. Disconnecting the application
+/// retires the agent; connecting it again makes a new one.
+model Agent {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("userId") @db.Uuid
+  clientId    String    @map("clientId")
+  /// The latest inite_wallet grant the person approved for this agent — what
+  /// it may spend from their wallet. Null when it has none.
+  walletGrant Json?     @map("walletGrant")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+  lastUsedAt  DateTime? @map("lastUsedAt")
+  revokedAt   DateTime? @map("revokedAt")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([userId, clientId])
+  @@index([clientId])
+  @@map("agents")
+}
+
 model OAuthConsent {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("userId") @db.Uuid

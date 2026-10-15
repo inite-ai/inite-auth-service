@@ -19,6 +19,8 @@ import { DpopService } from './dpop.service';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { SystemClientsSeeder } from './system-clients.seeder';
+import { AgentsService } from './agents.service';
+import { AgentsController } from './agents.controller';
 import { ConsentService } from './consent.service';
 import { DcrReaperService } from './dcr-reaper.service';
 import { ClientJwksService } from './client-jwks.service';
@@ -55,6 +57,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     DeviceFlowService,
     SystemClientsSeeder,
     ConsentService,
+    AgentsService,
     DcrReaperService,
     ClientJwksService,
     ClientAssertionService,
@@ -67,6 +70,7 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     MtlsService,
   ],
   controllers: [
+    AgentsController,
     OAuthController,
     OAuthRequestController,
     OAuthSessionController,

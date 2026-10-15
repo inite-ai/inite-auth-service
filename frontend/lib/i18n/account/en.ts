@@ -174,6 +174,8 @@ export const enAccount = {
   'account.apps.disconnect': 'Disconnect',
   'account.apps.disconnect.confirm': '{name} loses access and signs you out there. It will ask for your consent again next time.',
   'account.apps.disconnected': 'App disconnected',
+  'account.apps.agent': 'Agent ID',
+  'account.apps.wallet': 'Can pay up to ${per} at a time, ${day} a day, ${month} a month',
   'account.sessions.title': 'Where you are signed in',
   'account.sessions.subtitle': 'Apps and devices holding a live session',
   'account.sessions.thisDevice': 'This device',

@@ -20,6 +20,7 @@ import { ParPayload, ParService } from './par.service';
 import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
+import { rawHasWalletGrant, withWalletAcr } from './wallet-grant';
 
 
 @ApiTags('oauth')
@@ -67,6 +68,10 @@ export class OAuthController {
     this.clientRegistry.validateGrantType(client, 'authorization_code');
     const grantedScope = this.oauthService.normalizeScope(p.scope || '', p.clientId);
     this.assertPkce(p);
+
+    // A request for the person's wallet is approved with a passkey: ask for
+    // it before the consent screen, through the ordinary step-up.
+    if (rawHasWalletGrant(p.authorizationDetails)) p.acrValues = withWalletAcr(p.acrValues);
 
     const userId = req.session?.userId;
     this.logger.oauth('Authorize request', {

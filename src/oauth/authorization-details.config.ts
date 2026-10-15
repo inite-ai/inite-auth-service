@@ -1,3 +1,5 @@
+import { WALLET_AUTHORIZATION_DETAILS_TYPE } from './wallet-grant';
+
 /**
  * Shared RFC 9396 config helpers — pure functions (no DI) so both the
  * validating service and the discovery metadata resolve the supported
@@ -19,6 +21,8 @@ export const MCP_AUTHORIZATION_DETAILS_TYPE = 'inite_mcp_resource';
 export const DEFAULT_AUTHORIZATION_DETAILS_TYPES = [
   MCP_AUTHORIZATION_DETAILS_TYPE,
   'payment_initiation',
+  // An agent spending from the person's INITE wallet — see wallet-grant.ts.
+  WALLET_AUTHORIZATION_DETAILS_TYPE,
 ];
 
 /**

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { resolveAuthorizationDetailsTypes } from './authorization-details.config';
 import { SettingsService } from '../common/settings/settings.service';
+import { WalletGrantError, isWalletGrant, normalizeWalletGrant } from './wallet-grant';
 
 /**
  * RFC 9396 Rich Authorization Requests — parse + validate the
@@ -69,6 +70,15 @@ export class AuthorizationDetailsService {
     }
     if (!supported.has(detail.type)) {
       throw this.reject(`unsupported authorization_details type: ${detail.type}`);
+    }
+    // A grant on money is checked and normalised, not passed through.
+    if (isWalletGrant(detail)) {
+      try {
+        return normalizeWalletGrant(detail);
+      } catch (e) {
+        if (e instanceof WalletGrantError) throw this.reject(e.message);
+        throw e;
+      }
     }
     return detail as AuthorizationDetail;
   }

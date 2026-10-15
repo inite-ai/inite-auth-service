@@ -12,18 +12,9 @@ import { CAEP_EVENTS } from '../ssf/caep-event-types';
 import { SettingsService } from '../common/settings/settings.service';
 import { sanitizeCustomClaims } from './custom-claims';
 import { currentDeviceMetadata } from '../common/device-metadata';
+import { ActClaim, AgentsService } from './agents.service';
+import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 
-/**
- * Compute the deterministic lookup hash for a refresh token.
- * Uses HMAC-SHA256 with a server-side secret, so:
- *   - Lookup is O(1) via a unique index (was O(N) bcrypt-scan).
- *   - DB read alone cannot forge a token (still requires the HMAC secret).
- *   - The HMAC value is BOTH the lookup key AND the verification — match
- *     means the token was minted by this server.
- */
-function hashRefreshToken(token: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(token).digest('base64url');
-}
 
 export interface GenerateTokensInput {
   user: User;
@@ -59,6 +50,8 @@ interface OrgContext {
   orgId?: string;
   /** Sanitized per-client claims (policy/packs) — see custom-claims.ts. */
   customClaims?: Record<string, string[]>;
+  /** The agent the token is for, when the client is a third party. */
+  act?: ActClaim;
 }
 
 @Injectable()
@@ -76,31 +69,12 @@ export class OAuthTokenIssuerService {
     // without it resolveOrgContext simply never provisions — the
     // behaviour every deployment had before the flag existed.
     @Optional() private readonly personalWorkspace?: PersonalWorkspaceService,
+    // Optional for the same reason: without it no token carries an agent.
+    @Optional() private readonly agents?: AgentsService,
   ) {}
 
-  /**
-   * The refresh-token HMAC secret. Falls back to JWT_SECRET only so dev
-   * setups don't break, but production MUST set REFRESH_TOKEN_HMAC_SECRET
-   * explicitly — using JWT_SECRET means leaking either burns both surfaces.
-   */
   private getRefreshTokenSecret(): string {
-    const explicit = this.configService.get<string>('REFRESH_TOKEN_HMAC_SECRET');
-    if (explicit && explicit.trim().length > 0) return explicit;
-
-    // In production the dedicated secret is mandatory — falling back to
-    // JWT_SECRET means a leak of either one burns both surfaces.
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    if (nodeEnv === 'production') {
-      throw new Error(
-        'REFRESH_TOKEN_HMAC_SECRET must be set in production (JWT_SECRET fallback is dev-only).',
-      );
-    }
-
-    const fallback = this.configService.get<string>('JWT_SECRET');
-    if (!fallback) {
-      throw new Error('REFRESH_TOKEN_HMAC_SECRET (or JWT_SECRET fallback) must be set');
-    }
-    return fallback;
+    return refreshTokenSecret(this.configService);
   }
 
   /**
@@ -119,7 +93,9 @@ export class OAuthTokenIssuerService {
     scope: string;
   }> {
     const sctx = this.signingContext();
-    const orgCtx = await this.resolveOrgContext(input);
+    // A third-party application acts as an agent of the person (RFC 8693 `act`).
+    const act = await this.agents?.actFor(input.user.id, input.clientId, input.authorizationDetails);
+    const orgCtx = { ...(await this.resolveOrgContext(input)), act };
 
     const accessToken = this.buildAccessToken(input, sctx, orgCtx);
     const idToken = this.buildIdToken(input, sctx, orgCtx);
@@ -166,6 +142,8 @@ export class OAuthTokenIssuerService {
         // Per-client vertical claims (policy/packs) — allow-listed keys
         // only, so they can never shadow the registered claims above.
         ...(orgCtx.customClaims ?? {}),
+        // RFC 8693 §4.1: the agent acting for the person, when it is one.
+        ...(orgCtx.act ? { act: orgCtx.act } : {}),
         // RFC 9396: echo the granted authorization_details into the access token.
         ...(input.authorizationDetails?.length
           ? { authorization_details: input.authorizationDetails }

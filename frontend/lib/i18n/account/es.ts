@@ -173,6 +173,8 @@ export const esAccount: Partial<Dict> = {
   'account.apps.disconnect': 'Desconectar',
   'account.apps.disconnect.confirm': '{name} perderá el acceso y se cerrará tu sesión ahí. La próxima vez te volverá a pedir permiso.',
   'account.apps.disconnected': 'App desconectada',
+  'account.apps.agent': 'ID del agente',
+  'account.apps.wallet': 'Puede pagar hasta ${per} por vez, ${day} al día, ${month} al mes',
   'account.sessions.title': 'Dónde tienes sesión iniciada',
   'account.sessions.subtitle': 'Apps y dispositivos con una sesión activa',
   'account.sessions.thisDevice': 'Este dispositivo',

@@ -34,6 +34,7 @@ describe('HealthController — RAR discovery metadata', () => {
     expect(meta.authorization_details_types_supported).toEqual([
       'inite_mcp_resource',
       'payment_initiation',
+      'inite_wallet',
     ]);
   });
 

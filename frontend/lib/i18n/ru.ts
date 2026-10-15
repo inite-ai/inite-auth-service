@@ -86,6 +86,13 @@ export const ru: Partial<Dict> = {
   'consent.user': 'Пользователь',
   'consent.switchAccount': 'Войти в другой аккаунт',
   'consent.permissions': 'Приложение сможет:',
+  'consent.wallet.title': 'Платить из вашего кошелька INITE',
+  'consent.wallet.perPayment': 'До ${amount} за один платёж',
+  'consent.wallet.daily': 'До ${amount} в день',
+  'consent.wallet.monthly': 'До ${amount} в месяц',
+  'consent.wallet.merchants': 'Только на сайтах: {sites}',
+  'consent.wallet.anywhere': 'На любом сайте, который принимает USDC на Base',
+  'consent.wallet.note': 'Платежи в USDC на Base. Вы подтверждаете это ключом доступа; изменить лимиты или отключить приложение можно в любой момент в аккаунте INITE ID.',
   'consent.allow': 'Разрешить',
   'consent.allowing': 'Разрешаем…',
   'consent.footer':

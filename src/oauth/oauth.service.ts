@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
@@ -12,6 +12,8 @@ import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 import { AuthorizationDetailsService } from './authorization-details.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { grantableScope } from './oauth-scopes.registry';
+import { StepUpService } from './step-up.service';
+import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -19,6 +21,9 @@ export interface ExchangeAuthorizationCodeInput {
   redirectUri: string;
   codeVerifier?: string;
 }
+
+/** Stateless; used to check a session's assurance where no request is at hand. */
+const STEP_UP = new StepUpService();
 
 @Injectable()
 export class OAuthService {
@@ -90,6 +95,15 @@ export class OAuthService {
     // covering both the direct-authorize and consent code-issuance paths).
     // Throws invalid_authorization_details on any violation.
     const details = this.authorizationDetails.parse(input.authorizationDetails);
+    // Money: an agent gets the person's wallet only on a passkey-approved
+    // consent. The single valve again — both code-issuance paths pass here.
+    if (hasWalletGrant(details) && STEP_UP.sessionRank(input.amr ?? []) < 3) {
+      throw new UnauthorizedException({
+        error: 'insufficient_user_authentication',
+        error_description: 'Approving wallet access needs a passkey',
+        acr_values: WALLET_ACR,
+      });
+    }
 
     await this.prisma.authorizationCode.create({
       data: {

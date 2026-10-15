@@ -603,6 +603,39 @@ describe('OAuthService', () => {
         }),
       );
     });
+
+    describe('a grant on the person’s wallet', () => {
+      const walletGrant = [{ type: 'inite_wallet', limits: { currency: 'USD', per_payment: '10', daily: '20', monthly: '50' } }];
+      const request = (amr: string[]) =>
+        service.createAuthorizationCode({
+          userId: 'user-1',
+          clientId: 'dcr_agent',
+          redirectUri: 'https://agent.example/callback',
+          scope: 'openid',
+          codeChallenge: 'challenge',
+          codeChallengeMethod: 'S256',
+          authorizationDetails: JSON.stringify(walletGrant),
+          amr,
+        });
+
+      beforeEach(() => {
+        jest
+          .spyOn((service as unknown as { authorizationDetails: AuthorizationDetailsService }).authorizationDetails, 'parse')
+          .mockReturnValue(walletGrant);
+        mockPrisma.authorizationCode.create.mockResolvedValue({ code: 'test-code' });
+      });
+
+      it('is refused without a passkey', async () => {
+        await expect(request(['pwd', 'otp'])).rejects.toMatchObject({
+          response: expect.objectContaining({ error: 'insufficient_user_authentication', acr_values: 'phr' }),
+        });
+        expect(mockPrisma.authorizationCode.create).not.toHaveBeenCalled();
+      });
+
+      it('is approved with one', async () => {
+        await expect(request(['hwk'])).resolves.toBeTruthy();
+      });
+    });
   });
 
   describe('exchangeAuthorizationCode — RFC 8707 resource audience', () => {

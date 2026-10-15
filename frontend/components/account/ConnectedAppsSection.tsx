@@ -15,6 +15,12 @@ interface ConnectedApp {
   scopes: string[]
   grantedAt: string
   updatedAt: string
+  /** Present for third-party applications: the agent acting for this person. */
+  agent?: {
+    did: string
+    walletGrant: { limits?: { per_payment: string; daily: string; monthly: string } } | null
+    lastUsedAt: string | null
+  }
 }
 
 /**
@@ -100,6 +106,20 @@ export default function ConnectedAppsSection({ accessToken }: { accessToken: str
                   <>
                     {t('account.apps.granted', { when: formatRelativeDays(app.updatedAt) })}
                     {app.scopes.length > 0 && <span className="font-mono"> · {app.scopes.join(' ')}</span>}
+                    {app.agent?.walletGrant?.limits && (
+                      <span className="block">
+                        {t('account.apps.wallet', {
+                          per: app.agent.walletGrant.limits.per_payment,
+                          day: app.agent.walletGrant.limits.daily,
+                          month: app.agent.walletGrant.limits.monthly,
+                        })}
+                      </span>
+                    )}
+                    {app.agent && (
+                      <span className="block truncate font-mono text-[11px]" title={app.agent.did}>
+                        {t('account.apps.agent')}: {app.agent.did}
+                      </span>
+                    )}
                   </>
                 }
                 action={

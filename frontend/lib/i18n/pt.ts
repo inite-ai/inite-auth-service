@@ -95,6 +95,13 @@ export const pt: Partial<Dict> = {
   'consent.user': 'Usuário',
   'consent.switchAccount': 'Usar outra conta',
   'consent.permissions': 'Isso permitirá que o app:',
+  'consent.wallet.title': 'Pagar com sua carteira INITE',
+  'consent.wallet.perPayment': 'Até ${amount} por pagamento',
+  'consent.wallet.daily': 'Até ${amount} por dia',
+  'consent.wallet.monthly': 'Até ${amount} por mês',
+  'consent.wallet.merchants': 'Somente em: {sites}',
+  'consent.wallet.anywhere': 'Em qualquer site que aceite USDC na Base',
+  'consent.wallet.note': 'Os pagamentos são em USDC na Base. Você aprova com sua chave de acesso; pode mudar os limites ou desconectar o app na sua conta INITE ID a qualquer momento.',
   'consent.allow': 'Permitir',
   'consent.allowing': 'Autorizando…',
   'consent.footer':

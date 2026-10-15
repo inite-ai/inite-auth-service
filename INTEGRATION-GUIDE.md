@@ -646,6 +646,54 @@ token exchange. Вертикал (brain) снимает с регистраци�
 Brain дополнительно поддерживает биндинг `agent:<client_id>` на своей
 стороне (policy_binding) — политика на действующего агента без правок в auth.
 
+## AI agents: who is acting and on whose behalf
+
+A third-party application (not marked `firstParty`, any `dcr_*`) that a
+person lets in is an **agent** of that person.
+
+**Identity.** Each person–application pair is one agent with its own DID:
+`did:web:auth-api.inite.ai:agents:<id>`. The same program connected by two
+people is two agents. The DID document is served by
+`GET /agents/<id>/did.json`:
+- `controller` is the person's DID;
+- `service` names the client (`client_id`).
+
+After the application is disconnected the document returns 410 Gone, and
+connecting again creates a new agent.
+
+**Token.** Every access token the application gets for the person carries:
+
+```json
+{ "sub": "did:key:… (person)", "act": { "sub": "did:web:…:agents:…", "client_id": "dcr_…" } }
+```
+
+A resource server (an MCP server, billing) attributes the request to the
+person (`sub`) and keeps limits and logs per agent (`act.sub`). INITE's own
+applications get no `act`.
+
+**Wallet.** The RAR type `inite_wallet` asks to pay from the person's INITE
+wallet. The grant is checked and normalised:
+
+```json
+{ "type": "inite_wallet",
+  "limits": { "currency": "USD", "per_payment": "10", "daily": "20", "monthly": "50" },
+  "asset": "USDC", "network": "eip155:8453", "merchants": ["https://shop.example"] }
+```
+
+- Missing limits get the defaults above; the maximums are 1000/2000/10000.
+- A grant must satisfy `per_payment ≤ daily ≤ monthly`.
+- It is approved with a **passkey only**: `/authorize` itself requests
+  `acr_values=phr`, and code issuance refuses a weaker session with
+  `insufficient_user_authentication`.
+- The limits reach the token in `authorization_details`. The INITE ID account
+  shows them next to the application.
+- RAR is enabled by the `RAR_ENABLED` flag.
+
+**Revocation.** Disconnecting the application in the account retires the
+agent. Subscribed receivers get CAEP `session-revoked` with
+`{ agent, client_id, reason: "agent_disconnected" }`, so billing removes the
+agent's access to the wallet without waiting for the token to expire.
+
 ## Troubleshooting
 
 ### CORS errors

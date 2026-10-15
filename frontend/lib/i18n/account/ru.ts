@@ -163,6 +163,8 @@ export const ruAccount: Partial<Dict> = {
   'account.apps.disconnect': 'Отключить',
   'account.apps.disconnect.confirm': '{name} потеряет доступ, и вы выйдете из него. В следующий раз приложение снова спросит разрешение.',
   'account.apps.disconnected': 'Приложение отключено',
+  'account.apps.agent': 'ID агента',
+  'account.apps.wallet': 'Может платить до ${per} за раз, ${day} в день, ${month} в месяц',
   'account.sessions.title': 'Где выполнен вход',
   'account.sessions.subtitle': 'Приложения и устройства с активной сессией',
   'account.sessions.thisDevice': 'Это устройство',

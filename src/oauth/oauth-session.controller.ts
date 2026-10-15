@@ -30,6 +30,7 @@ import { BackchannelLogoutService } from './backchannel-logout.service';
 import { StepUpService } from './step-up.service';
 import { ApiKeysService } from './api-keys.service';
 import { ConsentService } from './consent.service';
+import { AgentsService } from './agents.service';
 
 
 @ApiTags('oauth')
@@ -48,6 +49,7 @@ export class OAuthSessionController {
     private readonly stepUp: StepUpService,
     private readonly apiKeys: ApiKeysService,
     private readonly consent: ConsentService,
+    private readonly agents: AgentsService,
   ) {
     this.logger.setContext('OAuthSessionController');
   }
@@ -323,7 +325,16 @@ export class OAuthSessionController {
   @UseGuards(JwtOrSessionGuard)
   async listConsents(@Req() req: Request) {
     const userId = (req.user as { userId: string }).userId;
-    return this.consent.list(userId);
+    // Each third-party application acts as an agent with its own DID and,
+    // when granted, wallet limits — shown next to it in the account.
+    const [apps, agents] = await Promise.all([this.consent.list(userId), this.agents.list(userId)]);
+    const byClient = new Map(agents.map((a) => [a.clientId, a]));
+    return apps.map((app) => {
+      const agent = byClient.get(app.clientId);
+      return agent
+        ? { ...app, agent: { did: agent.did, walletGrant: agent.walletGrant, lastUsedAt: agent.lastUsedAt } }
+        : app;
+    });
   }
 
   /** Disconnect an application: forget the consent, revoke its refresh tokens. */
@@ -332,6 +343,8 @@ export class OAuthSessionController {
   async revokeConsent(@Req() req: Request, @Param('clientId') clientId: string) {
     const userId = (req.user as { userId: string }).userId;
     const result = await this.consent.revoke(userId, clientId);
+    // The agent goes with it: retired, and resource servers told at once.
+    await this.agents.revoke(userId, clientId);
     this.logger.oauth('Consent revoked', { clientId, userId, revokedTokens: result.revokedTokens });
     return result;
   }

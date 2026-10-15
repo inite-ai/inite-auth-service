@@ -100,7 +100,7 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     group: 'Rich Authorization Requests',
     label: 'Accepted authorization_details types',
     description: 'Comma-separated allow-list advertised in discovery + enforced.',
-    default: 'inite_mcp_resource,payment_initiation',
+    default: 'inite_mcp_resource,payment_initiation,inite_wallet',
   },
   // --- mTLS ---
   {

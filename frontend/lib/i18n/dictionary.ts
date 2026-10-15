@@ -94,6 +94,13 @@ export const en = {
   'consent.user': 'User',
   'consent.switchAccount': 'Use another account',
   'consent.permissions': 'This will allow the app to:',
+  'consent.wallet.title': 'Pay from your INITE wallet',
+  'consent.wallet.perPayment': 'Up to ${amount} per payment',
+  'consent.wallet.daily': 'Up to ${amount} a day',
+  'consent.wallet.monthly': 'Up to ${amount} a month',
+  'consent.wallet.merchants': 'Only on: {sites}',
+  'consent.wallet.anywhere': 'On any site that accepts USDC on Base',
+  'consent.wallet.note': 'Payments are in USDC on Base. You approve this with your passkey; you can change the limits or disconnect the app in your INITE ID account at any time.',
   'consent.allow': 'Allow',
   'consent.allowing': 'Authorizing…',
   'consent.footer':

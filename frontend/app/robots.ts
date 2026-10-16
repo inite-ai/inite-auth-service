@@ -35,7 +35,7 @@ const BLOCKED = [
  */
 export const APP_PATHS = [
   '/account', '/admin', '/login', '/register', '/auth/', '/oauth/', '/consent',
-  '/device', '/verify', '/verify-email', '/embed/',
+  '/device', '/verify', '/verify-email', '/embed/', '/reset-password',
 ]
 
 export default function robots(): MetadataRoute.Robots {

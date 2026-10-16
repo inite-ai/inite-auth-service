@@ -17,7 +17,8 @@ interface MagicLinkAuthProps {
 export default function MagicLinkAuth({ oauthParams }: MagicLinkAuthProps) {
   const t = useT()
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  // login_hint (an invite's address) prefills; the person can still change it.
+  const [email, setEmail] = useState(oauthParams.loginHint ?? '')
   const [emailTouched, setEmailTouched] = useState(false)
   const [sent, setSent] = useState(false)
 

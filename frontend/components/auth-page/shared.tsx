@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { authStorage } from '@/lib/authStorage'
-import { buildConsentUrl, isOAuthFlow, OAuthParams } from '@/lib/oauthHelpers'
+import {
+  buildConsentUrl,
+  buildPassthroughHref,
+  extractOAuthParams,
+  isOAuthFlow,
+  OAuthParams,
+} from '@/lib/oauthHelpers'
 
 export type AuthMethod = 'passkey' | 'magic-link' | 'password' | 'otp' | 'wallet'
 export type AuthVariant = 'login' | 'register'
@@ -16,20 +22,7 @@ export interface AuthPageProps {
 export function useOAuthParams(): OAuthParams {
   const searchParams = useSearchParams()
   return useMemo(
-    () => ({
-      clientId: searchParams.get('client_id'),
-      redirectUri: searchParams.get('redirect_uri'),
-      scope: searchParams.get('scope'),
-      state: searchParams.get('state'),
-      codeChallenge: searchParams.get('code_challenge'),
-      codeChallengeMethod: searchParams.get('code_challenge_method'),
-      nonce: searchParams.get('nonce'),
-      acrValues: searchParams.get('acr_values'),
-      prompt: searchParams.get('prompt'),
-      resource: searchParams.get('resource'),
-      authorizationDetails: searchParams.get('authorization_details'),
-      uiLocales: searchParams.get('ui_locales'),
-    }),
+    () => ({ ...extractOAuthParams(searchParams), prompt: searchParams.get('prompt') }),
     [searchParams],
   )
 }
@@ -110,28 +103,13 @@ export function useAuthGate(
   return checkingAuth
 }
 
-export function buildTargetHref(
-  target: '/login' | '/register',
-  {
-    clientId,
-    redirectUri,
-    scope,
-    state,
-    codeChallenge,
-    codeChallengeMethod,
-    uiLocales,
-  }: OAuthParams,
-) {
-  if (!clientId) return target
-  const params = new URLSearchParams()
-  params.set('client_id', clientId)
-  if (redirectUri) params.set('redirect_uri', redirectUri)
-  if (scope) params.set('scope', scope)
-  if (state) params.set('state', state)
-  if (codeChallenge) params.set('code_challenge', codeChallenge)
-  if (codeChallengeMethod) params.set('code_challenge_method', codeChallengeMethod)
-  if (uiLocales) params.set('ui_locales', uiLocales)
-  return `${target}?${params.toString()}`
+/**
+ * The login <-> register switch. Carries the same PASSTHROUGH list as every
+ * other hop, so nonce, resource, acr_values, authorization_details and
+ * login_hint survive an invitee clicking "Create account".
+ */
+export function buildTargetHref(target: '/login' | '/register', params: OAuthParams) {
+  return buildPassthroughHref(target, params)
 }
 
 export function AuthPageFallback() {

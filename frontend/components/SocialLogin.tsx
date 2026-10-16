@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { LogIn } from 'lucide-react'
-import { OAuthParams } from '@/lib/oauthHelpers'
+import { OAuthParams, buildPassthroughHref } from '@/lib/oauthHelpers'
 import { useT, type TKey } from '@/lib/i18n'
 
 interface Provider {
@@ -50,17 +50,13 @@ export default function SocialLogin({ oauthParams }: SocialLoginProps) {
     }
   }, [])
 
+  // The shared PASSTHROUGH list: this used to drop nonce, acr_values,
+  // resource and ui_locales, so a social sign-in lost the id_token nonce.
   function startHref(providerId: string) {
-    const params = new URLSearchParams()
-    if (oauthParams.clientId) params.set('client_id', oauthParams.clientId)
-    if (oauthParams.redirectUri) params.set('redirect_uri', oauthParams.redirectUri)
-    if (oauthParams.scope) params.set('scope', oauthParams.scope)
-    if (oauthParams.state) params.set('state', oauthParams.state)
-    if (oauthParams.codeChallenge) params.set('code_challenge', oauthParams.codeChallenge)
-    if (oauthParams.codeChallengeMethod)
-      params.set('code_challenge_method', oauthParams.codeChallengeMethod)
-    const qs = params.toString()
-    return `/v1/auth/oauth/${providerId}/start${qs ? `?${qs}` : ''}`
+    return buildPassthroughHref(
+      `/v1/auth/oauth/${encodeURIComponent(providerId)}/start`,
+      oauthParams,
+    )
   }
 
   if (providers.length === 0 && !error) return null

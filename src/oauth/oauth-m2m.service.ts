@@ -7,6 +7,7 @@ import { JwksService } from '../common/jwks.service';
 import { SettingsService } from '../common/settings/settings.service';
 import { MCP_AUTHORIZATION_DETAILS_TYPE } from './authorization-details.config';
 import { sanitizeCustomClaims } from './custom-claims';
+import { agentDid, isSelfAgent } from './self-agent';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -74,16 +75,20 @@ export class OAuthM2mService {
     // clientId as the audience.
     const effectiveAudience = this.resolveExchangeAudience(client, audience);
 
-    const sub = client.companyId ?? client.clientId;
+    const issuer = this.configService.get<string>(
+      'JWT_ISSUER',
+      'http://localhost:3002',
+    );
+    // An agent that registered itself with its own key is somebody: its
+    // did:web, whose document publishes that key (self-agent.ts).
+    const sub = isSelfAgent(client)
+      ? agentDid(issuer, client.clientId)
+      : (client.companyId ?? client.clientId);
     // M2M tokens use a shorter TTL than user-flow tokens so a
     // deactivated machine client stops working within ≤5min — our
     // chosen revocation strategy in place of a real-time revocation
     // list. Override via JWT_M2M_ACCESS_TOKEN_EXPIRY.
     const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
-    const issuer = this.configService.get<string>(
-      'JWT_ISSUER',
-      'http://localhost:3002',
-    );
 
     const claims: Record<string, unknown> = {
       sub,

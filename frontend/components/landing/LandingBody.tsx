@@ -79,6 +79,7 @@ const AGENT_POINTS = [
   'Limits per payment, per day and per month',
   'Your money stays yours: only your passkey can move it',
   'Disconnect it in your account and it stops at once',
+  'An agent can also be on its own: its own ID and its own wallet',
 ]
 
 const SDK_SNIPPET = `import { IniteAuth } from '@inite/auth-sdk'

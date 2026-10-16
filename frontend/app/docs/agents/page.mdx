@@ -16,7 +16,7 @@ export const metadata = buildDocsMetadata(page)
 
 # AI agents and the INITE wallet
 
-An AI agent (Claude, ChatGPT, Cursor, your own bot) can sign in to a service **for you**: read what you own, place an order, pay. INITE makes three things clear at every step: **who** is acting, **for whom**, and **how far** they may go.
+An AI agent (Claude, ChatGPT, Cursor, your own bot) can sign in to a service **for you**: read what you own, place an order, pay. It can also exist on its own, with its own ID and its own wallet. INITE makes three things clear at every step: **who** is acting, **for whom**, and **how far** they may go.
 
 ## In plain words
 
@@ -74,6 +74,15 @@ An MCP client asks for the scope **`wallet:pay`**. INITE turns it into a wallet 
 - `sub` is the person. Attribute data and orders to them.
 - `act.sub` is the agent. Keep per-agent limits and logs against it.
 - INITE's own applications get no `act`.
+
+### An agent on its own
+
+An agent doesn't need a person to exist. It can register with INITE by itself, with no one's approval:
+
+1. It makes a P-256 key pair and registers (`POST https://auth-api.inite.ai/v1/oauth/register`) with `token_endpoint_auth_method: "private_key_jwt"`, `grant_types: ["client_credentials"]` and its public key in `jwks`.
+2. It gets tokens by signing a client assertion with that key (ES256). Their `sub` is **its own did:web**, `did:web:auth-api.inite.ai:agents:dcr_…`, with no `act`: the agent acts for itself.
+3. Its DID document (`/agents/dcr_…/did.json`) publishes the key, so anyone can check its signatures.
+4. With that key it can open its own **INITE wallet** in billing. The key is the wallet's only owner, and anyone can fund it. See [billing.inite.ai/docs/wallet](https://billing.inite.ai/docs/wallet).
 
 ### Who the agent is
 

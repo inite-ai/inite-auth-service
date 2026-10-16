@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { isSelfAgent } from './self-agent';
 
 /**
  * Stale, unused RFC 7591 dynamically-registered clients accumulate over
@@ -8,6 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
  * Registration leaves a `dcr_`-prefixed OAuthClient row behind. This
  * reaper deletes the ones that were registered but never actually used
  * (no RefreshToken ever minted for them) once they age past the cutoff.
+ *
+ * Agents that registered themselves (self-agent.ts) are never reaped: they
+ * use client_credentials, so they never have a refresh token, and their
+ * client is their identity — its DID names the owner of a wallet.
  */
 const DCR_MAX_AGE_DAYS = 30;
 const DCR_CLIENT_PREFIX = 'dcr_';
@@ -32,7 +37,14 @@ export class DcrReaperService {
         clientId: { startsWith: DCR_CLIENT_PREFIX },
         createdAt: { lt: cutoff },
       },
-      select: { id: true, clientId: true },
+      select: {
+        id: true,
+        clientId: true,
+        tokenEndpointAuthMethod: true,
+        allowedGrants: true,
+        companyId: true,
+        jwks: true,
+      },
     });
     if (stale.length === 0) {
       return;
@@ -42,7 +54,7 @@ export class DcrReaperService {
       stale.map((client) => client.clientId),
     );
     const reapableIds = stale
-      .filter((client) => !usedClientIds.has(client.clientId))
+      .filter((client) => !usedClientIds.has(client.clientId) && !isSelfAgent(client))
       .map((client) => client.id);
     if (reapableIds.length === 0) {
       return;

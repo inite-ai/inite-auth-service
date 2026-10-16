@@ -15,11 +15,14 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { writeSecretToFile } from './lib/secret-out';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 // --- Edit this block for your application -----------------------------------
 const client = {

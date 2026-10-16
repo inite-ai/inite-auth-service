@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 /**
  * Operator-driven backfill of the relational RBAC model from the legacy
@@ -16,7 +17,9 @@ function pickRole(roles: string[]): string {
 }
 
 async function main(): Promise<void> {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  });
   const users = await prisma.user.findMany({ select: { id: true, metadata: true } });
 
   let created = 0;

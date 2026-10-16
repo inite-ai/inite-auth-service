@@ -44,10 +44,12 @@ describe('Self-registered agents', () => {
 
   it('is a dcr_ client with its own inline key, client_credentials and no company', () => {
     expect(isSelfAgent(agent)).toBe(true);
-    expect(isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'client_secret_post' })).toBe(false);
+    // With the client secret instead of a key: still an agent, with no keys to publish.
+    expect(isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'client_secret_post', jwks: null })).toBe(true);
+    expect(isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'none' })).toBe(false);
     expect(isSelfAgent({ ...agent, allowedGrants: ['authorization_code'] })).toBe(false);
     expect(isSelfAgent({ ...agent, companyId: 'co' })).toBe(false);
-    expect(isSelfAgent({ ...agent, jwks: null })).toBe(false);
+    expect(isSelfAgent({ ...agent, jwks: null })).toBe(false); // private_key_jwt with no key
     expect(isSelfAgent({ ...agent, clientId: 'shop-backend' })).toBe(false);
   });
 

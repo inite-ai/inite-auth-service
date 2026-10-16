@@ -303,6 +303,17 @@ async function bootstrap() {
 
   logger.log(`INITE Identity Provider running on port ${port}`);
   logger.log(`Issuer: ${configService.get<string>('OIDC_ISSUER')}`);
+  // Discovery advertises OIDC_ISSUER; tokens are signed with JWT_ISSUER as
+  // `iss`. RFC 8414 §3.3 / OIDC Discovery §4.3 require them to be identical,
+  // and every relying party pins one value (Triad token contract).
+  const tokenIssuer = configService.get<string>('JWT_ISSUER', 'http://localhost:3002');
+  const discoveryIssuer = configService.get<string>('OIDC_ISSUER', 'http://localhost:3002');
+  if (tokenIssuer !== discoveryIssuer) {
+    logger.warn(
+      `JWT_ISSUER (${tokenIssuer}) differs from OIDC_ISSUER (${discoveryIssuer}): tokens carry ` +
+        'an `iss` that discovery does not advertise, and verifiers pinned to either one reject the other.',
+    );
+  }
 }
 
 // A rejected promise anywhere in the process must not vanish: log it. These are

@@ -11,7 +11,7 @@ import { OAuthAuditService } from "../audit/oauth-audit.service";
 import { MetricsService } from "../common/metrics.service";
 import { LoggerService } from "../common/logger.service";
 import { TokenRequestBody } from "./dto/oauth-requests";
-import { AuditCtx, IssuedTokens } from "./token-support";
+import { AuditCtx, IssuedTokens, requestedAudience } from "./token-support";
 
 /** Grant handlers that need the raw request (DPoP proof / device_code). */
 export interface GrantWithRequestInput {
@@ -206,7 +206,8 @@ export class TokenGrantService {
       tokens = await this.m2m.issueClientCredentialsToken({
         client,
         requestedScope: body.scope as string,
-        audience: body.audience as string,
+        // RFC 8707: `resource` names the audience when `audience` is absent.
+        audience: requestedAudience(body, client.allowedAudiences ?? []),
         dpopJkt,
         certThumbprint,
       });
@@ -226,7 +227,7 @@ export class TokenGrantService {
         event,
         clientId: client.clientId,
         sub: client.companyId ?? client.clientId,
-        audience: body.audience ?? null,
+        audience: requestedAudience(body, client.allowedAudiences ?? []) ?? null,
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         success: false,

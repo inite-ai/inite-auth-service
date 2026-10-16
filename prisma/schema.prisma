@@ -87,10 +87,10 @@ model ApiKey {
   organizationId String    @map("organizationId") @db.Uuid
   /// RFC 8707 audience the key is valid for (e.g. 'brain').
   audience       String
-  scopes         String[]
+  scopes         String[]  @default([])
   /// ABAC policy set names the vertical resolves for this key —
   /// surfaced as the `policy` member of the introspection answer.
-  policyNames    String[]  @map("policyNames")
+  policyNames    String[]  @default([]) @map("policyNames")
   expiresAt      DateTime? @map("expiresAt")
   revoked        Boolean   @default(false)
   revokedAt      DateTime? @map("revokedAt")
@@ -401,7 +401,7 @@ model ClientAssertionJti {
 /// compliance reviews don't depend on container log retention.
 model OAuthAuditLog {
   id           String   @id @default(uuid()) @db.Uuid
-  ts           DateTime @default(now())
+  ts           DateTime @default(now()) @db.Timestamp(6)
   event        String
   clientId     String?
   /// Tenant scope, denormalised from the OAuthClient at write-time.

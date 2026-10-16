@@ -25,8 +25,10 @@ RUN npm run build
 
 # Drop devDependencies but keep the generated Prisma client + its runtime
 # deps (@prisma/client, @prisma/client-runtime-utils, @prisma/adapter-pg, pg)
-# correctly linked. --ignore-scripts so the root postinstall (prisma generate,
-# now devDep-only) doesn't re-run without the CLI.
+# correctly linked. The prisma CLI is a runtime dependency: the container
+# migrates its own database at boot (scripts/migrate.js), with the CLI version
+# the lockfile pins rather than whatever `npx prisma` would download.
+# --ignore-scripts so the root postinstall (prisma generate) doesn't re-run.
 RUN npm prune --omit=dev --ignore-scripts
 
 # Production stage
@@ -55,5 +57,10 @@ USER nestjs
 
 EXPOSE 3002
 
-# Run array migration (idempotent) and start the application
-CMD ["sh", "-c", "node scripts/migrate-arrays.js && node dist/main"]
+# No update checks / telemetry from the prisma CLI at boot.
+ENV CHECKPOINT_DISABLE=1 PRISMA_HIDE_UPDATE_MESSAGE=1
+
+# Bring the database to the current schema — empty, tracked or `db push`-built
+# alike (see scripts/migrate.js, docs/MIGRATIONS.md) — then start the app.
+# Idempotent: on an up-to-date database it applies nothing.
+CMD ["sh", "-c", "node scripts/migrate.js && exec node dist/main"]

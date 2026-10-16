@@ -10,16 +10,31 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# Start services
-docker-compose up -d
+# Pick the compose CLI that exists (plugin `docker compose`, or legacy binary).
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
 
-# Wait for database to be ready
-echo "⏳ Waiting for database to be ready..."
-sleep 10
+# Start services. The auth-service container migrates its own database on
+# boot (scripts/migrate.js → prisma migrate deploy) — empty database or an
+# existing install alike — so there is no separate migration step.
+$COMPOSE up -d
 
-# Run migrations
-echo "📦 Running database migrations..."
-docker-compose exec -T auth-service npm run prisma:migrate:deploy
+echo "⏳ Waiting for the service (database migration runs first)..."
+for i in $(seq 1 90); do
+  if curl -sf http://localhost:3002/health >/dev/null 2>&1; then
+    break
+  fi
+  if [ "$i" = "90" ]; then
+    echo "❌ auth-service did not become healthy in 180s. Logs:"
+    $COMPOSE logs --tail=100 auth-service
+    exit 1
+  fi
+  sleep 2
+done
+$COMPOSE logs auth-service 2>/dev/null | grep '\[migrate\]' || true
 
 echo ""
 echo "✅ INITE Auth Service is running!"
@@ -31,14 +46,9 @@ echo ""
 echo "👉 Next steps:"
 echo "   1. Create an admin user:"
 echo "        ADMIN_PASSWORD=\$(openssl rand -base64 24) \\"
-echo "          docker-compose exec -T auth-service npm run create-admin"
+echo "          $COMPOSE exec -T auth-service npm run create-admin"
 echo "   2. Register an OAuth client (edit scripts/register-client.example.ts first):"
-echo "        docker-compose exec -T auth-service npm run register-client"
+echo "        $COMPOSE exec -T auth-service npm run register-client"
 echo ""
-echo "📝 View logs: docker-compose logs -f auth-service"
-echo "🛑 Stop services: docker-compose down"
-
-
-
-
-
+echo "📝 View logs: $COMPOSE logs -f auth-service"
+echo "🛑 Stop services: $COMPOSE down"

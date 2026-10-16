@@ -8,6 +8,10 @@ name: Release image
 # never once run — ten releases with no image behind them. `v*` is kept for
 # any hand-cut tag.
 #
+# The image is multi-arch (linux/amd64 + linux/arm64), built natively per
+# architecture and smoke-booted against Postgres before anything is pushed —
+# see image-build.yml.
+#
 # The version is resolved in a step rather than by metadata-action's
 # `type=semver`, which parses the ref as-is and cannot read past the component
 # prefix. That also lets workflow_dispatch backfill an image for a tag cut
@@ -26,8 +30,11 @@ permissions:
   contents: read
 
 jobs:
-  image:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      tags: ${{ steps.ver.outputs.tags }}
     steps:
       - id: ver
         env:
@@ -41,32 +48,19 @@ jobs:
           fi
           {
             echo "tag=$TAG"
-            echo "version=$version"
-            echo "minor=${version%.*}"
+            echo "tags<<EOF"
+            echo "v$version"
+            echo "${version%.*}"
+            echo "latest"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ steps.ver.outputs.tag }}
-
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service
-          tags: |
-            type=raw,value=v${{ steps.ver.outputs.version }}
-            type=raw,value=${{ steps.ver.outputs.minor }}
-            type=raw,value=latest
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache
+  image:
+    needs: version
+    uses: ./.github/workflows/image-build.yml
+    with:
+      ref: ${{ needs.version.outputs.tag }}
+      tags: ${{ needs.version.outputs.tags }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

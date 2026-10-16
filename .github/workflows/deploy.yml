@@ -36,7 +36,23 @@ jobs:
     - name: Build check
       run: npm run build
 
-  build-and-push:
+  # Backend: multi-arch (linux/amd64 + linux/arm64), each arch built natively
+  # and smoke-booted against Postgres before the manifest is published. This
+  # job owns :latest between releases, so it must stay multi-arch too — an
+  # amd64-only :latest would shadow the release's arm64 image for anyone
+  # pulling :latest on ARM. Production pulls the amd64 half.
+  backend-image:
+    needs: test
+    uses: ./.github/workflows/image-build.yml
+    with:
+      tags: |
+        latest
+        ${{ github.sha }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  frontend-image:
     needs: test
     runs-on: ubuntu-latest
 
@@ -52,19 +68,6 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build and push backend
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:${{ github.sha }}
-        cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache,mode=max
-        platforms: linux/amd64
 
     - name: Build and push frontend
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -83,13 +86,12 @@ jobs:
 
     - name: Build info
       run: |
-        echo "✅ Docker images built and pushed successfully!"
-        echo "📦 Backend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest"
+        echo "📦 Backend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest (amd64+arm64)"
         echo "📦 Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest"
         echo "🏷️ SHA: ${{ github.sha }}"
 
   deploy:
-    needs: build-and-push
+    needs: [backend-image, frontend-image]
     # Pin to the SFO self-hosted runner so this job never lands on a
     # different host that wouldn't have /opt/projects, traefik-global
     # network, or the docker volumes this deploy step expects.
@@ -168,17 +170,17 @@ jobs:
           sleep 2
         done
 
-        # Baseline marker — the DB was created before Prisma migration
-        # tracking existed, so migration 0001 already lives in the
-        # schema but isn't recorded in _prisma_migrations. Mark it
-        # applied so `migrate deploy` doesn't re-run and fail with P3005.
-        # Idempotent: re-runs just re-acknowledge the row.
-        echo "🗄️ Baselining historical migrations (idempotent)..."
-        docker-compose run --rm --no-deps auth-service \
-          npx prisma migrate resolve --applied 0001_convert_text_to_array || true
-
+        # One migration entrypoint for every install (scripts/migrate.js, the
+        # same command the container CMD runs at boot): it records
+        # 0000_baseline as applied on this already-tracked database (once —
+        # a no-op afterwards), then runs the pinned prisma CLI's
+        # `migrate deploy`. Replaces the old per-deploy
+        # `migrate resolve --applied 0001…` + `npx prisma migrate deploy`:
+        # the CLI was pruned from the image, so npx downloaded whatever
+        # prisma version npm served on each deploy. It is now a runtime
+        # dependency, pinned by the lockfile.
         echo "🗄️ Running database migrations..."
-        if ! docker-compose run --rm --no-deps auth-service npx prisma migrate deploy; then
+        if ! docker-compose run --rm --no-deps auth-service node scripts/migrate.js; then
           echo "❌ Migration failed — refusing to bring app up against partial schema"
           docker-compose logs postgres
           exit 1

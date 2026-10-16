@@ -36,7 +36,23 @@ jobs:
     - name: Build check
       run: npm run build
 
-  build-and-push:
+  # Backend: multi-arch (linux/amd64 + linux/arm64), each arch built natively
+  # and smoke-booted against Postgres before the manifest is published. This
+  # job owns :latest between releases, so it must stay multi-arch too — an
+  # amd64-only :latest would shadow the release's arm64 image for anyone
+  # pulling :latest on ARM. Production pulls the amd64 half.
+  backend-image:
+    needs: test
+    uses: ./.github/workflows/image-build.yml
+    with:
+      tags: |
+        latest
+        ${{ github.sha }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  frontend-image:
     needs: test
     runs-on: ubuntu-latest
 
@@ -52,19 +68,6 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build and push backend
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:${{ github.sha }}
-        cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:buildcache,mode=max
-        platforms: linux/amd64
 
     - name: Build and push frontend
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -83,13 +86,12 @@ jobs:
 
     - name: Build info
       run: |
-        echo "✅ Docker images built and pushed successfully!"
-        echo "📦 Backend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest"
+        echo "📦 Backend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-service:latest (amd64+arm64)"
         echo "📦 Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/inite-auth-frontend:latest"
         echo "🏷️ SHA: ${{ github.sha }}"
 
   deploy:
-    needs: build-and-push
+    needs: [backend-image, frontend-image]
     # Pin to the SFO self-hosted runner so this job never lands on a
     # different host that wouldn't have /opt/projects, traefik-global
     # network, or the docker volumes this deploy step expects.

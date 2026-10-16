@@ -88,6 +88,7 @@ curl http://localhost:3002/.well-known/openid-configuration
 Fresh install and upgrade are the same step: the container runs
 `prisma migrate deploy` (via `scripts/migrate.js`) against whatever database it
 is given before it starts — see [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+Release images are multi-arch (`linux/amd64` + `linux/arm64`).
 
 Full walkthrough: [QUICK-START.md](QUICK-START.md). Production (RS256/JWKS, reverse
 proxy): [ENV-SETUP.md](ENV-SETUP.md).

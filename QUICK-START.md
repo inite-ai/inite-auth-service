@@ -46,6 +46,15 @@ an empty database gets the full schema, an existing install gets whatever is
 newer. There is no separate migration command. Details:
 [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
+### Using the published image (amd64 or arm64)
+
+Release images are multi-arch (`linux/amd64` + `linux/arm64` — e.g. Oracle
+Ampere, AWS Graviton, Apple Silicon); Docker pulls the right one. To run a
+release instead of building from source, set the `image:` of `auth-service`
+in `docker-compose.yml` to a version tag (e.g.
+`mikefluff/inite-auth-service:v1.12.0`) and drop its `build:` line. Point it
+at an empty Postgres for a fresh install, or at your existing database to
+upgrade — the same container start handles both.
 
 ## 3. Create an admin and register a client
 

@@ -59,13 +59,19 @@ upgrade — the same container start handles both.
 ## 3. Create an admin and register a client
 
 ```bash
-# Admin user (password is required, no default)
-ADMIN_PASSWORD=$(openssl rand -base64 24) \
-  docker compose exec -T auth-service npm run create-admin
-
-# OAuth client — edit scripts/register-client.example.ts for your app first
-docker compose exec -T auth-service npm run register-client
+# Admin user (password is required, no default). `exec` does not forward your
+# shell's variables into the container — pass them with -e.
+export ADMIN_PASSWORD="$(openssl rand -base64 24)"; echo "admin password: $ADMIN_PASSWORD"
+docker compose exec -T -e ADMIN_PASSWORD -e ADMIN_EMAIL=you@example.com \
+  auth-service npm run create-admin
 ```
+
+OAuth clients: sign in as that admin and use the admin API
+(`POST /v1/admin/oauth-clients`; the secret is generated and returned once),
+or, from a source checkout with dev dependencies installed, edit
+`scripts/register-client.example.ts` and run `npm run register-client`. The
+`register-*` scripts run through ts-node and import from `src/`, neither of
+which is in the release image, so they do not run inside the container.
 
 ## 4. Verify
 

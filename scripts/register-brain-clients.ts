@@ -24,12 +24,15 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { BRAIN_SCOPES, STANDARD_SCOPES } from '../src/oauth/oauth-scopes.registry';
 import { writeSecretToFile } from './lib/secret-out';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
 

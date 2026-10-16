@@ -25,6 +25,7 @@ import { AppModule } from './app.module';
 import { OAuthOriginsService } from './oauth/oauth-origins.service';
 import { createLogger } from './common/logger.service';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
+import { SERVICE_VERSION } from './common/service-version';
 
 // Export for use in controllers
 export let sessionSecret: string;
@@ -60,7 +61,7 @@ async function bootstrap() {
         'Most routes are versioned under /v1; spec/discovery endpoints ' +
         '(.well-known/*) are version-neutral per their RFCs.',
     )
-    .setVersion(process.env.npm_package_version ?? '1.0.0')
+    .setVersion(SERVICE_VERSION)
     .addBearerAuth(
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
       'access-token',

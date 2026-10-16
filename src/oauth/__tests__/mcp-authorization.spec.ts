@@ -46,6 +46,21 @@ describe('mikefluff scopes in the registry', () => {
   });
 });
 
+describe('billing scope in the registry', () => {
+  // Claude's connector asks for exactly the scope billing's MCP names in its
+  // 401 challenge; it has to be advertised and grantable to a DCR client.
+  it('advertises billing:account in discovery and lets DCR clients ask for it', () => {
+    expect(supportedScopes()).toContain('billing:account');
+    expect(dcrSupportedScopes()).toContain('billing:account');
+  });
+
+  it('is granted to a dynamically registered client that asks for it', () => {
+    expect(grantableScope('dcr_abc', 'billing:account offline_access')).toBe(
+      'billing:account offline_access',
+    );
+  });
+});
+
 describe('grantableScope', () => {
   it('recognises dynamically registered client ids', () => {
     expect(isDynamicClientId('dcr_abc')).toBe(true);
@@ -83,7 +98,7 @@ describe('grantableScope', () => {
 
 describe('device grant — RFC 8707 resource', () => {
   const client = (allowedAudiences: string[] = []) =>
-    ({ clientId: 'inite-cli', allowedAudiences } as unknown as OAuthClient);
+    ({ clientId: 'inite-cli', allowedAudiences }) as unknown as OAuthClient;
 
   const invalidTarget = (fn: () => unknown) => {
     try {
@@ -107,25 +122,42 @@ describe('device grant — RFC 8707 resource', () => {
   });
 
   it('holds a client with allowedAudiences to that list', () => {
-    expect(DeviceFlowService.resolveResource(client([MCP_RESOURCE]), MCP_RESOURCE)).toBe(MCP_RESOURCE);
+    expect(DeviceFlowService.resolveResource(client([MCP_RESOURCE]), MCP_RESOURCE)).toBe(
+      MCP_RESOURCE,
+    );
     invalidTarget(() => DeviceFlowService.resolveResource(client(['brain']), MCP_RESOURCE));
   });
 
   it('stores the resource on the pending row', async () => {
     const create = jest.fn().mockImplementation(async ({ data }) => data);
-    const prisma = { deviceAuthorization: { findUnique: jest.fn().mockResolvedValue(null), create } };
+    const prisma = {
+      deviceAuthorization: { findUnique: jest.fn().mockResolvedValue(null), create },
+    };
     const svc = new DeviceFlowService(prisma as unknown as PrismaService);
-    await svc.issue({ client: client(), scope: 'openid mikefluff:purchase', resource: MCP_RESOURCE, verificationUri: 'https://auth.inite.ai/device' });
-    expect(create.mock.calls[0][0].data).toMatchObject({ resource: MCP_RESOURCE, scope: 'openid mikefluff:purchase' });
+    await svc.issue({
+      client: client(),
+      scope: 'openid mikefluff:purchase',
+      resource: MCP_RESOURCE,
+      verificationUri: 'https://auth.inite.ai/device',
+    });
+    expect(create.mock.calls[0][0].data).toMatchObject({
+      resource: MCP_RESOURCE,
+      scope: 'openid mikefluff:purchase',
+    });
   });
 
   describe('token exchange', () => {
     const build = (approved: Record<string, unknown>) => {
       const generateTokens = jest.fn().mockResolvedValue({
-        accessToken: 'at', refreshToken: 'rt', expiresIn: 900, scope: 'openid mikefluff:purchase',
+        accessToken: 'at',
+        refreshToken: 'rt',
+        expiresIn: 900,
+        scope: 'openid mikefluff:purchase',
       });
       const grants = new TokenGrantService(
-        { findUserById: jest.fn().mockResolvedValue({ id: 'u1', did: 'did:inite:1' }) } as unknown as OAuthService,
+        {
+          findUserById: jest.fn().mockResolvedValue({ id: 'u1', did: 'did:inite:1' }),
+        } as unknown as OAuthService,
         { record: jest.fn() } as unknown as OAuthAuditService,
         { tokensIssued: { inc: jest.fn() } } as unknown as MetricsService,
         {} as DpopService,
@@ -145,9 +177,16 @@ describe('device grant — RFC 8707 resource', () => {
     };
 
     it('binds the access token audience to the stored resource', async () => {
-      const { generateTokens, run } = build({ userId: 'u1', scope: 'openid mikefluff:purchase', resource: MCP_RESOURCE });
+      const { generateTokens, run } = build({
+        userId: 'u1',
+        scope: 'openid mikefluff:purchase',
+        resource: MCP_RESOURCE,
+      });
       const out = await run();
-      expect(generateTokens.mock.calls[0][0]).toMatchObject({ audience: MCP_RESOURCE, clientId: 'inite-cli' });
+      expect(generateTokens.mock.calls[0][0]).toMatchObject({
+        audience: MCP_RESOURCE,
+        clientId: 'inite-cli',
+      });
       expect(out.access_token).toBe('at');
     });
 
@@ -165,7 +204,9 @@ describe('device verification', () => {
     if (OLD === undefined) delete process.env.FRONTEND_URL;
     else process.env.FRONTEND_URL = OLD;
   });
-  const req = { headers: { host: 'auth-api.inite.ai', 'x-forwarded-proto': 'https' } } as unknown as Request;
+  const req = {
+    headers: { host: 'auth-api.inite.ai', 'x-forwarded-proto': 'https' },
+  } as unknown as Request;
 
   it('sends the person to the sign-in UI, not to the JSON API', () => {
     process.env.FRONTEND_URL = 'https://auth.inite.ai/';
@@ -180,11 +221,17 @@ describe('device verification', () => {
   it('names the client and the resource on the lookup', async () => {
     const deviceFlow = {
       findByUserCode: jest.fn().mockResolvedValue({
-        userCode: 'BCDF-GHJK', clientId: 'inite-cli', scope: 'mikefluff:purchase',
-        resource: MCP_RESOURCE, status: 'pending', expiresAt: new Date(0),
+        userCode: 'BCDF-GHJK',
+        clientId: 'inite-cli',
+        scope: 'mikefluff:purchase',
+        resource: MCP_RESOURCE,
+        status: 'pending',
+        expiresAt: new Date(0),
       }),
     };
-    const registry = { getClientInfo: jest.fn().mockResolvedValue({ clientId: 'inite-cli', name: 'INITE CLI' }) };
+    const registry = {
+      getClientInfo: jest.fn().mockResolvedValue({ clientId: 'inite-cli', name: 'INITE CLI' }),
+    };
     const controller = new OAuthRequestController(
       registry as unknown as OAuthClientRegistryService,
       {} as ParService,
@@ -193,7 +240,10 @@ describe('device verification', () => {
       {} as RequestObjectService,
     );
     await expect(controller.deviceVerify('BCDF-GHJK')).resolves.toMatchObject({
-      client_id: 'inite-cli', client_name: 'INITE CLI', resource: MCP_RESOURCE, scope: 'mikefluff:purchase',
+      client_id: 'inite-cli',
+      client_name: 'INITE CLI',
+      resource: MCP_RESOURCE,
+      scope: 'mikefluff:purchase',
     });
   });
 });

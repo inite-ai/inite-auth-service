@@ -20,6 +20,12 @@ export interface OAuthParams {
   authorizationDetails?: string | null
   /** OIDC ui_locales — the language the relying party was showing. */
   uiLocales?: string | null
+  /**
+   * OIDC login_hint — the email the client app expects (e.g. an invite's
+   * address). Prefills the email field and nothing else: it is never sent as
+   * proof of who anyone is.
+   */
+  loginHint?: string | null
 }
 
 /**
@@ -54,6 +60,7 @@ const PASSTHROUGH: ReadonlyArray<readonly [string, keyof OAuthParams]> = [
   ['resource', 'resource'],
   ['authorization_details', 'authorizationDetails'],
   ['ui_locales', 'uiLocales'],
+  ['login_hint', 'loginHint'],
 ]
 
 function applyPassthrough(url: URL, params: OAuthParams): void {
@@ -61,6 +68,17 @@ function applyPassthrough(url: URL, params: OAuthParams): void {
     const value = params[paramKey]
     if (value) url.searchParams.set(queryKey, value)
   }
+}
+
+/**
+ * `path` plus every in-flight OAuth param, as a same-origin href. Used for the
+ * login <-> register switch, the forgot-password link and the social-login
+ * start links, which each used to spell out their own (shorter) list.
+ */
+export function buildPassthroughHref(path: string, params: OAuthParams): string {
+  const url = new URL(path, 'http://passthrough.invalid')
+  applyPassthrough(url, params)
+  return url.pathname + url.search
 }
 
 /**
@@ -189,7 +207,7 @@ export async function createAuthorizationCode(
 /**
  * Extract OAuth params from URL search params
  */
-export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
+export function extractOAuthParams(searchParams: Pick<URLSearchParams, 'get'>): OAuthParams {
   return {
     clientId: searchParams.get('client_id'),
     redirectUri: searchParams.get('redirect_uri'),
@@ -202,6 +220,7 @@ export function extractOAuthParams(searchParams: URLSearchParams): OAuthParams {
     resource: searchParams.get('resource'),
     authorizationDetails: searchParams.get('authorization_details'),
     uiLocales: searchParams.get('ui_locales'),
+    loginHint: searchParams.get('login_hint'),
   }
 }
 

@@ -162,6 +162,22 @@ export const pt: Partial<Dict> = {
   'auth.password.error.generic': 'Falha na autenticação',
   'auth.password.error.fillFields': 'Preencha todos os campos',
 
+  // Forgot / reset password
+  'auth.password.forgot': 'Esqueceu a senha?',
+  'auth.reset.request.title': 'Redefina sua senha',
+  'auth.reset.request.subtitle': 'Enviaremos um link para você criar uma nova.',
+  'auth.reset.request.cta': 'Enviar link',
+  'auth.reset.request.sent': 'Se existir uma conta para {email}, o link está a caminho. Ele expira em 1 hora.',
+  'auth.reset.set.title': 'Crie uma nova senha',
+  'auth.reset.set.subtitle': 'Escolha uma nova senha para sua conta.',
+  'auth.reset.set.password': 'Nova senha',
+  'auth.reset.set.confirm': 'Repita a senha',
+  'auth.reset.set.mismatch': 'As senhas não coincidem',
+  'auth.reset.set.cta': 'Salvar e continuar',
+  'auth.reset.set.success': 'Senha atualizada',
+  'auth.reset.error.generic': 'Não foi possível redefinir a senha. O link pode ter expirado.',
+  'auth.reset.backToLogin': 'Voltar ao login',
+
   // Magic link form
   'auth.magic.title': 'Entrar com e-mail',
   'auth.magic.subtitle': 'Vamos enviar um link mágico para você entrar',

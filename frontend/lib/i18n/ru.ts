@@ -152,6 +152,22 @@ export const ru: Partial<Dict> = {
   'auth.password.error.generic': 'Не удалось выполнить вход',
   'auth.password.error.fillFields': 'Заполните все поля',
 
+  // Forgot / reset password
+  'auth.password.forgot': 'Забыли пароль?',
+  'auth.reset.request.title': 'Сброс пароля',
+  'auth.reset.request.subtitle': 'Пришлём на почту ссылку, чтобы задать новый пароль.',
+  'auth.reset.request.cta': 'Прислать ссылку',
+  'auth.reset.request.sent': 'Если аккаунт с адресом {email} существует, ссылка уже в пути. Она действует 1 час.',
+  'auth.reset.set.title': 'Новый пароль',
+  'auth.reset.set.subtitle': 'Придумайте новый пароль для аккаунта.',
+  'auth.reset.set.password': 'Новый пароль',
+  'auth.reset.set.confirm': 'Повторите пароль',
+  'auth.reset.set.mismatch': 'Пароли не совпадают',
+  'auth.reset.set.cta': 'Сохранить и продолжить',
+  'auth.reset.set.success': 'Пароль обновлён',
+  'auth.reset.error.generic': 'Не удалось сбросить пароль. Возможно, ссылка устарела.',
+  'auth.reset.backToLogin': 'Вернуться ко входу',
+
   'auth.magic.title': 'Вход по email',
   'auth.magic.subtitle': 'Пришлём magic-ссылку для входа',
   'auth.magic.cta.send': 'Отправить ссылку',

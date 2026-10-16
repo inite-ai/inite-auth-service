@@ -11,6 +11,7 @@ import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
 import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
+import { normalizeLoginHint } from './login-hint';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -149,6 +150,8 @@ export class OAuthController {
       authorizationDetails: q.authorization_details,
       // OIDC ui_locales — only ever shown to the login/consent UI.
       uiLocales: q.ui_locales,
+      // OIDC login_hint — dropped unless it looks like an email; prefill only.
+      loginHint: normalizeLoginHint(q.login_hint),
     };
   }
 
@@ -369,6 +372,9 @@ export class OAuthController {
     ['authorization_details', 'authorizationDetails'],
     // OIDC ui_locales — the login screen opens in the RP's language.
     ['ui_locales', 'uiLocales'],
+    // OIDC login_hint — prefills the email field (an invite's address). The
+    // SPA treats it as a suggestion only; the login itself proves identity.
+    ['login_hint', 'loginHint'],
   ];
 
   /** Build a /login or /consent redirect carrying the OAuth params forward. */

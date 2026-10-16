@@ -1,6 +1,6 @@
 /**
- * The /authorize continuation stashed on a magic link and handed back to the
- * SPA as `oauth_params`, so the flow can resume after an out-of-band login.
+ * The /authorize continuation stashed on a magic link or a password-reset
+ * token and handed back to the SPA as `oauth_params`, so the flow can resume after an out-of-band login.
  *
  * Must stay in step with MagicLinkOAuthParamsDto (what the wire accepts) and
  * with the frontend's OAuthParams: a field missing here is a param that gets
@@ -20,4 +20,8 @@ export interface OAuthParamsDto {
   resource?: string;
   /** RFC 9396 raw `authorization_details` JSON. */
   authorizationDetails?: string;
+  /** OIDC ui_locales — the language the relying party was showing. */
+  uiLocales?: string;
+  /** OIDC login_hint — a form prefill only, never identity. */
+  loginHint?: string;
 }

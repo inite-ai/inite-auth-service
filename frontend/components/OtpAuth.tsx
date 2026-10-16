@@ -26,7 +26,8 @@ export default function OtpAuth({ oauthParams }: OtpAuthProps) {
   const t = useT()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'request' | 'verify'>('request')
-  const [email, setEmail] = useState('')
+  // login_hint (an invite's address) prefills; the person can still change it.
+  const [email, setEmail] = useState(oauthParams.loginHint ?? '')
   const [code, setCode] = useState('')
 
   const requestCode = async (e: React.FormEvent) => {

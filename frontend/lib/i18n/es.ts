@@ -163,6 +163,22 @@ export const es: Partial<Dict> = {
   'auth.password.error.generic': 'No se pudo verificar tu identidad',
   'auth.password.error.fillFields': 'Completa todos los campos',
 
+  // Forgot / reset password
+  'auth.password.forgot': '¿Olvidaste tu contraseña?',
+  'auth.reset.request.title': 'Restablece tu contraseña',
+  'auth.reset.request.subtitle': 'Te enviaremos un enlace para crear una nueva.',
+  'auth.reset.request.cta': 'Enviar enlace',
+  'auth.reset.request.sent': 'Si existe una cuenta para {email}, el enlace va en camino. Caduca en 1 hora.',
+  'auth.reset.set.title': 'Crea una contraseña nueva',
+  'auth.reset.set.subtitle': 'Elige una contraseña nueva para tu cuenta.',
+  'auth.reset.set.password': 'Contraseña nueva',
+  'auth.reset.set.confirm': 'Repite la contraseña',
+  'auth.reset.set.mismatch': 'Las contraseñas no coinciden',
+  'auth.reset.set.cta': 'Guardar y continuar',
+  'auth.reset.set.success': 'Contraseña actualizada',
+  'auth.reset.error.generic': 'No se pudo restablecer la contraseña. Puede que el enlace haya caducado.',
+  'auth.reset.backToLogin': 'Volver a iniciar sesión',
+
   // Magic link form
   'auth.magic.title': 'Inicia sesión con tu correo',
   'auth.magic.subtitle': 'Te enviaremos un enlace mágico para iniciar sesión',

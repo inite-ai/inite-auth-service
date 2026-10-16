@@ -22,7 +22,8 @@ interface PasskeyAuthProps {
 
 export default function PasskeyAuth({ oauthParams, initialMode = 'login' }: PasskeyAuthProps) {
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  // login_hint (an invite's address) prefills; the person can still change it.
+  const [email, setEmail] = useState(oauthParams.loginHint ?? '')
   const [code, setCode] = useState('')
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   // Registration: the email is proven with a one-time code before anything is

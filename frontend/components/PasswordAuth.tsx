@@ -7,7 +7,12 @@ import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { authStorage } from '@/lib/authStorage'
-import { OAuthParams, isOAuthFlow, buildConsentUrl } from '@/lib/oauthHelpers'
+import {
+  OAuthParams,
+  isOAuthFlow,
+  buildConsentUrl,
+  buildPassthroughHref,
+} from '@/lib/oauthHelpers'
 import { validateEmail, validatePassword } from '@/lib/validation'
 import { useT } from '@/lib/i18n'
 import { Input, Button, Card, CardHeader } from '@/components/ui'
@@ -20,7 +25,8 @@ interface PasswordAuthProps {
 export default function PasswordAuth({ oauthParams, initialMode = 'login' }: PasswordAuthProps) {
   const t = useT()
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  // login_hint (an invite's address) prefills; the person can still change it.
+  const [email, setEmail] = useState(oauthParams.loginHint ?? '')
   const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordTouched, setPasswordTouched] = useState(false)
@@ -166,6 +172,22 @@ export default function PasswordAuth({ oauthParams, initialMode = 'login' }: Pas
           onPasswordToggle={() => setShowPassword(!showPassword)}
           error={passwordError ?? undefined}
         />
+
+        {mode === 'login' && (
+          <div className="text-right -mt-2">
+            {/* Carries the OAuth params (and the email typed so far) so the
+                reset can return the person to the app that sent them. */}
+            <a
+              href={buildPassthroughHref('/reset-password', {
+                ...oauthParams,
+                loginHint: email || oauthParams.loginHint,
+              })}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {t('auth.password.forgot')}
+            </a>
+          </div>
+        )}
 
         <Button
           type="submit"

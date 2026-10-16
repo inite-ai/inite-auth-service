@@ -39,6 +39,8 @@ export interface ParPayload {
   authorizationDetails?: string;
   /** OIDC ui_locales display hint. */
   uiLocales?: string;
+  /** OIDC login_hint — a login-screen prefill, never identity. */
+  loginHint?: string;
 }
 
 @Injectable()

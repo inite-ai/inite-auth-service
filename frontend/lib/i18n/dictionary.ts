@@ -161,6 +161,22 @@ export const en = {
   'auth.password.error.generic': 'Authentication failed',
   'auth.password.error.fillFields': 'Please fill in all fields',
 
+  // Forgot / reset password
+  'auth.password.forgot': 'Forgot password?',
+  'auth.reset.request.title': 'Reset your password',
+  'auth.reset.request.subtitle': 'We\'ll email you a link to set a new one.',
+  'auth.reset.request.cta': 'Send reset link',
+  'auth.reset.request.sent': 'If an account exists for {email}, a reset link is on its way. It expires in 1 hour.',
+  'auth.reset.set.title': 'Set a new password',
+  'auth.reset.set.subtitle': 'Choose a new password for your account.',
+  'auth.reset.set.password': 'New password',
+  'auth.reset.set.confirm': 'Repeat the new password',
+  'auth.reset.set.mismatch': 'The passwords don\'t match',
+  'auth.reset.set.cta': 'Save and continue',
+  'auth.reset.set.success': 'Password updated',
+  'auth.reset.error.generic': 'Couldn\'t reset the password. The link may have expired.',
+  'auth.reset.backToLogin': 'Back to sign in',
+
   // Magic link form
   'auth.magic.title': 'Sign in with Email',
   'auth.magic.subtitle': "We'll send you a magic link to sign in",

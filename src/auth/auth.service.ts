@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthParamsDto } from '../common/dto/oauth-params.dto';
 import { IdentityService } from '../identity/identity.service';
@@ -216,9 +216,10 @@ export class AuthService {
   }
 
   /**
-   * Request password reset
+   * Request password reset. `oauthParams` (if the request came from inside an
+   * /authorize flow) ride along with the token, as on a magic link.
    */
-  async requestPasswordReset(email: string): Promise<void> {
+  async requestPasswordReset(email: string, oauthParams?: OAuthParamsDto): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) return;
@@ -233,6 +234,10 @@ export class AuthService {
       data: {
         passwordResetToken: resetTokenHash,
         passwordResetExpires: resetExpires,
+        // A fresh request replaces any continuation an older link carried.
+        passwordResetOAuthParams: oauthParams?.clientId
+          ? (oauthParams as unknown as Prisma.InputJsonValue)
+          : Prisma.DbNull,
       },
     });
 
@@ -252,6 +257,7 @@ export class AuthService {
   async resetPassword(token: string, newPassword: string): Promise<{
     user: User;
     accessToken: string;
+    oauthParams: OAuthParamsDto | null;
   }> {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await this.prisma.user.findFirst({
@@ -275,11 +281,13 @@ export class AuthService {
         passwordHash,
         passwordResetToken: null,
         passwordResetExpires: null,
+        passwordResetOAuthParams: Prisma.DbNull,
       },
     });
 
     const accessToken = this.generateAccessToken(updated);
-    return { user: updated, accessToken };
+    const oauthParams = (user.passwordResetOAuthParams ?? null) as OAuthParamsDto | null;
+    return { user: updated, accessToken, oauthParams };
   }
 
   /**

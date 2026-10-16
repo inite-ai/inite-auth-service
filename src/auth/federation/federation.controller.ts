@@ -49,6 +49,10 @@ export class FederationController {
     'acr_values',
     'resource',
     'authorization_details',
+    // Display-only hints: the RP's language, and the invitee's email so the
+    // /login screen a failed round-trip lands on is still prefilled.
+    'ui_locales',
+    'login_hint',
   ];
 
   constructor(

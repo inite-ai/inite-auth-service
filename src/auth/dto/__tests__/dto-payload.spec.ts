@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { SendMagicLinkDto } from '../send-magic-link.dto';
+import { RequestPasswordResetDto } from '../request-password-reset.dto';
 import { LoginWithPasswordDto } from '../login-with-password.dto';
 import { RegisterWithPasswordDto } from '../register-with-password.dto';
 import { PasskeyResponseDto } from '../passkey-response.dto';
@@ -24,7 +25,7 @@ function check<T extends object>(cls: new () => T, payload: object): T {
 }
 
 describe('phase-2b DTOs accept real frontend payloads', () => {
-  it('SendMagicLinkDto — full OAuth flow (11 oauthParams keys)', () => {
+  it('SendMagicLinkDto — full OAuth flow (13 oauthParams keys)', () => {
     const dto = check(SendMagicLinkDto, {
       email: 'a@b.com',
       oauthParams: {
@@ -39,11 +40,15 @@ describe('phase-2b DTOs accept real frontend payloads', () => {
         prompt: 'login',
         resource: 'https://api',
         authorizationDetails: '[{"type":"inite_mcp_resource"}]',
+        uiLocales: 'pt-BR',
+        loginHint: 'invitee@b.com',
       },
     });
     // whitelist must not strip the nested params — a stripped `resource` is a
     // token issued with `aud: <client_id>` instead of the requested resource.
-    expect(Object.keys(dto.oauthParams ?? {})).toHaveLength(11);
+    // uiLocales/loginHint are what useOAuthParams() sends; before they were
+    // listed, a magic-link request carrying ui_locales was rejected outright.
+    expect(Object.keys(dto.oauthParams ?? {})).toHaveLength(13);
   });
 
   it('SendMagicLinkDto — embed form (top-level clientId, no oauthParams)', () => {
@@ -78,5 +83,33 @@ describe('phase-2b DTOs accept real frontend payloads', () => {
       PIPE,
     );
     expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('RequestPasswordResetDto — forgot-password from inside an OAuth flow', () => {
+    const dto = check(RequestPasswordResetDto, {
+      email: 'a@b.com',
+      oauthParams: {
+        clientId: 'c',
+        redirectUri: 'https://rp/cb',
+        state: 's',
+        codeChallenge: 'cc',
+        codeChallengeMethod: 'S256',
+        nonce: 'n',
+        loginHint: 'a@b.com',
+      },
+    });
+    expect(dto.oauthParams?.nonce).toBe('n');
+  });
+
+  it('RequestPasswordResetDto — plain form (no oauthParams)', () => {
+    check(RequestPasswordResetDto, { email: 'a@b.com' });
+  });
+
+  it('rejects an over-long loginHint', () => {
+    const instance = plainToInstance(RequestPasswordResetDto, {
+      email: 'a@b.com',
+      oauthParams: { clientId: 'c', loginHint: `${'a'.repeat(250)}@b.com` },
+    });
+    expect(validateSync(instance, PIPE).length).toBeGreaterThan(0);
   });
 });

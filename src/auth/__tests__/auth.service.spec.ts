@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -216,6 +217,34 @@ describe('AuthService', () => {
       // Token should be a hex string (SHA-256 hash), not base64url
       expect(updateCall.data.passwordResetToken).toMatch(/^[a-f0-9]{64}$/);
     });
+
+    it('stores the /authorize flow it was requested from next to the token', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser });
+      mockPrisma.user.update.mockResolvedValue({});
+      const oauthParams = {
+        clientId: 'inite-studio',
+        redirectUri: 'https://app.inite.studio/callback',
+        state: 's1',
+        codeChallenge: 'c1',
+        nonce: 'n1',
+        loginHint: 'test@example.com',
+      };
+
+      await service.requestPasswordReset('test@example.com', oauthParams);
+
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
+      expect(updateCall.data.passwordResetOAuthParams).toEqual(oauthParams);
+    });
+
+    it('clears any older continuation when the request carries no flow', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await service.requestPasswordReset('test@example.com', { clientId: undefined });
+
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
+      expect(updateCall.data.passwordResetOAuthParams).toBe(Prisma.DbNull);
+    });
   });
 
   describe('resetPassword', () => {
@@ -233,6 +262,28 @@ describe('AuthService', () => {
         passwordResetExpires: expired,
       });
       await expect(service.resetPassword('token', 'newpass')).rejects.toThrow('expired');
+    });
+
+    it('hands back the stored /authorize flow and clears it with the token', async () => {
+      const future = new Date(Date.now() + 60 * 60 * 1000);
+      const oauthParams = { clientId: 'inite-studio', redirectUri: 'https://app.inite.studio/callback' };
+      mockPrisma.user.findFirst.mockResolvedValue({
+        ...mockUser,
+        passwordResetToken: 'hash',
+        passwordResetExpires: future,
+        passwordResetOAuthParams: oauthParams,
+      });
+      mockPrisma.user.update.mockResolvedValue({ ...mockUser });
+
+      const result = await service.resetPassword('token', 'N3w-long-passphrase!');
+
+      expect(result.oauthParams).toEqual(oauthParams);
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
+      expect(updateCall.data).toMatchObject({
+        passwordResetToken: null,
+        passwordResetExpires: null,
+        passwordResetOAuthParams: Prisma.DbNull,
+      });
     });
   });
 });

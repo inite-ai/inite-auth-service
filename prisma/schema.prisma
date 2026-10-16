@@ -23,6 +23,9 @@ model User {
   emailVerificationExpires DateTime? @map("emailVerificationExpires")
   passwordResetToken       String?   @map("passwordResetToken")
   passwordResetExpires     DateTime? @map("passwordResetExpires")
+  /// The /authorize continuation a reset was requested from, resumed once
+  /// the new password is set. Cleared with the token.
+  passwordResetOAuthParams Json?     @map("passwordResetOAuthParams")
   /// Number of consecutive failed password-login attempts. Reset to 0
   /// on successful login. Drives exponential backoff in
   /// AuthService.loginWithPassword — see lockoutUntil.

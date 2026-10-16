@@ -246,7 +246,7 @@ export class AuthController {
   @UseGuards(LoginEmailThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async requestPasswordReset(@Body() body: RequestPasswordResetDto) {
-    await this.authService.requestPasswordReset(body.email);
+    await this.authService.requestPasswordReset(body.email, body.oauthParams);
     this.logger.auth('Password reset requested', { email: body.email });
     return {
       success: true,
@@ -277,6 +277,9 @@ export class AuthController {
         email: result.user.email,
         name: result.user.name,
       },
+      // The /authorize flow the reset was requested from, if any — the SPA
+      // resumes it so an invitee lands back in the client app signed in.
+      oauth_params: result.oauthParams,
     };
   }
 }

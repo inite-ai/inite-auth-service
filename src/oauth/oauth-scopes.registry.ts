@@ -47,6 +47,16 @@ export const MIKEFLUFF_SCOPES = ['mikefluff:purchase', 'mikefluff:booking'] as c
 export const WALLET_SCOPES = ['wallet:pay'] as const;
 
 /**
+ * The person's INITE billing account (resource `https://billing.inite.ai/mcp`).
+ * `billing:account` lets a client read what the person has bought — orders,
+ * subscriptions, entitlements, credit balance — and start a checkout whose
+ * payment the person completes themselves on the hosted page. It moves no
+ * money: paying from a balance is `wallet:pay`, with its own limits and
+ * passkey. Enforced by billing's MCP endpoint.
+ */
+export const BILLING_SCOPES = ['billing:account'] as const;
+
+/**
  * Vertical scopes an anonymous RFC 7591 registration may request. The
  * sensitive tail of BRAIN_SCOPES (admin / PII / registry publishing) stays
  * operator-provisioned: a self-registered MCP client can ask a user for
@@ -57,11 +67,18 @@ export const DCR_VERTICAL_SCOPES = [
   'brain:write',
   ...MIKEFLUFF_SCOPES,
   ...WALLET_SCOPES,
+  ...BILLING_SCOPES,
 ] as const;
 
 /** Everything the AS can put in a token — discovery `scopes_supported`. */
 export function supportedScopes(): string[] {
-  return [...STANDARD_SCOPES, ...BRAIN_SCOPES, ...MIKEFLUFF_SCOPES, ...WALLET_SCOPES];
+  return [
+    ...STANDARD_SCOPES,
+    ...BRAIN_SCOPES,
+    ...MIKEFLUFF_SCOPES,
+    ...WALLET_SCOPES,
+    ...BILLING_SCOPES,
+  ];
 }
 
 /** The subset RFC 7591 dynamic registration may grant to a new client. */

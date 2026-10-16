@@ -48,6 +48,12 @@ describe('HealthController', () => {
       expect(dbHealth.ping).not.toHaveBeenCalled();
       expect(redis.ping).not.toHaveBeenCalled();
     });
+
+    it('reports the version from package.json', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { version } = require('../../../package.json') as { version: string };
+      expect(controller.health().version).toBe(version);
+    });
   });
 
   describe('GET /ready (readiness)', () => {

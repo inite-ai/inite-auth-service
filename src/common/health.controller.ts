@@ -8,6 +8,7 @@ import { MetricsService } from './metrics.service';
 import { resolveAuthorizationDetailsTypes } from '../oauth/authorization-details.config';
 import { supportedScopes } from '../oauth/oauth-scopes.registry';
 import { SettingsService } from './settings/settings.service';
+import { SERVICE_VERSION } from './service-version';
 
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
@@ -34,7 +35,7 @@ export class HealthController {
       status: 'ok',
       service: 'inite-auth-service',
       timestamp: new Date().toISOString(),
-      version: '1.1.0',
+      version: SERVICE_VERSION,
     };
   }
 

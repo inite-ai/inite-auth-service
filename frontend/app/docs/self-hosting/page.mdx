@@ -40,7 +40,7 @@ INITE ships as two containers (backend + Next.js frontend) plus Postgres and Red
 
 ## Running Auth for Billing and Brain
 
-When INITE Auth issues tokens for self-hosted Billing and Brain, the claim rules, the env each service needs (one issuer URL, one audience set per service) and the upgrade order are the [Triad token contract](https://github.com/inite-ai/inite-ecosystem/blob/main/docs/triad-compatibility.md). Two settings matter for Brain: `RBAC_TOKEN_CLAIMS_ENABLED` (puts `org`/`org_id` in tokens — without it Brain has no tenant) and `PERSONAL_WORKSPACE_PROVISIONING_ENABLED`.
+When INITE Auth issues tokens for self-hosted Billing and Brain, the claim rules, the env each service needs (one issuer URL, one audience set per service) and the upgrade order are the [Triad token contract](https://github.com/inite-ai/inite-triad/blob/main/docs/compatibility.md). Two settings matter for Brain: `RBAC_TOKEN_CLAIMS_ENABLED` (puts `org`/`org_id` in tokens — without it Brain has no tenant) and `PERSONAL_WORKSPACE_PROVISIONING_ENABLED`.
 
 ## Prisma migrations
 

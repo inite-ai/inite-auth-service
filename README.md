@@ -87,7 +87,9 @@ clone (`cp .env.example .env && ./start.sh`, builds the image locally):
 [INITE Billing](https://github.com/inite-ai/inite-billing-service) and
 [INITE Brain](https://github.com/inite-ai/inite-brain-service) verify; the
 contract between them is
-[triad-compatibility.md](https://github.com/inite-ai/inite-ecosystem/blob/main/docs/triad-compatibility.md).
+[the Triad contract](https://github.com/inite-ai/inite-triad/blob/main/docs/compatibility.md).
+Run all three with one compose file:
+[inite-ai/inite-triad](https://github.com/inite-ai/inite-triad).
 
 ## Why INITE Auth
 

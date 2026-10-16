@@ -66,7 +66,7 @@ verifiable credentials, wallet sign-in) as first-class**, not an afterthought.
 git clone https://github.com/inite-ai/inite-auth-service.git
 cd inite-auth-service
 cp .env.example .env          # fill in secrets (see ENV-SETUP.md)
-./start.sh                    # docker compose up + migrations
+./start.sh                    # docker compose up; the container migrates its DB
 ```
 
 Generate the required secrets:
@@ -84,6 +84,10 @@ Verify:
 curl http://localhost:3002/health
 curl http://localhost:3002/.well-known/openid-configuration
 ```
+
+Fresh install and upgrade are the same step: the container runs
+`prisma migrate deploy` (via `scripts/migrate.js`) against whatever database it
+is given before it starts — see [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 Full walkthrough: [QUICK-START.md](QUICK-START.md). Production (RS256/JWKS, reverse
 proxy): [ENV-SETUP.md](ENV-SETUP.md).

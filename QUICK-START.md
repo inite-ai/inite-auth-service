@@ -33,13 +33,19 @@ For production use RS256 (JWKS) instead of the HS256 `JWT_SECRET` — see
 ## 2. Start
 
 ```bash
-# Helper script: brings up containers + runs migrations
+# Helper script: brings up the containers and waits for /health
 ./start.sh
 
 # ...or manually:
 docker compose up -d
-docker compose exec -T auth-service npm run prisma:migrate:deploy
 ```
+
+The auth-service container migrates its database on every start
+(`node scripts/migrate.js` → `prisma migrate deploy`) before the app boots:
+an empty database gets the full schema, an existing install gets whatever is
+newer. There is no separate migration command. Details:
+[docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+
 
 ## 3. Create an admin and register a client
 

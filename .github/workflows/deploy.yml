@@ -168,17 +168,17 @@ jobs:
           sleep 2
         done
 
-        # Baseline marker — the DB was created before Prisma migration
-        # tracking existed, so migration 0001 already lives in the
-        # schema but isn't recorded in _prisma_migrations. Mark it
-        # applied so `migrate deploy` doesn't re-run and fail with P3005.
-        # Idempotent: re-runs just re-acknowledge the row.
-        echo "🗄️ Baselining historical migrations (idempotent)..."
-        docker-compose run --rm --no-deps auth-service \
-          npx prisma migrate resolve --applied 0001_convert_text_to_array || true
-
+        # One migration entrypoint for every install (scripts/migrate.js, the
+        # same command the container CMD runs at boot): it records
+        # 0000_baseline as applied on this already-tracked database (once —
+        # a no-op afterwards), then runs the pinned prisma CLI's
+        # `migrate deploy`. Replaces the old per-deploy
+        # `migrate resolve --applied 0001…` + `npx prisma migrate deploy`:
+        # the CLI was pruned from the image, so npx downloaded whatever
+        # prisma version npm served on each deploy. It is now a runtime
+        # dependency, pinned by the lockfile.
         echo "🗄️ Running database migrations..."
-        if ! docker-compose run --rm --no-deps auth-service npx prisma migrate deploy; then
+        if ! docker-compose run --rm --no-deps auth-service node scripts/migrate.js; then
           echo "❌ Migration failed — refusing to bring app up against partial schema"
           docker-compose logs postgres
           exit 1

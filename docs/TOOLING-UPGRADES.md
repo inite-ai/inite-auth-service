@@ -37,13 +37,14 @@ moved to a driver adapter:
   (`@prisma/adapter-pg` + `pg`); `main.ts` loads `dotenv/config` first so the
   URL is in `process.env` before the eager adapter build.
 - Dockerfile: build+generate in the builder, `npm prune --omit=dev`, copy the
-  pruned `node_modules` — keeps the generated client + deps linked without the
-  prisma CLI in the slim image. `@prisma/client` moved to `dependencies`.
+  pruned `node_modules` — keeps the generated client + deps linked. (Since
+  2026-10 the prisma CLI is a runtime dependency again: the container runs
+  `migrate deploy` itself — see docs/MIGRATIONS.md.) `@prisma/client` moved to `dependencies`.
 
 Validated against a live Postgres: `db push` in sync, `migrate diff` empty,
 240-test suite, `npm run start` + the production Docker container both boot
-with real DB reads/writes. Migrations remain ALTER-only (no baseline init —
-pre-existing); prod applies incrementals via `migrate deploy`.
+with real DB reads/writes. (Migrations were ALTER-only then; `0000_baseline`
+has since made `migrate deploy` work from an empty database.)
 
 ## ✅ TypeScript 5.9 → 6 (done)
 

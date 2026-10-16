@@ -32,8 +32,8 @@ docker compose up -d postgres redis
 cp .env.example .env
 $EDITOR .env
 
-# Apply schema, then run
-npm run prisma:migrate
+# Apply schema (same path as every install — docs/MIGRATIONS.md), then run
+npm run migrate
 npm run start:dev
 ```
 

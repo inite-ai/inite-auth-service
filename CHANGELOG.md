@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.13.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.12.0...inite-auth-service-v1.13.0) (2026-10-16)
+
+
+### Features
+
+* invitee sign-in — login_hint, no dropped OAuth params, password reset that returns to the client ([#251](https://github.com/inite-ai/inite-auth-service/issues/251)) ([33bcf55](https://github.com/inite-ai/inite-auth-service/commit/33bcf55f67a064f7e03352d59538a84517755d50))
+
+
+### Bug Fixes
+
+* **health:** /health reports the running release, not a hardcoded 1.1.0 ([#249](https://github.com/inite-ai/inite-auth-service/issues/249)) ([95b3615](https://github.com/inite-ai/inite-auth-service/commit/95b36150e287aabc9131a6de4aea164ada8c3035))
+* **scripts:** create-admin runs in the release image; Prisma 7 adapter in every script ([#241](https://github.com/inite-ai/inite-auth-service/issues/241)) ([d507e93](https://github.com/inite-ai/inite-auth-service/commit/d507e93f5e8fe6ee6a235b91183390bbf68d6ee7))
+
 ## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-10-16)
 
 

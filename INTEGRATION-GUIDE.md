@@ -697,6 +697,29 @@ agent. Subscribed receivers get CAEP `session-revoked` with
 `{ agent, client_id, reason: "agent_disconnected" }`, so billing removes the
 agent's access to the wallet without waiting for the token to expire.
 
+### Agents on their own
+
+An agent does not need a person. It registers itself (RFC 7591) with its own
+key and the `client_credentials` grant:
+
+```http
+POST /v1/oauth/register
+{ "client_name": "Shopping agent",
+  "token_endpoint_auth_method": "private_key_jwt",
+  "grant_types": ["client_credentials"],
+  "jwks": { "keys": [{ "kty": "EC", "crv": "P-256", "x": "…", "y": "…", "kid": "agent-key" }] } }
+```
+
+- It gets tokens with a client assertion signed by that key (ES256) and
+  `grant_type=client_credentials`, asking for the `audience` it will call.
+- The token's `sub` is the agent's own did:web,
+  `did:web:<issuer host>:agents:dcr_<id>`, and there is no `act`.
+- `GET /agents/dcr_<id>/did.json` publishes its keys (`verificationMethod`,
+  `JsonWebKey2020`); it answers 410 once the client is deactivated.
+- Such clients are never reaped as unused registrations.
+- Use a P-256 key if the agent will hold money: INITE billing makes that same
+  key the only owner of its wallet (`/v1/agent-wallet`).
+
 ## Troubleshooting
 
 ### CORS errors

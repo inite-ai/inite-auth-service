@@ -138,6 +138,11 @@ they may go.
    `/account/wallet/approve` (billing's `pay-from-wallet`).
 7. **One click stops it.** Disconnecting the app retires the agent, its DID
    document answers 410, and resource servers get a CAEP `session-revoked`.
+8. **Or the agent is on its own.** An agent can register by itself with its
+   own P-256 key (`private_key_jwt`, `client_credentials`), with nobody's
+   approval. Its tokens then carry its own did:web as `sub`
+   (`did:web:auth-api.inite.ai:agents:dcr_…`), and its DID document publishes
+   that key. INITE billing opens it a wallet owned only by that key.
 
 Guide: [/docs/agents](https://auth.inite.ai/docs/agents) ·
 details: [INTEGRATION-GUIDE.md](INTEGRATION-GUIDE.md#ai-agents-who-is-acting-and-on-whose-behalf).

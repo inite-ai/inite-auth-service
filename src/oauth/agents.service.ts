@@ -1,3 +1,4 @@
+import { agentDid, isSelfAgent, isSelfAgentId, selfAgentDocument } from './self-agent';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
@@ -59,10 +60,11 @@ export class AgentsService {
    * `<issuer>/agents/<id>/did.json`.
    */
   didOf(agentId: string): string {
-    const issuer = new URL(this.config.get<string>('JWT_ISSUER', 'http://localhost:3002'));
-    const host = issuer.port ? `${issuer.hostname}%3A${issuer.port}` : issuer.hostname;
-    const path = issuer.pathname.replace(/^\/+|\/+$/g, '');
-    return ['did:web', host, ...(path ? path.split('/') : []), 'agents', agentId].join(':');
+    return agentDid(this.issuer(), agentId);
+  }
+
+  private issuer(): string {
+    return this.config.get<string>('JWT_ISSUER', 'http://localhost:3002');
   }
 
   /**
@@ -173,6 +175,11 @@ export class AgentsService {
    * there is no such agent.
    */
   async document(agentId: string): Promise<{ document: Record<string, unknown>; deactivated: boolean } | null> {
+    if (isSelfAgentId(agentId)) {
+      const client = await this.prisma.oAuthClient.findUnique({ where: { clientId: agentId } });
+      if (!client || !isSelfAgent(client)) return null;
+      return { deactivated: !client.active, document: selfAgentDocument(this.issuer(), client) };
+    }
     if (!/^[0-9a-f-]{36}$/i.test(agentId)) return null;
     const agent = await this.prisma.agent.findUnique({
       where: { id: agentId },

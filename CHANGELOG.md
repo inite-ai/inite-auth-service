@@ -4,6 +4,36 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-10-16)
+
+
+### Features
+
+* **account:** INITE wallet in the account page ([#222](https://github.com/inite-ai/inite-auth-service/issues/222)) ([1aab6e4](https://github.com/inite-ai/inite-auth-service/commit/1aab6e4cdcc27d51fe0bef8ff2d939fded308e72))
+* **account:** page to let a site charge the INITE wallet ([#224](https://github.com/inite-ai/inite-auth-service/issues/224)) ([b802d83](https://github.com/inite-ai/inite-auth-service/commit/b802d8380c73792e0fabc324ec570815dd79ae9f))
+* **agents:** agents on their own — self-registered with their key, did:web as sub ([#226](https://github.com/inite-ai/inite-auth-service/issues/226)) ([e5f5e7d](https://github.com/inite-ai/inite-auth-service/commit/e5f5e7d4ef0d427af61e8b99c095fc385c207762))
+* **agents:** an agent on its own may authenticate with its client secret ([#227](https://github.com/inite-ai/inite-auth-service/issues/227)) ([2301fbe](https://github.com/inite-ai/inite-auth-service/commit/2301fbe34ba57b9436b5fee5ce0611252ac9844e))
+* **i18n:** Portuguese and Spanish sign-in, opened in the relying party's language ([#218](https://github.com/inite-ai/inite-auth-service/issues/218)) ([ab7ae84](https://github.com/inite-ai/inite-auth-service/commit/ab7ae84e9efab50f99feef32e8f63186e1721571))
+* **oauth:** AI agents as principals — did:web per person×app, act claim, inite_wallet grants approved by passkey ([#221](https://github.com/inite-ai/inite-auth-service/issues/221)) ([d5a5130](https://github.com/inite-ai/inite-auth-service/commit/d5a513018f2794b1a112f83e9dbbe4730647302f))
+* **oauth:** billing:account — the scope a client asks for to see a person's INITE purchases ([#229](https://github.com/inite-ai/inite-auth-service/issues/229)) ([d94fbba](https://github.com/inite-ai/inite-auth-service/commit/d94fbba0d289415631153c176075a063d5bfcd35))
+* **oauth:** give a first-time user a workspace, behind a flag ([#194](https://github.com/inite-ai/inite-auth-service/issues/194)) ([8d2436c](https://github.com/inite-ai/inite-auth-service/commit/8d2436c8db635d703cf6d26566dfaaf0d1be08bf))
+* **oauth:** MCP authorization for mikefluff — scopes, DCR scope cap, device-flow resource indicators ([#219](https://github.com/inite-ai/inite-auth-service/issues/219)) ([4827ab0](https://github.com/inite-ai/inite-auth-service/commit/4827ab0a8ba2f47c26caa08544db87cdc1145c80))
+* **oauth:** remember consent, skip it for first-party apps, enforce it on prompt=none ([#204](https://github.com/inite-ai/inite-auth-service/issues/204)) ([cf43b43](https://github.com/inite-ai/inite-auth-service/commit/cf43b438feaae1c60714ef4e1a4a5652dd330bef))
+* one migrate-deploy path for fresh installs and upgrades; linux/arm64 images ([#230](https://github.com/inite-ai/inite-auth-service/issues/230)) ([a75f38e](https://github.com/inite-ai/inite-auth-service/commit/a75f38ed333f71b91c8b99886357affefae62744))
+* **ssf:** tell relying parties when an account is deleted ([#225](https://github.com/inite-ai/inite-auth-service/issues/225)) ([e13727e](https://github.com/inite-ai/inite-auth-service/commit/e13727ee4550ab7750c141aa105613a0c9196d07))
+* wallet:pay scope, AI agents in the INITE wallet, and docs/README/landing ([#223](https://github.com/inite-ai/inite-auth-service/issues/223)) ([58fc4f1](https://github.com/inite-ai/inite-auth-service/commit/58fc4f1b1e37b47ff1a69584479ac6d9255658a6))
+
+
+### Bug Fixes
+
+* **oauth:** a dead refresh token answers invalid_grant, as RFC 6749 says ([#228](https://github.com/inite-ai/inite-auth-service/issues/228)) ([82ae530](https://github.com/inite-ai/inite-auth-service/commit/82ae530cd91c56e1f5caa4a2da24fccb09fb73c0))
+* **oauth:** client_credentials honours the RFC 8707 resource indicator ([#231](https://github.com/inite-ai/inite-auth-service/issues/231)) ([637e006](https://github.com/inite-ai/inite-auth-service/commit/637e0069a5c9c4758d7f460f984ab057b0f29118))
+* **oauth:** keep the token issuer under the max-lines ceiling ([a6e7f5b](https://github.com/inite-ai/inite-auth-service/commit/a6e7f5bf11542596b87ec13267fd50baf2da9ac5))
+* **oauth:** refresh rotation keeps the RFC 8707 audience ([48227e8](https://github.com/inite-ai/inite-auth-service/commit/48227e8add3bd3a4472a883fd1bde1d0a923d360))
+* **oauth:** refresh rotation keeps the RFC 8707 audience ([464cc7f](https://github.com/inite-ai/inite-auth-service/commit/464cc7fda87221fa897ecd21cb1db779af101b27))
+* **oauth:** signing out of INITE signs the user out of the relying parties ([#207](https://github.com/inite-ai/inite-auth-service/issues/207)) ([d5bd427](https://github.com/inite-ai/inite-auth-service/commit/d5bd427c69992a4ce7cd635c5a6ac61826bf8a92))
+* **passkey:** an account with a passkey starts by proving the email ([#206](https://github.com/inite-ai/inite-auth-service/issues/206)) ([b1d79a3](https://github.com/inite-ai/inite-auth-service/commit/b1d79a3dcabbc3fc616eb1c441f66b11bb92544e))
+
 ## [1.11.2](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.1...inite-auth-service-v1.11.2) (2026-09-06)
 
 

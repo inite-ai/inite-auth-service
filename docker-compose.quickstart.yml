@@ -1,0 +1,82 @@
+# Quick start: the released multi-arch image (linux/amd64 + linux/arm64)
+# with Postgres and Redis. No clone or build needed — see "Quick start" in
+# README.md. Secrets come from a .env next to this file:
+#
+#   POSTGRES_PASSWORD=…  REDIS_PASSWORD=…  JWT_SECRET=…
+#
+#   docker compose -f docker-compose.quickstart.yml up -d --wait
+#
+# This runs in development mode (HS256 signing, no SMTP) and is meant for
+# trying the service on one machine. For production (RS256 + JWKS, TLS,
+# reverse proxy) see ENV-SETUP.md and deploy/docker-compose.prod.yml.
+#
+# AUTH_VERSION pins the image tag. `X.Y` follows the newest patch of that
+# minor release; `vX.Y.Z` pins one build.
+
+services:
+  auth-service:
+    image: mikefluff/inite-auth-service:${AUTH_VERSION:-1.12}
+    restart: unless-stopped
+    ports:
+      - "${AUTH_PORT:-3002}:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/auth
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env}
+      - REFRESH_TOKEN_HMAC_SECRET=${REFRESH_TOKEN_HMAC_SECRET:-${JWT_SECRET}}
+      - JWT_ISSUER=http://localhost:${AUTH_PORT:-3002}
+      - OIDC_ISSUER=http://localhost:${AUTH_PORT:-3002}
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ORIGINS=http://localhost:3000
+      - RP_NAME=INITE Identity
+      - RP_ID=localhost
+      - RP_ORIGIN=http://localhost:3000
+      - DID_METHOD=key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+
+volumes:
+  postgres_data:
+  redis_data:

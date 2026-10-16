@@ -7,19 +7,17 @@
 <h1 align="center">INITE Identity Provider</h1>
 
 <p align="center">
-  <b>Self-hostable OAuth2 / OIDC identity provider — passkeys, magic links, and Web3-native identity.</b><br>
-  Standards-deep (PKCE, refresh rotation + theft detection, PAR, DPoP, device flow),<br>
-  passwordless-first, and the only one that treats DIDs / verifiable credentials / wallet sign-in as first-class.<br>
-  Open-core: the server is AGPL-3.0; the client SDK is MIT.
+  <b>Self-hosted OAuth 2.1 / OpenID Connect server with passkeys, agent identities and Web3 sign-in.</b>
 </p>
 
 <p align="center">
   <a href="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml"><img src="https://github.com/inite-ai/inite-auth-service/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/inite-ai/inite-auth-service/releases/latest"><img src="https://img.shields.io/github/package-json/v/inite-ai/inite-auth-service?label=release&color=8b5cf6" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="https://hub.docker.com/r/mikefluff/inite-auth-service"><img src="https://img.shields.io/docker/pulls/mikefluff/inite-auth-service" alt="Docker pulls"></a>
+  <a href="https://hub.docker.com/r/mikefluff/inite-auth-service/tags"><img src="https://img.shields.io/badge/image-arm64%20%7C%20amd64-2496ed.svg" alt="Image: arm64 | amd64"></a>
   <a href="https://github.com/inite-ai/inite-auth-service/stargazers"><img src="https://img.shields.io/github/stars/inite-ai/inite-auth-service?style=flat" alt="Stars"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
-  <img src="https://img.shields.io/badge/TypeScript-3178c6.svg" alt="TypeScript">
-  <img src="https://img.shields.io/badge/OAuth2%2FOIDC-native-ffb938.svg" alt="OAuth2/OIDC">
 </p>
 
 <p align="center">
@@ -34,10 +32,67 @@
 
 ---
 
+## Quick start
+
+Needs Docker with Compose v2 and `openssl`. Runs the released image
+(`linux/amd64` and `linux/arm64`) with Postgres and Redis; no clone, no build.
+
+```bash
+mkdir inite-auth && cd inite-auth
+curl -fsSLO https://raw.githubusercontent.com/inite-ai/inite-auth-service/main/docker-compose.quickstart.yml
+cat > .env <<EOF
+AUTH_VERSION=1.12
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
+REDIS_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 48)
+EOF
+docker compose -f docker-compose.quickstart.yml up -d --wait
+curl http://localhost:3002/health
+curl http://localhost:3002/.well-known/openid-configuration
+```
+
+The container applies its database migrations before it starts; fresh install
+and upgrade are the same step ([docs/MIGRATIONS.md](docs/MIGRATIONS.md)).
+`AUTH_VERSION` takes `X.Y` (newest patch of that release) or `vX.Y.Z`. This
+setup signs with HS256 in development mode; for RS256/JWKS, TLS and a reverse
+proxy see [ENV-SETUP.md](ENV-SETUP.md) and
+[`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml). From a
+clone (`cp .env.example .env && ./start.sh`, builds the image locally):
+[QUICK-START.md](QUICK-START.md).
+
+## Why not Auth0, Clerk, Keycloak or Ory?
+
+- **Auth0 / Clerk** are hosted: nothing to operate, compliance attestations,
+  drop-in UI components, and (Auth0) a token vault that stores third-party
+  OAuth tokens for agents, which INITE Auth does not have yet
+  ([ROADMAP.md](ROADMAP.md)). INITE Auth is one container plus Postgres and
+  Redis that you run; users and tokens stay in your database, with no per-user
+  pricing.
+- **Keycloak** is the more complete choice for enterprise federation: LDAP and
+  Kerberos user federation, and acting as a SAML identity provider. INITE Auth
+  has neither; it is a SAML *service provider* only (behind `SAML_ENABLED`).
+  In exchange it is a TypeScript/NestJS service in which PKCE (S256 only),
+  PAR, DPoP, refresh-token theft detection and CAEP need no feature flag.
+- **Ory (Kratos + Hydra)** is headless and split into separate services, and
+  Hydra is OpenID Certified. INITE Auth has not been through OpenID
+  certification; it ships the authorization server, login UI and admin UI in
+  one repo, with an MIT client SDK.
+- **AI agents.** An app a person connects becomes their agent, with its own
+  `did:web` and an `act` claim in every token; agents can also register
+  themselves with `private_key_jwt`. The MCP authorization bundle (RFC 8414,
+  7591, 9728, 8707) is built in. See
+  [AI agents & the INITE wallet](#ai-agents--the-inite-wallet).
+
+**Part of the INITE Triad:** Auth issues the tokens that
+[INITE Billing](https://github.com/inite-ai/inite-billing-service) and
+[INITE Brain](https://github.com/inite-ai/inite-brain-service) verify; the
+contract between them is
+[triad-compatibility.md](https://github.com/inite-ai/inite-ecosystem/blob/main/docs/triad-compatibility.md).
+
 ## Why INITE Auth
 
 Most self-hostable IdPs make you choose: the headless-but-bring-your-own-UI camp
-(Ory, Keycloak) or the batteries-included-but-SaaS-gated camp (Auth0, WorkOS,
+(Ory) or the batteries-included-but-SaaS-gated camp (Auth0, WorkOS,
 Logto). INITE Auth is a single deployable service that ships the **full OAuth2.1 /
 OIDC surface, passkeys, and a working admin + login UI** in one repo, MIT SDK
 included — and it's the only one that treats **decentralized identity (DIDs,
@@ -59,39 +114,6 @@ verifiable credentials, wallet sign-in) as first-class**, not an afterthought.
   admin and audit log.
 - **Operable** — Prometheus metrics, OpenTelemetry traces, health/ready probes,
   durable audit log, Docker-compose self-host.
-
-## Quick start
-
-```bash
-git clone https://github.com/inite-ai/inite-auth-service.git
-cd inite-auth-service
-cp .env.example .env          # fill in secrets (see ENV-SETUP.md)
-./start.sh                    # docker compose up; the container migrates its DB
-```
-
-Generate the required secrets:
-
-```bash
-echo "POSTGRES_PASSWORD=$(openssl rand -base64 32)"
-echo "REDIS_PASSWORD=$(openssl rand -base64 32)"
-echo "JWT_SECRET=$(openssl rand -base64 64)"
-echo "REFRESH_TOKEN_HMAC_SECRET=$(openssl rand -base64 64)"
-```
-
-Verify:
-
-```bash
-curl http://localhost:3002/health
-curl http://localhost:3002/.well-known/openid-configuration
-```
-
-Fresh install and upgrade are the same step: the container runs
-`prisma migrate deploy` (via `scripts/migrate.js`) against whatever database it
-is given before it starts — see [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
-Release images are multi-arch (`linux/amd64` + `linux/arm64`).
-
-Full walkthrough: [QUICK-START.md](QUICK-START.md). Production (RS256/JWKS, reverse
-proxy): [ENV-SETUP.md](ENV-SETUP.md).
 
 ## Connect an app
 

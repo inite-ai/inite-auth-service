@@ -1,15 +1,17 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { LOGIN_HINT_MAX_LENGTH } from '../../oauth/login-hint';
 
 /**
  * Nested OAuth continuation params carried by a magic-link request so the
- * link can resume the /authorize flow after verification.
+ * link (or a password-reset link) can resume the /authorize flow after
+ * verification.
  *
  * The SPA (components/MagicLinkAuth.tsx) forwards the WHOLE object produced
  * by useOAuthParams() (components/auth-page/shared.tsx) whenever a clientId
  * is present. That object is built from URLSearchParams.get(...), so every
  * field can be `null` (absent query param) — @IsOptional treats null/undefined
  * as "missing" and skips @IsString, matching the previously-unvalidated
- * behaviour. All eleven keys it can send are whitelisted here so a live
+ * behaviour. All thirteen keys it can send are whitelisted here so a live
  * OAuth-flow magic-link request is not rejected by forbidNonWhitelisted.
  *
  * Keep in step with OAuthParamsDto (the stored shape) and the frontend's
@@ -62,4 +64,15 @@ export class MagicLinkOAuthParamsDto {
   @IsOptional()
   @IsString()
   authorizationDetails?: string;
+
+  /** OIDC ui_locales — useOAuthParams() sends it, so it must be whitelisted. */
+  @IsOptional()
+  @IsString()
+  uiLocales?: string;
+
+  /** OIDC login_hint — a prefill the SPA carries along; never identity. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(LOGIN_HINT_MAX_LENGTH)
+  loginHint?: string;
 }

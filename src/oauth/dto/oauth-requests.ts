@@ -28,6 +28,12 @@ export interface AuthorizeQuery {
   authorization_details?: string;
   /** OIDC Core §3.1.2.1 — space-separated BCP 47 tags, preferred first. */
   ui_locales?: string;
+  /**
+   * OIDC Core §3.1.2.1 — the address the RP believes the person will sign in
+   * with (e.g. the email an invite went to). A prefill hint for the login
+   * screen only; never an identity assertion. See normalizeLoginHint.
+   */
+  login_hint?: string;
 }
 
 /** Authorize params after PAR (request_uri) resolution, normalized to camelCase. */
@@ -48,6 +54,8 @@ export interface ResolvedAuthorizeParams {
   authorizationDetails?: string;
   /** OIDC ui_locales — a display hint for the login/consent screens only. */
   uiLocales?: string;
+  /** OIDC login_hint, already normalized — a form prefill, never identity. */
+  loginHint?: string;
 }
 
 export interface TokenRequestBody {

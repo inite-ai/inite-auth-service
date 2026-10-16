@@ -42,6 +42,7 @@ const ALL_PARAMS: Required<ResolvedAuthorizeParams> = {
   resource: 'https://inite.ai/api/mcp',
   authorizationDetails: '[{"type":"inite_mcp_resource","actions":["read"]}]',
   uiLocales: 'pt-BR es',
+  loginHint: 'invitee@example.com',
 };
 
 /** camelCase param -> the query key it travels as. */
@@ -59,6 +60,7 @@ const QUERY_KEY: Record<keyof ResolvedAuthorizeParams, keyof AuthorizeQuery> = {
   resource: 'resource',
   authorizationDetails: 'authorization_details',
   uiLocales: 'ui_locales',
+  loginHint: 'login_hint',
 };
 
 /**
@@ -360,3 +362,46 @@ describe('/authorize → consent', () => {
   });
 });
 
+
+describe('/authorize → login_hint', () => {
+  const previousFrontend = process.env.FRONTEND_URL;
+  beforeAll(() => {
+    process.env.FRONTEND_URL = FRONTEND;
+  });
+  afterAll(() => {
+    if (previousFrontend === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontend;
+  });
+
+  async function loginRedirectFor(loginHint: string): Promise<URL> {
+    const h = harness();
+    await h.controller.authorize(
+      { ...toQuery(ALL_PARAMS), login_hint: loginHint },
+      request(undefined),
+      h.res as unknown as Response,
+    );
+    return redirectedTo(h.res);
+  }
+
+  it('hands an invitee email to the login screen as a prefill', async () => {
+    const url = await loginRedirectFor('  invitee@example.com ');
+    expect(url.searchParams.get('login_hint')).toBe('invitee@example.com');
+  });
+
+  it.each([
+    ['not an email', 'not-an-email'],
+    ['markup', '<script>@x.io'],
+    ['over-long', `${'a'.repeat(250)}@example.com`],
+  ])('drops a %s hint instead of failing the request', async (_label, hint) => {
+    const url = await loginRedirectFor(hint);
+    expect(url.pathname).toBe('/login');
+    expect(url.searchParams.has('login_hint')).toBe(false);
+  });
+
+  it('never puts the hint on the session copy that resumes the flow', async () => {
+    const h = harness();
+    const req = request(undefined);
+    await h.controller.authorize(toQuery(ALL_PARAMS), req, h.res as unknown as Response);
+    expect(req.session?.oauthParams).not.toHaveProperty('loginHint');
+  });
+});

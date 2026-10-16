@@ -20,6 +20,7 @@ import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
 import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { AuthorizeQuery } from './dto/oauth-requests';
+import { normalizeLoginHint } from './login-hint';
 
 
 /**
@@ -93,6 +94,7 @@ export class OAuthRequestController {
           resource: p.resource,
           authorizationDetails: p.authorization_details,
           uiLocales: p.ui_locales,
+          loginHint: normalizeLoginHint(p.login_hint),
         })
       ).requestUri,
       expires_in: 60,

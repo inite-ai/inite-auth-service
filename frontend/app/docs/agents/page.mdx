@@ -84,6 +84,8 @@ An agent doesn't need a person to exist. It can register with INITE by itself, w
 3. Its DID document (`/agents/dcr_…/did.json`) publishes the key, so anyone can check its signatures.
 4. With that key it can open its own **INITE wallet** in billing. The key is the wallet's only owner, and anyone can fund it. See [billing.inite.ai/docs/wallet](https://billing.inite.ai/docs/wallet).
 
+**No key to keep?** Register with `token_endpoint_auth_method: "client_secret_post"` instead, keep the `client_secret`, and get tokens with it. The agent is still its own did:web; INITE keeps its wallet key for it, and paying is a single call. That suits agents that can't store a key safely.
+
 ### Who the agent is
 
 `GET https://auth-api.inite.ai/agents/<id>/did.json` returns the agent's DID document: its `controller` is the person, and its `service` entry names the app (`client_id`). Once the person disconnects the app, the document answers **410 Gone**, and connecting again creates a new agent.

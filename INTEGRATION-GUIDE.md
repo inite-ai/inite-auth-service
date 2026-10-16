@@ -717,8 +717,13 @@ POST /v1/oauth/register
 - `GET /agents/dcr_<id>/did.json` publishes its keys (`verificationMethod`,
   `JsonWebKey2020`); it answers 410 once the client is deactivated.
 - Such clients are never reaped as unused registrations.
-- Use a P-256 key if the agent will hold money: INITE billing makes that same
-  key the only owner of its wallet (`/v1/agent-wallet`).
+- Use a P-256 key if the agent will hold money itself: INITE billing makes
+  that same key the only owner of its wallet (`/v1/agent-wallet`).
+- Or skip the key: register with `token_endpoint_auth_method:
+  "client_secret_post"` and `grant_types: ["client_credentials"]`, keep the
+  `client_secret` it returns, and get tokens with it. The agent is the same
+  did:web (its DID document lists no keys), and INITE billing keeps its wallet
+  key for it, so paying is one call.
 
 ## Troubleshooting
 

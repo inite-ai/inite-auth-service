@@ -38,19 +38,21 @@ export function selfAgentKeys(client: Pick<OAuthClient, 'jwks'>): Array<Record<s
 }
 
 /**
- * A dynamically registered client that authenticates with its own inline key,
- * may use client_credentials and belongs to no company: an agent on its own.
+ * A dynamically registered, confidential client that may use
+ * client_credentials and belongs to no company: an agent on its own.
+ *
+ * It authenticates either with its own key (`private_key_jwt`, the public key
+ * inline in `jwks`, published in its DID document — it can then own a wallet
+ * by that key) or with the client secret it got at registration (no keys to
+ * publish; INITE billing then keeps the wallet key for it).
  */
 export function isSelfAgent(
   client: Pick<OAuthClient, 'clientId' | 'tokenEndpointAuthMethod' | 'allowedGrants' | 'companyId' | 'jwks'>,
 ): boolean {
-  return (
-    isSelfAgentId(client.clientId) &&
-    client.tokenEndpointAuthMethod === 'private_key_jwt' &&
-    (client.allowedGrants ?? []).includes('client_credentials') &&
-    !client.companyId &&
-    selfAgentKeys(client).length > 0
-  );
+  if (!isSelfAgentId(client.clientId) || client.companyId) return false;
+  if (!(client.allowedGrants ?? []).includes('client_credentials')) return false;
+  if (client.tokenEndpointAuthMethod === 'private_key_jwt') return selfAgentKeys(client).length > 0;
+  return ['client_secret_post', 'client_secret_basic'].includes(client.tokenEndpointAuthMethod);
 }
 
 /** The DID document of a self-registered agent: its keys, and the client it is. */

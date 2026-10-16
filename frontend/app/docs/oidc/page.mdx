@@ -75,10 +75,14 @@ email_verified  — boolean
 name            — display name
 picture         — avatar URL
 roles           — array (e.g. ["admin"])
+org             — tenant companyId (only with RBAC_TOKEN_CLAIMS_ENABLED)
+org_id          — tenant organization UUID (same condition)
 nonce           — round-tripped from /authorize for replay defence
 amr             — authentication methods used (e.g. ["pwd","mfa"])
 acr             — authentication context class (URN string)
 ```
+
+Access tokens additionally carry `client_id`, `userId` (internal UUID — do not key on it, key on `sub`), `scope` (space-delimited) and `aud`: the RFC 8707 `resource` the client asked for, otherwise the client id. A refreshed token keeps the audience. `iss` is `JWT_ISSUER`. The id_token's `aud` is always the client id. Full rules for resource servers: the [Triad token contract](https://github.com/inite-ai/inite-ecosystem/blob/main/docs/triad-compatibility.md).
 
 ### AMR values
 

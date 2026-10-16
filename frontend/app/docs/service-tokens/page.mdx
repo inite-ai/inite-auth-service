@@ -149,6 +149,7 @@ INITE enforces:
 - If the client has **no** `allowedAudiences`, `audience` defaults to the `clientId`.
 - If the client has `allowedAudiences`, the requested `audience` must be in that list.
 - If no `audience` is requested but `allowedAudiences[0]` is set, that's the default.
+- The RFC 8707 `resource` parameter is used as the audience when `audience` is not sent and the client may have it (no `allowedAudiences`, or listed there); a `resource` outside the list is ignored, as it always was. `audience` wins when both are sent.
 
 ## Scope inheritance
 

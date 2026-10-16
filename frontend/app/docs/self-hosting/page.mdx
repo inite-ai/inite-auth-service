@@ -25,9 +25,10 @@ INITE ships as two containers (backend + Next.js frontend) plus Postgres and Red
 | `REDIS_HOST`, `REDIS_PORT`     | `redis`, `6379`                                      | Session store + throttler + audit debouncing.          |
 | `REDIS_PASSWORD`               | random 32-byte                                       | Required in production.                                |
 | `JWT_SECRET`                   | random 64-byte                                       | HS256 fallback signing.                                |
-| `JWT_PRIVATE_KEY` / `_PUBLIC_` | PEM (single-line, `\n` escaped)                      | RS256 / ES256 / EdDSA preferred.                       |
+| `JWT_PRIVATE_KEY` / `_PUBLIC_` | PEM (single-line, `\n` escaped)                      | RSA key — tokens are signed RS256, `kid` = `JWT_ACTIVE_KID`. Required in production. |
 | `REFRESH_TOKEN_HMAC_SECRET`    | random 64-byte                                       | Defaults to `JWT_SECRET` but **must** be set in prod.  |
-| `OIDC_ISSUER`                  | `https://auth-api.inite.ai`                          | Goes into every signed token.                          |
+| `JWT_ISSUER`                   | `https://auth-api.inite.ai`                          | The `iss` signed into every token. Verifiers pin exactly this value. |
+| `OIDC_ISSUER`                  | `https://auth-api.inite.ai`                          | The `issuer` discovery advertises. **Must equal `JWT_ISSUER`** (boot warns otherwise). |
 | `RP_ID`                        | `inite.ai`                                           | WebAuthn relying-party domain.                         |
 | `RP_ORIGIN`                    | `https://auth.inite.ai`                              | WebAuthn origin.                                       |
 | `SMTP_*`                       | Mailgun / SES / etc.                                 | Magic links, password reset, security notifications.   |
@@ -36,6 +37,10 @@ INITE ships as two containers (backend + Next.js frontend) plus Postgres and Red
 | `SESSION_SECRET`               | random 64-byte                                       | Defaults to `JWT_SECRET`.                              |
 | `HIBP_ENABLED`                 | `true`                                               | Optional. See [security](/docs/security#hibp).         |
 | `ADMIN_EMAIL` / `_PASSWORD`    | bootstrap admin                                      | Used by `npm run create-admin`.                        |
+
+## Running Auth for Billing and Brain
+
+When INITE Auth issues tokens for self-hosted Billing and Brain, the claim rules, the env each service needs (one issuer URL, one audience set per service) and the upgrade order are the [Triad token contract](https://github.com/inite-ai/inite-ecosystem/blob/main/docs/triad-compatibility.md). Two settings matter for Brain: `RBAC_TOKEN_CLAIMS_ENABLED` (puts `org`/`org_id` in tokens — without it Brain has no tenant) and `PERSONAL_WORKSPACE_PROVISIONING_ENABLED`.
 
 ## Prisma migrations
 

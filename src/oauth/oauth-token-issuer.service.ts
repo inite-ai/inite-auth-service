@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -52,6 +52,17 @@ interface OrgContext {
   customClaims?: Record<string, string[]>;
   /** The agent the token is for, when the client is a third party. */
   act?: ActClaim;
+}
+
+/**
+ * A refresh token that can no longer be used, answered as RFC 6749 §5.2
+ * says: 400 with `error: invalid_grant`. Clients branch on that code — it
+ * is how an MCP client (Claude among them) learns the sign-in is gone and
+ * asks the person to connect again; a 401 here read as a transient fault
+ * and the client kept retrying a dead token.
+ */
+function deadRefreshToken(description: string): BadRequestException {
+  return new BadRequestException({ error: 'invalid_grant', error_description: description });
 }
 
 @Injectable()
@@ -321,7 +332,7 @@ export class OAuthTokenIssuerService {
     });
 
     if (!matchedToken || matchedToken.clientId !== clientId) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw deadRefreshToken('Invalid refresh token');
     }
 
     if (matchedToken.revoked) {
@@ -337,11 +348,11 @@ export class OAuthTokenIssuerService {
         data: { revoked: true, revokedAt: new Date() },
       });
       await this.signalTokenRevoked(matchedToken.user?.did, matchedToken.companyId);
-      throw new UnauthorizedException('Refresh token revoked');
+      throw deadRefreshToken('Refresh token revoked');
     }
 
     if (matchedToken.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token expired');
+      throw deadRefreshToken('Refresh token expired');
     }
 
     // Atomically claim this rotation slot — second concurrent rotate of
@@ -351,7 +362,7 @@ export class OAuthTokenIssuerService {
       data: { revoked: true, revokedAt: new Date() },
     });
     if (claim.count !== 1) {
-      throw new UnauthorizedException('Refresh token already rotated');
+      throw deadRefreshToken('Refresh token already rotated');
     }
 
     return this.generateTokens({

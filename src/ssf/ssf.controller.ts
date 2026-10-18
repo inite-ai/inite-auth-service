@@ -78,7 +78,11 @@ export class SsfController {
   }
 
   @Post('streams/:streamId/poll')
-  async poll(@CurrentUser() user: AuthenticatedUser, @Param('streamId') streamId: string, @Body() dto: PollRequestDto) {
+  async poll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('streamId') streamId: string,
+    @Body() dto: PollRequestDto,
+  ) {
     const stream = await this.streams.get(this.scope(user), streamId);
     const sets = await this.delivery.poll(stream.id, dto.acks ?? [], dto.maxEvents ?? 20);
     return { sets };

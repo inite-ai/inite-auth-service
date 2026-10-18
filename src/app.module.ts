@@ -37,10 +37,12 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     }),
 
     // Rate limiting (global default: 60 req/min)
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 60,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 60,
+      },
+    ]),
 
     // Scheduled tasks
     ScheduleModule.forRoot(),
@@ -63,9 +65,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
         const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
         if (nodeEnv === 'production' && !privateKey) {
-          throw new Error(
-            'JWT_PRIVATE_KEY must be set in production. HS256 fallback is dev-only.',
-          );
+          throw new Error('JWT_PRIVATE_KEY must be set in production. HS256 fallback is dev-only.');
         }
 
         if (privateKey) {

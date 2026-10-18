@@ -1,4 +1,4 @@
-import { Request } from "express";
+import { Request } from 'express';
 
 /** IP + UA pulled off the request, threaded into audit records. */
 export type AuditCtx = { ip: string; userAgent: string };
@@ -13,16 +13,15 @@ export interface IssuedTokens {
 }
 
 /** RFC 8693 Token Exchange grant-type identifier. */
-export const TOKEN_EXCHANGE_GRANT =
-  "urn:ietf:params:oauth:grant-type:token-exchange";
+export const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
 
 /** Pulls IP + UA off the request for audit log enrichment. */
 export function clientContext(req: Request): AuditCtx {
-  const fwd = (req.headers["x-forwarded-for"] as string | undefined) ?? "";
-  const ip = fwd.split(",")[0]?.trim() || req.ip || "";
+  const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
+  const ip = fwd.split(',')[0]?.trim() || req.ip || '';
   return {
     ip,
-    userAgent: (req.headers["user-agent"] as string | undefined) ?? "",
+    userAgent: (req.headers['user-agent'] as string | undefined) ?? '',
   };
 }
 
@@ -46,7 +45,7 @@ export function requestedAudience(
 ): string | undefined {
   const first = (raw: unknown): string | undefined => {
     const value = Array.isArray(raw) ? raw[0] : raw;
-    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   };
   const audience = first(body.audience);
   if (audience) return audience;

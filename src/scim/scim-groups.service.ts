@@ -56,11 +56,21 @@ export class ScimGroupsService {
 
     const where = this.buildWhere(org.id, query.filter);
     const [roles, total] = await Promise.all([
-      this.prisma.orgRole.findMany({ where, skip: startIndex - 1, take: count, orderBy: { createdAt: 'asc' } }),
+      this.prisma.orgRole.findMany({
+        where,
+        skip: startIndex - 1,
+        take: count,
+        orderBy: { createdAt: 'asc' },
+      }),
       this.prisma.orgRole.count({ where }),
     ]);
     const resources = await Promise.all(roles.map((r) => this.render(org.id, r, baseUrl)));
-    return scimListResponse({ resources, totalResults: total, startIndex, itemsPerPage: resources.length });
+    return scimListResponse({
+      resources,
+      totalResults: total,
+      startIndex,
+      itemsPerPage: resources.length,
+    });
   }
 
   async getGroup(companyId: string, id: string, baseUrl: string): Promise<ScimGroup> {

@@ -39,13 +39,9 @@ export class ScimGuard extends JwtAuthGuard implements CanActivate {
 
     const scope = user.scope instanceof Set ? user.scope : new Set<string>();
     const isRead = request.method === 'GET' || request.method === 'HEAD';
-    const ok = scope.has('admin')
-      || scope.has('scim:write')
-      || (isRead && scope.has('scim:read'));
+    const ok = scope.has('admin') || scope.has('scim:write') || (isRead && scope.has('scim:read'));
     if (!ok) {
-      throw new ForbiddenException(
-        `${isRead ? 'scim:read' : 'scim:write'} scope required`,
-      );
+      throw new ForbiddenException(`${isRead ? 'scim:read' : 'scim:write'} scope required`);
     }
     return true;
   }

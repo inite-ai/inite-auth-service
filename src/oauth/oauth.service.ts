@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
@@ -75,9 +81,7 @@ export class OAuthService {
    * embed it when present, so legacy OAuth2-only clients don't get
    * an unexpected claim.
    */
-  async createAuthorizationCode(
-    input: CreateAuthorizationCodeInput,
-  ): Promise<string> {
+  async createAuthorizationCode(input: CreateAuthorizationCodeInput): Promise<string> {
     const code = crypto.randomBytes(32).toString('base64url');
 
     const expiresAt = new Date();
@@ -142,9 +146,7 @@ export class OAuthService {
    * used, treat it as theft and revoke the entire refresh-token family
    * issued from that code's user+client (RFC 6819 §4.4.1.1).
    */
-  async exchangeAuthorizationCode(
-    input: ExchangeAuthorizationCodeInput,
-  ): Promise<{
+  async exchangeAuthorizationCode(input: ExchangeAuthorizationCodeInput): Promise<{
     accessToken: string;
     refreshToken: string;
     idToken: string;
@@ -220,11 +222,10 @@ export class OAuthService {
     // refresh token from before this generateTokens() call — the
     // new one we just minted will be present too, so we exclude it
     // by created_at ordering rather than count.
-    this.notifyFirstTimeConsent(authCode.user, clientId, scope).catch(
-      (err) =>
-        this.oauthLogger.warn(
-          `first-time-consent notification failed: ${err instanceof Error ? err.message : String(err)}`,
-        ),
+    this.notifyFirstTimeConsent(authCode.user, clientId, scope).catch((err) =>
+      this.oauthLogger.warn(
+        `first-time-consent notification failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
     );
 
     return tokens;
@@ -272,9 +273,7 @@ export class OAuthService {
     });
     const allowedAud = client?.allowedAudiences ?? [];
     if (allowedAud.length > 0 && !allowedAud.includes(resource)) {
-      throw new BadRequestException(
-        `Resource "${resource}" is not allowed for this client`,
-      );
+      throw new BadRequestException(`Resource "${resource}" is not allowed for this client`);
     }
     return resource;
   }
@@ -284,11 +283,7 @@ export class OAuthService {
    * (user, client). Skipped when a non-revoked refresh token already
    * existed before this exchange — that means the grant isn't new.
    */
-  private async notifyFirstTimeConsent(
-    user: User,
-    clientId: string,
-    scope: string,
-  ): Promise<void> {
+  private async notifyFirstTimeConsent(user: User, clientId: string, scope: string): Promise<void> {
     try {
       // Count refresh tokens for this user+client created MORE than
       // 5 seconds ago. The one we just minted is younger than that,

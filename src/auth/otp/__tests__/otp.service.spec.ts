@@ -81,9 +81,9 @@ describe('OtpService', () => {
     expect(res.user.id).toBe('u1');
 
     // Replaying the same code fails — it was burned on success.
-    await expect(
-      service.verifyEmailLoginCode('a@example.com', getCode()),
-    ).rejects.toThrow(/invalid or expired/i);
+    await expect(service.verifyEmailLoginCode('a@example.com', getCode())).rejects.toThrow(
+      /invalid or expired/i,
+    );
   });
 
   it('locks out after MAX_ATTEMPTS wrong codes', async () => {
@@ -92,18 +92,16 @@ describe('OtpService', () => {
     const wrong = getCode() === '000000' ? '111111' : '000000';
 
     for (let i = 0; i < 4; i++) {
-      await expect(
-        service.verifyEmailLoginCode('a@example.com', wrong),
-      ).rejects.toThrow(/invalid or expired/i);
+      await expect(service.verifyEmailLoginCode('a@example.com', wrong)).rejects.toThrow(
+        /invalid or expired/i,
+      );
     }
     // 5th wrong attempt burns the code with a distinct lockout message.
-    await expect(
-      service.verifyEmailLoginCode('a@example.com', wrong),
-    ).rejects.toThrow(/too many/i);
+    await expect(service.verifyEmailLoginCode('a@example.com', wrong)).rejects.toThrow(/too many/i);
     // …and the (correct) code no longer works.
-    await expect(
-      service.verifyEmailLoginCode('a@example.com', getCode()),
-    ).rejects.toThrow(/invalid or expired/i);
+    await expect(service.verifyEmailLoginCode('a@example.com', getCode())).rejects.toThrow(
+      /invalid or expired/i,
+    );
   });
 
   it('rejects an expired code', async () => {
@@ -116,23 +114,21 @@ describe('OtpService', () => {
     rec.expiresAt = Date.now() - 1000;
     redis.store.set(key, JSON.stringify(rec));
 
-    await expect(
-      service.verifyEmailLoginCode('a@example.com', getCode()),
-    ).rejects.toThrow(/invalid or expired/i);
+    await expect(service.verifyEmailLoginCode('a@example.com', getCode())).rejects.toThrow(
+      /invalid or expired/i,
+    );
   });
 
   it('enforces a per-subject cooldown between sends', async () => {
     const { service } = setup();
     await service.requestEmailLoginCode('a@example.com');
-    await expect(
-      service.requestEmailLoginCode('a@example.com'),
-    ).rejects.toThrow(/wait/i);
+    await expect(service.requestEmailLoginCode('a@example.com')).rejects.toThrow(/wait/i);
   });
 
   it('refuses the SMS channel when the provider is not configured', async () => {
     const { service } = setup({ smsEnabled: false });
-    await expect(
-      service.requestMfaCode('u1', 'sms', '+14155550123'),
-    ).rejects.toThrow(/not configured/i);
+    await expect(service.requestMfaCode('u1', 'sms', '+14155550123')).rejects.toThrow(
+      /not configured/i,
+    );
   });
 });

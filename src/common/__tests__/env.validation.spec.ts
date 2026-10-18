@@ -36,9 +36,7 @@ describe('validateEnv', () => {
   });
 
   it('rejects a non-postgres DATABASE_URL', () => {
-    expect(() => validateEnv({ ...devBase, DATABASE_URL: 'mysql://x' })).toThrow(
-      /postgres/,
-    );
+    expect(() => validateEnv({ ...devBase, DATABASE_URL: 'mysql://x' })).toThrow(/postgres/);
   });
 
   it('rejects a non-numeric PORT', () => {

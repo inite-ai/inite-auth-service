@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  CallHandler,
-  ExecutionContext,
-} from '@nestjs/common';
+import { BadRequestException, CallHandler, ExecutionContext } from '@nestjs/common';
 import { of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 import { IdempotencyInterceptor } from '../idempotency.interceptor';
@@ -54,9 +50,7 @@ describe('IdempotencyInterceptor', () => {
   it('rejects keys shorter than 16 chars', () => {
     const handler = { handle: jest.fn() };
     const ctx = mkCtx({ 'idempotency-key': 'short' });
-    expect(() => interceptor.intercept(ctx, asHandler(handler))).toThrow(
-      BadRequestException,
-    );
+    expect(() => interceptor.intercept(ctx, asHandler(handler))).toThrow(BadRequestException);
   });
 
   it('runs the handler and caches the response on the first call', async () => {
@@ -79,10 +73,7 @@ describe('IdempotencyInterceptor', () => {
       handle: jest.fn().mockReturnValue(of({ token: 'jwt' })),
     };
     await firstValueFrom(
-      interceptor.intercept(
-        mkCtx({ 'idempotency-key': key }, body),
-        asHandler(firstHandler),
-      ),
+      interceptor.intercept(mkCtx({ 'idempotency-key': key }, body), asHandler(firstHandler)),
     );
 
     // Retry — handler should NOT run, cached body returned.
@@ -90,10 +81,7 @@ describe('IdempotencyInterceptor', () => {
       handle: jest.fn().mockReturnValue(of({ token: 'should-not-run' })),
     };
     const result = await firstValueFrom(
-      interceptor.intercept(
-        mkCtx({ 'idempotency-key': key }, body),
-        asHandler(replayHandler),
-      ),
+      interceptor.intercept(mkCtx({ 'idempotency-key': key }, body), asHandler(replayHandler)),
     );
     expect(result).toEqual({ token: 'jwt' });
     expect(replayHandler.handle).not.toHaveBeenCalled();

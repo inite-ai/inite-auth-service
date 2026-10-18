@@ -23,8 +23,9 @@ describe('assertPublicJwks', () => {
 
 describe('validateDcrClientKeys + private-jwks', () => {
   it('private_key_jwt with a private JWK is rejected', () => {
-    expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: PRIVATE_JWKS, jwksUri: undefined }))
-      .toThrow(/private key/);
+    expect(() =>
+      validateDcrClientKeys({ method: 'private_key_jwt', jwks: PRIVATE_JWKS, jwksUri: undefined }),
+    ).toThrow(/private key/);
   });
 });
 
@@ -35,8 +36,17 @@ describe('AdminClientsService auth-method', () => {
   beforeEach(() => {
     prisma = {
       oAuthClient: {
-        create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'c1', clientSecretHash: 'h', ...data })),
-        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 'c1', clientSecretHash: 'h', clientId: 'x', ...data })),
+        create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+          id: 'c1',
+          clientSecretHash: 'h',
+          ...data,
+        })),
+        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+          id: 'c1',
+          clientSecretHash: 'h',
+          clientId: 'x',
+          ...data,
+        })),
       },
     };
     service = new AdminClientsService(prisma as unknown as PrismaService);
@@ -44,8 +54,11 @@ describe('AdminClientsService auth-method', () => {
 
   it('persists private_key_jwt + jwks and stays confidential', async () => {
     await service.createOAuthClient({
-      name: 'PK', clientId: 'pk1', redirectUris: [],
-      tokenEndpointAuthMethod: 'private_key_jwt', jwks: PUBLIC_JWKS,
+      name: 'PK',
+      clientId: 'pk1',
+      redirectUris: [],
+      tokenEndpointAuthMethod: 'private_key_jwt',
+      jwks: PUBLIC_JWKS,
     });
     const data = prisma.oAuthClient.create.mock.calls[0][0].data;
     expect(data.tokenEndpointAuthMethod).toBe('private_key_jwt');
@@ -55,22 +68,32 @@ describe('AdminClientsService auth-method', () => {
 
   it('marks a "none" client public', async () => {
     await service.createOAuthClient({
-      name: 'SPA', clientId: 'spa1', redirectUris: ['https://a/cb'],
+      name: 'SPA',
+      clientId: 'spa1',
+      redirectUris: ['https://a/cb'],
       tokenEndpointAuthMethod: 'none',
     });
     expect(prisma.oAuthClient.create.mock.calls[0][0].data.isPublic).toBe(true);
   });
 
   it('rejects an unknown auth method', async () => {
-    await expect(service.createOAuthClient({
-      name: 'X', clientId: 'x1', redirectUris: [], tokenEndpointAuthMethod: 'client_secret_basic',
-    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.createOAuthClient({
+        name: 'X',
+        clientId: 'x1',
+        redirectUris: [],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects private_key_jwt with a private JWK on update', async () => {
-    await expect(service.updateOAuthClient('x', {
-      tokenEndpointAuthMethod: 'private_key_jwt', jwks: PRIVATE_JWKS,
-    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.updateOAuthClient('x', {
+        tokenEndpointAuthMethod: 'private_key_jwt',
+        jwks: PRIVATE_JWKS,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('leaves auth columns untouched when no method given', async () => {

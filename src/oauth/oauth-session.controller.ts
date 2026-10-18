@@ -32,7 +32,6 @@ import { ApiKeysService } from './api-keys.service';
 import { ConsentService } from './consent.service';
 import { AgentsService } from './agents.service';
 
-
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
 export class OAuthSessionController {
@@ -197,18 +196,11 @@ export class OAuthSessionController {
           sub: userDid,
         }),
       )
-      .catch((e) =>
-        this.logger.warn(
-          `Back-channel fan-out error: ${e?.message ?? 'unknown'}`,
-        ),
-      );
+      .catch((e) => this.logger.warn(`Back-channel fan-out error: ${e?.message ?? 'unknown'}`));
   }
 
   /** Validate the post-logout redirect against the allow-list; null if unsafe. */
-  private async resolveLogoutRedirect(
-    uri: string,
-    state: string,
-  ): Promise<string | null> {
+  private async resolveLogoutRedirect(uri: string, state: string): Promise<string | null> {
     if (!uri) return null;
     try {
       const url = new URL(uri);
@@ -267,8 +259,7 @@ export class OAuthSessionController {
     if (!this.stepUp.isSatisfied(amr, input.acrValues)) {
       throw new UnauthorizedException({
         error: 'insufficient_user_authentication',
-        error_description:
-          'Requested acr_values exceeds the current session assurance level',
+        error_description: 'Requested acr_values exceeds the current session assurance level',
         acr_values: input.acrValues,
       });
     }
@@ -332,7 +323,10 @@ export class OAuthSessionController {
     return apps.map((app) => {
       const agent = byClient.get(app.clientId);
       return agent
-        ? { ...app, agent: { did: agent.did, walletGrant: agent.walletGrant, lastUsedAt: agent.lastUsedAt } }
+        ? {
+            ...app,
+            agent: { did: agent.did, walletGrant: agent.walletGrant, lastUsedAt: agent.lastUsedAt },
+          }
         : app;
     });
   }
@@ -364,8 +358,7 @@ export class OAuthSessionController {
 
     try {
       const payload = await this.authService.verifyToken(token);
-      const userId =
-        typeof payload.userId === 'string' ? payload.userId : undefined;
+      const userId = typeof payload.userId === 'string' ? payload.userId : undefined;
 
       if (req.session) {
         req.session.userId = userId;
@@ -377,7 +370,9 @@ export class OAuthSessionController {
           const url = new URL(redirect);
           const isAllowed = await this.origins.isAllowedOrigin(url.origin);
           if (isAllowed) return res.redirect(redirect);
-        } catch { /* invalid URL, ignore redirect */ }
+        } catch {
+          /* invalid URL, ignore redirect */
+        }
       }
       return res.json({ success: true, message: 'Session established' });
     } catch (error: unknown) {

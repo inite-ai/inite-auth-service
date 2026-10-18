@@ -14,12 +14,7 @@ export class ClientAssertionJtiStore {
     try {
       await this.prisma.clientAssertionJti.create({ data: input });
     } catch (e: unknown) {
-      if (
-        e &&
-        typeof e === 'object' &&
-        'code' in e &&
-        (e as { code?: unknown }).code === 'P2002'
-      ) {
+      if (e && typeof e === 'object' && 'code' in e && (e as { code?: unknown }).code === 'P2002') {
         throw new UnauthorizedException('client_assertion replayed (jti reuse)');
       }
       throw e;

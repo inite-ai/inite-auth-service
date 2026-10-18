@@ -30,9 +30,7 @@ const PROD_REQUIRED: ReadonlyArray<readonly [string, string]> = [
 const PROD_RECOMMENDED: ReadonlyArray<readonly [string, string]> = [];
 
 // key → predicate → message, checked only when the value is present.
-const FORMAT_RULES: ReadonlyArray<
-  readonly [string, (v: string) => boolean, string]
-> = [
+const FORMAT_RULES: ReadonlyArray<readonly [string, (v: string) => boolean, string]> = [
   ['DATABASE_URL', (v) => /^postgres(ql)?:\/\//.test(v), 'must be a postgres:// URL'],
   ['PORT', (v) => !Number.isNaN(Number(v)), 'must be numeric'],
   ['REDIS_PORT', (v) => !Number.isNaN(Number(v)), 'must be numeric'],
@@ -41,10 +39,7 @@ const FORMAT_RULES: ReadonlyArray<
 ];
 
 /** Production-only checks: fatal required secrets + non-fatal recommendations. */
-function checkProduction(
-  config: Record<string, unknown>,
-  errors: string[],
-): void {
+function checkProduction(config: Record<string, unknown>, errors: string[]): void {
   for (const [key, why] of PROD_REQUIRED) {
     if (!present(config[key])) {
       errors.push(`${key} is required in production (${why})`);
@@ -59,9 +54,7 @@ function checkProduction(
   }
 }
 
-export function validateEnv(
-  config: Record<string, unknown>,
-): Record<string, unknown> {
+export function validateEnv(config: Record<string, unknown>): Record<string, unknown> {
   const errors: string[] = [];
 
   if (!present(config.DATABASE_URL)) errors.push('DATABASE_URL is required');
@@ -93,9 +86,7 @@ export function validateEnv(
   }
 
   if (errors.length > 0) {
-    throw new Error(
-      `Invalid environment configuration:\n  - ${errors.join('\n  - ')}`,
-    );
+    throw new Error(`Invalid environment configuration:\n  - ${errors.join('\n  - ')}`);
   }
   return config;
 }

@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
@@ -74,7 +68,10 @@ export class AuthAccountController {
         },
       };
     } catch (error: unknown) {
-      this.logger.error('Session user fetch failed', error instanceof Error ? error.message : String(error));
+      this.logger.error(
+        'Session user fetch failed',
+        error instanceof Error ? error.message : String(error),
+      );
       return { authenticated: false };
     }
   }

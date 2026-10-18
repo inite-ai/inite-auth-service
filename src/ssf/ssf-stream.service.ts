@@ -12,7 +12,7 @@ export class SsfStreamService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(scope: AdminScope, dto: CreateStreamDto): Promise<SsfStream> {
-    const companyId = scope.kind === 'scoped' ? scope.companyId : dto.companyId ?? null;
+    const companyId = scope.kind === 'scoped' ? scope.companyId : (dto.companyId ?? null);
     return this.prisma.ssfStream.create({
       data: {
         streamId: crypto.randomUUID(),

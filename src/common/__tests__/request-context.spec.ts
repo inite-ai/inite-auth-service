@@ -9,13 +9,10 @@ describe('requestContext', () => {
   });
 
   it('surfaces requestId inside the scope', () => {
-    requestContext.run(
-      { requestId: 'req-1', ip: '127.0.0.1', userAgent: 'Test/1.0' },
-      () => {
-        expect(requestContext.getRequestId()).toBe('req-1');
-        expect(requestContext.get()?.ip).toBe('127.0.0.1');
-      },
-    );
+    requestContext.run({ requestId: 'req-1', ip: '127.0.0.1', userAgent: 'Test/1.0' }, () => {
+      expect(requestContext.getRequestId()).toBe('req-1');
+      expect(requestContext.get()?.ip).toBe('127.0.0.1');
+    });
   });
 
   it('keeps separate scopes isolated', async () => {
@@ -66,9 +63,7 @@ describe('RequestContextMiddleware', () => {
     const res = mkRes();
     middleware.use(req, res, () => {
       const id = requestContext.getRequestId();
-      expect(id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-      );
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(res._headers['X-Request-Id']).toBe(id);
       done();
     });

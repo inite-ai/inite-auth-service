@@ -1,17 +1,17 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
-import { Request } from "express";
-import { OAuthClient } from "@prisma/client";
-import { OAuthService } from "./oauth.service";
-import { OAuthTokenIssuerService } from "./oauth-token-issuer.service";
-import { OAuthM2mService } from "./oauth-m2m.service";
-import { DeviceFlowService } from "./device-flow.service";
-import { DpopService } from "./dpop.service";
-import { MtlsService } from "./mtls.service";
-import { OAuthAuditService } from "../audit/oauth-audit.service";
-import { MetricsService } from "../common/metrics.service";
-import { LoggerService } from "../common/logger.service";
-import { TokenRequestBody } from "./dto/oauth-requests";
-import { AuditCtx, IssuedTokens, requestedAudience } from "./token-support";
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { Request } from 'express';
+import { OAuthClient } from '@prisma/client';
+import { OAuthService } from './oauth.service';
+import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
+import { OAuthM2mService } from './oauth-m2m.service';
+import { DeviceFlowService } from './device-flow.service';
+import { DpopService } from './dpop.service';
+import { MtlsService } from './mtls.service';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { MetricsService } from '../common/metrics.service';
+import { LoggerService } from '../common/logger.service';
+import { TokenRequestBody } from './dto/oauth-requests';
+import { AuditCtx, IssuedTokens, requestedAudience } from './token-support';
 
 /** Grant handlers that need the raw request (DPoP proof / device_code). */
 export interface GrantWithRequestInput {
@@ -41,7 +41,7 @@ export class TokenGrantService {
     private readonly m2m: OAuthM2mService,
     private readonly mtls: MtlsService,
   ) {
-    this.logger.setContext("TokenGrantService");
+    this.logger.setContext('TokenGrantService');
   }
 
   /** Standard authorization_code / refresh_token / device response shape. */
@@ -56,12 +56,13 @@ export class TokenGrantService {
     };
   }
 
-  async grantAuthorizationCode(
-    body: TokenRequestBody,
-    client: OAuthClient,
-    ctx: AuditCtx,
-  ) {
-    const { code, redirect_uri: redirectUri, client_id: clientId, code_verifier: codeVerifier } = body;
+  async grantAuthorizationCode(body: TokenRequestBody, client: OAuthClient, ctx: AuditCtx) {
+    const {
+      code,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      code_verifier: codeVerifier,
+    } = body;
     if (!code) throw new BadRequestException('code is required');
     if (!redirectUri) throw new BadRequestException('redirect_uri is required');
     if (!codeVerifier) throw new BadRequestException('code_verifier is required (PKCE)');
@@ -87,16 +88,13 @@ export class TokenGrantService {
     return this.toTokenResponse(tokens);
   }
 
-  async grantRefreshToken(
-    body: TokenRequestBody,
-    client: OAuthClient,
-    ctx: AuditCtx,
-  ) {
+  async grantRefreshToken(body: TokenRequestBody, client: OAuthClient, ctx: AuditCtx) {
     const clientId = body.client_id;
     if (!body.refresh_token) throw new BadRequestException('refresh_token is required');
 
     const tokens = await this.tokenIssuer.refreshAccessToken(
-      body.refresh_token, clientId as string,
+      body.refresh_token,
+      clientId as string,
     );
 
     this.metrics.tokensIssued.inc({ grant_type: 'refresh_token' });
@@ -156,9 +154,8 @@ export class TokenGrantService {
    */
   /** Reconstruct the full request URL (no query) for DPoP htu binding. */
   private buildRequestUrl(req: Request): string {
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?? req.protocol
-      ?? 'https';
+    const proto =
+      (req.headers['x-forwarded-proto'] as string | undefined) ?? req.protocol ?? 'https';
     const host = req.headers.host ?? '';
     const path = req.path ?? req.url?.split('?')[0] ?? '';
     return `${proto}://${host}${path}`;
@@ -216,9 +213,7 @@ export class TokenGrantService {
       // from the service. Distinguish via the message for clearer replay.
       const msg = e instanceof Error ? e.message : '';
       const isAudience = msg.includes('Audience');
-      const event = isAudience
-        ? 'token.failed.audience_violation'
-        : 'token.failed.scope_violation';
+      const event = isAudience ? 'token.failed.audience_violation' : 'token.failed.scope_violation';
       this.metrics.tokenFailures.inc({
         grant_type: 'client_credentials',
         reason: isAudience ? 'audience_violation' : 'scope_violation',
@@ -267,19 +262,13 @@ export class TokenGrantService {
    * client must have the token-exchange grant in allowedGrants (enforced by
    * assertGrantAllowed before we get here).
    */
-  async grantTokenExchange(
-    body: TokenRequestBody,
-    client: OAuthClient,
-    ctx: AuditCtx,
-  ) {
+  async grantTokenExchange(body: TokenRequestBody, client: OAuthClient, ctx: AuditCtx) {
     if (!body.subject_token || !body.subject_token_type) {
       this.metrics.tokenFailures.inc({
         grant_type: 'token_exchange',
         reason: 'invalid_request',
       });
-      throw new BadRequestException(
-        'subject_token and subject_token_type are required',
-      );
+      throw new BadRequestException('subject_token and subject_token_type are required');
     }
 
     let result;

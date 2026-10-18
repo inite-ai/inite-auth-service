@@ -49,9 +49,7 @@ export class SamlController {
   ) {
     this.logger.setContext('SamlController');
     this.sessionSecret =
-      this.config.get<string>('SESSION_SECRET') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
+      this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
   @Get(':slug/metadata')
@@ -94,11 +92,9 @@ export class SamlController {
       const { user } = await this.federation.resolveUser(normalized);
       userId = user.id;
     } catch (err) {
-      this.logger.error(
-        'SAML ACS validation failed',
-        (err as Error)?.message ?? 'unknown',
-        { slug },
-      );
+      this.logger.error('SAML ACS validation failed', (err as Error)?.message ?? 'unknown', {
+        slug,
+      });
       res.redirect(this.loginUrl('saml_failed'));
       return;
     }
@@ -112,11 +108,7 @@ export class SamlController {
    * Regenerate the session (no fixation), bind the user, set the signed
    * first-party cookie — same shape as the social-federation callback.
    */
-  private async establishSession(
-    req: Request,
-    res: Response,
-    userId: string,
-  ): Promise<void> {
+  private async establishSession(req: Request, res: Response, userId: string): Promise<void> {
     const session = req.session;
     if (!session) return;
     await new Promise<void>((resolve, reject) => {

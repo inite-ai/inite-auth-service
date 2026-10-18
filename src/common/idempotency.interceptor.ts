@@ -62,17 +62,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
     if (!key) return next.handle();
 
     if (key.length < 16 || key.length > 128) {
-      throw new BadRequestException(
-        'Idempotency-Key must be 16-128 characters',
-      );
+      throw new BadRequestException('Idempotency-Key must be 16-128 characters');
     }
 
-    const actor =
-      req.user?.userId ??
-      req.user?.sub ??
-      req.body?.client_id ??
-      req.ip ??
-      'anonymous';
+    const actor = req.user?.userId ?? req.user?.sub ?? req.body?.client_id ?? req.ip ?? 'anonymous';
     const redisKey = `idem:${actor}:${key}`;
     const bodyHash = hashBody(req.body);
 
@@ -86,9 +79,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
             return next.handle(); // unparsable → safer to re-run
           }
           if (parsed.bodyHash !== bodyHash) {
-            throw new BadRequestException(
-              'Idempotency-Key reused with a different request body',
-            );
+            throw new BadRequestException('Idempotency-Key reused with a different request body');
           }
           res.status(parsed.statusCode);
           return of(parsed.body);

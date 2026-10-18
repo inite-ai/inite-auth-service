@@ -67,7 +67,8 @@ Small steps, each one leaving the tree green. Show the plan; get a yes.
   path.
 - Respect the lint gates (300 lines/file, 3 params, complexity 12, no
   `any`, controllers don't import `src/prisma`). Split rather than disable.
-- Format only files you touched: `npx prettier --write <files>`.
+- Format with `npm run format` (backend `src/`); `npm run format:check` is a
+  CI gate.
 
 ## 6. Run the gates
 
@@ -75,6 +76,7 @@ Backend (always):
 
 ```bash
 npm run lint     # runs --fix; review what it changed
+npm run format:check
 npm run build
 npm test
 ```

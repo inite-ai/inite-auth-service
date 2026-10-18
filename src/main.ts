@@ -62,10 +62,7 @@ async function bootstrap() {
         '(.well-known/*) are version-neutral per their RFCs.',
     )
     .setVersion(SERVICE_VERSION)
-    .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-      'access-token',
-    )
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .addTag('auth', 'Password, passkey, magic-link, MFA and session login flows')
     .addTag('oauth', 'OAuth 2.1 / OIDC authorization, token and client endpoints')
     .addTag('identity', 'DID and Verifiable Credential issuance')
@@ -114,9 +111,7 @@ async function bootstrap() {
     allowedPartners?: string[];
   }
   const cspAllowedPartners = (res: ServerResponse): string =>
-    (res as ServerResponse & { locals?: CspLocals }).locals?.allowedPartners?.join(
-      ' ',
-    ) ?? '';
+    (res as ServerResponse & { locals?: CspLocals }).locals?.allowedPartners?.join(' ') ?? '';
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -130,13 +125,11 @@ async function bootstrap() {
           // is O(1) so this stays cheap.
           connectSrc: [
             "'self'",
-            (_req: IncomingMessage, res: ServerResponse) =>
-              cspAllowedPartners(res),
+            (_req: IncomingMessage, res: ServerResponse) => cspAllowedPartners(res),
           ],
           frameAncestors: [
             "'self'",
-            (_req: IncomingMessage, res: ServerResponse) =>
-              cspAllowedPartners(res),
+            (_req: IncomingMessage, res: ServerResponse) => cspAllowedPartners(res),
           ],
         },
       },
@@ -226,8 +219,8 @@ async function bootstrap() {
   });
 
   // Session configuration
-  const configuredSecret = configService.get<string>('SESSION_SECRET') ||
-                           configService.get<string>('JWT_SECRET');
+  const configuredSecret =
+    configService.get<string>('SESSION_SECRET') || configService.get<string>('JWT_SECRET');
   if (!configuredSecret) {
     throw new Error('SESSION_SECRET or JWT_SECRET must be set in environment');
   }
@@ -273,9 +266,10 @@ async function bootstrap() {
       path: '/',
     },
   });
-  const normalizedFrontendUrl = (
-    configService.get<string>('FRONTEND_URL', '') ?? ''
-  ).replace(/\/$/, '');
+  const normalizedFrontendUrl = (configService.get<string>('FRONTEND_URL', '') ?? '').replace(
+    /\/$/,
+    '',
+  );
   app.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
     if (origin) {
@@ -293,9 +287,9 @@ async function bootstrap() {
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.once(sig, () => {
       logger.log(`Received ${sig}, closing session redis client`);
-      redisClient.quit().catch((err) =>
-        logger.error('Redis quit error', err?.message ?? 'unknown'),
-      );
+      redisClient
+        .quit()
+        .catch((err) => logger.error('Redis quit error', err?.message ?? 'unknown'));
     });
   }
 
@@ -322,7 +316,7 @@ async function bootstrap() {
 process.on('unhandledRejection', (reason) => {
   logger.error(
     'Unhandled promise rejection',
-    reason instanceof Error ? reason.stack ?? reason.message : String(reason),
+    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason),
   );
 });
 process.on('uncaughtException', (err) => {
@@ -337,7 +331,7 @@ process.on('uncaughtException', (err) => {
 bootstrap().catch((err) => {
   logger.error(
     'Fatal: application bootstrap failed',
-    err instanceof Error ? err.stack ?? err.message : String(err),
+    err instanceof Error ? (err.stack ?? err.message) : String(err),
   );
   process.exit(1);
 });

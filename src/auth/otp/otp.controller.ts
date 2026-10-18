@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Req,
-  Res,
-  UseGuards,
-  HttpCode,
-} from '@nestjs/common';
+import { Controller, Post, Body, Req, Res, UseGuards, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -44,9 +36,7 @@ export class OtpController {
   ) {
     this.logger.setContext('OtpController');
     this.sessionSecret =
-      this.config.get<string>('SESSION_SECRET') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
+      this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
   @Post('request')
@@ -69,10 +59,7 @@ export class OtpController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const { user, isNewUser } = await this.otp.verifyEmailLoginCode(
-      body.email,
-      body.code,
-    );
+    const { user, isNewUser } = await this.otp.verifyEmailLoginCode(body.email, body.code);
 
     await this.establishSession(req, res, { userId: user.id, amr: ['otp'] });
     const accessToken = this.authService.generateTokenForUser(user);
@@ -94,10 +81,7 @@ export class OtpController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Send a step-up code to the current user' })
-  async requestMfa(
-    @Body() body: RequestMfaOtpDto,
-    @CurrentUserId() userId: string,
-  ) {
+  async requestMfa(@Body() body: RequestMfaOtpDto, @CurrentUserId() userId: string) {
     await this.otp.requestMfaCode(userId, body.channel, body.phone);
     return { sent: true };
   }
@@ -117,14 +101,10 @@ export class OtpController {
     // Record the satisfied factor on the session so step-up enforcement can
     // see the raised assurance level (see RFC 9470 / acr handling).
     if (req.session) {
-      const amr: string[] = Array.isArray(req.session.amr)
-        ? req.session.amr
-        : [];
+      const amr: string[] = Array.isArray(req.session.amr) ? req.session.amr : [];
       if (!amr.includes('otp')) amr.push('otp');
       req.session.amr = amr;
-      await new Promise<void>((resolve) =>
-        req.session.save(() => resolve()),
-      );
+      await new Promise<void>((resolve) => req.session.save(() => resolve()));
     }
     return { verified: true };
   }

@@ -90,20 +90,37 @@ export class AuthService {
       data: { passwordHash },
     });
 
-    try {
-      // `email` is set for every persisted user in these flows; `name` is optional.
-      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
-      if (emailSent) {
-        this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
-      } else {
-        this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
-      }
-    } catch (error: unknown) {
-      this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
-    }
+    await this.sendWelcomeEmail(user);
 
     const accessToken = this.generateAccessToken(user);
     return { user, accessToken };
+  }
+
+  /**
+   * Best-effort welcome email: a failure is logged, never thrown.
+   */
+  private async sendWelcomeEmail(user: User): Promise<void> {
+    try {
+      // `email` is set for every persisted user in these flows; `name` is optional.
+      const emailSent = await this.emailService.sendWelcome({
+        email: user.email!,
+        name: user.name ?? undefined,
+      });
+      if (emailSent) {
+        this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
+      } else {
+        this.logger.error('Failed to send welcome email', 'Email service returned false', {
+          email: user.email,
+          userId: user.id,
+        });
+      }
+    } catch (error: unknown) {
+      this.logger.error(
+        'Failed to send welcome email',
+        error instanceof Error && error.message ? error.message : 'Unknown error',
+        { email: user.email, userId: user.id, error },
+      );
+    }
   }
 
   /**
@@ -143,9 +160,7 @@ export class AuthService {
       const retryAfter = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 1000);
       this.logger.auth('Login blocked: account locked', { userId: user.id, retryAfter });
       this.loginSecurity.recordAttempt('locked');
-      throw new UnauthorizedException(
-        `Account temporarily locked. Try again in ${retryAfter}s.`,
-      );
+      throw new UnauthorizedException(`Account temporarily locked. Try again in ${retryAfter}s.`);
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
@@ -197,19 +212,7 @@ export class AuthService {
   }> {
     const { user, isNewUser, oauthParams } = await this.magicLinkService.verifyMagicLink(token);
 
-    if (isNewUser) {
-      try {
-        // `email` is set for every persisted user in these flows; `name` is optional.
-      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
-        if (emailSent) {
-          this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
-        } else {
-          this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
-        }
-      } catch (error: unknown) {
-        this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
-      }
-    }
+    if (isNewUser) await this.sendWelcomeEmail(user);
 
     const accessToken = this.generateAccessToken(user);
     return { user, accessToken, isNewUser, oauthParams };
@@ -254,7 +257,10 @@ export class AuthService {
   /**
    * Reset password with token
    */
-  async resetPassword(token: string, newPassword: string): Promise<{
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{
     user: User;
     accessToken: string;
     oauthParams: OAuthParamsDto | null;
@@ -300,14 +306,18 @@ export class AuthService {
   /**
    * Generate JWT access token (internal)
    */
-  private generateAccessToken(user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>): string {
+  private generateAccessToken(
+    user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>,
+  ): string {
     return this.generateTokenForUser(user);
   }
 
   /**
    * Generate JWT access token for user (public - for session-based auth)
    */
-  generateTokenForUser(user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>): string {
+  generateTokenForUser(
+    user: Pick<User, 'id' | 'did' | 'email' | 'emailVerified' | 'name'>,
+  ): string {
     const payload = {
       sub: user.did,
       userId: user.id,
@@ -379,7 +389,11 @@ export class AuthService {
         this.logger.auth('New device login email sent', { userId, email: user.email });
       }
     } catch (error: unknown) {
-      this.logger.error('Failed to send new device email', error instanceof Error ? error.message : undefined, { userId });
+      this.logger.error(
+        'Failed to send new device email',
+        error instanceof Error ? error.message : undefined,
+        { userId },
+      );
     }
   }
 }

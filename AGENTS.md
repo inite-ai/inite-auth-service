@@ -118,7 +118,8 @@ Codespaces container when `.devcontainer/`, lockfiles or migrations change).
 | Unit tests (no DB needed, ~15 s) | `npm test` | yes |
 | One test file | `npm test -- src/oauth/__tests__/refresh-keeps-audience.spec.ts` | — |
 | Coverage (ratchet floor in `jest.config.js`) | `npm run test:cov` | — |
-| Format the files you touched | `npx prettier --write <files>` | — |
+| Format backend code (`src/`) | `npm run format` | — |
+| Format check (prettier, `src/`) | `npm run format:check` | yes |
 | Secret scan | `gitleaks detect --source . --config .gitleaks.toml --redact -v` | yes |
 | Apply migrations (needs DB) | `npm run migrate` | yes (`migrations` job) |
 | Frontend install | `cd frontend && npm ci` | yes |
@@ -132,12 +133,11 @@ Codespaces container when `.devcontainer/`, lockfiles or migrations change).
 Known gaps — do not rely on them: `npm run test:e2e` points at a
 `test/jest-e2e.json` that does not exist (issue #244); `frontend`'s
 `npm run lint` (`next lint`) no longer exists in Next 16 and is not a gate;
-Prettier is not enforced in CI and the tree is not fully formatted, so never
-run `npm run format` across the repo (it rewrites ~180 files) — format only
-what you change. The Docker image and migration-path jobs need Docker and run
+Prettier is enforced on backend `src/` only — `frontend/`, `packages/` and
+`scripts/` are not formatted or checked. The Docker image and migration-path jobs need Docker and run
 in CI only.
 
-**Done = `npm run lint`, `npm run build`, `npm test` green (and the four
+**Done = `npm run lint`, `npm run format:check`, `npm run build`, `npm test` green (and the four
 frontend gates if you touched `frontend/`), PR title is a Conventional
 Commit, CI green.**
 

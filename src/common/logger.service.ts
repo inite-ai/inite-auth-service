@@ -27,9 +27,7 @@ interface PrintInput {
  * in the dev pretty-printer — collapse them to a single space.
  */
 function sanitizeLogText(text: string): string {
-  return text
-    .replace(/\r\n|\r|\n/g, ' ')
-    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
+  return text.replace(/\r\n|\r|\n/g, ' ').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ');
 }
 
 /**
@@ -151,11 +149,16 @@ export class LoggerService implements NestLoggerService {
 
   private getEmoji(level: LogLevel): string {
     switch (level) {
-      case 'error': return '❌';
-      case 'warn': return '⚠️';
-      case 'debug': return '🔍';
-      case 'verbose': return '📝';
-      default: return '📋';
+      case 'error':
+        return '❌';
+      case 'warn':
+        return '⚠️';
+      case 'debug':
+        return '🔍';
+      case 'verbose':
+        return '📝';
+      default:
+        return '📋';
     }
   }
 }
@@ -166,6 +169,3 @@ export function createLogger(context: string): LoggerService {
   logger.setContext(context);
   return logger;
 }
-
-
-

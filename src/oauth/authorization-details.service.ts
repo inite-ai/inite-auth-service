@@ -26,9 +26,7 @@ export class AuthorizationDetailsService {
 
   /** The supported `type` values (for enforcement + discovery metadata). */
   supportedTypes(): string[] {
-    return resolveAuthorizationDetailsTypes(
-      this.settings.raw('AUTHORIZATION_DETAILS_TYPES'),
-    );
+    return resolveAuthorizationDetailsTypes(this.settings.raw('AUTHORIZATION_DETAILS_TYPES'));
   }
 
   /**
@@ -57,10 +55,7 @@ export class AuthorizationDetailsService {
     return value.map((element) => this.validateElement(element, supported));
   }
 
-  private validateElement(
-    element: unknown,
-    supported: Set<string>,
-  ): AuthorizationDetail {
+  private validateElement(element: unknown, supported: Set<string>): AuthorizationDetail {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) {
       throw this.reject('each authorization_details entry must be an object');
     }

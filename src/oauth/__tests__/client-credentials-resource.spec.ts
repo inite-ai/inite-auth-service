@@ -18,7 +18,9 @@ describe('client_credentials requested audience', () => {
   });
 
   it('takes the first of a repeated resource', () => {
-    expect(requestedAudience({ resource: ['https://a.test', 'https://b.test'] })).toBe('https://a.test');
+    expect(requestedAudience({ resource: ['https://a.test', 'https://b.test'] })).toBe(
+      'https://a.test',
+    );
   });
 
   it('ignores a resource the client may not have, as before (no new 400)', () => {

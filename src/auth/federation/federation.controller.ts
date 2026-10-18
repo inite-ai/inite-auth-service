@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
@@ -61,9 +54,7 @@ export class FederationController {
   ) {
     this.logger.setContext('FederationController');
     this.sessionSecret =
-      this.config.get<string>('SESSION_SECRET') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
+      this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
   @Get('providers')
@@ -107,14 +98,10 @@ export class FederationController {
       result = await this.federation.handleCallback(provider, query);
     } catch (err) {
       const code =
-        err instanceof FederationEmailConflictError
-          ? 'email_conflict'
-          : 'federation_failed';
-      this.logger.error(
-        'Federation callback failed',
-        (err as Error)?.message ?? 'unknown',
-        { provider },
-      );
+        err instanceof FederationEmailConflictError ? 'email_conflict' : 'federation_failed';
+      this.logger.error('Federation callback failed', (err as Error)?.message ?? 'unknown', {
+        provider,
+      });
       res.redirect(this.loginUrl({}, code));
       return;
     }
@@ -134,11 +121,7 @@ export class FederationController {
    * Regenerate the session (fresh id, no fixation), bind the user, and set the
    * signed first-party cookie — same shape as the magic-link / password flows.
    */
-  private async establishSession(
-    req: Request,
-    res: Response,
-    userId: string,
-  ): Promise<void> {
+  private async establishSession(req: Request, res: Response, userId: string): Promise<void> {
     const session = req.session;
     if (!session) return;
     await new Promise<void>((resolve, reject) => {
@@ -164,9 +147,7 @@ export class FederationController {
     });
   }
 
-  private extractOAuthParams(
-    query: Record<string, string>,
-  ): Record<string, string> {
+  private extractOAuthParams(query: Record<string, string>): Record<string, string> {
     const out: Record<string, string> = {};
     for (const key of FederationController.OAUTH_PASSTHROUGH) {
       if (query[key]) out[key] = query[key];
@@ -175,14 +156,8 @@ export class FederationController {
   }
 
   /** Frontend login URL, carrying any OAuth-continuation params + error code. */
-  private loginUrl(
-    oauthParams: Record<string, string>,
-    errorCode?: string,
-  ): string {
-    const frontend = this.config.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+  private loginUrl(oauthParams: Record<string, string>, errorCode?: string): string {
+    const frontend = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
     const url = new URL('/login', frontend);
     for (const [k, v] of Object.entries(oauthParams)) {
       url.searchParams.set(k, v);

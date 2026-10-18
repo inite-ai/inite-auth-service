@@ -59,12 +59,8 @@ export function toScimUser(
     id: user.id,
     ...(membership.externalId ? { externalId: membership.externalId } : {}),
     userName: user.email ?? user.did,
-    ...(user.name
-      ? { name: { formatted: user.name }, displayName: user.name }
-      : {}),
-    ...(user.email
-      ? { emails: [{ value: user.email, primary: true }] }
-      : {}),
+    ...(user.name ? { name: { formatted: user.name }, displayName: user.name } : {}),
+    ...(user.email ? { emails: [{ value: user.email, primary: true }] } : {}),
     active: membership.status === 'active',
     meta: {
       resourceType: 'User',
@@ -165,10 +161,7 @@ export function groupPatchFromOps(
   return patch;
 }
 
-function applyGroupOp(
-  op: { op: string; path?: string; value?: unknown },
-  patch: GroupPatch,
-): void {
+function applyGroupOp(op: { op: string; path?: string; value?: unknown }, patch: GroupPatch): void {
   const kind = op.op?.toLowerCase();
   const path = (op.path ?? '').toLowerCase();
   if (path === 'displayname' && (kind === 'replace' || kind === 'add')) {

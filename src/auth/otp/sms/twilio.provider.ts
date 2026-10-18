@@ -31,9 +31,7 @@ export class TwilioSmsProvider implements SmsProvider {
   async send(to: string, body: string): Promise<boolean> {
     if (!this.enabled) return false;
     const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
-    const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString(
-      'base64',
-    );
+    const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
     const form = new URLSearchParams({ To: to, From: this.from as string, Body: body });
 
     try {

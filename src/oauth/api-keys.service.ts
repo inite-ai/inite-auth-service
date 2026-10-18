@@ -96,9 +96,7 @@ export class ApiKeysService {
   }
 
   /** Tenant-scoped listing (companyId undefined = superadmin, all tenants). */
-  async list(
-    companyId?: string,
-  ): Promise<Array<Omit<ApiKey, 'keyHash'> & { companyId: string }>> {
+  async list(companyId?: string): Promise<Array<Omit<ApiKey, 'keyHash'> & { companyId: string }>> {
     const rows = await this.prisma.apiKey.findMany({
       where: companyId ? { organization: { companyId } } : {},
       orderBy: { createdAt: 'desc' },

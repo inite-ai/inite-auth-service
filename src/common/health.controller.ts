@@ -1,4 +1,12 @@
-import { Controller, Get, Header, HttpStatus, HttpException, Res, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  HttpStatus,
+  HttpException,
+  Res,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { JwksService } from './jwks.service';
@@ -148,10 +156,7 @@ export class HealthController {
   }
 
   private issuer(): string {
-    return this.configService.get<string>(
-      'OIDC_ISSUER',
-      'http://localhost:3002',
-    );
+    return this.configService.get<string>('OIDC_ISSUER', 'http://localhost:3002');
   }
 
   private authServerMetadata(issuer: string) {
@@ -185,9 +190,7 @@ export class HealthController {
             : {}),
         }
       : {};
-    const mtlsAuthMethods = mtlsOn
-      ? ['tls_client_auth', 'self_signed_tls_client_auth']
-      : [];
+    const mtlsAuthMethods = mtlsOn ? ['tls_client_auth', 'self_signed_tls_client_auth'] : [];
     return {
       issuer,
       authorization_endpoint: `${issuer}/v1/oauth/authorize`,
@@ -231,16 +234,12 @@ export class HealthController {
         ...mtlsAuthMethods,
       ],
       // Asymmetric algs accepted for a private_key_jwt client assertion.
-      token_endpoint_auth_signing_alg_values_supported: [
-        'RS256', 'PS256', 'ES256', 'EdDSA',
-      ],
+      token_endpoint_auth_signing_alg_values_supported: ['RS256', 'PS256', 'ES256', 'EdDSA'],
       // JAR (RFC 9101) — signed request objects on /authorize + /par.
       request_parameter_supported: true,
       request_uri_parameter_supported: true,
       require_request_uri_registration: false,
-      request_object_signing_alg_values_supported: [
-        'RS256', 'PS256', 'ES256', 'EdDSA',
-      ],
+      request_object_signing_alg_values_supported: ['RS256', 'PS256', 'ES256', 'EdDSA'],
       code_challenge_methods_supported: ['S256'],
       // OIDC Discovery §3 — languages the login/consent UI can render.
       ui_locales_supported: ['en', 'ru', 'pt-BR', 'es-419'],
@@ -271,8 +270,3 @@ export class HealthController {
     };
   }
 }
-
-
-
-
-

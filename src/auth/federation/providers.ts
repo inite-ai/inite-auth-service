@@ -49,9 +49,7 @@ function asString(value: unknown): string | null {
 }
 
 /** Normalize Google's OIDC UserInfo response. */
-export function normalizeGoogleProfile(
-  data: Record<string, unknown>,
-): NormalizedProfile {
+export function normalizeGoogleProfile(data: Record<string, unknown>): NormalizedProfile {
   return {
     provider: 'google',
     subject: String(data.sub),
@@ -73,9 +71,8 @@ export function normalizeGithubProfile(
   user: Record<string, unknown>,
   emails: Array<Record<string, unknown>>,
 ): NormalizedProfile {
-  const primary = emails.find((e) => e.primary && e.verified)
-    ?? emails.find((e) => e.verified)
-    ?? null;
+  const primary =
+    emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified) ?? null;
   return {
     provider: 'github',
     subject: String(user.id),
@@ -88,9 +85,7 @@ export function normalizeGithubProfile(
 }
 
 /** Normalize a generic OIDC UserInfo response. */
-export function normalizeOidcProfile(
-  data: Record<string, unknown>,
-): NormalizedProfile {
+export function normalizeOidcProfile(data: Record<string, unknown>): NormalizedProfile {
   return {
     provider: 'oidc',
     subject: String(data.sub),
@@ -103,10 +98,7 @@ export function normalizeOidcProfile(
 }
 
 /** Keep only known, non-sensitive claims for the persisted snapshot. */
-function pickClaims(
-  data: Record<string, unknown>,
-  keys: string[],
-): Record<string, unknown> {
+function pickClaims(data: Record<string, unknown>, keys: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of keys) {
     if (data[k] !== undefined && data[k] !== null) out[k] = data[k];

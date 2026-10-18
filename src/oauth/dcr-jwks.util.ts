@@ -47,7 +47,9 @@ export function assertPublicJwks(jwks: unknown): void {
   for (const key of keys) {
     const jwk = key as { d?: unknown; kty?: unknown };
     if (jwk && (jwk.d !== undefined || jwk.kty === 'oct')) {
-      throw new BadRequestException('jwks must contain only public keys (found private key material)');
+      throw new BadRequestException(
+        'jwks must contain only public keys (found private key material)',
+      );
     }
   }
 }

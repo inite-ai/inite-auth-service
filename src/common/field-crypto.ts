@@ -52,7 +52,9 @@ export class FieldCrypto {
 
   /** True when a stored value is already in the v1 envelope format. */
   static isEncrypted(value: string | null | undefined): boolean {
-    return typeof value === 'string' && value.startsWith(`${VERSION}.`) && value.split('.').length === 4;
+    return (
+      typeof value === 'string' && value.startsWith(`${VERSION}.`) && value.split('.').length === 4
+    );
   }
 
   encrypt(plaintext: string): string {
@@ -61,7 +63,12 @@ export class FieldCrypto {
     const cipher = crypto.createCipheriv(ALGO, key, iv);
     const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
-    return [VERSION, iv.toString('base64url'), tag.toString('base64url'), ciphertext.toString('base64url')].join('.');
+    return [
+      VERSION,
+      iv.toString('base64url'),
+      tag.toString('base64url'),
+      ciphertext.toString('base64url'),
+    ].join('.');
   }
 
   /** Decrypt a v1 envelope; passes legacy plaintext through unchanged. */
@@ -74,12 +81,17 @@ export class FieldCrypto {
     const [, ivB64, tagB64, ctB64] = value.split('.');
     const decipher = crypto.createDecipheriv(ALGO, key, Buffer.from(ivB64!, 'base64url'));
     decipher.setAuthTag(Buffer.from(tagB64!, 'base64url'));
-    return Buffer.concat([decipher.update(Buffer.from(ctB64!, 'base64url')), decipher.final()]).toString('utf8');
+    return Buffer.concat([
+      decipher.update(Buffer.from(ctB64!, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
   }
 
   private requireKey(): Buffer {
     if (!this.key) {
-      throw new Error('FIELD_ENCRYPTION_KEY is not configured — required to encrypt/decrypt at-rest secrets (e.g. 2FA)');
+      throw new Error(
+        'FIELD_ENCRYPTION_KEY is not configured — required to encrypt/decrypt at-rest secrets (e.g. 2FA)',
+      );
     }
     return this.key;
   }

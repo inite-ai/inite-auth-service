@@ -81,14 +81,19 @@ export class AgentsService {
     let agent = await this.live(userId, clientId);
     if (!agent) {
       try {
-        agent = await this.prisma.agent.create({ data: { userId, clientId, lastUsedAt: new Date() } });
+        agent = await this.prisma.agent.create({
+          data: { userId, clientId, lastUsedAt: new Date() },
+        });
       } catch (error) {
         // Two tokens issued at once: the other one made it.
         if ((error as { code?: string })?.code !== 'P2002') throw error;
         agent = await this.live(userId, clientId);
         if (!agent) throw error;
       }
-    } else if (!agent.lastUsedAt || Date.now() - agent.lastUsedAt.getTime() > LAST_USED_GRANULARITY_MS) {
+    } else if (
+      !agent.lastUsedAt ||
+      Date.now() - agent.lastUsedAt.getTime() > LAST_USED_GRANULARITY_MS
+    ) {
       await this.prisma.agent.update({ where: { id: agent.id }, data: { lastUsedAt: new Date() } });
     }
     return { id: agent.id, did: this.didOf(agent.id) };
@@ -162,7 +167,11 @@ export class AgentsService {
         ?.emit({
           eventType: CAEP_EVENTS.sessionRevoked,
           subject: agent.user.did,
-          claims: { agent: this.didOf(agent.id), client_id: clientId, reason: 'agent_disconnected' },
+          claims: {
+            agent: this.didOf(agent.id),
+            client_id: clientId,
+            reason: 'agent_disconnected',
+          },
         })
         .catch((e: Error) => this.logger.warn(`agent revoke signal failed: ${e.message}`));
     }
@@ -174,7 +183,9 @@ export class AgentsService {
    * (the application) — and, once retired, that it is deactivated. Null when
    * there is no such agent.
    */
-  async document(agentId: string): Promise<{ document: Record<string, unknown>; deactivated: boolean } | null> {
+  async document(
+    agentId: string,
+  ): Promise<{ document: Record<string, unknown>; deactivated: boolean } | null> {
     if (isSelfAgentId(agentId)) {
       const client = await this.prisma.oAuthClient.findUnique({ where: { clientId: agentId } });
       if (!client || !isSelfAgent(client)) return null;

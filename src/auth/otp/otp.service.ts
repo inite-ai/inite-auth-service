@@ -84,11 +84,7 @@ export class OtpService {
   // ─────────────────────────── step-up (MFA) factor ───────────────────────
 
   /** Send a step-up code to an already-authenticated user. */
-  async requestMfaCode(
-    userId: string,
-    channel: OtpChannel,
-    phone?: string,
-  ): Promise<void> {
+  async requestMfaCode(userId: string, channel: OtpChannel, phone?: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { email: true, name: true },
@@ -142,11 +138,7 @@ export class OtpService {
       attempts: 0,
       expiresAt: Date.now() + CODE_TTL_SECONDS * 1000,
     };
-    await this.redis.set(
-      this.codeKey(opts.subject),
-      JSON.stringify(record),
-      CODE_TTL_SECONDS,
-    );
+    await this.redis.set(this.codeKey(opts.subject), JSON.stringify(record), CODE_TTL_SECONDS);
 
     const ttlMinutes = Math.round(CODE_TTL_SECONDS / 60);
     const sent =
@@ -187,29 +179,16 @@ export class OtpService {
     const attempts = record.attempts + 1;
     if (attempts >= MAX_ATTEMPTS) {
       await this.redis.del(key); // burn after too many misses → must re-request
-      throw new UnauthorizedException(
-        'Too many incorrect attempts. Request a new code.',
-      );
+      throw new UnauthorizedException('Too many incorrect attempts. Request a new code.');
     }
-    const remainingTtl = Math.max(
-      1,
-      Math.ceil((record.expiresAt - Date.now()) / 1000),
-    );
-    await this.redis.set(
-      key,
-      JSON.stringify({ ...record, attempts }),
-      remainingTtl,
-    );
+    const remainingTtl = Math.max(1, Math.ceil((record.expiresAt - Date.now()) / 1000));
+    await this.redis.set(key, JSON.stringify({ ...record, attempts }), remainingTtl);
     throw new UnauthorizedException('Invalid or expired code');
   }
 
   /** Cooldown (one send / COOLDOWN_SECONDS) + rolling hourly cap per subject. */
   private async enforceRateLimits(subject: string): Promise<void> {
-    const fresh = await this.redis.setIfAbsent(
-      this.cooldownKey(subject),
-      '1',
-      COOLDOWN_SECONDS,
-    );
+    const fresh = await this.redis.setIfAbsent(this.cooldownKey(subject), '1', COOLDOWN_SECONDS);
     if (!fresh) {
       throw new HttpException(
         'Please wait before requesting another code',
@@ -243,9 +222,7 @@ export class OtpService {
   }
 
   /** Find by email or JIT-create (OTP over email proves email control). */
-  private async resolveOrCreateUser(
-    email: string,
-  ): Promise<{ user: User; isNewUser: boolean }> {
+  private async resolveOrCreateUser(email: string): Promise<{ user: User; isNewUser: boolean }> {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       if (!existing.emailVerified) {

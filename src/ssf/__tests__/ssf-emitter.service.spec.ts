@@ -25,16 +25,30 @@ describe('SsfEmitterService', () => {
   });
 
   it('is a no-op when no streams match', async () => {
-    await service.emit({ eventType: CAEP_EVENTS.sessionRevoked, subject: 'did:x', companyId: 'acme' });
+    await service.emit({
+      eventType: CAEP_EVENTS.sessionRevoked,
+      subject: 'did:x',
+      companyId: 'acme',
+    });
     expect(prisma.setDelivery.create).not.toHaveBeenCalled();
     expect(push.deliver).not.toHaveBeenCalled();
   });
 
   it('queues and pushes a SET to a matching push stream', async () => {
     prisma.ssfStream.findMany.mockResolvedValue([
-      { id: 's1', deliveryMethod: 'push', pushEndpointUrl: 'https://rp/ssf', pushAuthHeader: 'Bearer t', aud: ['rp'] },
+      {
+        id: 's1',
+        deliveryMethod: 'push',
+        pushEndpointUrl: 'https://rp/ssf',
+        pushAuthHeader: 'Bearer t',
+        aud: ['rp'],
+      },
     ]);
-    await service.emit({ eventType: CAEP_EVENTS.sessionRevoked, subject: 'did:x', companyId: 'acme' });
+    await service.emit({
+      eventType: CAEP_EVENTS.sessionRevoked,
+      subject: 'did:x',
+      companyId: 'acme',
+    });
     expect(prisma.setDelivery.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ streamId: 's1', jti: 'jti1' }) }),
     );
@@ -52,7 +66,11 @@ describe('SsfEmitterService', () => {
     prisma.ssfStream.findMany.mockResolvedValue([
       { id: 's2', deliveryMethod: 'poll', pushEndpointUrl: null, pushAuthHeader: null, aud: [] },
     ]);
-    await service.emit({ eventType: CAEP_EVENTS.sessionRevoked, subject: 'did:x', companyId: 'acme' });
+    await service.emit({
+      eventType: CAEP_EVENTS.sessionRevoked,
+      subject: 'did:x',
+      companyId: 'acme',
+    });
     expect(prisma.setDelivery.create).toHaveBeenCalled();
     expect(push.deliver).not.toHaveBeenCalled();
   });

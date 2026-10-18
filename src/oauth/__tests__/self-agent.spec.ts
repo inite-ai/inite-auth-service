@@ -38,14 +38,21 @@ describe('Self-registered agents', () => {
     const config = {
       get: (k: string, d?: string) => (k === 'JWT_ISSUER' ? ISSUER : (d ?? '')),
     } as unknown as ConfigService;
-    const service = new OAuthM2mService(jwt, config, { isRs256Enabled: () => false } as unknown as JwksService, fakeSettings({}));
+    const service = new OAuthM2mService(
+      jwt,
+      config,
+      { isRs256Enabled: () => false } as unknown as JwksService,
+      fakeSettings({}),
+    );
     return { service, signed };
   }
 
   it('is a dcr_ client with its own inline key, client_credentials and no company', () => {
     expect(isSelfAgent(agent)).toBe(true);
     // With the client secret instead of a key: still an agent, with no keys to publish.
-    expect(isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'client_secret_post', jwks: null })).toBe(true);
+    expect(
+      isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'client_secret_post', jwks: null }),
+    ).toBe(true);
     expect(isSelfAgent({ ...agent, tokenEndpointAuthMethod: 'none' })).toBe(false);
     expect(isSelfAgent({ ...agent, allowedGrants: ['authorization_code'] })).toBe(false);
     expect(isSelfAgent({ ...agent, companyId: 'co' })).toBe(false);
@@ -55,7 +62,10 @@ describe('Self-registered agents', () => {
 
   it('gets its did:web as sub, for the audience it asked for', async () => {
     const { service, signed } = m2m();
-    await service.issueClientCredentialsToken({ client: agent, audience: 'https://billing.inite.ai' });
+    await service.issueClientCredentialsToken({
+      client: agent,
+      audience: 'https://billing.inite.ai',
+    });
     expect(signed[0]).toMatchObject({
       sub: 'did:web:auth-api.inite.ai:agents:dcr_0123456789abcdef0123456789abcdef',
       client_id: agent.clientId,
@@ -77,7 +87,9 @@ describe('Self-registered agents', () => {
     expect(doc).toMatchObject({
       id,
       controller: id,
-      verificationMethod: [{ id: `${id}#agent-key`, type: 'JsonWebKey2020', controller: id, publicKeyJwk: key }],
+      verificationMethod: [
+        { id: `${id}#agent-key`, type: 'JsonWebKey2020', controller: id, publicKeyJwk: key },
+      ],
       authentication: [`${id}#agent-key`],
       assertionMethod: [`${id}#agent-key`],
     });
@@ -90,7 +102,12 @@ describe('Self-registered agents', () => {
       oAuthClient: {
         findMany: jest.fn().mockResolvedValue([
           { ...agent, id: 'a', createdAt: old },
-          { id: 'b', clientId: 'dcr_ffffffffffffffffffffffffffffffff', allowedGrants: ['authorization_code'], createdAt: old },
+          {
+            id: 'b',
+            clientId: 'dcr_ffffffffffffffffffffffffffffffff',
+            allowedGrants: ['authorization_code'],
+            createdAt: old,
+          },
         ]),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },

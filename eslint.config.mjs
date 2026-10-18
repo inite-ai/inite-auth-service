@@ -90,7 +90,7 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-empty-object-type': 'off',
       'prefer-const': 'warn',
-      'prettier/prettier': 'off', // formatting handled by `npm run format`
+      'prettier/prettier': 'off', // formatting handled by `npm run format`; CI runs `format:check`
 
       // ── Clean architecture / DRY hard gates ──────────────────────
       // Controllers MUST NOT import the DB layer directly. A controller

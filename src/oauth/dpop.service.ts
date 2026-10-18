@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import * as jose from 'jose';
 import { RedisService } from '../common/redis.service';
 
@@ -57,11 +52,7 @@ export class DpopService {
    * Throws BadRequestException on malformed / spec violations,
    * UnauthorizedException on replay or invalid signature.
    */
-  async validate(
-    proof: string,
-    method: string,
-    url: string,
-  ): Promise<DpopProofResult> {
+  async validate(proof: string, method: string, url: string): Promise<DpopProofResult> {
     const { header, payload } = this.decodeProof(proof);
     const { alg, jwk } = this.validateProofHeader(header);
     await this.verifyProofSignature(proof, jwk, alg);
@@ -70,9 +61,10 @@ export class DpopService {
     return { jkt, alg };
   }
 
-  private decodeProof(
-    proof: string,
-  ): { header: jose.ProtectedHeaderParameters; payload: jose.JWTPayload } {
+  private decodeProof(proof: string): {
+    header: jose.ProtectedHeaderParameters;
+    payload: jose.JWTPayload;
+  } {
     try {
       return {
         header: jose.decodeProtectedHeader(proof),
@@ -83,9 +75,10 @@ export class DpopService {
     }
   }
 
-  private validateProofHeader(
-    header: jose.ProtectedHeaderParameters,
-  ): { alg: string; jwk: jose.JWK } {
+  private validateProofHeader(header: jose.ProtectedHeaderParameters): {
+    alg: string;
+    jwk: jose.JWK;
+  } {
     if (header.typ !== 'dpop+jwt') {
       throw new BadRequestException('DPoP proof: typ must be dpop+jwt');
     }
@@ -99,18 +92,12 @@ export class DpopService {
     }
     // Spec forbids the proof JWT from embedding a `d` (private key).
     if ('d' in jwk) {
-      throw new BadRequestException(
-        'DPoP proof: jwk must not contain private parameters',
-      );
+      throw new BadRequestException('DPoP proof: jwk must not contain private parameters');
     }
     return { alg, jwk };
   }
 
-  private async verifyProofSignature(
-    proof: string,
-    jwk: jose.JWK,
-    alg: string,
-  ): Promise<void> {
+  private async verifyProofSignature(proof: string, jwk: jose.JWK, alg: string): Promise<void> {
     const key = await jose.importJWK(jwk, alg);
     try {
       await jose.jwtVerify(proof, key, { algorithms: [alg] });
@@ -126,11 +113,7 @@ export class DpopService {
     }
   }
 
-  private assertBindings(
-    payload: jose.JWTPayload,
-    method: string,
-    url: string,
-  ): void {
+  private assertBindings(payload: jose.JWTPayload, method: string, url: string): void {
     // htm / htu binding — defeats proof reuse on a different
     // endpoint with the same key.
     if (typeof payload.htm !== 'string' || payload.htm.toUpperCase() !== method.toUpperCase()) {
@@ -148,10 +131,7 @@ export class DpopService {
     }
   }
 
-  private async assertNotReplayed(
-    payload: jose.JWTPayload,
-    jwk: jose.JWK,
-  ): Promise<string> {
+  private async assertNotReplayed(payload: jose.JWTPayload, jwk: jose.JWK): Promise<string> {
     // Replay protection — single-use jti within the freshness window.
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
       throw new BadRequestException('DPoP proof: jti required');
@@ -179,8 +159,7 @@ export class DpopService {
       return (
         ua.protocol === ub.protocol &&
         ua.hostname.toLowerCase() === ub.hostname.toLowerCase() &&
-        (ua.port || this.defaultPort(ua.protocol)) ===
-          (ub.port || this.defaultPort(ub.protocol)) &&
+        (ua.port || this.defaultPort(ua.protocol)) === (ub.port || this.defaultPort(ub.protocol)) &&
         ua.pathname === ub.pathname
       );
     } catch {

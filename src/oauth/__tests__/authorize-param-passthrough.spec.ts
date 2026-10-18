@@ -172,10 +172,7 @@ describe('/authorize → login/consent param passthrough', () => {
     const url = redirectedTo(h.res);
     expect(url.pathname).toBe('/consent');
     for (const key of CARRIED_KEYS) {
-      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([
-        key,
-        ALL_PARAMS[key],
-      ]);
+      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([key, ALL_PARAMS[key]]);
     }
   });
 
@@ -190,10 +187,7 @@ describe('/authorize → login/consent param passthrough', () => {
     const url = redirectedTo(h.res);
     expect(url.pathname).toBe('/login');
     for (const key of CARRIED_KEYS) {
-      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([
-        key,
-        ALL_PARAMS[key],
-      ]);
+      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([key, ALL_PARAMS[key]]);
     }
   });
 
@@ -214,11 +208,7 @@ describe('/authorize → login/consent param passthrough', () => {
   it('stashes resource and authorization_details on the session copy', async () => {
     const h = harness();
     const req = request(undefined);
-    await h.controller.authorize(
-      toQuery(ALL_PARAMS),
-      req,
-      h.res as unknown as Response,
-    );
+    await h.controller.authorize(toQuery(ALL_PARAMS), req, h.res as unknown as Response);
 
     expect(req.session?.oauthParams).toMatchObject({
       clientId: ALL_PARAMS.clientId,
@@ -272,9 +262,7 @@ describe('/authorize → authorization code binding', () => {
       h.res as unknown as Response,
     );
 
-    expect(redirectedTo(h.res).searchParams.get('resource')).toBe(
-      'https://inite.ai/api/pushed',
-    );
+    expect(redirectedTo(h.res).searchParams.get('resource')).toBe('https://inite.ai/api/pushed');
   });
 });
 
@@ -361,7 +349,6 @@ describe('/authorize → consent', () => {
     expect(url.searchParams.get('state')).toBe(ALL_PARAMS.state);
   });
 });
-
 
 describe('/authorize → login_hint', () => {
   const previousFrontend = process.env.FRONTEND_URL;

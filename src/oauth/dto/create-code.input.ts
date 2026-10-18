@@ -45,8 +45,3 @@ export class CreateCodeInput {
   @IsOptional()
   authorizationDetails?: string;
 }
-
-
-
-
-

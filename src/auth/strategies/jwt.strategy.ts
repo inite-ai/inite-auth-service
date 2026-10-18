@@ -31,9 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
     if (nodeEnv === 'production' && !publicKey) {
-      throw new Error(
-        'JWT_PUBLIC_KEY must be set in production. HS256 fallback is dev-only.',
-      );
+      throw new Error('JWT_PUBLIC_KEY must be set in production. HS256 fallback is dev-only.');
     }
     if (!publicKey && !secret) {
       throw new Error('Either JWT_PUBLIC_KEY or JWT_SECRET must be set');

@@ -33,7 +33,7 @@ describe('RAR — authorization_details in the token issuer', () => {
     } as unknown as JwtService;
     const config = {
       get: (k: string, d?: string) =>
-        k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-secret' : d ?? '',
+        k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-secret' : (d ?? ''),
     } as unknown as ConfigService;
     prisma = {
       oAuthClient: { findUnique: jest.fn().mockResolvedValue({ companyId: null }) },
@@ -55,7 +55,12 @@ describe('RAR — authorization_details in the token issuer', () => {
   });
 
   it('emits authorization_details as an access-token claim + persists it', async () => {
-    await issuer.generateTokens({ user, clientId: 'c1', scope: 'openid', authorizationDetails: details });
+    await issuer.generateTokens({
+      user,
+      clientId: 'c1',
+      scope: 'openid',
+      authorizationDetails: details,
+    });
 
     const accessClaims = signed[0]!;
     expect(accessClaims.authorization_details).toEqual(details);

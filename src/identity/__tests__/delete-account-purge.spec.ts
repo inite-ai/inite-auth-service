@@ -59,7 +59,9 @@ describe('IdentityAccountService.deleteAccount → account-purged', () => {
   it('still deletes when no SSF transmitter is wired', async () => {
     const prisma = {
       user: {
-        findUnique: jest.fn().mockResolvedValue({ id: userId, did: 'did:key:abc', passwordHash: null }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: userId, did: 'did:key:abc', passwordHash: null }),
         delete: jest.fn().mockResolvedValue({}),
       },
     };

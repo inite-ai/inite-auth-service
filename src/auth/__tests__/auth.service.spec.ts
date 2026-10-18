@@ -70,14 +70,33 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: IdentityService, useValue: { createIdentity: jest.fn(), getIdentityById: jest.fn() } },
+        {
+          provide: IdentityService,
+          useValue: { createIdentity: jest.fn(), getIdentityById: jest.fn() },
+        },
         { provide: MagicLinkService, useValue: {} },
-        { provide: EmailService, useValue: { sendWelcome: jest.fn(), sendNewDeviceLogin: jest.fn(), sendPasswordReset: jest.fn().mockResolvedValue(true) } },
+        {
+          provide: EmailService,
+          useValue: {
+            sendWelcome: jest.fn(),
+            sendNewDeviceLogin: jest.fn(),
+            sendPasswordReset: jest.fn().mockResolvedValue(true),
+          },
+        },
         { provide: JwtService, useValue: jwtService },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.example.com') } },
-        { provide: HibpService, useValue: { isEnabled: () => false, assertNotBreached: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('https://auth.example.com') },
+        },
+        {
+          provide: HibpService,
+          useValue: { isEnabled: () => false, assertNotBreached: jest.fn() },
+        },
         { provide: LoginSecurityService, useValue: loginSecurity },
-        { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
+        {
+          provide: JwksService,
+          useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -96,18 +115,24 @@ describe('AuthService', () => {
 
     it('should throw for invalid email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.loginWithPassword('wrong@example.com', 'pass')).rejects.toThrow('Invalid credentials');
+      await expect(service.loginWithPassword('wrong@example.com', 'pass')).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
 
     it('should throw for wrong password', async () => {
       const hash = await bcrypt.hash('correct', 10);
       mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: hash });
-      await expect(service.loginWithPassword('test@example.com', 'wrong')).rejects.toThrow('Invalid credentials');
+      await expect(service.loginWithPassword('test@example.com', 'wrong')).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
 
     it('should throw for user without password', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: null });
-      await expect(service.loginWithPassword('test@example.com', 'pass')).rejects.toThrow('Invalid credentials');
+      await expect(service.loginWithPassword('test@example.com', 'pass')).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
   });
 
@@ -121,9 +146,9 @@ describe('AuthService', () => {
         lockoutUntil: future,
       });
 
-      await expect(
-        service.loginWithPassword('test@example.com', 'correct'),
-      ).rejects.toThrow(/Account temporarily locked/);
+      await expect(service.loginWithPassword('test@example.com', 'correct')).rejects.toThrow(
+        /Account temporarily locked/,
+      );
 
       // Even valid password is refused while locked
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
@@ -156,9 +181,9 @@ describe('AuthService', () => {
         failedLoginCount: 2,
       });
 
-      await expect(
-        service.loginWithPassword('test@example.com', 'wrong'),
-      ).rejects.toThrow('Invalid credentials');
+      await expect(service.loginWithPassword('test@example.com', 'wrong')).rejects.toThrow(
+        'Invalid credentials',
+      );
 
       // Lockout backoff itself lives in LoginSecurityService (see its
       // own spec); AuthService just hands off the current count.
@@ -196,7 +221,9 @@ describe('AuthService', () => {
     });
 
     it('should throw for invalid token', async () => {
-      jwtService.verify.mockImplementation(() => { throw new Error('invalid'); });
+      jwtService.verify.mockImplementation(() => {
+        throw new Error('invalid');
+      });
       await expect(service.verifyToken('bad-token')).rejects.toThrow('Invalid token');
     });
   });
@@ -250,7 +277,9 @@ describe('AuthService', () => {
   describe('resetPassword', () => {
     it('should throw for invalid token', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
-      await expect(service.resetPassword('bad-token', 'newpass')).rejects.toThrow('Invalid reset token');
+      await expect(service.resetPassword('bad-token', 'newpass')).rejects.toThrow(
+        'Invalid reset token',
+      );
     });
 
     it('should throw for expired token', async () => {
@@ -266,7 +295,10 @@ describe('AuthService', () => {
 
     it('hands back the stored /authorize flow and clears it with the token', async () => {
       const future = new Date(Date.now() + 60 * 60 * 1000);
-      const oauthParams = { clientId: 'inite-studio', redirectUri: 'https://app.inite.studio/callback' };
+      const oauthParams = {
+        clientId: 'inite-studio',
+        redirectUri: 'https://app.inite.studio/callback',
+      };
       mockPrisma.user.findFirst.mockResolvedValue({
         ...mockUser,
         passwordResetToken: 'hash',

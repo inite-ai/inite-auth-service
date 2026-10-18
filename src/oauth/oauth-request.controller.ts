@@ -22,7 +22,6 @@ import { DeviceFlowService } from './device-flow.service';
 import { AuthorizeQuery } from './dto/oauth-requests';
 import { normalizeLoginHint } from './login-hint';
 
-
 /**
  * RFC 8628 verification_uri: the page a person opens to type the code. That
  * is the sign-in UI's /device, not this API's /v1/oauth/device (which answers
@@ -32,9 +31,7 @@ import { normalizeLoginHint } from './login-hint';
 export function deviceVerificationUri(req: Request): string {
   const frontend = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '');
   if (frontend) return `${frontend}/device`;
-  const proto = (req.headers['x-forwarded-proto'] as string | undefined)
-    ?? req.protocol
-    ?? 'https';
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? req.protocol ?? 'https';
   return `${proto}://${req.headers.host ?? ''}/v1/oauth/device`;
 }
 
@@ -101,7 +98,10 @@ export class OAuthRequestController {
     };
   }
 
-  private async resolveRequestObject(request: string, clientId: string): Promise<Partial<AuthorizeQuery>> {
+  private async resolveRequestObject(
+    request: string,
+    clientId: string,
+  ): Promise<Partial<AuthorizeQuery>> {
     return this.requestObject.resolve({ request, clientId });
   }
 

@@ -82,10 +82,7 @@ export class SamlService {
    * login reuses the exact provisioning/linking path as social login. The email
    * is treated as verified: it's vouched for by the trusted enterprise IdP.
    */
-  toNormalizedProfile(
-    connection: ResolvedSamlConnection,
-    profile: Profile,
-  ): NormalizedProfile {
+  toNormalizedProfile(connection: ResolvedSamlConnection, profile: Profile): NormalizedProfile {
     return {
       provider: `saml:${connection.slug}`,
       subject: profile.nameID,

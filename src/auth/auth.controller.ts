@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  Query,
-  UseGuards,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -35,18 +26,15 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {
     this.logger.setContext('AuthController');
-    this.sessionSecret = configService.get<string>('SESSION_SECRET') ||
-                         configService.get<string>('JWT_SECRET') || '';
+    this.sessionSecret =
+      configService.get<string>('SESSION_SECRET') || configService.get<string>('JWT_SECRET') || '';
   }
 
   // ==================== Password Auth (Legacy) ====================
 
   @Post('password/register')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async registerWithPassword(
-    @Body() body: RegisterWithPasswordDto,
-    @Req() req: Request,
-  ) {
+  async registerWithPassword(@Body() body: RegisterWithPasswordDto, @Req() req: Request) {
     const result = await this.authService.registerWithPassword(
       body.email,
       body.password,
@@ -62,7 +50,11 @@ export class AuthController {
       await new Promise<void>((resolve, reject) => {
         req.session.save((err: unknown) => {
           if (err) {
-            this.logger.error('Session save error', err instanceof Error ? err.message : String(err), { action: 'register' });
+            this.logger.error(
+              'Session save error',
+              err instanceof Error ? err.message : String(err),
+              { action: 'register' },
+            );
             reject(err);
           } else {
             this.logger.session('Saved after register', {
@@ -94,10 +86,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: ExpressResponse,
   ) {
-    const result = await this.authService.loginWithPassword(
-      body.email,
-      body.password,
-    );
+    const result = await this.authService.loginWithPassword(body.email, body.password);
 
     if (req.session) {
       const userId = result.user.id;
@@ -105,7 +94,11 @@ export class AuthController {
       await new Promise<void>((resolve, reject) => {
         req.session.regenerate((err: unknown) => {
           if (err) {
-            this.logger.error('Session regenerate error', err instanceof Error ? err.message : String(err), { action: 'login' });
+            this.logger.error(
+              'Session regenerate error',
+              err instanceof Error ? err.message : String(err),
+              { action: 'login' },
+            );
             reject(err);
             return;
           }
@@ -116,7 +109,11 @@ export class AuthController {
 
           req.session.save((saveErr: unknown) => {
             if (saveErr) {
-              this.logger.error('Session save error', saveErr instanceof Error ? saveErr.message : String(saveErr), { action: 'login' });
+              this.logger.error(
+                'Session save error',
+                saveErr instanceof Error ? saveErr.message : String(saveErr),
+                { action: 'login' },
+              );
               reject(saveErr);
             } else {
               this.logger.session('Regenerated and saved', {
@@ -135,7 +132,7 @@ export class AuthController {
               });
 
               this.logger.session('Cookie set', {
-                cookiePrefix: signedSessionId.substring(0, 20)
+                cookiePrefix: signedSessionId.substring(0, 20),
               });
               resolve();
             }
@@ -146,10 +143,12 @@ export class AuthController {
       this.logger.error('No session object available', undefined, { action: 'login' });
     }
 
-    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get('user-agent') || req.headers['user-agent'],
-      ip: req.ip || req.socket?.remoteAddress,
-    }).catch(swallow(this.logger, 'new-device notification'));
+    this.authService
+      .notifyNewDeviceIfNeeded(result.user.id, {
+        userAgent: req.get('user-agent') || req.headers['user-agent'],
+        ip: req.ip || req.socket?.remoteAddress,
+      })
+      .catch(swallow(this.logger, 'new-device notification'));
 
     return {
       access_token: result.accessToken,
@@ -192,7 +191,11 @@ export class AuthController {
       await new Promise<void>((resolve, reject) => {
         req.session.regenerate((err: unknown) => {
           if (err) {
-            this.logger.error('Session regenerate error', err instanceof Error ? err.message : String(err), { action: 'magic-link-verify' });
+            this.logger.error(
+              'Session regenerate error',
+              err instanceof Error ? err.message : String(err),
+              { action: 'magic-link-verify' },
+            );
             reject(err);
             return;
           }
@@ -203,10 +206,17 @@ export class AuthController {
           req.session.amr = ['magic-link'];
           req.session.save((saveErr: unknown) => {
             if (saveErr) {
-              this.logger.error('Session save error', saveErr instanceof Error ? saveErr.message : String(saveErr), { action: 'magic-link-verify' });
+              this.logger.error(
+                'Session save error',
+                saveErr instanceof Error ? saveErr.message : String(saveErr),
+                { action: 'magic-link-verify' },
+              );
               reject(saveErr);
             } else {
-              this.logger.session('New session after magic link verify', { sessionId: req.session.id, userId });
+              this.logger.session('New session after magic link verify', {
+                sessionId: req.session.id,
+                userId,
+              });
               const signedSessionId = 's:' + signature.sign(req.session.id, this.sessionSecret);
               res.cookie('inite.sid', signedSessionId, {
                 httpOnly: true,
@@ -222,10 +232,12 @@ export class AuthController {
       });
     }
 
-    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get('user-agent') || req.headers['user-agent'],
-      ip: req.ip || req.socket?.remoteAddress,
-    }).catch(swallow(this.logger, 'new-device notification'));
+    this.authService
+      .notifyNewDeviceIfNeeded(result.user.id, {
+        userAgent: req.get('user-agent') || req.headers['user-agent'],
+        ip: req.ip || req.socket?.remoteAddress,
+      })
+      .catch(swallow(this.logger, 'new-device notification'));
 
     return res.json({
       access_token: result.accessToken,
@@ -255,10 +267,7 @@ export class AuthController {
   }
 
   @Post('password/reset')
-  async resetPassword(
-    @Body() body: ResetPasswordDto,
-    @Req() req: Request,
-  ) {
+  async resetPassword(@Body() body: ResetPasswordDto, @Req() req: Request) {
     const result = await this.authService.resetPassword(body.token, body.password);
 
     if (req.session) {

@@ -43,21 +43,14 @@ export class IpFloodGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const ip = this.extractIp(req);
-    const email =
-      typeof req?.body?.email === 'string'
-        ? req.body.email.trim().toLowerCase()
-        : null;
+    const email = typeof req?.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null;
 
     if (!email || ip === 'unknown') {
       return true;
     }
 
     const key = `flood:login:ip:${ip}`;
-    const distinct = await this.redis.sAddWithTtl(
-      key,
-      email,
-      IpFloodGuard.WINDOW_SECONDS,
-    );
+    const distinct = await this.redis.sAddWithTtl(key, email, IpFloodGuard.WINDOW_SECONDS);
 
     if (distinct > IpFloodGuard.MAX_UNIQUE_EMAILS) {
       // Audit + log are best-effort; never let an observability path
@@ -76,9 +69,7 @@ export class IpFloodGuard implements CanActivate {
           },
         })
         .catch((e: unknown) =>
-          this.logger.warn(
-            `audit write failed: ${e instanceof Error ? e.message : 'unknown'}`,
-          ),
+          this.logger.warn(`audit write failed: ${e instanceof Error ? e.message : 'unknown'}`),
         );
 
       this.logger.warn(
@@ -98,12 +89,8 @@ export class IpFloodGuard implements CanActivate {
     return true;
   }
 
-  private extractIp(req: {
-    headers?: Record<string, unknown>;
-    ip?: unknown;
-  }): string {
-    const fwd =
-      (req?.headers?.['x-forwarded-for'] as string | undefined) ?? '';
+  private extractIp(req: { headers?: Record<string, unknown>; ip?: unknown }): string {
+    const fwd = (req?.headers?.['x-forwarded-for'] as string | undefined) ?? '';
     const ip = typeof req?.ip === 'string' ? req.ip : undefined;
     return fwd.split(',')[0]?.trim() || ip || 'unknown';
   }

@@ -70,7 +70,13 @@ describe('phase-2b DTOs accept real frontend payloads', () => {
 
   it('LinkWalletDto — EVM (no publicKey) and TON (with publicKey)', () => {
     check(LinkWalletDto, { address: '0x1', chain: 'ethereum', message: 'm', signature: 's' });
-    check(LinkWalletDto, { address: 'EQ', chain: 'ton', message: 'm', signature: 's', publicKey: 'pk' });
+    check(LinkWalletDto, {
+      address: 'EQ',
+      chain: 'ton',
+      message: 'm',
+      signature: 's',
+      publicKey: 'pk',
+    });
   });
 
   it('ChangePasswordDto', () => {
@@ -79,7 +85,11 @@ describe('phase-2b DTOs accept real frontend payloads', () => {
 
   it('rejects an unknown extra field (forbidNonWhitelisted works)', () => {
     const errors = validateSync(
-      plainToInstance(LoginWithPasswordDto, { email: 'a@b.com', password: 'pw', evil: 1 }) as object,
+      plainToInstance(LoginWithPasswordDto, {
+        email: 'a@b.com',
+        password: 'pw',
+        evil: 1,
+      }) as object,
       PIPE,
     );
     expect(errors.length).toBeGreaterThan(0);

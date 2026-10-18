@@ -1,0 +1,61 @@
+# Codespaces / VS Code dev container: the workspace plus the two services the
+# app needs. Values here are dev-only dummies; the container's environment
+# takes precedence over the .env that post-create copies from .env.example.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      NODE_ENV: development
+      PORT: '3002'
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/auth?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: devcontainer-redis
+      JWT_SECRET: devcontainer-only-jwt-secret-not-for-production
+      SESSION_SECRET: devcontainer-only-session-secret-not-for-production
+      REFRESH_TOKEN_HMAC_SECRET: devcontainer-only-refresh-hmac-not-for-production
+      FIELD_ENCRYPTION_KEY: devcontainer-only-field-key-not-for-production
+      JWT_ISSUER: http://localhost:3002
+      OIDC_ISSUER: http://localhost:3002
+      FRONTEND_URL: http://localhost:3003
+      CORS_ORIGINS: http://localhost:3003
+      RP_ID: localhost
+      RP_ORIGIN: http://localhost:3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass devcontainer-redis
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'devcontainer-redis', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

@@ -27,6 +27,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Compose's bake builder refuses the Dockerfile the devcontainer CLI
+      # writes outside the build context ("additional privileges requested:
+      # --allow=fs.read=…"); the classic builder takes it.
+      COMPOSE_BAKE: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 

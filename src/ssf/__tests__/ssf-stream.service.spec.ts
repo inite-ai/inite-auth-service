@@ -16,9 +16,10 @@ describe('SsfStreamService.setStatus', () => {
     prisma = {
       ssfStream: {
         findFirst: jest.fn(),
-        update: jest
-          .fn()
-          .mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: 's-db', ...data })),
+        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+          id: 's-db',
+          ...data,
+        })),
       },
     };
     service = new SsfStreamService(prisma as unknown as PrismaService);

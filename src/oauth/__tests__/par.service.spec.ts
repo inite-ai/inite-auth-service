@@ -20,10 +20,7 @@ describe('ParService', () => {
     } as unknown as RedisService;
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ParService,
-        { provide: RedisService, useValue: redis },
-      ],
+      providers: [ParService, { provide: RedisService, useValue: redis }],
     }).compile();
     svc = module.get(ParService);
   });
@@ -61,10 +58,7 @@ describe('ParService', () => {
   });
 
   it('consume() returns null for unknown request_uri', async () => {
-    const result = await svc.consume(
-      'urn:ietf:params:oauth:request_uri:bogus',
-      'any',
-    );
+    const result = await svc.consume('urn:ietf:params:oauth:request_uri:bogus', 'any');
     expect(result).toBeNull();
   });
 

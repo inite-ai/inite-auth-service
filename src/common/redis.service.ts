@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -27,9 +22,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       maxRetriesPerRequest: 3,
     });
 
-    this.client.on('error', (err) =>
-      this.logger.error(`Redis error: ${err.message}`),
-    );
+    this.client.on('error', (err) => this.logger.error(`Redis error: ${err.message}`));
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -68,11 +61,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * Used by anti-flood/anomaly counters that need "distinct values
    * seen from this key in the last N seconds".
    */
-  async sAddWithTtl(
-    key: string,
-    member: string,
-    ttlSeconds: number,
-  ): Promise<number> {
+  async sAddWithTtl(key: string, member: string, ttlSeconds: number): Promise<number> {
     const pipeline = this.client.pipeline();
     pipeline.sadd(key, member);
     pipeline.scard(key);
@@ -88,18 +77,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * most once per N seconds" debouncing — e.g. admin notifications
    * triggered by a tripped guard.
    */
-  async setIfAbsent(
-    key: string,
-    value: string,
-    ttlSeconds: number,
-  ): Promise<boolean> {
-    const result = await this.client.set(
-      key,
-      value,
-      'EX',
-      ttlSeconds,
-      'NX',
-    );
+  async setIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
     return result === 'OK';
   }
 }

@@ -164,14 +164,8 @@ export class EmailService {
    * surface — without it, a successful credential-stuffer holds the
    * account silently.
    */
-  async sendPasswordChanged(user: {
-    email: string;
-    name?: string;
-  }): Promise<boolean> {
-    const frontend = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+  async sendPasswordChanged(user: { email: string; name?: string }): Promise<boolean> {
+    const frontend = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
     const resetUrl = `${frontend}/forgot-password`;
     return await this.transport.sendEmail({
       to: user.email,
@@ -197,10 +191,7 @@ export class EmailService {
     user: { email: string; name?: string },
     attemptCount: number,
   ): Promise<boolean> {
-    const frontend = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+    const frontend = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
     return await this.transport.sendEmail({
       to: user.email,
       subject: '[INITE] Multiple failed sign-in attempts',
@@ -229,10 +220,7 @@ export class EmailService {
     user: { email: string; name?: string },
     lockedUntil: Date,
   ): Promise<boolean> {
-    const frontend = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+    const frontend = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
     const resetUrl = `${frontend}/forgot-password`;
     return await this.transport.sendEmail({
       to: user.email,
@@ -259,10 +247,7 @@ export class EmailService {
     clientName: string,
     scopes: string[],
   ): Promise<boolean> {
-    const frontend = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+    const frontend = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
     const scopeList = scopes.length
       ? `<ul>${scopes.map((s) => `<li><code>${s}</code></li>`).join('')}</ul>`
       : '<p><em>(no scopes requested)</em></p>';
@@ -279,5 +264,4 @@ export class EmailService {
       `,
     });
   }
-
 }

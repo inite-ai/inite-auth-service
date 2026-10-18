@@ -1,10 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import * as nodemailer from "nodemailer";
-import * as Handlebars from "handlebars";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
-import { EmailTemplateContext } from "./email.config";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
+import * as Handlebars from 'handlebars';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { EmailTemplateContext } from './email.config';
 
 export interface SendTemplatedEmailInput {
   templateName: string;
@@ -37,9 +37,7 @@ export class EmailTransport {
 
     // Skip SMTP initialization if no credentials provided
     if (!smtpHost || !smtpUser) {
-      this.logger.warn(
-        'SMTP credentials not provided. Email functionality will be disabled.',
-      );
+      this.logger.warn('SMTP credentials not provided. Email functionality will be disabled.');
       return;
     }
 
@@ -90,15 +88,22 @@ export class EmailTransport {
       try {
         // Try dist first (production), then src (development)
         let templatePath = join(__dirname, 'templates', 'email', `${templateName}.hbs`);
-        
+
         // If not found in dist, try src (for development)
         if (!existsSync(templatePath)) {
-          const srcPath = join(process.cwd(), 'src', 'email', 'templates', 'email', `${templateName}.hbs`);
+          const srcPath = join(
+            process.cwd(),
+            'src',
+            'email',
+            'templates',
+            'email',
+            `${templateName}.hbs`,
+          );
           if (existsSync(srcPath)) {
             templatePath = srcPath;
           }
         }
-        
+
         this.logger.log(`Loading template: ${templateName} from ${templatePath}`);
         const templateSource = readFileSync(templatePath, 'utf8');
         const template = Handlebars.compile(templateSource);
@@ -109,7 +114,9 @@ export class EmailTransport {
           `❌ Failed to precompile template ${templateName}:`,
           error instanceof Error ? error.message : String(error),
         );
-        this.logger.error(`Template path attempted: ${join(__dirname, 'templates', 'email', `${templateName}.hbs`)}`);
+        this.logger.error(
+          `Template path attempted: ${join(__dirname, 'templates', 'email', `${templateName}.hbs`)}`,
+        );
       }
     });
 
@@ -143,11 +150,27 @@ export class EmailTransport {
       // Try dist first (production), then src (development)
       let headerPath = join(__dirname, 'templates', 'email', 'partials', 'header.hbs');
       let footerPath = join(__dirname, 'templates', 'email', 'partials', 'footer.hbs');
-      
+
       // If not found in dist, try src (for development)
       if (!existsSync(headerPath)) {
-        const srcHeaderPath = join(process.cwd(), 'src', 'email', 'templates', 'email', 'partials', 'header.hbs');
-        const srcFooterPath = join(process.cwd(), 'src', 'email', 'templates', 'email', 'partials', 'footer.hbs');
+        const srcHeaderPath = join(
+          process.cwd(),
+          'src',
+          'email',
+          'templates',
+          'email',
+          'partials',
+          'header.hbs',
+        );
+        const srcFooterPath = join(
+          process.cwd(),
+          'src',
+          'email',
+          'templates',
+          'email',
+          'partials',
+          'footer.hbs',
+        );
         if (existsSync(srcHeaderPath)) {
           headerPath = srcHeaderPath;
           footerPath = srcFooterPath;
@@ -200,9 +223,7 @@ export class EmailTransport {
       this.logger.log(`📧 Subject: ${data.subject}`);
 
       const info = await transporter.sendMail(mailOptions);
-      this.logger.log(
-        `✅ Email sent successfully to ${data.to}, messageId: ${info.messageId}`,
-      );
+      this.logger.log(`✅ Email sent successfully to ${data.to}, messageId: ${info.messageId}`);
       return true;
     } catch (error) {
       this.logger.error(`Failed to send email to ${data.to}:`, error);
@@ -210,9 +231,7 @@ export class EmailTransport {
     }
   }
 
-  async sendTemplatedEmail(
-    input: SendTemplatedEmailInput,
-  ): Promise<boolean> {
+  async sendTemplatedEmail(input: SendTemplatedEmailInput): Promise<boolean> {
     const { templateName, to, subject, context } = input;
     try {
       const template = this.templatesCache.get(templateName);
@@ -228,10 +247,7 @@ export class EmailTransport {
         html,
       });
     } catch (error) {
-      this.logger.error(
-        `Failed to send templated email ${templateName} to ${to}:`,
-        error,
-      );
+      this.logger.error(`Failed to send templated email ${templateName} to ${to}:`, error);
       return false;
     }
   }

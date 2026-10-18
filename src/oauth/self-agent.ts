@@ -33,7 +33,8 @@ export function selfAgentKeys(client: Pick<OAuthClient, 'jwks'>): Array<Record<s
   const jwks = client.jwks as { keys?: unknown } | null;
   const keys = Array.isArray(jwks?.keys) ? jwks.keys : [];
   return keys.filter(
-    (k): k is Record<string, unknown> => !!k && typeof k === 'object' && typeof (k as { kty?: unknown }).kty === 'string',
+    (k): k is Record<string, unknown> =>
+      !!k && typeof k === 'object' && typeof (k as { kty?: unknown }).kty === 'string',
   );
 }
 
@@ -47,7 +48,10 @@ export function selfAgentKeys(client: Pick<OAuthClient, 'jwks'>): Array<Record<s
  * publish; INITE billing then keeps the wallet key for it).
  */
 export function isSelfAgent(
-  client: Pick<OAuthClient, 'clientId' | 'tokenEndpointAuthMethod' | 'allowedGrants' | 'companyId' | 'jwks'>,
+  client: Pick<
+    OAuthClient,
+    'clientId' | 'tokenEndpointAuthMethod' | 'allowedGrants' | 'companyId' | 'jwks'
+  >,
 ): boolean {
   if (!isSelfAgentId(client.clientId) || client.companyId) return false;
   if (!(client.allowedGrants ?? []).includes('client_credentials')) return false;

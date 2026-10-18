@@ -69,15 +69,13 @@ export class LoginSecurityService {
   async recordFailedLogin(userId: string, currentCount: number): Promise<void> {
     const next = currentCount + 1;
     const lockoutSchedule = [
-      { atFailures: 5, lockMs: 60 * 1000 },           // 1m
-      { atFailures: 6, lockMs: 5 * 60 * 1000 },       // 5m
-      { atFailures: 7, lockMs: 15 * 60 * 1000 },      // 15m
-      { atFailures: 8, lockMs: 60 * 60 * 1000 },      // 1h
+      { atFailures: 5, lockMs: 60 * 1000 }, // 1m
+      { atFailures: 6, lockMs: 5 * 60 * 1000 }, // 5m
+      { atFailures: 7, lockMs: 15 * 60 * 1000 }, // 15m
+      { atFailures: 8, lockMs: 60 * 60 * 1000 }, // 1h
       { atFailures: 9, lockMs: 24 * 60 * 60 * 1000 }, // 24h
     ];
-    const tier = [...lockoutSchedule]
-      .reverse()
-      .find((t) => next >= t.atFailures);
+    const tier = [...lockoutSchedule].reverse().find((t) => next >= t.atFailures);
     const lockoutUntil = tier ? new Date(Date.now() + tier.lockMs) : null;
 
     await this.prisma.user.update({
@@ -147,10 +145,7 @@ export class LoginSecurityService {
    * Pre-lockout warning email. Debounced for an hour so we don't
    * fire on every retry inside a single attack burst.
    */
-  private async notifyFailedLoginThreshold(
-    userId: string,
-    attemptCount: number,
-  ): Promise<void> {
+  private async notifyFailedLoginThreshold(userId: string, attemptCount: number): Promise<void> {
     try {
       const wasSet = await this.redis.setIfAbsent(
         `notify:failed-threshold:${userId}`,

@@ -15,11 +15,7 @@ import { IdentityModule } from '../identity/identity.module';
 import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [
-    PassportModule,
-    IdentityModule,
-    EmailModule,
-  ],
+  imports: [PassportModule, IdentityModule, EmailModule],
   providers: [
     AuthService,
     PasskeyService,

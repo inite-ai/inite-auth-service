@@ -52,9 +52,21 @@ export class JwksService implements OnModuleInit {
 
   private loadEntries(): KeyEntry[] {
     const specs: Array<{ role: KeyRole; publicKeyPem?: string; kid: string }> = [
-      { role: 'active', publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY'), kid: this.config.get<string>('JWT_ACTIVE_KID', JWKS_KID) },
-      { role: 'next', publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY_NEXT'), kid: this.config.get<string>('JWT_KID_NEXT', 'auth-rs256-key-2') },
-      { role: 'prev', publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY_PREV'), kid: this.config.get<string>('JWT_KID_PREV', 'auth-rs256-key-0') },
+      {
+        role: 'active',
+        publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY'),
+        kid: this.config.get<string>('JWT_ACTIVE_KID', JWKS_KID),
+      },
+      {
+        role: 'next',
+        publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY_NEXT'),
+        kid: this.config.get<string>('JWT_KID_NEXT', 'auth-rs256-key-2'),
+      },
+      {
+        role: 'prev',
+        publicKeyPem: this.config.get<string>('JWT_PUBLIC_KEY_PREV'),
+        kid: this.config.get<string>('JWT_KID_PREV', 'auth-rs256-key-0'),
+      },
     ];
     return specs
       .filter((s): s is KeyEntry => !!s.publicKeyPem)
@@ -65,7 +77,10 @@ export class JwksService implements OnModuleInit {
     const keys: jose.JWK[] = [];
     for (const entry of entries) {
       try {
-        const publicKey = await jose.importSPKI(this.normalizePem(entry.publicKeyPem, 'PUBLIC KEY'), 'RS256');
+        const publicKey = await jose.importSPKI(
+          this.normalizePem(entry.publicKeyPem, 'PUBLIC KEY'),
+          'RS256',
+        );
         const jwk = await jose.exportJWK(publicKey);
         keys.push({ ...jwk, kid: entry.kid, alg: 'RS256', use: 'sig' });
       } catch {
@@ -89,7 +104,9 @@ export class JwksService implements OnModuleInit {
 
   /** Whether RS256/JWKS mode is active (vs HS256 fallback) */
   isRs256Enabled(): boolean {
-    return !!(this.config.get<string>('JWT_PRIVATE_KEY') && this.config.get<string>('JWT_PUBLIC_KEY'));
+    return !!(
+      this.config.get<string>('JWT_PRIVATE_KEY') && this.config.get<string>('JWT_PUBLIC_KEY')
+    );
   }
 
   /** kid of the key JwtModule currently signs with. */

@@ -29,7 +29,10 @@ describe('HealthController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.example.com') } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('https://auth.example.com') },
+        },
         { provide: JwksService, useValue: { getJwks: jest.fn().mockReturnValue({ keys: [] }) } },
         { provide: DbHealthService, useValue: dbHealth },
         { provide: RedisService, useValue: redis },

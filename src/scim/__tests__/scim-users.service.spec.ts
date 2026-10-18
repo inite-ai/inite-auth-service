@@ -69,15 +69,19 @@ describe('ScimUsersService', () => {
     const { svc, identity, prisma } = setup();
     identity.getIdentityByEmail.mockResolvedValue(user);
     prisma.membership.findUnique.mockResolvedValue({ id: 'm1', status: 'active' });
-    await expect(
-      svc.createUser('co-1', { userName: 'a@b.com' }, BASE),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(svc.createUser('co-1', { userName: 'a@b.com' }, BASE)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('reactivates an inactive membership on re-provision', async () => {
     const { svc, identity, prisma } = setup();
     identity.getIdentityByEmail.mockResolvedValue(user);
-    prisma.membership.findUnique.mockResolvedValue({ id: 'm1', status: 'inactive', externalId: null });
+    prisma.membership.findUnique.mockResolvedValue({
+      id: 'm1',
+      status: 'inactive',
+      externalId: null,
+    });
     const result = await svc.createUser('co-1', { userName: 'a@b.com' }, BASE);
     expect(prisma.membership.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'active' }) }),
@@ -95,7 +99,9 @@ describe('ScimUsersService', () => {
 
   it('filters list by userName eq', async () => {
     const { svc, prisma } = setup();
-    prisma.membership.findMany.mockResolvedValue([{ ...{ id: 'm1', status: 'active', externalId: null }, user }]);
+    prisma.membership.findMany.mockResolvedValue([
+      { ...{ id: 'm1', status: 'active', externalId: null }, user },
+    ]);
     prisma.membership.count.mockResolvedValue(1);
     const list = await svc.listUsers('co-1', { filter: 'userName eq "a@b.com"' }, BASE);
     expect(prisma.membership.findMany).toHaveBeenCalledWith(
@@ -107,7 +113,12 @@ describe('ScimUsersService', () => {
 
   it('deactivateUser flips the membership and emits a CAEP account-disabled event', async () => {
     const { svc, prisma, ssf } = setup();
-    prisma.membership.findFirst.mockResolvedValue({ id: 'm1', status: 'active', externalId: null, user });
+    prisma.membership.findFirst.mockResolvedValue({
+      id: 'm1',
+      status: 'active',
+      externalId: null,
+      user,
+    });
     await svc.deactivateUser('co-1', 'u1');
     expect(prisma.membership.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'inactive' }) }),

@@ -49,7 +49,12 @@ export class SsfEmitterService {
 
   /** SSF verification — deliver a verification SET to one specific stream. */
   async verify(stream: {
-    id: string; streamId: string; deliveryMethod: string; pushEndpointUrl: string | null; pushAuthHeader: string | null; aud: string[];
+    id: string;
+    streamId: string;
+    deliveryMethod: string;
+    pushEndpointUrl: string | null;
+    pushAuthHeader: string | null;
+    aud: string[];
   }): Promise<void> {
     await this.emitToStream(stream, {
       eventType: SSF_VERIFICATION_EVENT,
@@ -59,7 +64,13 @@ export class SsfEmitterService {
   }
 
   private async emitToStream(
-    stream: { id: string; deliveryMethod: string; pushEndpointUrl: string | null; pushAuthHeader: string | null; aud: string[] },
+    stream: {
+      id: string;
+      deliveryMethod: string;
+      pushEndpointUrl: string | null;
+      pushAuthHeader: string | null;
+      aud: string[];
+    },
     input: { eventType: string; subject: string; claims?: Record<string, unknown> },
   ): Promise<void> {
     const set = await this.builder.build({
@@ -71,7 +82,13 @@ export class SsfEmitterService {
     if (!set) return;
 
     const delivery = await this.prisma.setDelivery.create({
-      data: { streamId: stream.id, jti: set.jti, eventType: input.eventType, sub: input.subject, setJwt: set.jwt },
+      data: {
+        streamId: stream.id,
+        jti: set.jti,
+        eventType: input.eventType,
+        sub: input.subject,
+        setJwt: set.jwt,
+      },
     });
 
     if (stream.deliveryMethod === 'push' && stream.pushEndpointUrl) {

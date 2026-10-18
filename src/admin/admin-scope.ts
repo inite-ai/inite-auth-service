@@ -19,9 +19,7 @@
  * scoping logic. Centralising it stops the next endpoint from being
  * the one that leaks cross-tenant.
  */
-export type AdminScope =
-  | { kind: 'superadmin' }
-  | { kind: 'scoped'; companyId: string };
+export type AdminScope = { kind: 'superadmin' } | { kind: 'scoped'; companyId: string };
 
 /**
  * Loose shape of the authenticated principal (JWT `req.user`) that scope
@@ -35,9 +33,7 @@ export interface AdminScopePrincipal {
   metadata?: Record<string, unknown> | null;
 }
 
-export function resolveAdminScope(
-  user: AdminScopePrincipal | null | undefined,
-): AdminScope | null {
+export function resolveAdminScope(user: AdminScopePrincipal | null | undefined): AdminScope | null {
   if (user?.kind === 'machine') {
     return resolveMachineScope(user);
   }
@@ -59,14 +55,11 @@ function resolveMachineScope(user: AdminScopePrincipal): AdminScope | null {
   return { kind: 'superadmin' };
 }
 
-function resolveUserScope(
-  user: AdminScopePrincipal | null | undefined,
-): AdminScope | null {
+function resolveUserScope(user: AdminScopePrincipal | null | undefined): AdminScope | null {
   const metadata: Record<string, unknown> = user?.metadata ?? {};
   const roles: string[] = Array.isArray(metadata.roles) ? metadata.roles : [];
 
-  const isSuperadmin =
-    metadata.isSuperadmin === true || roles.includes('superadmin');
+  const isSuperadmin = metadata.isSuperadmin === true || roles.includes('superadmin');
   if (isSuperadmin) return { kind: 'superadmin' };
 
   const isAdmin = metadata.isAdmin === true || roles.includes('admin');
@@ -89,10 +82,7 @@ function resolveUserScope(
  * Use this anywhere a list endpoint reads tenant-keyed rows. Forgetting
  * to call this is exactly the cross-tenant leak the audit warned about.
  */
-export function applyScopeFilter(
-  scope: AdminScope,
-  where: Record<string, unknown>,
-): void {
+export function applyScopeFilter(scope: AdminScope, where: Record<string, unknown>): void {
   if (scope.kind === 'scoped') {
     where.companyId = scope.companyId;
   }

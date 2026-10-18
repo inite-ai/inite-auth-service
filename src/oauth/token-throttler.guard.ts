@@ -27,8 +27,7 @@ export class TokenEndpointThrottlerGuard extends ThrottlerGuard {
   protected override async getTracker(req: Request): Promise<string> {
     const body = req.body as Record<string, unknown> | undefined;
     const grant = typeof body?.grant_type === 'string' ? body.grant_type : '';
-    const clientId =
-      typeof body?.client_id === 'string' ? body.client_id : '';
+    const clientId = typeof body?.client_id === 'string' ? body.client_id : '';
 
     if (grant === 'client_credentials' && clientId) {
       return `oauth:token:cc:${clientId}`;

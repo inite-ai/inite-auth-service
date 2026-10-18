@@ -29,9 +29,7 @@ export class WalletAuthController {
     private readonly config: ConfigService,
   ) {
     this.sessionSecret =
-      this.config.get<string>('SESSION_SECRET') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
+      this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
   @Post('siwe/challenge')
@@ -51,10 +49,7 @@ export class WalletAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const { user, isNewUser } = await this.wallet.verifySiweLogin(
-      body.message,
-      body.signature,
-    );
+    const { user, isNewUser } = await this.wallet.verifySiweLogin(body.message, body.signature);
 
     await establishSession(req, res, {
       sessionSecret: this.sessionSecret,

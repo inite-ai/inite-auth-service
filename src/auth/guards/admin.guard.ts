@@ -1,15 +1,6 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import type {
-  AuthenticatedUser,
-  MachinePrincipal,
-  UserPrincipal,
-} from '../authenticated-user';
+import type { AuthenticatedUser, MachinePrincipal, UserPrincipal } from '../authenticated-user';
 
 /**
  * Admit two distinct principals to admin endpoints:
@@ -34,9 +25,7 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
       return false;
     }
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ user?: AuthenticatedUser }>();
+    const request = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
     const user = request.user;
 
     if (user?.kind === 'machine') {
@@ -64,15 +53,6 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
       return false;
     }
     const roles = Array.isArray(metadata.roles) ? metadata.roles : [];
-    return (
-      metadata.isAdmin === true ||
-      roles.includes('admin') ||
-      roles.includes('superadmin')
-    );
+    return metadata.isAdmin === true || roles.includes('admin') || roles.includes('superadmin');
   }
 }
-
-
-
-
-

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../common/redis.service';
@@ -62,10 +58,7 @@ export class FederationService {
     let codeVerifier: string | undefined;
     if (cfg.usesPkce) {
       codeVerifier = crypto.randomBytes(32).toString('base64url');
-      const challenge = crypto
-        .createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url');
+      const challenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
       params.set('code_challenge', challenge);
       params.set('code_challenge_method', 'S256');
     }
@@ -79,11 +72,7 @@ export class FederationService {
       returnTo: opts.returnTo,
       oauthParams: opts.oauthParams,
     };
-    await this.redis.set(
-      STATE_KEY(state),
-      JSON.stringify(stateData),
-      STATE_TTL_SECONDS,
-    );
+    await this.redis.set(STATE_KEY(state), JSON.stringify(stateData), STATE_TTL_SECONDS);
 
     return { url: `${endpoints.authorizationEndpoint}?${params.toString()}` };
   }
@@ -201,10 +190,7 @@ export class FederationService {
     return { user: this.shapeUser(user), isNewUser: true };
   }
 
-  private async linkIdentity(
-    userId: string,
-    profile: NormalizedProfile,
-  ): Promise<void> {
+  private async linkIdentity(userId: string, profile: NormalizedProfile): Promise<void> {
     await this.prisma.oAuthIdentity.create({
       data: {
         userId,

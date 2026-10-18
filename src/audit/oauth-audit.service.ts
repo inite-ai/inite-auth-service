@@ -80,9 +80,7 @@ export class OAuthAuditService {
       // can correlate with the DB outage.
       this.metrics?.auditWriteFailures.inc();
       const message = e instanceof Error ? e.message : 'unknown';
-      this.logger.warn(
-        `audit log write failed [${input.event}]: ${message}`,
-      );
+      this.logger.warn(`audit log write failed [${input.event}]: ${message}`);
     }
   }
 
@@ -90,13 +88,9 @@ export class OAuthAuditService {
    * Auto-attach correlation ID to audit metadata so an audit row can be
    * cross-referenced with the corresponding log lines.
    */
-  private buildMetadata(
-    input: AuditEventInput,
-  ): Record<string, unknown> | null {
+  private buildMetadata(input: AuditEventInput): Record<string, unknown> | null {
     const requestId = requestContext.getRequestId();
-    return requestId
-      ? { ...(input.metadata ?? {}), requestId }
-      : input.metadata ?? null;
+    return requestId ? { ...(input.metadata ?? {}), requestId } : (input.metadata ?? null);
   }
 
   private async persistAndFanOut(
@@ -128,17 +122,12 @@ export class OAuthAuditService {
     }
   }
 
-  private async resolveCompanyId(
-    input: AuditEventInput,
-  ): Promise<string | null> {
+  private async resolveCompanyId(input: AuditEventInput): Promise<string | null> {
     if (input.companyId !== undefined) return input.companyId ?? null;
     if (!input.clientId) return null;
 
     const cached = this.companyIdCache.get(input.clientId);
-    if (
-      cached &&
-      Date.now() - cached.cachedAt < OAuthAuditService.COMPANY_CACHE_TTL_MS
-    ) {
+    if (cached && Date.now() - cached.cachedAt < OAuthAuditService.COMPANY_CACHE_TTL_MS) {
       return cached.companyId;
     }
 
@@ -251,9 +240,7 @@ export class OAuthAuditService {
    * query param can't inject an arbitrary column. A secondary ts tiebreak keeps
    * pagination stable when the primary column has duplicates.
    */
-  private buildOrderBy(
-    filters: AuditQueryFilters,
-  ): Array<Record<string, 'asc' | 'desc'>> {
+  private buildOrderBy(filters: AuditQueryFilters): Array<Record<string, 'asc' | 'desc'>> {
     const allowed: readonly AuditSortColumn[] = ['ts', 'event', 'clientId', 'sub', 'success'];
     // Unknown column → full default (newest-first), ignoring any direction.
     if (!filters.sortBy || !allowed.includes(filters.sortBy)) {

@@ -60,7 +60,12 @@ export class ScimGroupsController {
   @Put('Groups/:id')
   @Header('Content-Type', SCIM_CONTENT_TYPE)
   replaceGroup(@Param('id') id: string, @Body() body: ScimGroupBody, @Req() req: Request) {
-    return this.groups.replaceGroup({ companyId: this.tenant(req), id, body, baseUrl: scimBaseUrl(req) });
+    return this.groups.replaceGroup({
+      companyId: this.tenant(req),
+      id,
+      body,
+      baseUrl: scimBaseUrl(req),
+    });
   }
 
   @Patch('Groups/:id')

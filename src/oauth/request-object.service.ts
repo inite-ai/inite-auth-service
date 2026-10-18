@@ -6,9 +6,15 @@ import { AuthorizeQuery } from './dto/oauth-requests';
 
 /** Asymmetric algs a JAR request object may be signed with. */
 const REQUEST_OBJECT_ALGS = [
-  'RS256', 'RS384', 'RS512',
-  'PS256', 'PS384', 'PS512',
-  'ES256', 'ES384', 'ES512',
+  'RS256',
+  'RS384',
+  'RS512',
+  'PS256',
+  'PS384',
+  'PS512',
+  'ES256',
+  'ES384',
+  'ES512',
   'EdDSA',
 ];
 
@@ -38,7 +44,9 @@ export class RequestObjectService {
     const keySet = this.clientJwks.resolveKeySet(client);
     let payload: jose.JWTPayload;
     try {
-      ({ payload } = await jose.jwtVerify(input.request, keySet, { algorithms: REQUEST_OBJECT_ALGS }));
+      ({ payload } = await jose.jwtVerify(input.request, keySet, {
+        algorithms: REQUEST_OBJECT_ALGS,
+      }));
     } catch {
       throw new UnauthorizedException('request object signature invalid');
     }
@@ -67,9 +75,17 @@ export class RequestObjectService {
   private pickAuthorizeParams(p: jose.JWTPayload): Partial<AuthorizeQuery> {
     const out: Partial<AuthorizeQuery> = {};
     const keys: Array<keyof AuthorizeQuery> = [
-      'response_type', 'client_id', 'redirect_uri', 'scope', 'state',
-      'code_challenge', 'code_challenge_method', 'prompt', 'nonce',
-      'acr_values', 'resource',
+      'response_type',
+      'client_id',
+      'redirect_uri',
+      'scope',
+      'state',
+      'code_challenge',
+      'code_challenge_method',
+      'prompt',
+      'nonce',
+      'acr_values',
+      'resource',
     ];
     const record = p as Record<string, unknown>;
     for (const key of keys) {

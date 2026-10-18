@@ -23,9 +23,7 @@ describe('auditRowsToCsv', () => {
   });
 
   it('escapes embedded quotes, commas and newlines (RFC 4180)', () => {
-    const csv = auditRowsToCsv([
-      { event: 'x', errorMessage: 'he said "hi", then\nleft' },
-    ]);
+    const csv = auditRowsToCsv([{ event: 'x', errorMessage: 'he said "hi", then\nleft' }]);
     // embedded quote doubled, whole field quoted so the comma/newline are safe
     expect(csv).toContain('"he said ""hi"", then\nleft"');
   });

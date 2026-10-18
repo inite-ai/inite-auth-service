@@ -52,10 +52,7 @@ describe('DpopService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DpopService,
-        { provide: RedisService, useValue: redis },
-      ],
+      providers: [DpopService, { provide: RedisService, useValue: redis }],
     }).compile();
 
     svc = module.get<DpopService>(DpopService);
@@ -106,9 +103,9 @@ describe('DpopService', () => {
     ).toString('base64url');
     const tampered = [newHeader, parts[1], parts[2]].join('.');
 
-    await expect(
-      svc.validate(tampered, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/alg.*not allowed/);
+    await expect(svc.validate(tampered, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      /alg.*not allowed/,
+    );
   });
 
   it('rejects proofs with the wrong typ header', async () => {
@@ -117,9 +114,9 @@ describe('DpopService', () => {
       .setProtectedHeader({ alg: 'ES256', typ: 'JWT', jwk: k.publicJwk })
       .setIssuedAt()
       .sign(k.privateKey);
-    await expect(
-      svc.validate(jwt, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/typ must be dpop\+jwt/);
+    await expect(svc.validate(jwt, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      /typ must be dpop\+jwt/,
+    );
   });
 
   it('rejects proofs with a private-key jwk in the header', async () => {
@@ -133,9 +130,9 @@ describe('DpopService', () => {
       .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: fauxJwk })
       .setIssuedAt()
       .sign(k.privateKey);
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/must not contain private/);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      /must not contain private/,
+    );
   });
 
   it('rejects proofs with htm mismatch', async () => {
@@ -146,9 +143,7 @@ describe('DpopService', () => {
       alg: k.alg,
       htm: 'GET',
     });
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/htm mismatch/);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(/htm mismatch/);
   });
 
   it('rejects proofs with htu mismatch', async () => {
@@ -159,9 +154,7 @@ describe('DpopService', () => {
       alg: k.alg,
       htu: 'https://attacker.example.com/v1/oauth/token',
     });
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/htu mismatch/);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(/htu mismatch/);
   });
 
   it('rejects proofs older than the freshness window', async () => {
@@ -172,9 +165,9 @@ describe('DpopService', () => {
       alg: k.alg,
       iat: Math.floor(Date.now() / 1000) - 120, // 2 min old
     });
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(/iat outside freshness window/);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      /iat outside freshness window/,
+    );
   });
 
   it('rejects replays — second use of the same jti fails', async () => {
@@ -189,9 +182,9 @@ describe('DpopService', () => {
     await svc.validate(proof, 'POST', URL_UNDER_TEST);
     // Second call: Redis "remembers" the jti
     redis.get.mockResolvedValueOnce('1');
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('rejects proofs signed by a different key than the embedded jwk', async () => {
@@ -211,9 +204,9 @@ describe('DpopService', () => {
       .setIssuedAt()
       .sign(attackerKey.privateKey);
 
-    await expect(
-      svc.validate(proof, 'POST', URL_UNDER_TEST),
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(svc.validate(proof, 'POST', URL_UNDER_TEST)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('htu comparison ignores port omission on https', async () => {

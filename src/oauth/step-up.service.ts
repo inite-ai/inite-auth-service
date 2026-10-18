@@ -25,9 +25,22 @@ export class StepUpService {
    * present here rank 0 ("no enforceable constraint").
    */
   private static readonly ACR_RANKS: Record<string, number> = {
-    aal1: 1, '1': 1, loa1: 1, low: 1,
-    aal2: 2, '2': 2, mfa: 2, loa2: 2, silver: 2,
-    phr: 3, phrh: 3, aal3: 3, '3': 3, loa3: 3, hwk: 3, gold: 3,
+    aal1: 1,
+    '1': 1,
+    loa1: 1,
+    low: 1,
+    aal2: 2,
+    '2': 2,
+    mfa: 2,
+    loa2: 2,
+    silver: 2,
+    phr: 3,
+    phrh: 3,
+    aal3: 3,
+    '3': 3,
+    loa3: 3,
+    hwk: 3,
+    gold: 3,
   };
 
   /** Map a single acr token to a rank, or 0 when we don't model it. */
@@ -102,13 +115,10 @@ export class StepUpService {
     res: Response,
     opts: { acrValues?: string; maxAge?: number } = {},
   ): void {
-    res
-      .status(401)
-      .setHeader('WWW-Authenticate', this.challengeHeader(opts));
+    res.status(401).setHeader('WWW-Authenticate', this.challengeHeader(opts));
     res.json({
       error: 'insufficient_user_authentication',
-      error_description:
-        'A higher authentication assurance level is required for this resource',
+      error_description: 'A higher authentication assurance level is required for this resource',
       acr_values: opts.acrValues,
     });
   }

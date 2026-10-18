@@ -31,8 +31,7 @@ export class HibpService {
 
   constructor(private readonly config: ConfigService) {
     this.enabled =
-      (this.config.get<string>('HIBP_ENABLED', 'false') ?? 'false').toLowerCase() ===
-      'true';
+      (this.config.get<string>('HIBP_ENABLED', 'false') ?? 'false').toLowerCase() === 'true';
     // Default to 1 — any sighting counts as breached. Raise via env
     // for projects that tolerate widely-circulated passwords during
     // bootstrap (not recommended).
@@ -40,10 +39,7 @@ export class HibpService {
       this.config.get<string>('HIBP_MIN_BREACH_COUNT', '1') ?? '1',
       10,
     );
-    this.timeoutMs = parseInt(
-      this.config.get<string>('HIBP_TIMEOUT_MS', '1500') ?? '1500',
-      10,
-    );
+    this.timeoutMs = parseInt(this.config.get<string>('HIBP_TIMEOUT_MS', '1500') ?? '1500', 10);
     this.apiBase = this.config.get<string>(
       'HIBP_API_BASE',
       'https://api.pwnedpasswords.com',

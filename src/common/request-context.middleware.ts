@@ -18,16 +18,13 @@ export class RequestContextMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const incoming = (req.headers['x-request-id'] as string | undefined) ?? '';
     const requestId =
-      incoming && incoming.length > 0 && incoming.length <= 128
-        ? incoming
-        : randomUUID();
+      incoming && incoming.length > 0 && incoming.length <= 128 ? incoming : randomUUID();
 
     res.setHeader('X-Request-Id', requestId);
 
     const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
     const ip = fwd.split(',')[0]?.trim() || req.ip || '';
-    const userAgent =
-      (req.headers['user-agent'] as string | undefined) ?? '';
+    const userAgent = (req.headers['user-agent'] as string | undefined) ?? '';
 
     requestContext.run({ requestId, ip, userAgent }, () => next());
   }

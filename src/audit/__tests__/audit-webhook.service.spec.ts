@@ -20,9 +20,7 @@ describe('AuditWebhookService', () => {
   it('signs the body with HMAC-SHA256 over sha256=<hex> when a secret is set', () => {
     const s = svc({ AUDIT_WEBHOOK_URL: 'https://x', AUDIT_WEBHOOK_SECRET: 'sek' });
     const body = '{"a":1}';
-    const expected =
-      'sha256=' +
-      crypto.createHmac('sha256', 'sek').update(body).digest('hex');
+    const expected = 'sha256=' + crypto.createHmac('sha256', 'sek').update(body).digest('hex');
     expect(s.sign(body)).toBe(expected);
   });
 

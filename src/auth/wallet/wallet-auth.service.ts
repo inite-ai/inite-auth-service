@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { User } from '@prisma/client';
 import { ethers } from 'ethers';
@@ -39,19 +35,13 @@ export class WalletAuthService {
   }
 
   /** Issue a single-use EIP-4361 sign-in challenge for an EVM address. */
-  async createSiweChallenge(
-    address: string,
-  ): Promise<{ message: string; nonce: string }> {
+  async createSiweChallenge(address: string): Promise<{ message: string; nonce: string }> {
     if (!EVM_ADDRESS.test(address)) {
       throw new BadRequestException('Invalid Ethereum address');
     }
     const nonce = crypto.randomBytes(16).toString('hex');
     const message = this.buildLoginMessage(address, nonce);
-    await this.redis.set(
-      NONCE_PREFIX + nonce,
-      address.toLowerCase(),
-      NONCE_TTL_SECONDS,
-    );
+    await this.redis.set(NONCE_PREFIX + nonce, address.toLowerCase(), NONCE_TTL_SECONDS);
     return { message, nonce };
   }
 

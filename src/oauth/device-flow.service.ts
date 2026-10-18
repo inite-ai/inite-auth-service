@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { OAuthClient, DeviceAuthorization } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -161,10 +157,7 @@ export class DeviceFlowService {
    * same status — a double-click on the consent button doesn't
    * 500.
    */
-  async approve(opts: {
-    userCode: string;
-    userId: string;
-  }): Promise<DeviceAuthorization> {
+  async approve(opts: { userCode: string; userId: string }): Promise<DeviceAuthorization> {
     const normalised = opts.userCode.trim().toUpperCase();
     const row = await this.findByUserCode(normalised);
     if (!row) {

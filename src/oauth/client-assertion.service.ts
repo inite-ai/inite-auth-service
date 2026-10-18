@@ -5,14 +5,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClientJwksService } from './client-jwks.service';
 import { ClientAssertionJtiStore } from './client-assertion-jti.store';
 
-export const CLIENT_ASSERTION_TYPE =
-  'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+export const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
 
 /** Asymmetric algs we accept for a client assertion — never `none`/HS*. */
 const ASSERTION_ALGS = [
-  'RS256', 'RS384', 'RS512',
-  'PS256', 'PS384', 'PS512',
-  'ES256', 'ES384', 'ES512',
+  'RS256',
+  'RS384',
+  'RS512',
+  'PS256',
+  'PS384',
+  'PS512',
+  'ES256',
+  'ES384',
+  'ES512',
   'EdDSA',
 ];
 const MAX_ASSERTION_LIFETIME_S = 300;
@@ -50,7 +55,10 @@ export class ClientAssertionService {
     return client;
   }
 
-  private decode(assertion: string): { header: jose.ProtectedHeaderParameters; unverified: jose.JWTPayload } {
+  private decode(assertion: string): {
+    header: jose.ProtectedHeaderParameters;
+    unverified: jose.JWTPayload;
+  } {
     try {
       return {
         header: jose.decodeProtectedHeader(assertion),

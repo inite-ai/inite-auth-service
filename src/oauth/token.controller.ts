@@ -6,30 +6,30 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
-} from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
-import { Request } from "express";
-import { OAuthClient } from "@prisma/client";
-import { IdempotencyInterceptor } from "../common/idempotency.interceptor";
-import { TokenEndpointThrottlerGuard } from "./token-throttler.guard";
-import { OAuthClientRegistryService } from "./oauth-client-registry.service";
-import { ClientAuthService } from "./client-auth.service";
-import { DeviceFlowService } from "./device-flow.service";
-import { OAuthAuditService } from "../audit/oauth-audit.service";
-import { MetricsService } from "../common/metrics.service";
-import { LoggerService } from "../common/logger.service";
-import { TokenRequestBody } from "./dto/oauth-requests";
-import { TokenGrantService } from "./token-grant.service";
-import { AuditCtx, clientContext, TOKEN_EXCHANGE_GRANT } from "./token-support";
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
+import { OAuthClient } from '@prisma/client';
+import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
+import { TokenEndpointThrottlerGuard } from './token-throttler.guard';
+import { OAuthClientRegistryService } from './oauth-client-registry.service';
+import { ClientAuthService } from './client-auth.service';
+import { DeviceFlowService } from './device-flow.service';
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+import { MetricsService } from '../common/metrics.service';
+import { LoggerService } from '../common/logger.service';
+import { TokenRequestBody } from './dto/oauth-requests';
+import { TokenGrantService } from './token-grant.service';
+import { AuditCtx, clientContext, TOKEN_EXCHANGE_GRANT } from './token-support';
 
 /**
  * OAuth 2.0 token endpoint. Thin HTTP dispatch: authenticate the client,
  * assert the grant is allowed, then delegate to TokenGrantService. Shares the
  * /v1/oauth route prefix with OAuthController.
  */
-@ApiTags("oauth")
-@Controller({ path: "oauth", version: "1" })
+@ApiTags('oauth')
+@Controller({ path: 'oauth', version: '1' })
 export class TokenController {
   private readonly logger = new LoggerService();
 
@@ -41,7 +41,7 @@ export class TokenController {
     private readonly grants: TokenGrantService,
     private readonly clientAuth: ClientAuthService,
   ) {
-    this.logger.setContext("TokenController");
+    this.logger.setContext('TokenController');
   }
 
   /**
@@ -89,7 +89,6 @@ export class TokenController {
       endTimer();
     }
   }
-
 
   /**
    * Authenticate the calling client. Audit-logs a credential failure even

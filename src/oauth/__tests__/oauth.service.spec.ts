@@ -114,7 +114,10 @@ describe('OAuthService', () => {
         },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
         { provide: SettingsService, useValue: fakeSettings({}) },
-        { provide: JwksService, useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() } },
+        {
+          provide: JwksService,
+          useValue: { isRs256Enabled: () => false, verificationKeyForToken: jest.fn() },
+        },
         { provide: PkceService, useValue: { verifyCodeChallenge: jest.fn() } },
         { provide: IdentityService, useValue: { getWallets: jest.fn().mockResolvedValue([]) } },
         {
@@ -180,11 +183,18 @@ describe('OAuthService', () => {
 
   describe('validateRedirectUri', () => {
     it('should return true for registered URI', () => {
-      expect(clientRegistry.validateRedirectUri(mockClient as OAuthClient, 'https://app.example.com/callback')).toBe(true);
+      expect(
+        clientRegistry.validateRedirectUri(
+          mockClient as OAuthClient,
+          'https://app.example.com/callback',
+        ),
+      ).toBe(true);
     });
 
     it('should return false for unregistered URI', () => {
-      expect(clientRegistry.validateRedirectUri(mockClient as OAuthClient, 'https://evil.com/callback')).toBe(false);
+      expect(
+        clientRegistry.validateRedirectUri(mockClient as OAuthClient, 'https://evil.com/callback'),
+      ).toBe(false);
     });
 
     it('should ignore port for loopback redirects when 127.0.0.1 registered', () => {
@@ -213,7 +223,10 @@ describe('OAuthService', () => {
         redirectUris: ['https://app.example.com/callback'],
       };
       expect(
-        clientRegistry.validateRedirectUri(cli as OAuthClient, 'https://app.example.com:8443/callback'),
+        clientRegistry.validateRedirectUri(
+          cli as OAuthClient,
+          'https://app.example.com:8443/callback',
+        ),
       ).toBe(false);
     });
 
@@ -238,13 +251,15 @@ describe('OAuthService', () => {
 
   describe('validateGrantType', () => {
     it('should not throw for allowed grant type', () => {
-      expect(() => clientRegistry.validateGrantType(mockClient as OAuthClient, 'authorization_code')).not.toThrow();
+      expect(() =>
+        clientRegistry.validateGrantType(mockClient as OAuthClient, 'authorization_code'),
+      ).not.toThrow();
     });
 
     it('should throw for disallowed grant type', () => {
-      expect(() => clientRegistry.validateGrantType(mockClient as OAuthClient, 'client_credentials')).toThrow(
-        'not allowed',
-      );
+      expect(() =>
+        clientRegistry.validateGrantType(mockClient as OAuthClient, 'client_credentials'),
+      ).toThrow('not allowed');
     });
   });
 
@@ -275,11 +290,7 @@ describe('OAuthService', () => {
       expect(result.scope).toBe('brain:read brain:write brain:admin');
       const [payload, opts] = signSpy.mock.calls[0];
       expect(payload.sub).toBe('co_smar_chat');
-      expect(payload.scopes).toEqual([
-        'brain:read',
-        'brain:write',
-        'brain:admin',
-      ]);
+      expect(payload.scopes).toEqual(['brain:read', 'brain:write', 'brain:admin']);
       expect(opts.audience).toBe('brain');
     });
 
@@ -492,10 +503,7 @@ describe('OAuthService', () => {
       jwt.verify.mockReturnValue({
         sub: 'did:key:z6MkUser',
         scope: 'brain:read',
-        authorization_details: [
-          mcpGrant,
-          { type: 'payment_initiation', actions: ['initiate'] },
-        ],
+        authorization_details: [mcpGrant, { type: 'payment_initiation', actions: ['initiate'] }],
       });
       const signSpy = jest.fn().mockReturnValue('exchanged-jwt');
       jwt.sign = signSpy;
@@ -605,7 +613,12 @@ describe('OAuthService', () => {
     });
 
     describe('a grant on the person’s wallet', () => {
-      const walletGrant = [{ type: 'inite_wallet', limits: { currency: 'USD', per_payment: '10', daily: '20', monthly: '50' } }];
+      const walletGrant = [
+        {
+          type: 'inite_wallet',
+          limits: { currency: 'USD', per_payment: '10', daily: '20', monthly: '50' },
+        },
+      ];
       const request = (amr: string[]) =>
         service.createAuthorizationCode({
           userId: 'user-1',
@@ -620,14 +633,21 @@ describe('OAuthService', () => {
 
       beforeEach(() => {
         jest
-          .spyOn((service as unknown as { authorizationDetails: AuthorizationDetailsService }).authorizationDetails, 'parse')
+          .spyOn(
+            (service as unknown as { authorizationDetails: AuthorizationDetailsService })
+              .authorizationDetails,
+            'parse',
+          )
           .mockReturnValue(walletGrant);
         mockPrisma.authorizationCode.create.mockResolvedValue({ code: 'test-code' });
       });
 
       it('is refused without a passkey', async () => {
         await expect(request(['pwd', 'otp'])).rejects.toMatchObject({
-          response: expect.objectContaining({ error: 'insufficient_user_authentication', acr_values: 'phr' }),
+          response: expect.objectContaining({
+            error: 'insufficient_user_authentication',
+            acr_values: 'phr',
+          }),
         });
         expect(mockPrisma.authorizationCode.create).not.toHaveBeenCalled();
       });
@@ -640,8 +660,13 @@ describe('OAuthService', () => {
 
   describe('exchangeAuthorizationCode — RFC 8707 resource audience', () => {
     const user = {
-      id: 'u', did: 'did:k:1', email: 'e', emailVerified: true,
-      name: 'N', avatarUrl: null, metadata: null,
+      id: 'u',
+      did: 'did:k:1',
+      email: 'e',
+      emailVerified: true,
+      name: 'N',
+      avatarUrl: null,
+      metadata: null,
     } as unknown as User;
 
     const setup = (resource: string | null, allowedAudiences: string[]) => {
@@ -652,13 +677,21 @@ describe('OAuthService', () => {
       });
       mockPrisma.authorizationCode.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.authorizationCode.findUnique.mockResolvedValue({
-        code: 'code-1', userId: 'u', clientId: 'test-app',
+        code: 'code-1',
+        userId: 'u',
+        clientId: 'test-app',
         redirectUri: 'https://app.example.com/callback',
-        scope: 'openid', nonce: null, acrValues: null, amr: [],
-        codeChallenge: null, resource, user,
+        scope: 'openid',
+        nonce: null,
+        acrValues: null,
+        amr: [],
+        codeChallenge: null,
+        resource,
+        user,
       });
       mockPrisma.oAuthClient.findUnique.mockResolvedValue({
-        allowedAudiences, companyId: null,
+        allowedAudiences,
+        companyId: null,
       });
       mockPrisma.refreshToken.create.mockResolvedValue({});
       const signSpy = jest.fn().mockReturnValue('jwt');
@@ -668,7 +701,8 @@ describe('OAuthService', () => {
 
     const exchange = () =>
       service.exchangeAuthorizationCode({
-        code: 'code-1', clientId: 'test-app',
+        code: 'code-1',
+        clientId: 'test-app',
         redirectUri: 'https://app.example.com/callback',
       });
 
@@ -717,8 +751,21 @@ describe('OAuthService', () => {
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
-      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as unknown as User;
-      await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid', nonce: 'nonce-value' });
+      const user = {
+        id: 'u',
+        did: 'did:k:1',
+        email: 'e',
+        emailVerified: true,
+        name: 'N',
+        avatarUrl: null,
+        metadata: null,
+      } as unknown as User;
+      await tokenIssuer.generateTokens({
+        user,
+        clientId: 'test-app',
+        scope: 'openid',
+        nonce: 'nonce-value',
+      });
 
       // First sign call = access_token (no nonce). Second = id_token (with nonce).
       const accessClaims = signSpy.mock.calls[0][0];
@@ -733,7 +780,15 @@ describe('OAuthService', () => {
       mockPrisma.refreshToken.create.mockResolvedValue({});
       setHmacSecret();
 
-      const user = { id: 'u', did: 'did:k:1', email: 'e', emailVerified: true, name: 'N', avatarUrl: null, metadata: null } as unknown as User;
+      const user = {
+        id: 'u',
+        did: 'did:k:1',
+        email: 'e',
+        emailVerified: true,
+        name: 'N',
+        avatarUrl: null,
+        metadata: null,
+      } as unknown as User;
       await tokenIssuer.generateTokens({ user, clientId: 'test-app', scope: 'openid' });
 
       const idClaims = signSpy.mock.calls[1][0];
@@ -742,7 +797,11 @@ describe('OAuthService', () => {
   });
 
   describe('grace-period client secret', () => {
-    const buildClient = async (currentSecret: string, previousSecret?: string, previousExpiresAt?: Date | null) => {
+    const buildClient = async (
+      currentSecret: string,
+      previousSecret?: string,
+      previousExpiresAt?: Date | null,
+    ) => {
       const clientSecretHash = await bcrypt.hash(currentSecret, 4);
       const previousSecretHash = previousSecret ? await bcrypt.hash(previousSecret, 4) : null;
       return {
@@ -754,9 +813,7 @@ describe('OAuthService', () => {
     };
 
     it('accepts the current secret', async () => {
-      mockPrisma.oAuthClient.findFirst.mockResolvedValue(
-        await buildClient('current-secret'),
-      );
+      mockPrisma.oAuthClient.findFirst.mockResolvedValue(await buildClient('current-secret'));
       const result = await clientRegistry.validateClient('test-app', 'current-secret');
       expect(result.clientId).toBe('test-app');
     });
@@ -777,9 +834,9 @@ describe('OAuthService', () => {
         await buildClient('current-secret', 'old-secret', past),
       );
 
-      await expect(
-        clientRegistry.validateClient('test-app', 'old-secret'),
-      ).rejects.toThrow('Invalid client credentials');
+      await expect(clientRegistry.validateClient('test-app', 'old-secret')).rejects.toThrow(
+        'Invalid client credentials',
+      );
     });
 
     it('rejects an entirely wrong secret even if a previous slot exists', async () => {
@@ -788,9 +845,9 @@ describe('OAuthService', () => {
         await buildClient('current-secret', 'old-secret', future),
       );
 
-      await expect(
-        clientRegistry.validateClient('test-app', 'random-junk'),
-      ).rejects.toThrow('Invalid client credentials');
+      await expect(clientRegistry.validateClient('test-app', 'random-junk')).rejects.toThrow(
+        'Invalid client credentials',
+      );
     });
   });
 

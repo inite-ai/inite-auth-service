@@ -57,11 +57,7 @@ export class ParService {
 
     const ref = randomBytes(36).toString('base64url');
     const requestUri = `${REQUEST_URI_PREFIX}${ref}`;
-    await this.redis.set(
-      this.key(requestUri),
-      JSON.stringify(payload),
-      PAR_TTL_SECONDS,
-    );
+    await this.redis.set(this.key(requestUri), JSON.stringify(payload), PAR_TTL_SECONDS);
     return { requestUri, expiresIn: PAR_TTL_SECONDS };
   }
 

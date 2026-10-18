@@ -103,18 +103,13 @@ export class ApiKeysAdminController {
   }
 
   private requireScope(req: Request): AdminScope {
-    const scope = resolveAdminScope(
-      (req as Request & { user?: AuthenticatedUser }).user,
-    );
+    const scope = resolveAdminScope((req as Request & { user?: AuthenticatedUser }).user);
     if (!scope) throw new ForbiddenException('Admin access required');
     return scope;
   }
 
   /** Scoped admins are pinned to their tenant; superadmins may pass any. */
-  private effectiveCompanyId(
-    scope: AdminScope,
-    requested: string | undefined,
-  ): string | undefined {
+  private effectiveCompanyId(scope: AdminScope, requested: string | undefined): string | undefined {
     return scope.kind === 'scoped' ? scope.companyId : requested || undefined;
   }
 }

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
@@ -59,7 +54,13 @@ export class AdminService {
     const [passkeys, wallets, activeSessions] = await Promise.all([
       this.prisma.passkey.findMany({
         where: { userId },
-        select: { id: true, credentialId: true, deviceName: true, createdAt: true, lastUsedAt: true },
+        select: {
+          id: true,
+          credentialId: true,
+          deviceName: true,
+          createdAt: true,
+          lastUsedAt: true,
+        },
       }),
       this.prisma.wallet.findMany({
         where: { userId },
@@ -141,7 +142,10 @@ export class AdminService {
   async deleteUser(userId: string) {
     // The DID is the `sub` every relying party knows the user by, and it is
     // gone with the row — read it first.
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { did: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { did: true },
+    });
     // Cascade delete handles related records
     await this.prisma.user.delete({ where: { id: userId } });
     if (user?.did) {
@@ -308,18 +312,19 @@ export class AdminService {
   // ==================== Stats ====================
 
   async getStats() {
-    const [totalUsers, totalClients, totalPasskeys, totalWallets, activeTokens, recentUsers] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.oAuthClient.count(),
-      this.prisma.passkey.count(),
-      this.prisma.wallet.count(),
-      this.prisma.refreshToken.count({ where: { revoked: false } }),
-      this.prisma.user.count({
-        where: {
-          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        },
-      }),
-    ]);
+    const [totalUsers, totalClients, totalPasskeys, totalWallets, activeTokens, recentUsers] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.oAuthClient.count(),
+        this.prisma.passkey.count(),
+        this.prisma.wallet.count(),
+        this.prisma.refreshToken.count({ where: { revoked: false } }),
+        this.prisma.user.count({
+          where: {
+            createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+          },
+        }),
+      ]);
 
     return {
       totalUsers,

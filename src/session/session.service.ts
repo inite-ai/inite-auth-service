@@ -108,7 +108,10 @@ export class SessionService {
    */
   private async signalSessionRevoked(userId: string, companyId: string | null): Promise<void> {
     if (!this.ssf) return;
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { did: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { did: true },
+    });
     if (!user) return;
     await this.ssf.emit({
       eventType: CAEP_EVENTS.sessionRevoked,

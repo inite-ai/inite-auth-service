@@ -58,7 +58,9 @@ describe('scim-support', () => {
     it('prefers formatted, then displayName, then given+family', () => {
       expect(formatName({ name: { formatted: 'Ada L' } })).toBe('Ada L');
       expect(formatName({ displayName: 'Ada' })).toBe('Ada');
-      expect(formatName({ name: { givenName: 'Ada', familyName: 'Lovelace' } })).toBe('Ada Lovelace');
+      expect(formatName({ name: { givenName: 'Ada', familyName: 'Lovelace' } })).toBe(
+        'Ada Lovelace',
+      );
       expect(formatName({})).toBeUndefined();
     });
   });
@@ -88,7 +90,11 @@ describe('scim-support', () => {
     });
 
     it('reports active=false for an inactive membership', () => {
-      const scim = toScimUser(user, { status: 'inactive', externalId: null } as Membership, 'https://x');
+      const scim = toScimUser(
+        user,
+        { status: 'inactive', externalId: null } as Membership,
+        'https://x',
+      );
       expect(scim.active).toBe(false);
       expect(scim.externalId).toBeUndefined();
     });

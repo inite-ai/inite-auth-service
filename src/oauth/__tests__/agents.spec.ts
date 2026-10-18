@@ -22,7 +22,7 @@ describe('Agents', () => {
   const configWith = (issuer: string) =>
     ({
       get: (k: string, d?: string) =>
-        k === 'JWT_ISSUER' ? issuer : k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-secret' : d ?? '',
+        k === 'JWT_ISSUER' ? issuer : k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-secret' : (d ?? ''),
     }) as unknown as ConfigService;
 
   interface Row {
@@ -53,10 +53,11 @@ describe('Agents', () => {
         findUnique: jest.fn(async ({ where }: Query) => clients[where.clientId!] ?? null),
       },
       agent: {
-        findFirst: jest.fn(async ({ where }: Query) =>
-          agents.find(
-            (a) => a.userId === where.userId && a.clientId === where.clientId && !a.revokedAt,
-          ) ?? null,
+        findFirst: jest.fn(
+          async ({ where }: Query) =>
+            agents.find(
+              (a) => a.userId === where.userId && a.clientId === where.clientId && !a.revokedAt,
+            ) ?? null,
         ),
         findMany: jest.fn(async ({ where }: Query) =>
           agents
@@ -69,11 +70,22 @@ describe('Agents', () => {
             .map((a) => ({ ...a, user: { did: user.did } })),
         ),
         create: jest.fn(async ({ data }: Query) => {
-          const row = { id: agents.length ? `${AGENT_ID.slice(0, -1)}${agents.length}` : AGENT_ID, revokedAt: null, walletGrant: null, createdAt: new Date(), ...data };
+          const row = {
+            id: agents.length ? `${AGENT_ID.slice(0, -1)}${agents.length}` : AGENT_ID,
+            revokedAt: null,
+            walletGrant: null,
+            createdAt: new Date(),
+            ...data,
+          };
           agents.push(row as unknown as Row);
           return row;
         }),
-        update: jest.fn(async ({ where, data }: Query) => Object.assign(agents.find((a) => a.id === where.id)!, data)),
+        update: jest.fn(async ({ where, data }: Query) =>
+          Object.assign(
+            agents.find((a) => a.id === where.id)!,
+            data,
+          ),
+        ),
         updateMany: jest.fn(async ({ where, data }: Query) => {
           const hit = agents.filter((a) => (where.id as { in: string[] }).in.includes(a.id));
           hit.forEach((a) => Object.assign(a, data));
@@ -81,7 +93,13 @@ describe('Agents', () => {
         }),
         findUnique: jest.fn(async ({ where }: Query) => {
           const a = agents.find((x) => x.id === where.id);
-          return a ? { ...a, user: { did: user.did }, client: { clientId: a.clientId, name: 'Some Agent' } } : null;
+          return a
+            ? {
+                ...a,
+                user: { did: user.did },
+                client: { clientId: a.clientId, name: 'Some Agent' },
+              }
+            : null;
         }),
       },
       refreshToken: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
@@ -90,7 +108,11 @@ describe('Agents', () => {
   });
 
   const service = (issuer = 'https://auth-api.inite.ai') =>
-    new AgentsService(prisma as unknown as PrismaService, configWith(issuer), ssf as unknown as SsfEmitterService);
+    new AgentsService(
+      prisma as unknown as PrismaService,
+      configWith(issuer),
+      ssf as unknown as SsfEmitterService,
+    );
 
   it('names an agent with did:web under the issuer, port percent-encoded', () => {
     expect(service().didOf(AGENT_ID)).toBe(`did:web:auth-api.inite.ai:agents:${AGENT_ID}`);
@@ -103,7 +125,10 @@ describe('Agents', () => {
     const s = service();
     const first = await s.actFor('u1', 'dcr_agent');
     const again = await s.actFor('u1', 'dcr_agent');
-    expect(first).toEqual({ sub: `did:web:auth-api.inite.ai:agents:${AGENT_ID}`, client_id: 'dcr_agent' });
+    expect(first).toEqual({
+      sub: `did:web:auth-api.inite.ai:agents:${AGENT_ID}`,
+      client_id: 'dcr_agent',
+    });
     expect(again).toEqual(first);
     expect(agents).toHaveLength(1);
     expect(await s.actFor('u1', 'site')).toBeUndefined();
@@ -111,7 +136,9 @@ describe('Agents', () => {
 
   it('puts the agent in the access token’s act, sub staying the person', async () => {
     const signed: Array<Record<string, unknown>> = [];
-    const jwt = { sign: (p: Record<string, unknown>) => (signed.push(p), 'signed.jwt') } as unknown as JwtService;
+    const jwt = {
+      sign: (p: Record<string, unknown>) => (signed.push(p), 'signed.jwt'),
+    } as unknown as JwtService;
     const issuer = new OAuthTokenIssuerService(
       prisma as unknown as PrismaService,
       jwt,
@@ -122,7 +149,12 @@ describe('Agents', () => {
       service(),
     );
     const grant = normalizeWalletGrant({ type: 'inite_wallet', limits: { per_payment: '5' } });
-    await issuer.generateTokens({ user, clientId: 'dcr_agent', scope: 'openid', authorizationDetails: [grant] });
+    await issuer.generateTokens({
+      user,
+      clientId: 'dcr_agent',
+      scope: 'openid',
+      authorizationDetails: [grant],
+    });
     expect(signed[0]).toMatchObject({
       sub: 'did:key:person',
       act: { sub: `did:web:auth-api.inite.ai:agents:${AGENT_ID}`, client_id: 'dcr_agent' },

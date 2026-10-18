@@ -1,10 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsEmail,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { MagicLinkOAuthParamsDto } from './magic-link-oauth-params.dto';
 
 /**

@@ -43,7 +43,9 @@ describe('ScimGroupsService', () => {
       BASE,
     );
     expect(prisma.orgRole.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ slug: 'engineers', name: 'Engineers' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ slug: 'engineers', name: 'Engineers' }),
+      }),
     );
     expect(prisma.membership.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { role: 'engineers' } }),
@@ -62,9 +64,7 @@ describe('ScimGroupsService', () => {
   it('renders members on get', async () => {
     const { svc, prisma } = setup();
     prisma.orgRole.findFirst.mockResolvedValue(role);
-    prisma.membership.findMany.mockResolvedValue([
-      { userId: 'u1', user: { email: 'a@b.com' } },
-    ]);
+    prisma.membership.findMany.mockResolvedValue([{ userId: 'u1', user: { email: 'a@b.com' } }]);
     const group = await svc.getGroup('co-1', 'r1', BASE);
     expect(group.members).toEqual([{ value: 'u1', display: 'a@b.com' }]);
   });
@@ -88,10 +88,16 @@ describe('ScimGroupsService', () => {
     });
     // add → role slug; remove → back to 'member'
     expect(prisma.membership.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ userId: { in: ['u2'] } }), data: { role: 'engineers' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: { in: ['u2'] } }),
+        data: { role: 'engineers' },
+      }),
     );
     expect(prisma.membership.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ userId: { in: ['u3'] } }), data: { role: 'member' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: { in: ['u3'] } }),
+        data: { role: 'member' },
+      }),
     );
   });
 
@@ -100,7 +106,10 @@ describe('ScimGroupsService', () => {
     prisma.orgRole.findFirst.mockResolvedValue(role);
     await svc.deleteGroup('co-1', 'r1');
     expect(prisma.membership.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { organizationId: 'org-1', role: 'engineers' }, data: { role: 'member' } }),
+      expect.objectContaining({
+        where: { organizationId: 'org-1', role: 'engineers' },
+        data: { role: 'member' },
+      }),
     );
     expect(prisma.orgRole.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
   });

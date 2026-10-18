@@ -16,7 +16,13 @@ import { SsfDeliveryService } from './ssf-delivery.service';
 @Module({
   imports: [AuthModule],
   controllers: [SsfController],
-  providers: [SetBuilderService, SetPushService, SsfEmitterService, SsfStreamService, SsfDeliveryService],
+  providers: [
+    SetBuilderService,
+    SetPushService,
+    SsfEmitterService,
+    SsfStreamService,
+    SsfDeliveryService,
+  ],
   exports: [SsfEmitterService],
 })
 export class SsfModule {}

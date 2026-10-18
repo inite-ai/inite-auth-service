@@ -52,6 +52,3 @@ export interface TokenResponse {
   id_token?: string;
   scope?: string;
 }
-
-
-

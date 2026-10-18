@@ -22,10 +22,7 @@ describe('OAuthAuditService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OAuthAuditService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [OAuthAuditService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<OAuthAuditService>(OAuthAuditService);
@@ -92,9 +89,7 @@ describe('OAuthAuditService', () => {
     it('does not throw when DB write fails (fire-and-forget)', async () => {
       mockPrisma.oAuthAuditLog.create.mockRejectedValue(new Error('boom'));
 
-      await expect(
-        service.record({ event: 'X', success: true }),
-      ).resolves.toBeUndefined();
+      await expect(service.record({ event: 'X', success: true })).resolves.toBeUndefined();
     });
   });
 

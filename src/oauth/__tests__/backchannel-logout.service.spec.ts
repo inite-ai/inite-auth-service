@@ -65,9 +65,7 @@ describe('BackchannelLogoutService', () => {
     const [urlA, optsA] = fetchMock.mock.calls[0];
     expect(urlA).toBe('https://a.example.com/oidc/logout');
     expect(optsA.method).toBe('POST');
-    expect(optsA.headers['Content-Type']).toBe(
-      'application/x-www-form-urlencoded',
-    );
+    expect(optsA.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     expect(optsA.headers['Cache-Control']).toBe('no-store');
     expect((optsA.body as URLSearchParams).get('logout_token')).toBe('logout-jwt');
   });
@@ -125,7 +123,7 @@ describe('BackchannelLogoutService', () => {
   });
 
   describe('endRelyingPartySessions', () => {
-    it('notifies the RPs first, then revokes the user\'s refresh tokens', async () => {
+    it("notifies the RPs first, then revokes the user's refresh tokens", async () => {
       const order: string[] = [];
       prisma.oAuthClient.findMany.mockImplementation(async () => {
         order.push('select-recipients');

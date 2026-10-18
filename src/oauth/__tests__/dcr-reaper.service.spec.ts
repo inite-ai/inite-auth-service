@@ -24,19 +24,14 @@ describe('DcrReaperService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DcrReaperService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [DcrReaperService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<DcrReaperService>(DcrReaperService);
   });
 
   it('deletes a stale dcr_ client with no refresh tokens', async () => {
-    mockPrisma.oAuthClient.findMany.mockResolvedValue([
-      { id: 'uuid-stale', clientId: 'dcr_abc' },
-    ]);
+    mockPrisma.oAuthClient.findMany.mockResolvedValue([{ id: 'uuid-stale', clientId: 'dcr_abc' }]);
     mockPrisma.refreshToken.findMany.mockResolvedValue([]);
 
     await service.reapStaleClients();
@@ -47,9 +42,7 @@ describe('DcrReaperService', () => {
   });
 
   it('keeps a stale dcr_ client that has a refresh token', async () => {
-    mockPrisma.oAuthClient.findMany.mockResolvedValue([
-      { id: 'uuid-used', clientId: 'dcr_used' },
-    ]);
+    mockPrisma.oAuthClient.findMany.mockResolvedValue([{ id: 'uuid-used', clientId: 'dcr_used' }]);
     mockPrisma.refreshToken.findMany.mockResolvedValue([{ clientId: 'dcr_used' }]);
 
     await service.reapStaleClients();

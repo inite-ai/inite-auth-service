@@ -46,14 +46,22 @@ describe('JwksService (rotation)', () => {
   });
 
   it('publishes active + next during an overlap window with distinct kids', async () => {
-    const svc = build({ JWT_PUBLIC_KEY: activePub, JWT_PRIVATE_KEY: 'x', JWT_PUBLIC_KEY_NEXT: nextPub });
+    const svc = build({
+      JWT_PUBLIC_KEY: activePub,
+      JWT_PRIVATE_KEY: 'x',
+      JWT_PUBLIC_KEY_NEXT: nextPub,
+    });
     await svc.onModuleInit();
     const kids = svc.getJwks().keys.map((k) => k.kid);
     expect(kids).toEqual(['auth-rs256-key-1', 'auth-rs256-key-2']);
   });
 
   it('resolves the verification key by the token kid', async () => {
-    const svc = build({ JWT_PUBLIC_KEY: activePub, JWT_PRIVATE_KEY: 'x', JWT_PUBLIC_KEY_NEXT: nextPub });
+    const svc = build({
+      JWT_PUBLIC_KEY: activePub,
+      JWT_PRIVATE_KEY: 'x',
+      JWT_PUBLIC_KEY_NEXT: nextPub,
+    });
     await svc.onModuleInit();
 
     // a token signed by the NEXT key must verify against the NEXT public key

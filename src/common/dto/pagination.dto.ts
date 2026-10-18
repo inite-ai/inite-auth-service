@@ -45,6 +45,3 @@ export function paginate<T>(input: PaginateInput<T>): PaginatedResult<T> {
     },
   };
 }
-
-
-

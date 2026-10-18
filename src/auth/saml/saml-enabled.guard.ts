@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, NotFoundException } from '@nestjs/common';
 import { SettingsService } from '../../common/settings/settings.service';
 
 /**

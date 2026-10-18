@@ -180,10 +180,7 @@ export class DidService {
   /**
    * Sign data with DID private key
    */
-  async signWithDid(
-    privateKeyBase64: string,
-    data: string,
-  ): Promise<string> {
+  async signWithDid(privateKeyBase64: string, data: string): Promise<string> {
     const privateKeyBuffer = Buffer.from(privateKeyBase64, 'base64');
 
     const sign = crypto.createSign('SHA256');
@@ -202,11 +199,7 @@ export class DidService {
   /**
    * Verify signature with DID public key
    */
-  async verifySignature(
-    did: string,
-    data: string,
-    signatureBase64: string,
-  ): Promise<boolean> {
+  async verifySignature(did: string, data: string, signatureBase64: string): Promise<boolean> {
     const publicKeyBase58 = this.extractPublicKeyFromDid(did);
     if (!publicKeyBase58) {
       return false;
@@ -235,15 +228,11 @@ export class DidService {
   async issueVerifiableCredential(
     input: IssueVerifiableCredentialInput,
   ): Promise<VerifiableCredential> {
-    const { issuerDid, issuerPrivateKey, subjectDid, claims, credentialType } =
-      input;
+    const { issuerDid, issuerPrivateKey, subjectDid, claims, credentialType } = input;
     const credential = {
       '@context': [
         'https://www.w3.org/2018/credentials/v1',
-        this.configService.get<string>(
-          'VC_CONTEXT_URL',
-          'https://example.com/credentials/v1',
-        ),
+        this.configService.get<string>('VC_CONTEXT_URL', 'https://example.com/credentials/v1'),
       ],
       type: ['VerifiableCredential', credentialType],
       issuer: issuerDid,
@@ -289,11 +278,7 @@ export class DidService {
     // Verify the signature
     const credentialString = JSON.stringify(credentialWithoutProof);
     // proof + issuer presence guaranteed by the guard above.
-    return this.verifySignature(
-      credential.issuer,
-      credentialString,
-      proof!.proofValue,
-    );
+    return this.verifySignature(credential.issuer, credentialString, proof!.proofValue);
   }
 
   // Helper: Base58 encoding
@@ -333,8 +318,3 @@ export class DidService {
     return Buffer.from(hex.padStart(hex.length + (hex.length % 2), '0'), 'hex');
   }
 }
-
-
-
-
-

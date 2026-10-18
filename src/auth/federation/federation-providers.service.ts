@@ -30,10 +30,7 @@ const DISCOVERY_TTL_MS = 60 * 60 * 1000; // cache OIDC discovery for 1h
 @Injectable()
 export class FederationProviders {
   private readonly logger = new LoggerService();
-  private discoveryCache = new Map<
-    string,
-    { endpoints: ProviderEndpoints; expiresAt: number }
-  >();
+  private discoveryCache = new Map<string, { endpoints: ProviderEndpoints; expiresAt: number }>();
 
   constructor(
     private readonly config: ConfigService,
@@ -79,9 +76,7 @@ export class FederationProviders {
   resolveConfig(providerId: string): ProviderConfig {
     const cfg = this.tryResolveConfig(providerId);
     if (!cfg) {
-      throw new NotFoundException(
-        `Unknown or not-configured federation provider: ${providerId}`,
-      );
+      throw new NotFoundException(`Unknown or not-configured federation provider: ${providerId}`);
     }
     return cfg;
   }
@@ -177,24 +172,16 @@ export class FederationProviders {
       return normalizeGithubProfile(user as Record<string, unknown>, emailList);
     }
 
-    const data = await this.getJson(
-      endpoints.userinfoEndpoint as string,
-      authHeader,
-    );
+    const data = await this.getJson(endpoints.userinfoEndpoint as string, authHeader);
     return cfg.id === 'google'
       ? normalizeGoogleProfile(data as Record<string, unknown>)
       : normalizeOidcProfile(data as Record<string, unknown>);
   }
 
-  private async getJson(
-    url: string,
-    headers: Record<string, string>,
-  ): Promise<unknown> {
+  private async getJson(url: string, headers: Record<string, string>): Promise<unknown> {
     const res = await fetch(url, { headers });
     if (!res.ok) {
-      throw new UnauthorizedException(
-        `Provider profile request failed (HTTP ${res.status})`,
-      );
+      throw new UnauthorizedException(`Provider profile request failed (HTTP ${res.status})`);
     }
     return res.json();
   }
@@ -269,15 +256,10 @@ export class FederationProviders {
       if (!clientId || !clientSecret || !issuer) return null;
       return {
         id: 'oidc',
-        displayName:
-          this.config.get<string>('OIDC_FEDERATION_NAME') ?? 'Single Sign-On',
+        displayName: this.config.get<string>('OIDC_FEDERATION_NAME') ?? 'Single Sign-On',
         clientId,
         clientSecret,
-        scopes: this.scopesFromEnv('OIDC_FEDERATION_SCOPES', [
-          'openid',
-          'email',
-          'profile',
-        ]),
+        scopes: this.scopesFromEnv('OIDC_FEDERATION_SCOPES', ['openid', 'email', 'profile']),
         usesPkce: true,
         endpoints: null,
         issuer,

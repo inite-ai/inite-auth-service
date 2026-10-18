@@ -74,9 +74,7 @@ describe('ApiKeysService', () => {
 
       expect(rawKey).toMatch(/^ik_[\w-]{40,}$/);
       const created = mockPrisma.apiKey.create.mock.calls[0][0].data;
-      expect(created.keyHash).toBe(
-        crypto.createHash('sha256').update(rawKey).digest('hex'),
-      );
+      expect(created.keyHash).toBe(crypto.createHash('sha256').update(rawKey).digest('hex'));
       expect(created.prefix).toBe(rawKey.slice(0, 9));
       expect(created.organizationId).toBe('org-uuid-1');
       expect(apiKey).not.toHaveProperty('keyHash');
@@ -229,9 +227,7 @@ describe('ApiKeysService', () => {
   describe('revoke', () => {
     it('bounds the update to the scoped tenant and 404s on a miss', async () => {
       mockPrisma.apiKey.updateMany.mockResolvedValue({ count: 0 });
-      await expect(service.revoke('key-uuid-1', 'co_other')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.revoke('key-uuid-1', 'co_other')).rejects.toThrow(NotFoundException);
       const where = mockPrisma.apiKey.updateMany.mock.calls[0][0].where;
       expect(where.organization).toEqual({ companyId: 'co_other' });
     });

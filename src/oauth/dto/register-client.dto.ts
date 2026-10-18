@@ -1,12 +1,4 @@
-import {
-  IsArray,
-  IsIn,
-  IsObject,
-  IsOptional,
-  IsString,
-  IsUrl,
-  MaxLength,
-} from 'class-validator';
+import { IsArray, IsIn, IsObject, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 /**
  * RFC 7591 Dynamic Client Registration request metadata.

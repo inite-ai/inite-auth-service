@@ -9,18 +9,28 @@ jest.mock('../session/establish-session', () => ({
   establishSession: jest.fn().mockResolvedValue(undefined),
 }));
 
-const user = { id: 'user-1', did: 'did:key:z6Mk', email: 'a@example.com', emailVerified: true, name: 'A' };
+const user = {
+  id: 'user-1',
+  did: 'did:key:z6Mk',
+  email: 'a@example.com',
+  emailVerified: true,
+  name: 'A',
+};
 
 function build(userVerified: boolean) {
   const passkeyService = {
     generateAuthenticationOptions: jest.fn().mockResolvedValue({ challenge: 'c' }),
-    verifyAuthenticationResponse: jest.fn().mockResolvedValue({ verified: true, user, userVerified }),
+    verifyAuthenticationResponse: jest
+      .fn()
+      .mockResolvedValue({ verified: true, user, userVerified }),
   } as unknown as PasskeyService;
   const authService = {
     generateTokenForUser: jest.fn().mockReturnValue('token'),
     notifyNewDeviceIfNeeded: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuthService;
-  const config = { get: (k: string) => (k === 'SESSION_SECRET' ? 'secret' : undefined) } as unknown as ConfigService;
+  const config = {
+    get: (k: string) => (k === 'SESSION_SECRET' ? 'secret' : undefined),
+  } as unknown as ConfigService;
   return { controller: new PasskeyController(authService, passkeyService, config), passkeyService };
 }
 
@@ -33,13 +43,20 @@ describe('PasskeyController', () => {
   it('has no unauthenticated way to create an account', () => {
     // prepare-registration minted an account with emailVerified: true for any
     // unclaimed address. New passkey accounts start with the email code now.
-    expect((PasskeyController.prototype as unknown as Record<string, unknown>).preparePasskeyRegistration).toBeUndefined();
+    expect(
+      (PasskeyController.prototype as unknown as Record<string, unknown>)
+        .preparePasskeyRegistration,
+    ).toBeUndefined();
   });
 
   it('signs in through the shared session contract, regenerating the session', async () => {
     const { controller } = build(true);
     const body = await controller.verifyAuthentication({ response: {} } as never, req, res);
-    expect(establishSession).toHaveBeenCalledWith(req, res, expect.objectContaining({ userId: 'user-1' }));
+    expect(establishSession).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({ userId: 'user-1' }),
+    );
     expect(body).toMatchObject({ verified: true, access_token: 'token' });
   });
 

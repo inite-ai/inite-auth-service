@@ -1,9 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import {
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { WalletAuthService } from '../wallet-auth.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -18,11 +15,7 @@ describe('WalletAuthService', () => {
 
   const config = {
     get: (key: string, def?: string) =>
-      key === 'RP_ID'
-        ? 'localhost'
-        : key === 'RP_ORIGIN'
-          ? 'http://localhost:3000'
-          : def,
+      key === 'RP_ID' ? 'localhost' : key === 'RP_ORIGIN' ? 'http://localhost:3000' : def,
   };
 
   beforeEach(async () => {

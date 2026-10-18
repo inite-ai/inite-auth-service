@@ -59,9 +59,14 @@ export class BackchannelLogoutService {
    * out of the RPs on every device, which is also what the sub-level
    * logout_token tells the RPs to do.
    */
-  async endRelyingPartySessions(opts: { userDid: string; sid?: string }): Promise<{ notified: number; revoked: number }> {
+  async endRelyingPartySessions(opts: {
+    userDid: string;
+    sid?: string;
+  }): Promise<{ notified: number; revoked: number }> {
     const notified = await this.fanOut(opts).catch((e: unknown) => {
-      this.logger.warn(`back-channel fan-out failed: ${e instanceof Error ? e.message : String(e)}`);
+      this.logger.warn(
+        `back-channel fan-out failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
       return 0;
     });
     const { count } = await this.prisma.refreshToken.updateMany({
@@ -88,10 +93,7 @@ export class BackchannelLogoutService {
 
     if (activeClients.length === 0) return 0;
 
-    const issuer = this.config.get<string>(
-      'JWT_ISSUER',
-      'http://localhost:3002',
-    );
+    const issuer = this.config.get<string>('JWT_ISSUER', 'http://localhost:3002');
 
     const deliveries = activeClients.map(async (client) => {
       const token = this.buildLogoutToken({
@@ -128,16 +130,9 @@ export class BackchannelLogoutService {
     });
   }
 
-  private async deliver(
-    uri: string,
-    logoutToken: string,
-    clientId: string,
-  ): Promise<void> {
+  private async deliver(uri: string, logoutToken: string, clientId: string): Promise<void> {
     const controller = new AbortController();
-    const t = setTimeout(
-      () => controller.abort(),
-      BackchannelLogoutService.DELIVERY_TIMEOUT_MS,
-    );
+    const t = setTimeout(() => controller.abort(), BackchannelLogoutService.DELIVERY_TIMEOUT_MS);
     try {
       const res = await fetch(uri, {
         method: 'POST',
@@ -151,16 +146,12 @@ export class BackchannelLogoutService {
         signal: controller.signal,
       });
       if (!res.ok) {
-        this.logger.warn(
-          `backchannel logout: ${clientId} returned ${res.status}`,
-        );
+        this.logger.warn(`backchannel logout: ${clientId} returned ${res.status}`);
       }
     } catch (err: unknown) {
       const name = err instanceof Error ? err.name : 'err';
       const message = err instanceof Error ? err.message : 'unknown';
-      this.logger.warn(
-        `backchannel logout: ${clientId} delivery failed (${name}: ${message})`,
-      );
+      this.logger.warn(`backchannel logout: ${clientId} delivery failed (${name}: ${message})`);
     } finally {
       clearTimeout(t);
     }

@@ -16,12 +16,8 @@ describe('MetricsService', () => {
     const { contentType, body } = await svc.expose();
     expect(contentType).toMatch(/text\/plain/);
     expect(body).toContain('oauth_tokens_issued_total');
-    expect(body).toMatch(
-      /oauth_tokens_issued_total\{grant_type="authorization_code"\} 1/,
-    );
-    expect(body).toMatch(
-      /oauth_tokens_issued_total\{grant_type="client_credentials"\} 2/,
-    );
+    expect(body).toMatch(/oauth_tokens_issued_total\{grant_type="authorization_code"\} 1/);
+    expect(body).toMatch(/oauth_tokens_issued_total\{grant_type="client_credentials"\} 2/);
     expect(body).toContain(
       'oauth_token_failures_total{grant_type="refresh_token",reason="invalid_credentials"}',
     );

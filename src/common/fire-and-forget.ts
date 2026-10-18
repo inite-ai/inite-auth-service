@@ -11,12 +11,7 @@ import { LoggerService } from './logger.service';
  *
  *   somePromise().catch(swallow(this.logger, 'audit login.failed'))
  */
-export function swallow(
-  logger: LoggerService,
-  label: string,
-): (err: unknown) => void {
+export function swallow(logger: LoggerService, label: string): (err: unknown) => void {
   return (err: unknown) =>
-    logger.warn(
-      `${label} failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    logger.warn(`${label} failed: ${err instanceof Error ? err.message : String(err)}`);
 }

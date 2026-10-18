@@ -13,21 +13,21 @@ const logger = createLogger('JwtOrSessionGuard');
 export class JwtOrSessionGuard extends AuthGuard('jwt') {
   override async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    
+
     logger.debug('Checking auth', {
       hasSession: !!request.session,
       sessionId: request.session?.id,
       userId: request.session?.userId,
       hasAuthHeader: !!request.headers.authorization,
     });
-    
+
     // Check session first
     if (request.session?.userId) {
       logger.verbose(`Auth via session: ${request.session.userId}`);
       request.user = { userId: request.session.userId };
       return true;
     }
-    
+
     // Try JWT
     try {
       const result = await super.canActivate(context);
@@ -38,7 +38,7 @@ export class JwtOrSessionGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('Authentication required');
     }
   }
-  
+
   override handleRequest<TUser = AuthenticatedUser>(
     err: unknown,
     user: TUser | false | null,

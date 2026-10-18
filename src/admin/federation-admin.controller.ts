@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { FederationAdminService } from './federation-admin.service';

@@ -31,7 +31,11 @@ describe('RequestObjectService (JAR)', () => {
   }
 
   it('verifies and returns the authorize params', async () => {
-    const request = await mkRequest({ client_id: CLIENT_ID, scope: 'openid profile', redirect_uri: 'https://rp/cb' });
+    const request = await mkRequest({
+      client_id: CLIENT_ID,
+      scope: 'openid profile',
+      redirect_uri: 'https://rp/cb',
+    });
     const params = await service.resolve({ request, clientId: CLIENT_ID });
     expect(params.scope).toBe('openid profile');
     expect(params.redirect_uri).toBe('https://rp/cb');
@@ -44,6 +48,8 @@ describe('RequestObjectService (JAR)', () => {
 
   it('rejects an unsigned (alg none) request object', async () => {
     const unsigned = new jose.UnsecuredJWT({ client_id: CLIENT_ID }).encode();
-    await expect(service.resolve({ request: unsigned, clientId: CLIENT_ID })).rejects.toThrow(/not allowed/);
+    await expect(service.resolve({ request: unsigned, clientId: CLIENT_ID })).rejects.toThrow(
+      /not allowed/,
+    );
   });
 });

@@ -33,11 +33,7 @@ function adminContext(req: Request): {
   const ip = fwd.split(',')[0]?.trim() || req.ip || '';
   const user = (req as Request & { user?: AuthenticatedUser }).user;
   const operatorSub =
-    user?.kind === 'user'
-      ? user.userId
-      : user?.kind === 'machine'
-        ? user.sub
-        : null;
+    user?.kind === 'user' ? user.userId : user?.kind === 'machine' ? user.sub : null;
   return {
     ip,
     userAgent: (req.headers['user-agent'] as string | undefined) ?? '',
@@ -91,10 +87,7 @@ export class AdminController {
   }
 
   @Put('users/:userId/roles')
-  async updateUserRoles(
-    @Param('userId') userId: string,
-    @Body() body: { roles: string[] },
-  ) {
+  async updateUserRoles(@Param('userId') userId: string, @Body() body: { roles: string[] }) {
     return this.adminService.updateUserRoles(userId, body.roles);
   }
 
@@ -195,8 +188,7 @@ export class AdminController {
     const result = await this.adminService.updateOAuthClient(clientId, body);
     const ctx = adminContext(req);
     await this.audit.record({
-      event:
-        body.active === false ? 'client.deactivated' : 'client.updated',
+      event: body.active === false ? 'client.deactivated' : 'client.updated',
       clientId,
       sub: ctx.operatorSub,
       scopes: body.allowedScopes,
@@ -283,9 +275,7 @@ export class AdminController {
    * a scoped admin cannot read another tenant's log by passing ?companyId=X.
    */
   private buildScopedAuditFilters(q: AuditLogQuery, req: Request) {
-    const scope = resolveAdminScope(
-      (req as Request & { user?: AuthenticatedUser }).user,
-    );
+    const scope = resolveAdminScope((req as Request & { user?: AuthenticatedUser }).user);
     if (!scope) throw new ForbiddenException('Admin access required');
 
     // Intersect with an index signature so the mutating applyScopeFilter
@@ -312,10 +302,7 @@ export class AdminController {
   }
 
   @Delete('oauth-clients/:clientId')
-  async deleteOAuthClient(
-    @Param('clientId') clientId: string,
-    @Req() req: Request,
-  ) {
+  async deleteOAuthClient(@Param('clientId') clientId: string, @Req() req: Request) {
     const result = await this.adminService.deleteOAuthClient(clientId);
     const ctx = adminContext(req);
     await this.audit.record({
@@ -329,4 +316,3 @@ export class AdminController {
     return result;
   }
 }
-

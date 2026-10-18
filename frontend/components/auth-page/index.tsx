@@ -27,9 +27,11 @@ import {
   AuthPageFallback,
   AuthPageProps,
   buildTargetHref,
+  readAccountMode,
   useAuthGate,
   useOAuthParams,
 } from './shared'
+import { AccountChooser } from './account-chooser'
 
 export { AuthPageFallback } from './shared'
 
@@ -40,7 +42,9 @@ export default function AuthPage({ variant }: AuthPageProps) {
   // RP-driven step-up: /authorize bounced here with step_up=1 because the
   // session's assurance was below the requested acr_values.
   const stepUp = searchParams.get('step_up') === '1'
-  const checkingAuth = useAuthGate(variant, oauthParams, stepUp)
+  // /authorize asked which account (src/oauth/account-choice.ts).
+  const accountMode = readAccountMode(searchParams.get('account'))
+  const { checkingAuth, signedInAs } = useAuthGate(variant, oauthParams, stepUp, accountMode)
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
   // Step-up MFA fast path: when the RP demands higher assurance but the user
   // still holds a valid session, offer the emailed-code widget (raises the
@@ -99,6 +103,16 @@ export default function AuthPage({ variant }: AuthPageProps) {
   ]
 
   if (checkingAuth) return <AuthPageFallback />
+  if (signedInAs) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <AppHeader hideUserMenu />
+        <main className="max-w-md mx-auto px-4 py-12 sm:py-16">
+          <AccountChooser variant={variant} oauthParams={oauthParams} signedInAs={signedInAs} />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">

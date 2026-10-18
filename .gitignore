@@ -69,3 +69,7 @@ client-secrets.local.env
 # and an unexplained dirty tree for anyone who doesn't.
 frontend/AGENTS.md
 frontend/CLAUDE.md
+
+# Claude Code: personal settings and session locks stay local
+.claude/settings.local.json
+.claude/*.lock

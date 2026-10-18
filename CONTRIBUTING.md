@@ -6,6 +6,17 @@ higher than usual: a subtle bug here is a security bug. The standard for changes
 is "would I sign off on this PR if I'd never met you, knowing it guards real
 users' credentials?" Here's what that means concretely.
 
+## Working with an AI agent
+
+[AGENTS.md](AGENTS.md) is the source of truth for coding agents (Claude Code,
+Cursor, Codex, Copilot, Gemini CLI, …) and a good summary for humans: ground
+rules, which areas are green / yellow / red, the exact CI gate commands, and the
+idea → spec → PR loop. In Claude Code, `/contribute` runs that loop and
+`/spec-idea` turns an idea into an issue. Red-zone changes (migrations, token
+claims, signing keys, admin/RBAC) need a maintainer-approved design in an issue
+before a PR. If this file and AGENTS.md ever disagree, AGENTS.md is the one kept
+in sync with CI — please flag the difference.
+
 ## Before you start
 
 - **New here?** Browse [`good first issue`](https://github.com/inite-ai/inite-auth-service/issues?q=is%3Aopen+label%3A%22good+first+issue%22)
@@ -25,7 +36,9 @@ git clone git@github.com:inite-ai/inite-auth-service.git
 cd inite-auth-service
 npm install
 
-# Bring up Postgres + Redis
+# Bring up Postgres + Redis (host ports 5434 / 6381 — until #245 lands,
+# point DATABASE_URL / REDIS_PORT in .env at them; see AGENTS.md → Setup).
+# Or skip all of this: open the repo in a Codespace (.devcontainer/).
 docker compose up -d postgres redis
 
 # Copy + fill env
@@ -37,7 +50,7 @@ npm run migrate
 npm run start:dev
 ```
 
-Node 22+ is expected. If something breaks at setup, **file an issue** — that
+Node 24 is expected (what CI and the Dockerfile use). If something breaks at setup, **file an issue** — that
 usually means the onboarding docs are wrong. Don't suffer in silence.
 
 ## The hard bars for a PR
@@ -46,7 +59,7 @@ usually means the onboarding docs are wrong. Don't suffer in silence.
 
 ```bash
 npm test            # unit suite (~20 spec files)
-npm run test:e2e    # end-to-end
+npm run test:e2e    # end-to-end — currently broken, see #244
 ```
 
 Touching token issuance, refresh rotation, PKCE, session handling, or anything

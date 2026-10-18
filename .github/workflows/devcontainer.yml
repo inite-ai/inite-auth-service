@@ -1,0 +1,43 @@
+name: devcontainer
+
+# Proves "Open in Codespaces" still yields a working environment: the dev
+# container builds, its services come up, post-create installs and migrates,
+# and the backend builds and passes its unit suite inside it.
+on:
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/devcontainer.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'frontend/package-lock.json'
+      - 'prisma/**'
+      - 'scripts/migrate.js'
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/devcontainer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Compose's bake builder refuses the Dockerfile the devcontainer CLI
+      # writes outside the build context ("additional privileges requested:
+      # --allow=fs.read=…"); the classic builder takes it.
+      COMPOSE_BAKE: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build and run the dev container
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
+        with:
+          imageName: ghcr.io/inite-ai/inite-auth-service-devcontainer
+          push: never
+          runCmd: npm run build && npm test

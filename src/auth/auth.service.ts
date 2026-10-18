@@ -90,6 +90,16 @@ export class AuthService {
       data: { passwordHash },
     });
 
+    await this.sendWelcomeEmail(user);
+
+    const accessToken = this.generateAccessToken(user);
+    return { user, accessToken };
+  }
+
+  /**
+   * Best-effort welcome email: a failure is logged, never thrown.
+   */
+  private async sendWelcomeEmail(user: User): Promise<void> {
     try {
       // `email` is set for every persisted user in these flows; `name` is optional.
       const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
@@ -101,9 +111,6 @@ export class AuthService {
     } catch (error: unknown) {
       this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
     }
-
-    const accessToken = this.generateAccessToken(user);
-    return { user, accessToken };
   }
 
   /**
@@ -197,19 +204,7 @@ export class AuthService {
   }> {
     const { user, isNewUser, oauthParams } = await this.magicLinkService.verifyMagicLink(token);
 
-    if (isNewUser) {
-      try {
-        // `email` is set for every persisted user in these flows; `name` is optional.
-      const emailSent = await this.emailService.sendWelcome({ email: user.email!, name: user.name ?? undefined });
-        if (emailSent) {
-          this.logger.auth('Welcome email sent', { email: user.email, userId: user.id });
-        } else {
-          this.logger.error('Failed to send welcome email', 'Email service returned false', { email: user.email, userId: user.id });
-        }
-      } catch (error: unknown) {
-        this.logger.error('Failed to send welcome email', error instanceof Error && error.message ? error.message : 'Unknown error', { email: user.email, userId: user.id, error });
-      }
-    }
+    if (isNewUser) await this.sendWelcomeEmail(user);
 
     const accessToken = this.generateAccessToken(user);
     return { user, accessToken, isNewUser, oauthParams };

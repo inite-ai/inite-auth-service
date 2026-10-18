@@ -27,42 +27,73 @@ export function useOAuthParams(): OAuthParams {
   )
 }
 
+/**
+ * `account` on the login URL — /authorize's answer to "which account?"
+ * (src/oauth/account-choice.ts): `login` re-authenticate, `select` ask.
+ */
+export type AccountMode = 'login' | 'select' | null
+
+export function readAccountMode(value: string | null): AccountMode {
+  return value === 'login' || value === 'select' ? value : null
+}
+
+/** The address an access token was issued for, if it says. */
+function tokenEmail(token: string): string | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1])) as { email?: unknown }
+    return typeof payload.email === 'string' ? payload.email : null
+  } catch {
+    return null
+  }
+}
+
+const sameAddress = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+export interface AuthGate {
+  checkingAuth: boolean
+  /**
+   * Set when a session exists but this flow must not silently continue on
+   * it: the screen shows who is signed in and lets the person choose.
+   */
+  signedInAs: { email: string | null } | null
+}
+
+/**
+ * What the auth screen does with a session it finds.
+ *
+ * Outside an OAuth flow, a session goes to /account. Inside one, it used to
+ * go straight on to /consent — which, for INITE's own apps, is straight back
+ * to the app as whoever happened to be signed in, even when the app had sent
+ * a login_hint for someone else or the person had opened "Create account".
+ * Now the flow continues silently only when nothing says another account is
+ * wanted; otherwise the screen asks (AccountChooser).
+ */
 export function useAuthGate(
   variant: AuthVariant,
   oauthParams: OAuthParams,
   stepUp: boolean,
-) {
+  accountMode: AccountMode = null,
+): AuthGate {
   const router = useRouter()
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [gate, setGate] = useState<AuthGate>({ checkingAuth: true, signedInAs: null })
 
   useEffect(() => {
     let cancelled = false
+    const show = (signedInAs: AuthGate['signedInAs'] = null) => {
+      if (!cancelled) setGate({ checkingAuth: false, signedInAs })
+    }
 
     const checkAuth = async () => {
       try {
         // Step-up: the RP asked for a higher assurance than the current
         // session holds. Don't silently continue on the existing (too-weak)
-        // session — force the user to pick a stronger factor.
-        if (stepUp) {
-          if (!cancelled) setCheckingAuth(false)
-          return
-        }
-        if (variant === 'register') {
-          const token = authStorage.getToken()
-          if (token) {
-            if (isOAuthFlow(oauthParams)) {
-              window.location.href = buildConsentUrl(oauthParams)
-            } else {
-              router.push('/account')
-            }
-            return
-          }
-          if (!cancelled) setCheckingAuth(false)
-          return
-        }
+        // session — force the user to pick a stronger factor. prompt=login
+        // likewise asks for a fresh sign-in, whatever the session.
+        if (stepUp || accountMode === 'login') return show()
 
         let token = authStorage.getValidToken()
-        if (!token) {
+        let email = token ? tokenEmail(token) : null
+        if (!token || !email) {
           try {
             const response = await fetch('/v1/auth/session/me', {
               credentials: 'include',
@@ -74,23 +105,26 @@ export function useAuthGate(
                 userId: data.user?.id,
               })
               token = data.access_token
+              email = data.user?.email ?? tokenEmail(data.access_token)
             }
           } catch {
             /* ignore */
           }
         }
 
-        if (token) {
-          if (isOAuthFlow(oauthParams)) {
-            window.location.href = buildConsentUrl(oauthParams)
-          } else {
-            router.push('/account')
-          }
-        } else if (!cancelled) {
-          setCheckingAuth(false)
+        if (!token) return show()
+        if (!isOAuthFlow(oauthParams)) {
+          router.push('/account')
+          return
         }
+        const hintMismatch =
+          !!oauthParams.loginHint && !(email && sameAddress(email, oauthParams.loginHint))
+        if (accountMode === 'select' || variant === 'register' || hintMismatch) {
+          return show({ email })
+        }
+        window.location.href = buildConsentUrl(oauthParams)
       } catch {
-        if (!cancelled) setCheckingAuth(false)
+        show()
       }
     }
 
@@ -98,9 +132,22 @@ export function useAuthGate(
     return () => {
       cancelled = true
     }
-  }, [variant, oauthParams, router, stepUp])
+  }, [variant, oauthParams, router, stepUp, accountMode])
 
-  return checkingAuth
+  return gate
+}
+
+/**
+ * Leave the current session and come back to this same screen signed out,
+ * with every OAuth param (login_hint included) still in place. The session is
+ * the auth server's cookie, so only /oauth/logout can end it.
+ */
+export function switchAccountHref(variant: AuthVariant, params: OAuthParams): string {
+  const back = new URL(
+    buildPassthroughHref(variant === 'register' ? '/register' : '/login', params),
+    window.location.origin,
+  ).toString()
+  return `/oauth/logout?post_logout_redirect_uri=${encodeURIComponent(back)}`
 }
 
 /**

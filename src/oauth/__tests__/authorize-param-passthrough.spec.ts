@@ -90,14 +90,22 @@ interface Harness {
   res: { redirect: jest.Mock };
 }
 
-/** consentRequired: whether the consent service says the person must be asked. */
-function harness({ consentRequired = true }: { consentRequired?: boolean } = {}): Harness {
+/**
+ * consentRequired: whether the consent service says the person must be asked.
+ * sessionEmail: the session user's address — by default the hinted one, so
+ * suites that are not about account choice go the usual way.
+ */
+function harness({
+  consentRequired = true,
+  sessionEmail = ALL_PARAMS.loginHint,
+}: { consentRequired?: boolean; sessionEmail?: string | null } = {}): Harness {
   const createAuthorizationCode = jest.fn().mockResolvedValue('auth-code-1');
   const parConsume = jest.fn().mockResolvedValue(null);
 
   const oauthService = {
     normalizeScope: (scope: string) => scope,
     createAuthorizationCode,
+    findUserById: jest.fn().mockResolvedValue({ id: 'user-1', email: sessionEmail }),
   } as unknown as OAuthService;
 
   const clientRegistry = {
@@ -172,10 +180,7 @@ describe('/authorize → login/consent param passthrough', () => {
     const url = redirectedTo(h.res);
     expect(url.pathname).toBe('/consent');
     for (const key of CARRIED_KEYS) {
-      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([
-        key,
-        ALL_PARAMS[key],
-      ]);
+      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([key, ALL_PARAMS[key]]);
     }
   });
 
@@ -190,10 +195,7 @@ describe('/authorize → login/consent param passthrough', () => {
     const url = redirectedTo(h.res);
     expect(url.pathname).toBe('/login');
     for (const key of CARRIED_KEYS) {
-      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([
-        key,
-        ALL_PARAMS[key],
-      ]);
+      expect([key, url.searchParams.get(QUERY_KEY[key])]).toEqual([key, ALL_PARAMS[key]]);
     }
   });
 
@@ -214,11 +216,7 @@ describe('/authorize → login/consent param passthrough', () => {
   it('stashes resource and authorization_details on the session copy', async () => {
     const h = harness();
     const req = request(undefined);
-    await h.controller.authorize(
-      toQuery(ALL_PARAMS),
-      req,
-      h.res as unknown as Response,
-    );
+    await h.controller.authorize(toQuery(ALL_PARAMS), req, h.res as unknown as Response);
 
     expect(req.session?.oauthParams).toMatchObject({
       clientId: ALL_PARAMS.clientId,
@@ -272,9 +270,7 @@ describe('/authorize → authorization code binding', () => {
       h.res as unknown as Response,
     );
 
-    expect(redirectedTo(h.res).searchParams.get('resource')).toBe(
-      'https://inite.ai/api/pushed',
-    );
+    expect(redirectedTo(h.res).searchParams.get('resource')).toBe('https://inite.ai/api/pushed');
   });
 });
 
@@ -362,7 +358,6 @@ describe('/authorize → consent', () => {
   });
 });
 
-
 describe('/authorize → login_hint', () => {
   const previousFrontend = process.env.FRONTEND_URL;
   beforeAll(() => {
@@ -403,5 +398,87 @@ describe('/authorize → login_hint', () => {
     const req = request(undefined);
     await h.controller.authorize(toQuery(ALL_PARAMS), req, h.res as unknown as Response);
     expect(req.session?.oauthParams).not.toHaveProperty('loginHint');
+  });
+});
+
+describe('/authorize → which account', () => {
+  const previousFrontend = process.env.FRONTEND_URL;
+  beforeAll(() => {
+    process.env.FRONTEND_URL = FRONTEND;
+  });
+  afterAll(() => {
+    if (previousFrontend === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontend;
+  });
+
+  const session = () => request({ userId: 'user-1', amr: ['pwd'] });
+
+  it('never answers as the session when the hint names another account', async () => {
+    // The invite case: signed in as A, following a link sent to B.
+    const h = harness({ consentRequired: false, sessionEmail: 'someone-else@example.com' });
+    await h.controller.authorize(toQuery(ALL_PARAMS), session(), h.res as unknown as Response);
+
+    const url = redirectedTo(h.res);
+    expect(url.pathname).toBe('/login');
+    expect(url.searchParams.get('account')).toBe('select');
+    expect(url.searchParams.get('login_hint')).toBe(ALL_PARAMS.loginHint);
+    expect(h.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('treats a session without an email as a mismatch for any hint', async () => {
+    const h = harness({ consentRequired: false, sessionEmail: null });
+    await h.controller.authorize(toQuery(ALL_PARAMS), session(), h.res as unknown as Response);
+    expect(redirectedTo(h.res).searchParams.get('account')).toBe('select');
+    expect(h.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('matches the hint case-insensitively and then goes the usual way', async () => {
+    const h = harness({ consentRequired: false, sessionEmail: 'INVITEE@Example.com' });
+    await h.controller.authorize(toQuery(ALL_PARAMS), session(), h.res as unknown as Response);
+    expect(redirectedTo(h.res).searchParams.get('code')).toBe('auth-code-1');
+  });
+
+  it.each([
+    ['select_account', 'select'],
+    ['login', 'login'],
+    ['consent login', 'login'],
+  ])(
+    'prompt=%s asks before issuing a code even for the hinted account',
+    async (prompt, expected) => {
+      const h = harness({ consentRequired: false });
+      await h.controller.authorize(
+        toQuery({ ...ALL_PARAMS, prompt }),
+        session(),
+        h.res as unknown as Response,
+      );
+      const url = redirectedTo(h.res);
+      expect(url.pathname).toBe('/login');
+      expect(url.searchParams.get('account')).toBe(expected);
+      expect(h.createAuthorizationCode).not.toHaveBeenCalled();
+    },
+  );
+
+  it('without a hint or prompt, keeps single sign-on as it was', async () => {
+    const h = harness({ consentRequired: false });
+    await h.controller.authorize(
+      { ...toQuery(ALL_PARAMS), login_hint: undefined, prompt: undefined },
+      session(),
+      h.res as unknown as Response,
+    );
+    expect(redirectedTo(h.res).searchParams.get('code')).toBe('auth-code-1');
+  });
+
+  it('prompt=none with a hint for another account answers account_selection_required', async () => {
+    const h = harness({ consentRequired: false, sessionEmail: 'someone-else@example.com' });
+    await h.controller.authorize(
+      toQuery({ ...ALL_PARAMS, prompt: 'none' }),
+      session(),
+      h.res as unknown as Response,
+    );
+    const url = redirectedTo(h.res);
+    expect(url.origin + url.pathname).toBe(ALL_PARAMS.redirectUri);
+    expect(url.searchParams.get('error')).toBe('account_selection_required');
+    expect(url.searchParams.get('state')).toBe(ALL_PARAMS.state);
+    expect(h.createAuthorizationCode).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,8 @@ import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
 import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
 import { normalizeLoginHint } from './login-hint';
+import { AccountChoice, accountChoiceFor } from './account-choice';
+import { buildClientRedirect } from './authorize-redirect';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -76,20 +78,14 @@ export class OAuthController {
       return this.redirectToLogin(res, req, { params: p });
     }
 
-    // Step-up enforcement (RFC 9470 / OIDC acr_values). If the RP asked for an
-    // assurance level the current session doesn't meet, bounce back to login
-    // for a stronger factor instead of minting a code. The step_up hint stops
-    // the SPA from silently re-using the existing (too-weak) session.
-    const amr: string[] = req.session?.amr ?? [];
-    if (!this.stepUp.isSatisfied(amr, p.acrValues)) {
-      this.logger.oauth('Step-up required: session AAL below requested acr', {
-        clientId: p.clientId,
-        userId,
-        requested: p.acrValues,
-      });
-      return this.redirectToLogin(res, req, { params: p, stepUp: true });
+    // A session, but maybe the wrong account for this request, or one too
+    // weak for it: back to the login screen with the question to put.
+    const interruption = await this.loginInterruption(p, req, userId);
+    if (interruption) {
+      return this.redirectToLogin(res, req, { params: p, ...interruption });
     }
 
+    const amr: string[] = req.session?.amr ?? [];
     // Nothing to ask: INITE's own application, or scopes the person already
     // approved. Hand the code straight back instead of showing the screen.
     const mustAsk = await this.consent.isRequired({
@@ -104,7 +100,7 @@ export class OAuthController {
     }
 
     this.logger.oauth('Redirecting to consent', { clientId: p.clientId, userId });
-    return res.redirect(this.buildClientRedirect(req, '/consent', { params: p }));
+    return res.redirect(buildClientRedirect(req, '/consent', { params: p }));
   }
 
   /**
@@ -230,11 +226,16 @@ export class OAuthController {
   ) {
     const { params: p, grantedScope, userId } = ctx;
     if (!userId) {
-      const errorUrl = new URL(p.redirectUri);
-      errorUrl.searchParams.set('error', 'login_required');
-      errorUrl.searchParams.set('error_description', 'User is not authenticated');
-      if (p.state) errorUrl.searchParams.set('state', p.state);
-      return res.redirect(errorUrl.toString());
+      return this.redirectWithError(res, p, ['login_required', 'User is not authenticated']);
+    }
+
+    // The hint names another account than the session's: OIDC core 3.1.2.6
+    // has an error for exactly this, rather than answering as the wrong one.
+    if (await this.accountChoice({ ...p, prompt: undefined }, userId)) {
+      return this.redirectWithError(res, p, [
+        'account_selection_required',
+        'The signed-in account is not the one requested',
+      ]);
     }
 
     const amr: string[] = req.session?.amr ?? [];
@@ -243,14 +244,10 @@ export class OAuthController {
     // silently — return interaction_required per OIDC so the RP retries
     // interactively with the same acr_values.
     if (!this.stepUp.isSatisfied(amr, p.acrValues)) {
-      const errorUrl = new URL(p.redirectUri);
-      errorUrl.searchParams.set('error', 'interaction_required');
-      errorUrl.searchParams.set(
-        'error_description',
+      return this.redirectWithError(res, p, [
+        'interaction_required',
         'Requested acr_values cannot be satisfied without interaction',
-      );
-      if (p.state) errorUrl.searchParams.set('state', p.state);
-      return res.redirect(errorUrl.toString());
+      ]);
     }
 
     // prompt=none cannot show the consent screen. OIDC core 3.1.2.6: answer
@@ -263,15 +260,69 @@ export class OAuthController {
       authorizationDetails: p.authorizationDetails,
     });
     if (mustAsk) {
-      const errorUrl = new URL(p.redirectUri);
-      errorUrl.searchParams.set('error', 'consent_required');
-      errorUrl.searchParams.set('error_description', 'The user has not consented to this client');
-      if (p.state) errorUrl.searchParams.set('state', p.state);
-      return res.redirect(errorUrl.toString());
+      return this.redirectWithError(res, p, [
+        'consent_required',
+        'The user has not consented to this client',
+      ]);
     }
 
     this.logger.oauth('Silent SSO success', { clientId: p.clientId, userId });
     return this.issueCode(res, { params: p, grantedScope, userId, amr });
+  }
+
+  /**
+   * Why a request that has a session must still go through the login screen.
+   *
+   * Account first: a session that is not the account this request is for (an
+   * invite sent to another address), or an RP that asked to re-authenticate
+   * or pick an account, gets "who are you" rather than an answer as whoever
+   * is signed in. Then step-up (RFC 9470 / OIDC acr_values): an assurance
+   * level the session doesn't meet bounces back for a stronger factor; the
+   * step_up hint stops the SPA from silently re-using the too-weak session.
+   */
+  private async loginInterruption(
+    p: ResolvedAuthorizeParams,
+    req: Request,
+    userId: string,
+  ): Promise<{ accountChoice: AccountChoice } | { stepUp: true } | null> {
+    const accountChoice = await this.accountChoice(p, userId);
+    if (accountChoice) {
+      this.logger.oauth('Account choice required', { clientId: p.clientId, userId, accountChoice });
+      return { accountChoice };
+    }
+    if (!this.stepUp.isSatisfied(req.session?.amr ?? [], p.acrValues)) {
+      this.logger.oauth('Step-up required: session AAL below requested acr', {
+        clientId: p.clientId,
+        userId,
+        requested: p.acrValues,
+      });
+      return { stepUp: true };
+    }
+    return null;
+  }
+
+  /** See account-choice.ts. The email lookup only happens when there is a hint. */
+  private async accountChoice(
+    p: ResolvedAuthorizeParams,
+    userId: string,
+  ): Promise<AccountChoice | null> {
+    const sessionEmail = p.loginHint
+      ? ((await this.oauthService.findUserById(userId))?.email ?? null)
+      : null;
+    return accountChoiceFor({ prompt: p.prompt, loginHint: p.loginHint, sessionEmail });
+  }
+
+  /** OIDC core 3.1.2.6: an authorization error goes back to the RP, with its state. */
+  private redirectWithError(
+    res: Response,
+    p: ResolvedAuthorizeParams,
+    [error, description]: [string, string],
+  ) {
+    const errorUrl = new URL(p.redirectUri);
+    errorUrl.searchParams.set('error', error);
+    errorUrl.searchParams.set('error_description', description);
+    if (p.state) errorUrl.searchParams.set('state', p.state);
+    return res.redirect(errorUrl.toString());
   }
 
   /** Mint a code for a request that needs no further interaction and send it back. */
@@ -305,7 +356,7 @@ export class OAuthController {
   private redirectToLogin(
     res: Response,
     req: Request,
-    ctx: { params: ResolvedAuthorizeParams; stepUp?: boolean },
+    ctx: { params: ResolvedAuthorizeParams; stepUp?: boolean; accountChoice?: AccountChoice },
   ) {
     const p = ctx.params;
     if (!req.session) {
@@ -330,68 +381,11 @@ export class OAuthController {
       stepUp: !!ctx.stepUp,
     });
     return res.redirect(
-      this.buildClientRedirect(req, '/login', {
+      buildClientRedirect(req, '/login', {
         params: p,
         stepUp: ctx.stepUp,
+        accountChoice: ctx.accountChoice,
       }),
     );
-  }
-
-  /**
-   * Every /authorize param that must survive the hop through the login or
-   * consent screen, as [query key, ResolvedAuthorizeParams key].
-   *
-   * One list on purpose. These used to be nine inline `if` statements, and
-   * `resource` (RFC 8707) was simply never added to them — so a resource
-   * indicator was dropped the moment a flow showed a login screen, and the
-   * issued token fell back to `aud: <client_id>`. The same omission had
-   * already swallowed `authorization_details` (RFC 9396), which the consent
-   * screen renders. `authorize-param-passthrough.spec.ts` fails if a new
-   * ResolvedAuthorizeParams field is neither listed here nor explicitly
-   * excluded, so the next param cannot go missing the same way.
-   *
-   * Not carried, deliberately: `responseType` (the resumed /authorize always
-   * asks for `code`) and `prompt` (replaying `prompt=none` after an
-   * interactive login would bounce the user straight back out).
-   */
-  private static readonly CARRIED_AUTHORIZE_PARAMS: ReadonlyArray<
-    readonly [string, keyof ResolvedAuthorizeParams]
-  > = [
-    ['client_id', 'clientId'],
-    ['redirect_uri', 'redirectUri'],
-    ['scope', 'scope'],
-    ['state', 'state'],
-    ['code_challenge', 'codeChallenge'],
-    ['code_challenge_method', 'codeChallengeMethod'],
-    ['nonce', 'nonce'],
-    // acr_values so the resumed /authorize re-checks the assurance requirement.
-    ['acr_values', 'acrValues'],
-    // RFC 8707 — without this the access token's audience defaults to client_id.
-    ['resource', 'resource'],
-    // RFC 9396 — the consent screen itemizes these before the user approves.
-    ['authorization_details', 'authorizationDetails'],
-    // OIDC ui_locales — the login screen opens in the RP's language.
-    ['ui_locales', 'uiLocales'],
-    // OIDC login_hint — prefills the email field (an invite's address). The
-    // SPA treats it as a suggestion only; the login itself proves identity.
-    ['login_hint', 'loginHint'],
-  ];
-
-  /** Build a /login or /consent redirect carrying the OAuth params forward. */
-  private buildClientRedirect(
-    req: Request,
-    path: string,
-    ctx: { params: ResolvedAuthorizeParams; stepUp?: boolean },
-  ): string {
-    const p = ctx.params;
-    const url = new URL(path, process.env.FRONTEND_URL || `https://${req.headers.host}`);
-    for (const [queryKey, paramKey] of OAuthController.CARRIED_AUTHORIZE_PARAMS) {
-      const value = p[paramKey];
-      if (value) url.searchParams.set(queryKey, value);
-    }
-    // step_up is a hint to the SPA (force a fresh, stronger factor), not an
-    // inbound /authorize param — hence it sits outside the carried list.
-    if (ctx.stepUp) url.searchParams.set('step_up', '1');
-    return url.toString();
   }
 }

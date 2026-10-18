@@ -231,7 +231,7 @@ my-app-one.example.com   my-app-two.example.com   my-app-three.example.com
 
 ## Stack
 
-- **Runtime:** Node.js 22, [NestJS](https://nestjs.com) 11
+- **Runtime:** Node.js 24, [NestJS](https://nestjs.com) 11
 - **Data:** PostgreSQL + [Prisma](https://www.prisma.io); Redis (sessions, rate limits, lockout)
 - **Auth:** Passport.js, [SimpleWebAuthn](https://simplewebauthn.dev) (passkeys), `jose` (RS256 JWKS), `ethers` (SIWE)
 - **Frontend:** Next.js admin UI + docs site (`frontend/`)
@@ -276,10 +276,29 @@ Admin: `/v1/admin/*` (incl. `/v1/admin/audit-log/export?format=csv|json`).
 
 PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the bars (tests, append-only
 migrations, no secrets, conventional titles) and the CLA. Be kind: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+New here? Start with a [`good first issue`](https://github.com/inite-ai/inite-auth-service/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 
 ```bash
-npm ci && npm run build && npm test && npm run lint
+npm ci && npm run lint && npm run build && npm test
 ```
+
+### Contribute with an AI agent
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/inite-ai/inite-auth-service)
+
+You don't need to be an engineer to propose or build a change. Open the repo
+(a Codespace comes up with Node, Postgres and Redis ready) in your coding agent
+and describe the idea in plain words:
+
+- **Claude Code:** type `/contribute` — it restates the idea, writes a short
+  spec, implements it with tests, runs the CI gates and opens the PR. Just want
+  to propose? `/spec-idea` files a [Product idea](https://github.com/inite-ai/inite-auth-service/issues/new?template=product-idea.yml) issue.
+- **Cursor, Codex, Copilot, Gemini CLI, Windsurf, …:** say *"read AGENTS.md
+  and help me add …"*.
+
+[AGENTS.md](AGENTS.md) holds the rules every agent follows here: which areas
+need a maintainer-approved design first (migrations, token claims, signing
+keys, admin), the exact gate commands, and the idea → PR loop.
 
 ## Roadmap
 

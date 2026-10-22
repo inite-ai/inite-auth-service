@@ -24,6 +24,10 @@ here cannot take down normal traffic.
 3. **Dynamic config** — install [`traefik-mtls-dynamic.yml`](./traefik-mtls-dynamic.yml)
    into the global Traefik's file provider (defines the `mtls-client-auth`
    `tls.options` the router references). Confirm Traefik loads it with no error.
+   Only then set the repository variable **`MTLS_EDGE=true`**: the deploy adds
+   the router from [`docker-compose.mtls.yml`](./docker-compose.mtls.yml) as
+   `docker-compose.override.yml`. Without the options in place that router is a
+   Traefik error on every reload (22.10.2026: it was, until it moved there).
 4. **Deploy env** — set on the auth-service deploy env (GitHub Actions secrets →
    `.env`):
    - `MTLS_ENABLED=true`
@@ -55,5 +59,5 @@ curl https://auth-api.inite.ai/health
 ## Rollback
 - App: unset `MTLS_ENABLED` (or set `false`) and redeploy — mTLS auth + binding
   stop; nothing else changes.
-- Edge: remove the `auth-api-mtls` router labels / the dynamic config. The
+- Edge: set `MTLS_EDGE` to anything but `true` and redeploy (the router goes), then remove the dynamic config. The
   primary routers are independent.

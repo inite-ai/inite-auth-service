@@ -1,0 +1,31 @@
+# The RFC 8705 mTLS host, added to the prod compose as docker-compose.override.yml
+# only when the repository variable MTLS_EDGE is "true" (see deploy.yml and
+# MTLS-SETUP.md).
+#
+# WHY A SEPARATE FILE. These labels used to sit in docker-compose.prod.yml and
+# were described as inert until the operator installed the TLS options. They
+# were not: the router references `mtls-client-auth@file`, which exists only
+# after deploy/traefik-mtls-dynamic.yml is installed with a client CA, so the
+# global Traefik logged "unknown TLS options: mtls-client-auth@file" on every
+# configuration reload and the mTLS host answered nothing (found 22.10.2026,
+# MTLS_ENABLED=false, no CA chosen). A router that cannot be built belongs to
+# the step that makes it buildable.
+#
+# A SEPARATE router so the primary hosts are never asked for a client cert. It
+# terminates TLS with client-cert auth and forwards the verified leaf to the
+# backend as X-Forwarded-Tls-Client-Cert, which the app trusts like
+# X-Forwarded-For (MtlsService.presentedCertificate). Same backend service and
+# port as the primary API.
+services:
+  auth-service:
+    labels:
+      - "traefik.http.routers.auth-api-mtls.rule=Host(`mtls-auth-api.inite.ai`)"
+      - "traefik.http.routers.auth-api-mtls.entrypoints=websecure"
+      - "traefik.http.routers.auth-api-mtls.tls=true"
+      - "traefik.http.routers.auth-api-mtls.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth-api-mtls.tls.options=mtls-client-auth@file"
+      - "traefik.http.routers.auth-api-mtls.priority=100"
+      - "traefik.http.routers.auth-api-mtls.middlewares=pass-client-cert"
+      - "traefik.http.routers.auth-api-mtls.service=auth-api-service"
+      # Forward the verified client certificate (full PEM) to the backend.
+      - "traefik.http.middlewares.pass-client-cert.passtlsclientcert.pem=true"

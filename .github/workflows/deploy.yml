@@ -141,6 +141,15 @@ jobs:
         # deploy/docker-compose.prod.yml in the repo land in prod on the
         # next deploy — no inline mirror to drift out of sync.
         cp "$GITHUB_WORKSPACE/deploy/docker-compose.prod.yml" "$DEPLOY_DIR/docker-compose.yml"
+        # The mTLS host's router, only once its edge exists (MTLS-SETUP.md):
+        # its TLS options live in the global Traefik's file provider, and a
+        # router that references options Traefik does not have is an error on
+        # every reload. docker-compose loads docker-compose.override.yml itself.
+        if [ "${{ vars.MTLS_EDGE }}" = "true" ]; then
+          cp "$GITHUB_WORKSPACE/deploy/docker-compose.mtls.yml" "$DEPLOY_DIR/docker-compose.override.yml"
+        else
+          rm -f "$DEPLOY_DIR/docker-compose.override.yml"
+        fi
 
         cd "$DEPLOY_DIR"
 

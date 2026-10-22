@@ -59,3 +59,24 @@ export function canonicalizeSubjectDn(dn: string): string {
     .sort()
     .join(',');
 }
+
+/**
+ * True when the certificate appears on the operator's deny-list. Traefik checks
+ * no CRL/OCSP, so revoking a client certificate before it expires is done here:
+ * an entry is the cert's `x5t#S256` (base64url SHA-256 of the DER, as in `cnf`),
+ * its hex SHA-256 fingerprint (colons optional, any case), or its serial number
+ * in hex (`serial:` prefix optional, as `openssl x509 -serial` prints it).
+ */
+export function isCertificateRevoked(cert: X509Certificate, entries: string[]): boolean {
+  if (entries.length === 0) return false;
+  const thumbprint = certificateThumbprint(cert);
+  const fingerprint = createHash('sha256').update(cert.raw).digest('hex');
+  const serial = cert.serialNumber.toLowerCase().replace(/^0+/, '');
+  return entries.some((entry) => {
+    const value = entry.trim();
+    if (!value) return false;
+    if (value === thumbprint) return true;
+    const hex = value.toLowerCase().replace(/^serial[:=]/, '').replace(/:/g, '');
+    return hex === fingerprint || (hex.replace(/^0+/, '') === serial && serial !== '');
+  });
+}

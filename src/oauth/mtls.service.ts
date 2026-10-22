@@ -9,6 +9,7 @@ import {
   parseForwardedCertificate,
   certificateThumbprint,
   canonicalizeSubjectDn,
+  isCertificateRevoked,
 } from './certificate.util';
 
 /** RFC 8705 token_endpoint_auth_method values this service authenticates. */
@@ -74,6 +75,11 @@ export class MtlsService {
     cert: X509Certificate,
   ): Promise<OAuthClient> {
     const client = await this.registry.validateClient(clientId);
+    // Revocation before any method check: a revoked cert never authenticates,
+    // whichever RFC 8705 method the client uses (the edge has no CRL).
+    if (isCertificateRevoked(cert, this.revokedEntries())) {
+      throw new UnauthorizedException('client certificate has been revoked');
+    }
     if (client.tokenEndpointAuthMethod === TLS_CLIENT_AUTH) {
       this.assertPkiCertificate(client, cert);
     } else if (client.tokenEndpointAuthMethod === SELF_SIGNED_TLS_CLIENT_AUTH) {
@@ -98,6 +104,14 @@ export class MtlsService {
     if (!this.isEnabled() || !this.usesMtls(client)) return undefined;
     const cert = this.presentedCertificate(req);
     return cert ? certificateThumbprint(cert) : undefined;
+  }
+
+  /** MTLS_REVOKED_CERTS split on commas and whitespace. */
+  private revokedEntries(): string[] {
+    return this.settings
+      .value('MTLS_REVOKED_CERTS')
+      .split(/[\s,]+/)
+      .filter(Boolean);
   }
 
   /** §2.1 PKI: chain to the trusted CA + subject DN must match the registration. */

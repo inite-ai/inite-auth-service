@@ -126,6 +126,15 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     description: 'PEM CA that tls_client_auth (PKI) client certs must chain to.',
     secret: true,
   },
+  {
+    key: 'MTLS_REVOKED_CERTS',
+    type: 'csv',
+    group: 'mTLS',
+    label: 'Revoked client certificates',
+    description:
+      'Deny-list checked on every mTLS client authentication (the edge has no CRL): ' +
+      'x5t#S256 thumbprints, hex SHA-256 fingerprints or hex serial numbers.',
+  },
 ] as const;
 
 const BY_KEY = new Map(SETTINGS_REGISTRY.map((s) => [s.key, s]));

@@ -3,6 +3,7 @@ import * as jose from 'jose';
 import { OAuthClient } from '@prisma/client';
 import type { Request } from 'express';
 import { MtlsService } from '../mtls.service';
+import { certificateThumbprint } from '../certificate.util';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { fakeSettings } from '../../common/settings/settings.test-fixture';
 import {
@@ -92,6 +93,45 @@ describe('MtlsService', () => {
       await expect(
         svc.authenticate('c-pki', new X509Certificate(leafPem)),
       ).rejects.toThrow(/subject does not match/);
+    });
+
+    // The edge (Traefik) checks no CRL, so MTLS_REVOKED_CERTS is the only way to
+    // retire a client cert before it expires: a listed cert must never
+    // authenticate, even though it chains to the CA and matches the DN.
+    describe('revocation deny-list (MTLS_REVOKED_CERTS)', () => {
+      const leaf = (): X509Certificate => new X509Certificate(leafPem);
+      const deniedBy = (entry: string) =>
+        makeService({ MTLS_TRUSTED_CA_CERT: caPem, MTLS_REVOKED_CERTS: entry }, client).svc;
+
+      it('refuses a cert listed by its x5t#S256 thumbprint', async () => {
+        const entry = `other, ${certificateThumbprint(leaf())}`;
+        await expect(deniedBy(entry).authenticate('c-pki', leaf())).rejects.toThrow(/revoked/);
+      });
+
+      it('refuses a cert listed by its hex SHA-256 fingerprint with colons', async () => {
+        const fp = leaf().fingerprint256; // "AB:CD:..." as openssl prints it
+        await expect(deniedBy(fp).authenticate('c-pki', leaf())).rejects.toThrow(/revoked/);
+      });
+
+      it('refuses a cert listed by its serial number', async () => {
+        const entry = `serial=${leaf().serialNumber}`;
+        await expect(deniedBy(entry).authenticate('c-pki', leaf())).rejects.toThrow(/revoked/);
+      });
+
+      it('refuses a revoked cert for self-signed clients too', async () => {
+        const jwks = await selfSignedJwks();
+        const self = new X509Certificate(selfSignedPem);
+        const { svc } = makeService(
+          { MTLS_REVOKED_CERTS: certificateThumbprint(self) },
+          { clientId: 'c-self', tokenEndpointAuthMethod: 'self_signed_tls_client_auth', jwks },
+        );
+        await expect(svc.authenticate('c-self', self)).rejects.toThrow(/revoked/);
+      });
+
+      it('still authenticates a cert that is not on the list', async () => {
+        const result = await deniedBy('deadbeef, , not-a-thumbprint').authenticate('c-pki', leaf());
+        expect(result.clientId).toBe('c-pki');
+      });
     });
 
     it('rejects when no trusted CA is configured', async () => {

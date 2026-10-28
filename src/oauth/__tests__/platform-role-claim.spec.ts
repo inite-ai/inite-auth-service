@@ -1,4 +1,4 @@
-import { platformRoleClaim } from '../oauth-token-issuer.service';
+import { platformRoleClaim } from '../platform-role-claim';
 
 describe('platformRoleClaim', () => {
   it('names the platform superadmin from user metadata', () => {

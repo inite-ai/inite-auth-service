@@ -14,6 +14,7 @@ import { sanitizeCustomClaims } from './custom-claims';
 import { currentDeviceMetadata } from '../common/device-metadata';
 import { ActClaim, AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
+import { platformRoleClaim } from './platform-role-claim';
 
 
 export interface GenerateTokensInput {
@@ -149,6 +150,7 @@ export class OAuthTokenIssuerService {
         name: user.name,
         picture: user.avatarUrl,
         roles: orgCtx.roles,
+        ...platformRoleClaim(user),
         ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
         // Per-client vertical claims (policy/packs) — allow-listed keys
         // only, so they can never shadow the registered claims above.
@@ -187,6 +189,7 @@ export class OAuthTokenIssuerService {
       name: user.name,
       picture: user.avatarUrl,
       roles: orgCtx.roles,
+      ...platformRoleClaim(user),
       ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
     };
     if (nonce) idTokenClaims.nonce = nonce;
@@ -414,3 +417,4 @@ export class OAuthTokenIssuerService {
     });
   }
 }
+

@@ -14,6 +14,7 @@ import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet
 import { normalizeLoginHint } from './login-hint';
 import { AccountChoice, accountChoiceFor } from './account-choice';
 import { buildClientRedirect } from './authorize-redirect';
+import { assertResourceAllowed } from './resource-registry';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -54,6 +55,10 @@ export class OAuthController {
       throw new BadRequestException('Invalid redirect_uri');
     }
     this.clientRegistry.validateGrantType(client, 'authorization_code');
+    // RFC 8707: refuse a resource this client may not bind to before the
+    // person signs in, not after (resource-registry.ts; the token endpoint
+    // checks again in resolveCodeAudience).
+    assertResourceAllowed(client, p.resource);
     const grantedScope = this.oauthService.normalizeScope(p.scope || '', p.clientId);
     this.assertPkce(p);
 

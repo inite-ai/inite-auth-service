@@ -6,6 +6,7 @@ import {
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { OAuthClient, DeviceAuthorization } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertResourceAllowed } from './resource-registry';
 
 /**
  * OAuth 2.0 Device Authorization Grant (RFC 8628).
@@ -136,6 +137,8 @@ export class DeviceFlowService {
         error_description: `Resource "${resource}" is not allowed for this client`,
       });
     }
+    // No allow-list of its own (inite-cli, dcr_*): a registered family resource only.
+    assertResourceAllowed(client, resource);
     return resource;
   }
 

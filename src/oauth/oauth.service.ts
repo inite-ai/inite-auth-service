@@ -14,6 +14,7 @@ import { AuthorizationDetail } from './contracts/authorization-detail';
 import { grantableScope } from './oauth-scopes.registry';
 import { StepUpService } from './step-up.service';
 import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
+import { assertResourceAllowed } from './resource-registry';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -268,7 +269,7 @@ export class OAuthService {
 
     const client = await this.prisma.oAuthClient.findUnique({
       where: { clientId },
-      select: { allowedAudiences: true },
+      select: { allowedAudiences: true, isPublic: true },
     });
     const allowedAud = client?.allowedAudiences ?? [];
     if (allowedAud.length > 0 && !allowedAud.includes(resource)) {
@@ -276,6 +277,12 @@ export class OAuthService {
         `Resource "${resource}" is not allowed for this client`,
       );
     }
+    // A client with no allow-list of its own (every dcr_* client, inite-cli)
+    // binds only to a registered family resource (resource-registry.ts).
+    assertResourceAllowed(
+      { clientId, isPublic: client?.isPublic, allowedAudiences: allowedAud },
+      resource,
+    );
     return resource;
   }
 

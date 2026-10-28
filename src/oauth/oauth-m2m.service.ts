@@ -8,6 +8,8 @@ import { SettingsService } from '../common/settings/settings.service';
 import { MCP_AUTHORIZATION_DETAILS_TYPE } from './authorization-details.config';
 import { sanitizeCustomClaims } from './custom-claims';
 import { agentDid, isSelfAgent } from './self-agent';
+import { isRegisteredResource } from './resource-registry';
+import { isDynamicClientId } from './oauth-scopes.registry';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -330,6 +332,18 @@ export class OAuthM2mService {
       if (allowedAud.length > 0 && !allowedAud.includes(audience)) {
         throw new BadRequestException(
           `Audience "${audience}" is not allowed for this client`,
+        );
+      }
+      // A self-registered client with no allow-list may not name a bare
+      // identifier ("brain", "inite-ai") or a foreign host: that would mint
+      // a token a first-party resource server reads as its own (S6).
+      if (
+        allowedAud.length === 0 &&
+        isDynamicClientId(client.clientId) &&
+        !isRegisteredResource(audience)
+      ) {
+        throw new BadRequestException(
+          `Audience "${audience}" is not a registered INITE resource`,
         );
       }
       return audience;

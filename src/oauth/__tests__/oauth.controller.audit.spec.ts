@@ -92,9 +92,7 @@ describe('TokenController /oauth/token — audit log writes', () => {
     // Dispatcher stub delegating to the client-registry mock, mirroring the
     // shared-secret path so the existing audit assertions still hold.
     const clientAuth = {
-      authenticate: (input: {
-        body: { client_id?: string; client_secret?: string };
-      }) =>
+      authenticate: (input: { body: { client_id?: string; client_secret?: string } }) =>
         oauth.validateClientWithSecret(input.body.client_id, input.body.client_secret),
       tokenAudiences: () => [],
     };
@@ -146,9 +144,7 @@ describe('TokenController /oauth/token — audit log writes', () => {
   });
 
   it('records token.failed.invalid_credentials when client unknown', async () => {
-    oauth.validateClientWithSecret.mockRejectedValue(
-      new UnauthorizedException('Invalid client'),
-    );
+    oauth.validateClientWithSecret.mockRejectedValue(new UnauthorizedException('Invalid client'));
 
     await expect(
       controller.token(
@@ -174,7 +170,9 @@ describe('TokenController /oauth/token — audit log writes', () => {
   it('records token.failed.unsupported_grant when grant not in allowedGrants', async () => {
     oauth.validateClientWithSecret.mockResolvedValue(userClient);
     oauth.validateGrantType.mockImplementation(() => {
-      throw new BadRequestException('Grant type "client_credentials" is not allowed for this client');
+      throw new BadRequestException(
+        'Grant type "client_credentials" is not allowed for this client',
+      );
     });
 
     await expect(

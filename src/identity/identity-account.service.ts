@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+  Optional,
+} from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
@@ -23,7 +29,13 @@ export class IdentityAccountService {
    */
   async updateProfile(
     userId: string,
-    data: { name?: string; avatarUrl?: string; bio?: string; location?: string; profession?: string },
+    data: {
+      name?: string;
+      avatarUrl?: string;
+      bio?: string;
+      location?: string;
+      profession?: string;
+    },
   ): Promise<User> {
     await this.identityService.getIdentityById(userId);
 
@@ -155,18 +167,20 @@ export class IdentityAccountService {
         twoFactorEnabled: user.twoFactorEnabled,
         passkeysCount: user.passkeys?.length || 0,
       },
-      wallets: user.wallets?.map(w => ({
-        address: w.address,
-        chain: w.chain,
-        linkedAt: w.linkedAt,
-      })) || [],
-      passkeys: user.passkeys?.map(p => ({
-        id: p.id,
-        deviceName: p.deviceName,
-        deviceType: p.deviceType,
-        createdAt: p.createdAt,
-        lastUsedAt: p.lastUsedAt,
-      })) || [],
+      wallets:
+        user.wallets?.map((w) => ({
+          address: w.address,
+          chain: w.chain,
+          linkedAt: w.linkedAt,
+        })) || [],
+      passkeys:
+        user.passkeys?.map((p) => ({
+          id: p.id,
+          deviceName: p.deviceName,
+          deviceType: p.deviceType,
+          createdAt: p.createdAt,
+          lastUsedAt: p.lastUsedAt,
+        })) || [],
     };
   }
 

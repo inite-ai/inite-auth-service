@@ -73,9 +73,7 @@ export type TonProofFailure =
   | 'address-key-mismatch'
   | 'bad-signature';
 
-export type TonProofResult =
-  | { valid: true }
-  | { valid: false; reason: TonProofFailure };
+export type TonProofResult = { valid: true } | { valid: false; reason: TonProofFailure };
 
 /** Split "0:hex" into its workchain and 32-byte account hash. */
 function parseRawAddress(address: string): { workchain: number; hash: Buffer } | null {
@@ -90,10 +88,7 @@ function parseRawAddress(address: string): { workchain: number; hash: Buffer } |
 }
 
 /** The exact byte sequence the wallet signed. */
-function buildProofMessage(
-  parsed: { workchain: number; hash: Buffer },
-  proof: TonProof,
-): Buffer {
+function buildProofMessage(parsed: { workchain: number; hash: Buffer }, proof: TonProof): Buffer {
   const workchain = Buffer.alloc(4);
   workchain.writeInt32BE(parsed.workchain);
 

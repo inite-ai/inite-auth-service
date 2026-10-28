@@ -1,8 +1,4 @@
-import {
-  createParamDecorator,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthenticatedUser } from '../authenticated-user';
 
 /**

@@ -49,9 +49,9 @@ describe('SamlAdminService', () => {
 
   it('rejects creating a connection outside the caller tenant', async () => {
     const { svc } = setup();
-    await expect(
-      svc.create(SCOPED, { ...dto, companyId: 'other-co' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.create(SCOPED, { ...dto, companyId: 'other-co' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('409s on a duplicate slug', async () => {

@@ -56,9 +56,7 @@ export class OAuthM2mService {
    * stateless by RFC; the caller re-fetches when the access token
    * nears expiry (see @inite/auth/machineToken for the SDK helper).
    */
-  async issueClientCredentialsToken(
-    input: ClientCredentialsTokenInput,
-  ): Promise<{
+  async issueClientCredentialsToken(input: ClientCredentialsTokenInput): Promise<{
     accessToken: string;
     expiresIn: number;
     scope: string;
@@ -66,10 +64,7 @@ export class OAuthM2mService {
     tokenType: 'Bearer' | 'DPoP';
   }> {
     const { client, requestedScope, audience, dpopJkt, certThumbprint } = input;
-    const grantedScopes = this.resolveClientCredentialsScopes(
-      client,
-      requestedScope,
-    );
+    const grantedScopes = this.resolveClientCredentialsScopes(client, requestedScope);
 
     // Audience binding — when the client has an explicit
     // allowedAudiences list, any requested audience must be in it.
@@ -77,10 +72,7 @@ export class OAuthM2mService {
     // clientId as the audience.
     const effectiveAudience = this.resolveExchangeAudience(client, audience);
 
-    const issuer = this.configService.get<string>(
-      'JWT_ISSUER',
-      'http://localhost:3002',
-    );
+    const issuer = this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002');
     // An agent that registered itself with its own key is somebody: its
     // did:web, whose document publishes that key (self-agent.ts).
     const sub = isSelfAgent(client)
@@ -144,8 +136,7 @@ export class OAuthM2mService {
   }> {
     const { client } = input;
     const okType =
-      input.subjectTokenType === TOKEN_TYPE_ACCESS ||
-      input.subjectTokenType === TOKEN_TYPE_JWT;
+      input.subjectTokenType === TOKEN_TYPE_ACCESS || input.subjectTokenType === TOKEN_TYPE_JWT;
     if (!okType) {
       throw new BadRequestException('Unsupported subject_token_type');
     }
@@ -171,10 +162,7 @@ export class OAuthM2mService {
     }
 
     const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
-    const issuer = this.configService.get<string>(
-      'JWT_ISSUER',
-      'http://localhost:3002',
-    );
+    const issuer = this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002');
 
     const mcpDetails = this.subjectMcpAuthorizationDetails(subject);
     const accessToken = this.jwtService.sign(
@@ -192,7 +180,11 @@ export class OAuthM2mService {
         // exchange — the target resource gates its MCP tools by them.
         ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),
       },
-      { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
+      {
+        expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'],
+        audience: effectiveAudience,
+        issuer,
+      },
     );
 
     return {
@@ -216,21 +208,15 @@ export class OAuthM2mService {
     const requested = (requestedScope ?? '').split(/\s+/).filter(Boolean);
     const allowed = client.allowedScopes ?? [];
     const grantedScopes =
-      requested.length === 0
-        ? allowed.slice()
-        : requested.filter((s) => allowed.includes(s));
+      requested.length === 0 ? allowed.slice() : requested.filter((s) => allowed.includes(s));
 
     if (requested.length > 0 && grantedScopes.length !== requested.length) {
       const denied = requested.filter((s) => !allowed.includes(s));
-      throw new BadRequestException(
-        `Scope(s) not allowed for this client: ${denied.join(', ')}`,
-      );
+      throw new BadRequestException(`Scope(s) not allowed for this client: ${denied.join(', ')}`);
     }
 
     if (grantedScopes.length === 0) {
-      throw new BadRequestException(
-        'No scopes available for this client_credentials grant',
-      );
+      throw new BadRequestException('No scopes available for this client_credentials grant');
     }
 
     return grantedScopes;
@@ -247,9 +233,7 @@ export class OAuthM2mService {
       }
       return this.jwtService.verify(token);
     } catch {
-      throw new BadRequestException(
-        'subject_token or actor_token is invalid or expired',
-      );
+      throw new BadRequestException('subject_token or actor_token is invalid or expired');
     }
   }
 
@@ -260,9 +244,7 @@ export class OAuthM2mService {
    * Authorization-bearing claims are NOT copied — the issued scope was
    * already narrowed by resolveExchangeScopes above.
    */
-  private subjectIdentityClaims(
-    subject: Record<string, unknown>,
-  ): Record<string, unknown> {
+  private subjectIdentityClaims(subject: Record<string, unknown>): Record<string, unknown> {
     const carried: Record<string, unknown> = {};
     for (const key of ['org', 'org_id', 'roles']) {
       if (subject[key] !== undefined) carried[key] = subject[key];
@@ -276,9 +258,7 @@ export class OAuthM2mService {
    * permissions the exchanged token's resource enforces. Other types
    * (e.g. payment_initiation) stay bound to the original audience.
    */
-  private subjectMcpAuthorizationDetails(
-    subject: Record<string, unknown>,
-  ): unknown[] {
+  private subjectMcpAuthorizationDetails(subject: Record<string, unknown>): unknown[] {
     const raw = subject.authorization_details;
     if (!Array.isArray(raw)) return [];
     return raw.filter(
@@ -323,16 +303,11 @@ export class OAuthM2mService {
     return req;
   }
 
-  private resolveExchangeAudience(
-    client: OAuthClient,
-    audience: string | undefined,
-  ): string {
+  private resolveExchangeAudience(client: OAuthClient, audience: string | undefined): string {
     const allowedAud = client.allowedAudiences ?? [];
     if (audience) {
       if (allowedAud.length > 0 && !allowedAud.includes(audience)) {
-        throw new BadRequestException(
-          `Audience "${audience}" is not allowed for this client`,
-        );
+        throw new BadRequestException(`Audience "${audience}" is not allowed for this client`);
       }
       // A self-registered client with no allow-list may not name a bare
       // identifier ("brain", "inite-ai") or a foreign host: that would mint

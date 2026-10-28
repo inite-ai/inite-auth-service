@@ -1,11 +1,11 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
-import * as crypto from "crypto";
-import { Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
-import { validateDcrClientKeys } from "../oauth/dcr-jwks.util";
-import { sanitizeCustomClaims } from "../oauth/custom-claims";
-import { stripClientSecret } from "../common/sanitize";
+import { Injectable, BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { validateDcrClientKeys } from '../oauth/dcr-jwks.util';
+import { sanitizeCustomClaims } from '../oauth/custom-claims';
+import { stripClientSecret } from '../common/sanitize';
 
 const AUTH_METHODS = ['client_secret_post', 'private_key_jwt', 'none'];
 
@@ -21,7 +21,9 @@ export interface ClientAuthMethodInput {
  * the admin sees exactly what tokens will carry; an all-invalid input
  * stores NULL rather than dead weight.
  */
-function customClaimsField(raw: unknown): { customClaims: Prisma.InputJsonValue | Prisma.NullTypes.JsonNull } {
+function customClaimsField(raw: unknown): {
+  customClaims: Prisma.InputJsonValue | Prisma.NullTypes.JsonNull;
+} {
   const clean = sanitizeCustomClaims(raw);
   return {
     customClaims: Object.keys(clean).length > 0 ? clean : Prisma.JsonNull,
@@ -84,7 +86,9 @@ export class AdminClientsService {
    * untouched. `private_key_jwt` requires public jwks/jwks_uri (validated),
    * `none` marks the client public.
    */
-  private authMethodFields(input: ClientAuthMethodInput): Prisma.OAuthClientUncheckedCreateInput | Record<string, never> {
+  private authMethodFields(
+    input: ClientAuthMethodInput,
+  ): Prisma.OAuthClientUncheckedCreateInput | Record<string, never> {
     const method = input.tokenEndpointAuthMethod;
     if (!method) return {};
     if (!AUTH_METHODS.includes(method)) {
@@ -99,18 +103,20 @@ export class AdminClientsService {
     } as Prisma.OAuthClientUncheckedCreateInput;
   }
 
-  async createOAuthClient(data: {
-    name: string;
-    clientId: string;
-    redirectUris: string[];
-    allowedScopes?: string[];
-    allowedGrants?: string[];
-    companyId?: string | null;
-    allowedAudiences?: string[];
-    backchannelLogoutUri?: string | null;
-    customClaims?: unknown;
-    firstParty?: boolean;
-  } & ClientAuthMethodInput) {
+  async createOAuthClient(
+    data: {
+      name: string;
+      clientId: string;
+      redirectUris: string[];
+      allowedScopes?: string[];
+      allowedGrants?: string[];
+      companyId?: string | null;
+      allowedAudiences?: string[];
+      backchannelLogoutUri?: string | null;
+      customClaims?: unknown;
+      firstParty?: boolean;
+    } & ClientAuthMethodInput,
+  ) {
     const clientSecret = crypto.randomBytes(32).toString('base64url');
     const clientSecretHash = await bcrypt.hash(clientSecret, 10);
 
@@ -160,15 +166,16 @@ export class AdminClientsService {
       backchannelLogoutUri: string | null;
       customClaims: unknown;
       firstParty: boolean;
-    }> & ClientAuthMethodInput,
+    }> &
+      ClientAuthMethodInput,
   ) {
     // Separate the auth-method inputs (validated + mapped) from the plain
     // column updates so the raw jwks/method values aren't written unchecked.
     const { tokenEndpointAuthMethod, jwks, jwksUri, customClaims, firstParty, ...rest } = data;
-    const firstPartyFields = firstParty !== undefined ? { firstParty: firstPartyField(clientId, firstParty) } : {};
+    const firstPartyFields =
+      firstParty !== undefined ? { firstParty: firstPartyField(clientId, firstParty) } : {};
     const authFields = this.authMethodFields({ tokenEndpointAuthMethod, jwks, jwksUri });
-    const claimFields =
-      customClaims !== undefined ? customClaimsField(customClaims) : {};
+    const claimFields = customClaims !== undefined ? customClaimsField(customClaims) : {};
     try {
       const client = await this.prisma.oAuthClient.update({
         where: { clientId },
@@ -230,10 +237,9 @@ export class AdminClientsService {
       clientSecret: newSecret,
       graceWindowSeconds: opts.force ? 0 : graceSeconds,
       previousSecretExpiresAt: data.previousSecretExpiresAt ?? null,
-      message:
-        opts.force
-          ? 'Secret rotated. Previous secret revoked immediately. Save this secret — it will not be shown again.'
-          : `Secret rotated. Previous secret accepted for ${graceSeconds}s. Save this secret — it will not be shown again.`,
+      message: opts.force
+        ? 'Secret rotated. Previous secret revoked immediately. Save this secret — it will not be shown again.'
+        : `Secret rotated. Previous secret accepted for ${graceSeconds}s. Save this secret — it will not be shown again.`,
     };
   }
 

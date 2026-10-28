@@ -122,10 +122,7 @@ describe('FederationService.resolveUser', () => {
 
     expect(res.isNewUser).toBe(true);
     expect(res.user.id).toBe('u3');
-    expect(identityService.createIdentity).toHaveBeenCalledWith(
-      'alice@example.com',
-      'Alice',
-    );
+    expect(identityService.createIdentity).toHaveBeenCalledWith('alice@example.com', 'Alice');
     expect(oAuthIdentity.create).toHaveBeenCalled();
   });
 
@@ -139,9 +136,9 @@ describe('FederationService.resolveUser', () => {
       name: 'Alice',
     });
 
-    await expect(
-      service.resolveUser(profile({ emailVerified: false })),
-    ).rejects.toBeInstanceOf(FederationEmailConflictError);
+    await expect(service.resolveUser(profile({ emailVerified: false }))).rejects.toBeInstanceOf(
+      FederationEmailConflictError,
+    );
 
     expect(oAuthIdentity.create).not.toHaveBeenCalled();
     expect(identityService.createIdentity).not.toHaveBeenCalled();

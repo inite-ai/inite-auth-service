@@ -16,7 +16,6 @@ import { ActClaim, AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 import { platformRoleClaim } from './platform-role-claim';
 
-
 export interface GenerateTokensInput {
   user: User;
   clientId: string;
@@ -106,7 +105,11 @@ export class OAuthTokenIssuerService {
   }> {
     const sctx = this.signingContext();
     // A third-party application acts as an agent of the person (RFC 8693 `act`).
-    const act = await this.agents?.actFor(input.user.id, input.clientId, input.authorizationDetails);
+    const act = await this.agents?.actFor(
+      input.user.id,
+      input.clientId,
+      input.authorizationDetails,
+    );
     const orgCtx = { ...(await this.resolveOrgContext(input)), act };
 
     const accessToken = this.buildAccessToken(input, sctx, orgCtx);

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -158,8 +163,7 @@ export class IdentityEmailService {
       const changeMeta = emailChangeUser.metadata as Record<string, unknown> | null;
       // Written by requestEmailChange() with string newEmail/expires fields.
       const pending = changeMeta?.['pendingEmailChange'] as
-        | { newEmail: string; expires: string }
-        | undefined;
+        { newEmail: string; expires: string } | undefined;
       if (pending && new Date(pending.expires) < new Date()) {
         throw new BadRequestException('Verification link has expired');
       }

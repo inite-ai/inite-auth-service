@@ -19,7 +19,11 @@ export class SsfDeliveryService {
   ) {}
 
   /** RFC 8936: return pending SETs (keyed by jti) and ack the given jtis. */
-  async poll(streamDbId: string, acks: string[], maxEvents: number): Promise<Record<string, string>> {
+  async poll(
+    streamDbId: string,
+    acks: string[],
+    maxEvents: number,
+  ): Promise<Record<string, string>> {
     if (acks.length > 0) {
       await this.prisma.setDelivery.updateMany({
         where: { streamId: streamDbId, jti: { in: acks } },
@@ -39,13 +43,22 @@ export class SsfDeliveryService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async drainFailedPush(): Promise<void> {
     const due = await this.prisma.setDelivery.findMany({
-      where: { status: 'failed', nextAttemptAt: { lte: new Date() }, attempts: { lt: SsfDeliveryService.MAX_ATTEMPTS } },
+      where: {
+        status: 'failed',
+        nextAttemptAt: { lte: new Date() },
+        attempts: { lt: SsfDeliveryService.MAX_ATTEMPTS },
+      },
       include: { stream: true },
       take: 100,
     });
     for (const d of due) {
       if (d.stream.deliveryMethod !== 'push' || !d.stream.pushEndpointUrl) continue;
-      await this.push.deliver({ deliveryId: d.id, url: d.stream.pushEndpointUrl, authHeader: d.stream.pushAuthHeader, setJwt: d.setJwt });
+      await this.push.deliver({
+        deliveryId: d.id,
+        url: d.stream.pushEndpointUrl,
+        authHeader: d.stream.pushAuthHeader,
+        setJwt: d.setJwt,
+      });
     }
     if (due.length > 0) this.logger.log(`Retried ${due.length} failed SET push(es)`);
   }

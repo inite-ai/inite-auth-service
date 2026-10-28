@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
 import type { AuthenticatedUser } from '../authenticated-user';
 import { resolveAdminScope } from '../../admin/admin-scope';
@@ -26,9 +21,7 @@ export class SuperadminGuard extends AdminGuard implements CanActivate {
       return false;
     }
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ user?: AuthenticatedUser }>();
+    const request = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
     const scope = request.user ? resolveAdminScope(request.user) : null;
     if (!scope || scope.kind !== 'superadmin') {
       throw new ForbiddenException('superadmin access required');

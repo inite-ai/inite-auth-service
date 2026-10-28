@@ -1,0 +1,22 @@
+# Generated, vendored or tool-written files: never formatted, never checked.
+node_modules/
+dist/
+build/
+coverage/
+generated/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+packages/*/dist/
+packages/*/node_modules/
+
+# Migrations are applied as written; rewriting one changes its checksum.
+prisma/migrations/
+
+# Written by release-please.
+CHANGELOG.md
+.release-please-manifest.json
+
+# Lockfiles.
+package-lock.json
+**/package-lock.json

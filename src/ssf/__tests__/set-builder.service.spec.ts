@@ -14,7 +14,9 @@ describe('SetBuilderService', () => {
   });
 
   function build(env: Record<string, string | undefined>): SetBuilderService {
-    return new SetBuilderService({ get: (k: string, d?: string) => env[k] ?? d } as unknown as ConfigService);
+    return new SetBuilderService({
+      get: (k: string, d?: string) => env[k] ?? d,
+    } as unknown as ConfigService);
   }
 
   it('signs a verifiable SET with the CAEP events claim', async () => {
@@ -39,7 +41,11 @@ describe('SetBuilderService', () => {
 
   it('returns null in HS256/dev mode (no private key)', async () => {
     const svc = build({});
-    const result = await svc.build({ eventType: CAEP_EVENTS.sessionRevoked, subject: 's', audience: [] });
+    const result = await svc.build({
+      eventType: CAEP_EVENTS.sessionRevoked,
+      subject: 's',
+      audience: [],
+    });
     expect(result).toBeNull();
   });
 });

@@ -6,11 +6,7 @@ import { MtlsService } from '../mtls.service';
 import { certificateThumbprint } from '../certificate.util';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { fakeSettings } from '../../common/settings/settings.test-fixture';
-import {
-  CA_CERT_PEM,
-  LEAF_CERT_PEM,
-  SELF_SIGNED_CERT_PEM,
-} from './mtls-certs.fixture';
+import { CA_CERT_PEM, LEAF_CERT_PEM, SELF_SIGNED_CERT_PEM } from './mtls-certs.fixture';
 
 /**
  * RFC 8705 mTLS. Certificates are PUBLIC test fixtures (no private keys): a CA,
@@ -58,12 +54,16 @@ describe('MtlsService', () => {
     expect(
       svc.usesMtls({ tokenEndpointAuthMethod: 'self_signed_tls_client_auth' } as OAuthClient),
     ).toBe(true);
-    expect(svc.usesMtls({ tokenEndpointAuthMethod: 'client_secret_post' } as OAuthClient)).toBe(false);
+    expect(svc.usesMtls({ tokenEndpointAuthMethod: 'client_secret_post' } as OAuthClient)).toBe(
+      false,
+    );
   });
 
   it('reads the forwarded certificate from the configured header', () => {
     const { svc } = makeService({ MTLS_CLIENT_CERT_HEADER: 'x-ssl-client-cert' }, {});
-    const req = { headers: { 'x-ssl-client-cert': encodeURIComponent(leafPem) } } as unknown as Request;
+    const req = {
+      headers: { 'x-ssl-client-cert': encodeURIComponent(leafPem) },
+    } as unknown as Request;
     expect(svc.presentedCertificate(req)?.subject).toContain('mtls-client.inite.ai');
   });
 
@@ -82,17 +82,17 @@ describe('MtlsService', () => {
 
     it('rejects a self-signed cert not issued by the trusted CA', async () => {
       const { svc } = makeService({ MTLS_TRUSTED_CA_CERT: caPem }, client);
-      await expect(
-        svc.authenticate('c-pki', new X509Certificate(selfSignedPem)),
-      ).rejects.toThrow(/trusted CA/);
+      await expect(svc.authenticate('c-pki', new X509Certificate(selfSignedPem))).rejects.toThrow(
+        /trusted CA/,
+      );
     });
 
     it('rejects when the subject DN does not match', async () => {
       const mismatched = { ...client, tlsClientAuthSubjectDn: 'CN=someone-else' } as OAuthClient;
       const { svc } = makeService({ MTLS_TRUSTED_CA_CERT: caPem }, mismatched);
-      await expect(
-        svc.authenticate('c-pki', new X509Certificate(leafPem)),
-      ).rejects.toThrow(/subject does not match/);
+      await expect(svc.authenticate('c-pki', new X509Certificate(leafPem))).rejects.toThrow(
+        /subject does not match/,
+      );
     });
 
     // The edge (Traefik) checks no CRL, so MTLS_REVOKED_CERTS is the only way to
@@ -136,9 +136,9 @@ describe('MtlsService', () => {
 
     it('rejects when no trusted CA is configured', async () => {
       const { svc } = makeService({}, client);
-      await expect(
-        svc.authenticate('c-pki', new X509Certificate(leafPem)),
-      ).rejects.toThrow(/not configured/);
+      await expect(svc.authenticate('c-pki', new X509Certificate(leafPem))).rejects.toThrow(
+        /not configured/,
+      );
     });
   });
 
@@ -161,9 +161,9 @@ describe('MtlsService', () => {
         jwks: await selfSignedJwks(),
       } as unknown as OAuthClient;
       const { svc } = makeService({}, client);
-      await expect(
-        svc.authenticate('c-ss', new X509Certificate(leafPem)),
-      ).rejects.toThrow(/does not match a registered key/);
+      await expect(svc.authenticate('c-ss', new X509Certificate(leafPem))).rejects.toThrow(
+        /does not match a registered key/,
+      );
     });
 
     it('rejects when the client has no registered keys', async () => {
@@ -173,18 +173,18 @@ describe('MtlsService', () => {
         jwks: null,
       } as OAuthClient;
       const { svc } = makeService({}, client);
-      await expect(
-        svc.authenticate('c-ss', new X509Certificate(selfSignedPem)),
-      ).rejects.toThrow(/no registered keys/);
+      await expect(svc.authenticate('c-ss', new X509Certificate(selfSignedPem))).rejects.toThrow(
+        /no registered keys/,
+      );
     });
   });
 
   it('rejects a client not provisioned for any mTLS method', async () => {
     const client = { clientId: 'c', tokenEndpointAuthMethod: 'client_secret_post' } as OAuthClient;
     const { svc } = makeService({}, client);
-    await expect(
-      svc.authenticate('c', new X509Certificate(leafPem)),
-    ).rejects.toThrow(/not configured for mTLS/);
+    await expect(svc.authenticate('c', new X509Certificate(leafPem))).rejects.toThrow(
+      /not configured for mTLS/,
+    );
   });
 
   describe('resolveCertThumbprint', () => {

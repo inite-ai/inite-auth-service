@@ -38,11 +38,7 @@ function buildWallet(publicKey: Buffer): { address: string; stateInit: string } 
   };
 }
 
-function sign(
-  secretKey: Uint8Array,
-  address: string,
-  proof: Omit<TonProof, 'signature'>,
-): string {
+function sign(secretKey: Uint8Array, address: string, proof: Omit<TonProof, 'signature'>): string {
   const [workchainPart, hashPart] = address.split(':');
   const workchain = Buffer.alloc(4);
   workchain.writeInt32BE(Number(workchainPart));
@@ -138,33 +134,36 @@ describe('verifyTonProof', () => {
     expect(verifyTonProof(input)).toEqual({ valid: false, reason: 'expired' });
   });
 
-  it('rejects a valid signature presented against someone else\'s address', () => {
+  it("rejects a valid signature presented against someone else's address", () => {
     // The core attack the binding exists to stop: sign with your own key,
     // claim the victim's account.
     const attacker = makeCase();
     const victim = makeCase();
 
-    expect(
-      verifyTonProof({ ...attacker.input, address: victim.wallet.address }),
-    ).toEqual({ valid: false, reason: 'address-key-mismatch' });
+    expect(verifyTonProof({ ...attacker.input, address: victim.wallet.address })).toEqual({
+      valid: false,
+      reason: 'address-key-mismatch',
+    });
   });
 
   it('rejects a state-init that does not hash to the claimed address', () => {
     const attacker = makeCase();
     const other = makeCase();
 
-    expect(
-      verifyTonProof({ ...attacker.input, walletStateInit: other.wallet.stateInit }),
-    ).toEqual({ valid: false, reason: 'address-key-mismatch' });
+    expect(verifyTonProof({ ...attacker.input, walletStateInit: other.wallet.stateInit })).toEqual({
+      valid: false,
+      reason: 'address-key-mismatch',
+    });
   });
 
   it('rejects a public key absent from the wallet it claims', () => {
     const { input } = makeCase();
     const stranger = Buffer.from(nacl.sign.keyPair().publicKey);
 
-    expect(
-      verifyTonProof({ ...input, publicKey: stranger.toString('base64') }),
-    ).toEqual({ valid: false, reason: 'address-key-mismatch' });
+    expect(verifyTonProof({ ...input, publicKey: stranger.toString('base64') })).toEqual({
+      valid: false,
+      reason: 'address-key-mismatch',
+    });
   });
 
   it.each([
@@ -223,7 +222,9 @@ describe('verifyTonProof', () => {
       verifyTonProof({
         address,
         publicKey: publicKey.toString('base64'),
-        walletStateInit: (Cell.fromBase64(stateInit.toBoc().toString('base64'))).toBoc().toString('base64'),
+        walletStateInit: Cell.fromBase64(stateInit.toBoc().toString('base64'))
+          .toBoc()
+          .toString('base64'),
         proof: { ...unsigned, signature: sign(keys.secretKey, address, unsigned) },
         expectedDomain: DOMAIN,
         expectedPayload: PAYLOAD,

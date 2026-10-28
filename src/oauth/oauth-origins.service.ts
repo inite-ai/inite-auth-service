@@ -35,7 +35,9 @@ export class OAuthOriginsService {
     const clients = await this.prisma.oAuthClient.findMany({ where: { active: true } });
     for (const client of clients) {
       for (const uri of client.redirectUris) {
-        try { origins.add(new URL(uri).origin); } catch {}
+        try {
+          origins.add(new URL(uri).origin);
+        } catch {}
       }
     }
 

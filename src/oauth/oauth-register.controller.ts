@@ -21,8 +21,7 @@ export class OAuthRegisterController {
   @HttpCode(201)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async register(@Body() dto: RegisterClientDto) {
-    const { client, clientSecret } =
-      await this.clientRegistry.registerDynamicClient(dto);
+    const { client, clientSecret } = await this.clientRegistry.registerDynamicClient(dto);
 
     const response: Record<string, unknown> = {
       client_id: client.clientId,

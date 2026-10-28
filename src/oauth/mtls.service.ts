@@ -70,10 +70,7 @@ export class MtlsService {
    * method. Throws Unauthorized on any mismatch. Only call when `isEnabled()`
    * and a certificate is present on the request.
    */
-  async authenticate(
-    clientId: string,
-    cert: X509Certificate,
-  ): Promise<OAuthClient> {
+  async authenticate(clientId: string, cert: X509Certificate): Promise<OAuthClient> {
     const client = await this.registry.validateClient(clientId);
     // Revocation before any method check: a revoked cert never authenticates,
     // whichever RFC 8705 method the client uses (the edge has no CRL).
@@ -85,9 +82,7 @@ export class MtlsService {
     } else if (client.tokenEndpointAuthMethod === SELF_SIGNED_TLS_CLIENT_AUTH) {
       await this.assertSelfSignedCertificate(client, cert);
     } else {
-      throw new UnauthorizedException(
-        'client is not configured for mTLS authentication',
-      );
+      throw new UnauthorizedException('client is not configured for mTLS authentication');
     }
     return client;
   }
@@ -97,10 +92,7 @@ export class MtlsService {
    * `x5t#S256` to place in `cnf`, or undefined when mTLS is off, the client
    * doesn't use mTLS, or no certificate is present.
    */
-  resolveCertThumbprint(
-    req: Request,
-    client: OAuthClient,
-  ): string | undefined {
+  resolveCertThumbprint(req: Request, client: OAuthClient): string | undefined {
     if (!this.isEnabled() || !this.usesMtls(client)) return undefined;
     const cert = this.presentedCertificate(req);
     return cert ? certificateThumbprint(cert) : undefined;
@@ -127,15 +119,11 @@ export class MtlsService {
       throw new UnauthorizedException('MTLS_TRUSTED_CA_CERT is not a valid certificate');
     }
     if (!cert.checkIssued(ca) || !cert.verify(ca.publicKey)) {
-      throw new UnauthorizedException(
-        'client certificate is not issued by the trusted CA',
-      );
+      throw new UnauthorizedException('client certificate is not issued by the trusted CA');
     }
     const expected = client.tlsClientAuthSubjectDn;
     if (!expected) {
-      throw new UnauthorizedException(
-        'client has no registered certificate subject',
-      );
+      throw new UnauthorizedException('client has no registered certificate subject');
     }
     if (canonicalizeSubjectDn(cert.subject) !== canonicalizeSubjectDn(expected)) {
       throw new UnauthorizedException('client certificate subject does not match');
@@ -149,9 +137,7 @@ export class MtlsService {
   ): Promise<void> {
     const registered = (client.jwks as { keys?: jose.JWK[] } | null)?.keys ?? [];
     if (registered.length === 0) {
-      throw new UnauthorizedException(
-        'client has no registered keys for self-signed mTLS',
-      );
+      throw new UnauthorizedException('client has no registered keys for self-signed mTLS');
     }
     const certThumb = await jose.calculateJwkThumbprint(
       cert.publicKey.export({ format: 'jwk' }) as jose.JWK,
@@ -163,8 +149,6 @@ export class MtlsService {
         // Skip a malformed registered key rather than fail the whole match.
       }
     }
-    throw new UnauthorizedException(
-      'client certificate key does not match a registered key',
-    );
+    throw new UnauthorizedException('client certificate key does not match a registered key');
   }
 }

@@ -58,8 +58,7 @@ describe('HibpService', () => {
     const svc = await build();
     fetchMock.mockResolvedValue({
       ok: true,
-      text: async () =>
-        'D66A63D4BF1747940578EC3D0103530E21D:42\nOTHER:99\n',
+      text: async () => 'D66A63D4BF1747940578EC3D0103530E21D:42\nOTHER:99\n',
     });
     expect(await svc.breachCount('hunter2')).toBe(42);
   });

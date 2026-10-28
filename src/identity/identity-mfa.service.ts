@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdentityService } from './identity.service';
@@ -63,7 +68,10 @@ export class IdentityMfaService {
    * recovery factor. Previously the only set a user ever saw was the one
    * shown once at enable-time — losing it meant losing the account.
    */
-  async regenerateBackupCodes(userId: string, password: string): Promise<{ backupCodes: string[] }> {
+  async regenerateBackupCodes(
+    userId: string,
+    password: string,
+  ): Promise<{ backupCodes: string[] }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, passwordHash: true, twoFactorEnabled: true, metadata: true },
@@ -129,7 +137,10 @@ export class IdentityMfaService {
   /**
    * Enable 2FA after verifying code
    */
-  async enable2FA(userId: string, code: string): Promise<{ success: boolean; backupCodes?: string[] }> {
+  async enable2FA(
+    userId: string,
+    code: string,
+  ): Promise<{ success: boolean; backupCodes?: string[] }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, twoFactorSecret: true, twoFactorEnabled: true, metadata: true },
@@ -162,7 +173,7 @@ export class IdentityMfaService {
         twoFactorEnabled: true,
         metadata: {
           ...(user.metadata as Record<string, unknown>),
-          backupCodes: backupCodes.map(c => bcrypt.hashSync(c, 10)),
+          backupCodes: backupCodes.map((c) => bcrypt.hashSync(c, 10)),
         } as Prisma.InputJsonValue,
       },
     });
@@ -176,7 +187,13 @@ export class IdentityMfaService {
   async disable2FA(userId: string, code: string, password: string): Promise<{ success: boolean }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true, twoFactorSecret: true, twoFactorEnabled: true, metadata: true },
+      select: {
+        id: true,
+        passwordHash: true,
+        twoFactorSecret: true,
+        twoFactorEnabled: true,
+        metadata: true,
+      },
     });
 
     if (!user) {

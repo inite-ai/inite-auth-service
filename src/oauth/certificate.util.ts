@@ -15,9 +15,7 @@ import { createHash, X509Certificate } from 'node:crypto';
  * Returns null when the value is absent or not a parseable certificate — the
  * caller decides whether a missing cert is an error for this client.
  */
-export function parseForwardedCertificate(
-  raw: string | undefined | null,
-): X509Certificate | null {
+export function parseForwardedCertificate(raw: string | undefined | null): X509Certificate | null {
   if (!raw) return null;
   let text = raw.trim();
   try {

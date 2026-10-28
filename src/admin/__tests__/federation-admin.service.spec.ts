@@ -6,10 +6,12 @@ import { FederationConfigStore } from '../../auth/federation/federation-config.s
 import { ProviderConfig } from '../../auth/federation/contracts/provider-config';
 
 /** Build the service with lightweight mocks for its four collaborators. */
-function setup(overrides: {
-  findUnique?: Record<string, unknown> | null;
-  envConfig?: ProviderConfig | null;
-} = {}) {
+function setup(
+  overrides: {
+    findUnique?: Record<string, unknown> | null;
+    envConfig?: ProviderConfig | null;
+  } = {},
+) {
   const create = jest.fn().mockResolvedValue({});
   const update = jest.fn().mockResolvedValue({});
   const upsert = jest.fn().mockResolvedValue({});
@@ -79,7 +81,11 @@ describe('FederationAdminService', () => {
       issuer: null,
     };
     const { svc, upsert, findUnique, store } = setup({ findUnique: row });
-    const summary = await svc.upsert('google', { clientId: 'id', clientSecret: 's3cret', enabled: true });
+    const summary = await svc.upsert('google', {
+      clientId: 'id',
+      clientSecret: 's3cret',
+      enabled: true,
+    });
     const call = upsert.mock.calls[0][0];
     expect(call.create.clientSecretEnc).toBe('enc:s3cret');
     expect(store.invalidate).toHaveBeenCalled();
@@ -109,7 +115,12 @@ describe('FederationAdminService', () => {
 
   it('reports OIDC discovery reachability from test()', async () => {
     const { svc, providers } = setup();
-    providers.resolveForTest.mockReturnValue({ id: 'oidc', issuer: 'https://idp', clientId: 'a', clientSecret: 'b' });
+    providers.resolveForTest.mockReturnValue({
+      id: 'oidc',
+      issuer: 'https://idp',
+      clientId: 'a',
+      clientSecret: 'b',
+    });
     providers.getEndpoints.mockResolvedValue({ authorizationEndpoint: 'x', tokenEndpoint: 'y' });
     await expect(svc.test('oidc')).resolves.toEqual({ ok: true, detail: expect.any(String) });
 

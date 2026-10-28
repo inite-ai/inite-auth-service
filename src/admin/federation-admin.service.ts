@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { FederationProvider } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FieldCrypto } from '../common/field-crypto';
@@ -80,7 +76,8 @@ export class FederationAdminService {
   private buildUpdate(dto: UpsertFederationDto): Record<string, unknown> {
     const data: Record<string, unknown> = { clientId: dto.clientId };
     if (dto.displayName !== undefined) data.displayName = dto.displayName;
-    if (dto.clientSecret !== undefined) data.clientSecretEnc = this.crypto.encrypt(dto.clientSecret);
+    if (dto.clientSecret !== undefined)
+      data.clientSecretEnc = this.crypto.encrypt(dto.clientSecret);
     if (dto.scopes !== undefined) data.scopes = dto.scopes;
     if (dto.issuer !== undefined) data.issuer = dto.issuer;
     if (dto.enabled !== undefined) data.enabled = dto.enabled;

@@ -1,10 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import {
-  Counter,
-  Histogram,
-  Registry,
-  collectDefaultMetrics,
-} from 'prom-client';
+import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 
 /**
  * Application metrics registry. Exposes /metrics scrape data for

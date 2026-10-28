@@ -1,11 +1,4 @@
-import {
-  IsArray,
-  IsBoolean,
-  IsOptional,
-  IsString,
-  IsUrl,
-  MaxLength,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 /**
  * Admin upsert of a federation provider's DB-backed config. The secret is

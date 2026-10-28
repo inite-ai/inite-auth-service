@@ -68,7 +68,9 @@ describe('OrganizationsController', () => {
   });
 
   it('removeMember awaits + returns success', async () => {
-    await expect(controller.removeMember(superadmin, 'o1', 'u9')).resolves.toEqual({ success: true });
+    await expect(controller.removeMember(superadmin, 'o1', 'u9')).resolves.toEqual({
+      success: true,
+    });
     expect(service.removeMember).toHaveBeenCalledWith({ kind: 'superadmin' }, 'o1', 'u9');
   });
 

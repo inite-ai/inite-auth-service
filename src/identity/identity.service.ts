@@ -208,11 +208,7 @@ export class IdentityService {
   /**
    * Generate SIWE message for wallet linking
    */
-  generateSiweMessage(
-    address: string,
-    did: string,
-    nonce: string,
-  ): string {
+  generateSiweMessage(address: string, did: string, nonce: string): string {
     const domain = this.configService.get<string>('RP_ID', 'localhost');
     const uri = this.configService.get<string>('RP_ORIGIN', 'http://localhost:3000');
     const issuedAt = new Date().toISOString();

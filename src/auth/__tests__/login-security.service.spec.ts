@@ -27,10 +27,16 @@ describe('LoginSecurityService', () => {
       providers: [
         LoginSecurityService,
         { provide: PrismaService, useValue: prisma },
-        { provide: EmailService, useValue: { sendAccountLocked: jest.fn(), sendFailedLoginThreshold: jest.fn() } },
+        {
+          provide: EmailService,
+          useValue: { sendAccountLocked: jest.fn(), sendFailedLoginThreshold: jest.fn() },
+        },
         { provide: MetricsService, useValue: metrics },
         { provide: RedisService, useValue: redis },
-        { provide: OAuthAuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: OAuthAuditService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

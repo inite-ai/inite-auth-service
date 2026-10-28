@@ -28,7 +28,9 @@ const TRANSPORTS: readonly string[] = ['usb', 'nfc', 'ble', 'internal', 'hybrid'
 
 /** The transports the authenticator reported at registration, or none (= any). */
 function transportsOf(stored: unknown): Transport[] | undefined {
-  const list = Array.isArray(stored) ? stored.filter((t): t is Transport => typeof t === 'string' && TRANSPORTS.includes(t)) : [];
+  const list = Array.isArray(stored)
+    ? stored.filter((t): t is Transport => typeof t === 'string' && TRANSPORTS.includes(t))
+    : [];
   return list.length > 0 ? list : undefined;
 }
 const REGISTRATION_KEY = (userId: string) => `webauthn:reg:${userId}`;
@@ -85,9 +87,7 @@ export class PasskeyService {
    * this matches expectedChallenge, but we extract it first so we can look
    * up the server-issued challenge in Redis.
    */
-  private extractChallengeFromResponse(
-    response: { response: { clientDataJSON: string } },
-  ): string {
+  private extractChallengeFromResponse(response: { response: { clientDataJSON: string } }): string {
     try {
       const json = Buffer.from(response.response.clientDataJSON, 'base64url').toString('utf-8');
       const parsed = JSON.parse(json) as { challenge?: string };
@@ -122,11 +122,14 @@ export class PasskeyService {
       userName: user.email || user.did,
       userDisplayName: user.name || user.email || 'User',
       attestationType: this.attestationType,
-      excludeCredentials: existingPasskeys.length > 0 ? existingPasskeys.map((passkey) => ({
-        id: passkey.credentialId,
-        type: 'public-key' as const,
-        transports: transportsOf(passkey.transports),
-      })) : undefined,
+      excludeCredentials:
+        existingPasskeys.length > 0
+          ? existingPasskeys.map((passkey) => ({
+              id: passkey.credentialId,
+              type: 'public-key' as const,
+              transports: transportsOf(passkey.transports),
+            }))
+          : undefined,
       // No authenticatorAttachment: 'platform' only ruled out security keys and
       // a phone scanned by QR, which the sign-in page offers. Resident keys are
       // required because sign-in is discoverable-only (see
@@ -138,11 +141,7 @@ export class PasskeyService {
       },
     });
 
-    await this.redis.set(
-      REGISTRATION_KEY(userId),
-      options.challenge,
-      CHALLENGE_TTL_SECONDS,
-    );
+    await this.redis.set(REGISTRATION_KEY(userId), options.challenge, CHALLENGE_TTL_SECONDS);
 
     return options;
   }
@@ -153,10 +152,7 @@ export class PasskeyService {
    * The expected challenge is read from Redis (where it was stored when
    * `generateRegistrationOptions` was called) — never from the client.
    */
-  async verifyRegistrationResponse(
-    userId: string,
-    response: RegistrationResponseJSON,
-  ) {
+  async verifyRegistrationResponse(userId: string, response: RegistrationResponseJSON) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
@@ -182,9 +178,8 @@ export class PasskeyService {
 
     const { credential } = verification.registrationInfo;
 
-    const credentialIdToStore = typeof credential.id === 'string'
-      ? credential.id
-      : isoBase64URL.fromBuffer(credential.id);
+    const credentialIdToStore =
+      typeof credential.id === 'string' ? credential.id : isoBase64URL.fromBuffer(credential.id);
 
     const publicKeyBase64 = Buffer.from(credential.publicKey).toString('base64');
 
@@ -224,11 +219,7 @@ export class PasskeyService {
     // challenge by. Use the challenge itself as the key; the verify path
     // extracts the challenge from the client's signed assertion and
     // atomically getDel's the matching key.
-    await this.redis.set(
-      AUTHENTICATION_KEY(options.challenge),
-      '1',
-      CHALLENGE_TTL_SECONDS,
-    );
+    await this.redis.set(AUTHENTICATION_KEY(options.challenge), '1', CHALLENGE_TTL_SECONDS);
 
     return options;
   }
@@ -242,9 +233,7 @@ export class PasskeyService {
    * expired — assertion is rejected. This is what makes WebAuthn
    * assertions unreplayable.
    */
-  async verifyAuthenticationResponse(
-    response: AuthenticationResponseJSON,
-  ) {
+  async verifyAuthenticationResponse(response: AuthenticationResponseJSON) {
     const expectedChallenge = this.extractChallengeFromResponse(response);
     const stored = await this.redis.getDel(AUTHENTICATION_KEY(expectedChallenge));
     if (!stored) {
@@ -263,10 +252,9 @@ export class PasskeyService {
 
     // Fallback: try base64 format (for old passkeys stored before fix)
     if (!passkey) {
-      const credentialIdBase64 = credentialIdBase64Url
-        .replace(/-/g, '+')
-        .replace(/_/g, '/')
-        + '='.repeat((4 - credentialIdBase64Url.length % 4) % 4);
+      const credentialIdBase64 =
+        credentialIdBase64Url.replace(/-/g, '+').replace(/_/g, '/') +
+        '='.repeat((4 - (credentialIdBase64Url.length % 4)) % 4);
 
       passkey = await this.prisma.passkey.findUnique({
         where: { credentialId: credentialIdBase64 },
@@ -275,7 +263,9 @@ export class PasskeyService {
     }
 
     if (!passkey) {
-      throw new BadRequestException('Passkey not found. You may need to register a new passkey for this account.');
+      throw new BadRequestException(
+        'Passkey not found. You may need to register a new passkey for this account.',
+      );
     }
 
     const publicKeyBuffer = Buffer.from(passkey.publicKey, 'base64');

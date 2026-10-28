@@ -5,9 +5,7 @@ import { SettingsService } from './settings.service';
  * construct services directly (no Nest DI). Mirrors the DB→env→default
  * resolution: a present key resolves as 'env', absent as 'default'.
  */
-export function fakeSettings(
-  env: Record<string, string | undefined>,
-): SettingsService {
+export function fakeSettings(env: Record<string, string | undefined>): SettingsService {
   return {
     raw: (k: string) => env[k],
     flag: (k: string) => env[k] === 'true',

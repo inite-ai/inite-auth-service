@@ -20,7 +20,9 @@ describe('scim-discovery', () => {
   });
 
   it('ResourceTypes lists User and Group', () => {
-    const rt = resourceTypes(BASE) as { Resources: Array<{ id: string; endpoint: string; schema: string }> };
+    const rt = resourceTypes(BASE) as {
+      Resources: Array<{ id: string; endpoint: string; schema: string }>;
+    };
     const ids = rt.Resources.map((r) => r.id);
     expect(ids).toEqual(['User', 'Group']);
     expect(rt.Resources[0]!.schema).toBe(SCIM_SCHEMAS.user);

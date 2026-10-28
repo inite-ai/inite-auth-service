@@ -105,7 +105,9 @@ describe('AdminService', () => {
         backchannel as unknown as BackchannelLogoutService,
       );
 
-      const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { reason: 'leaked' });
+      const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', {
+        reason: 'leaked',
+      });
 
       expect(result.success).toBe(true);
       expect(result.refreshTokensRevoked).toBe(3);
@@ -139,9 +141,9 @@ describe('AdminService', () => {
         mockPrisma as unknown as PrismaService,
         {} as unknown as AdminClientsService,
       );
-      await expect(
-        s.revokeAllUserSessions('22222222-2222-4222-8222-222222222222'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(s.revokeAllUserSessions('22222222-2222-4222-8222-222222222222')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws 400 BadRequestException when userId is not a UUID', async () => {
@@ -150,9 +152,7 @@ describe('AdminService', () => {
         mockPrisma as unknown as PrismaService,
         {} as unknown as AdminClientsService,
       );
-      await expect(s.revokeAllUserSessions('not-a-uuid')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(s.revokeAllUserSessions('not-a-uuid')).rejects.toThrow(BadRequestException);
       // Should never touch the DB.
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
@@ -176,7 +176,11 @@ describe('AdminService', () => {
     });
 
     it('honours custom lockoutHours, capped to 7d', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', did: 'did:k', email: 'a@b.com' });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        did: 'did:k',
+        email: 'a@b.com',
+      });
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.update.mockResolvedValue({});
       const s = new AdminService(
@@ -185,7 +189,9 @@ describe('AdminService', () => {
       );
 
       const before = Date.now();
-      const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', { lockoutHours: 9999 });
+      const result = await s.revokeAllUserSessions('11111111-1111-4111-8111-111111111111', {
+        lockoutHours: 9999,
+      });
       const lockoutMs = new Date(result.lockoutUntil).getTime();
 
       // Capped at 7 days
@@ -205,9 +211,7 @@ describe('AdminService', () => {
 
       const result = await service.getAllUsers(1, 20);
       expect(result.users).toHaveLength(2);
-      expect(
-        (result.users[0]! as Record<string, unknown>).passwordHash,
-      ).toBeUndefined();
+      expect((result.users[0]! as Record<string, unknown>).passwordHash).toBeUndefined();
       expect(result.pagination.total).toBe(2);
     });
 
@@ -215,18 +219,14 @@ describe('AdminService', () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
       mockPrisma.user.count.mockResolvedValue(0);
       await service.getAllUsers(1, 9999);
-      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 100 }),
-      );
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
     });
 
     it('should enforce minimum limit of 1', async () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
       mockPrisma.user.count.mockResolvedValue(0);
       await service.getAllUsers(1, -5);
-      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 1 }),
-      );
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
     });
   });
 
@@ -277,7 +277,13 @@ describe('AdminService', () => {
   describe('getAllOAuthClients', () => {
     it('should return clients without clientSecretHash', async () => {
       mockPrisma.oAuthClient.findMany.mockResolvedValue([
-        { clientId: 'app', clientSecretHash: 'secret', allowedScopes: ['openid'], allowedGrants: ['authorization_code'], redirectUris: ['https://a.com/callback', 'https://b.com/callback'] },
+        {
+          clientId: 'app',
+          clientSecretHash: 'secret',
+          allowedScopes: ['openid'],
+          allowedGrants: ['authorization_code'],
+          redirectUris: ['https://a.com/callback', 'https://b.com/callback'],
+        },
       ]);
 
       const result = await service.getAllOAuthClients();
@@ -297,19 +303,27 @@ describe('AdminService', () => {
       await service.deleteOAuthClient('test-app');
 
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockPrisma.authorizationCode.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
-      expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
-      expect(mockPrisma.oAuthClient.delete).toHaveBeenCalledWith({ where: { clientId: 'test-app' } });
+      expect(mockPrisma.authorizationCode.deleteMany).toHaveBeenCalledWith({
+        where: { clientId: 'test-app' },
+      });
+      expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { clientId: 'test-app' },
+      });
+      expect(mockPrisma.oAuthClient.delete).toHaveBeenCalledWith({
+        where: { clientId: 'test-app' },
+      });
     });
   });
 
   describe('createOAuthClient', () => {
     it('persists allowedGrants + companyId when provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
-        ...data,
-        id: 'uuid-1',
-        clientSecretHash: data.clientSecretHash,
-      }));
+      mockPrisma.oAuthClient.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => ({
+          ...data,
+          id: 'uuid-1',
+          clientSecretHash: data.clientSecretHash,
+        }),
+      );
 
       const result = await service.createOAuthClient({
         name: 'Brain M2M',
@@ -321,9 +335,7 @@ describe('AdminService', () => {
       });
 
       const persisted = mockPrisma.oAuthClient.create.mock.calls[0][0].data;
-      expect(persisted.allowedScopes).toEqual([
-        'brain:read', 'brain:write', 'brain:admin',
-      ]);
+      expect(persisted.allowedScopes).toEqual(['brain:read', 'brain:write', 'brain:admin']);
       expect(persisted.allowedGrants).toEqual(['client_credentials']);
       expect(persisted.companyId).toBe('co_smar_chat');
       expect(result.clientSecret).toBeDefined();
@@ -331,7 +343,9 @@ describe('AdminService', () => {
     });
 
     it('falls back to default scopes when none provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => data,
+      );
 
       await service.createOAuthClient({
         name: 'User App',
@@ -348,7 +362,9 @@ describe('AdminService', () => {
     });
 
     it('treats empty allowedGrants array as "use schema default"', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => data,
+      );
 
       await service.createOAuthClient({
         name: 'X',
@@ -362,7 +378,9 @@ describe('AdminService', () => {
     });
 
     it('persists allowedAudiences for M2M clients', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => data,
+      );
 
       await service.createOAuthClient({
         name: 'Brain M2M',
@@ -379,7 +397,9 @@ describe('AdminService', () => {
     });
 
     it('defaults allowedAudiences to empty array when not provided', async () => {
-      mockPrisma.oAuthClient.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => data);
+      mockPrisma.oAuthClient.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => data,
+      );
 
       await service.createOAuthClient({
         name: 'User App',

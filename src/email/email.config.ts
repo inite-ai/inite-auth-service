@@ -72,21 +72,19 @@ export const EMAIL_TEMPLATES = {
   },
   passwordReset: {
     templateName: 'password-reset-layout',
-    getContext: (params: {
-      user: EmailUser;
-      resetUrl: string;
-      app: EmailApp;
-    }) => ({
+    getContext: (params: { user: EmailUser; resetUrl: string; app: EmailApp }) => ({
       user: params.user,
       resetUrl: params.resetUrl,
       app: params.app,
       translations: {
         title: 'Reset Your Password',
         message: `Hello ${params.user.name || params.user.email},`,
-        instructions: 'You requested to reset your password. Click the button below to create a new password:',
+        instructions:
+          'You requested to reset your password. Click the button below to create a new password:',
         button: 'Reset Password',
         expiry: 'This link will expire in 1 hour.',
-        security: 'If you did not request this, please ignore this email or contact support if you have concerns.',
+        security:
+          'If you did not request this, please ignore this email or contact support if you have concerns.',
         footer: {
           copyright: '© 2024 INITE. All rights reserved.',
           questions: 'Questions? Contact us at ',
@@ -101,11 +99,7 @@ export const EMAIL_TEMPLATES = {
   },
   magicLink: {
     templateName: 'magic-link-layout',
-    getContext: (params: {
-      user: EmailUser;
-      magicLink: string;
-      app: EmailApp;
-    }) => ({
+    getContext: (params: { user: EmailUser; magicLink: string; app: EmailApp }) => ({
       user: params.user,
       magicLink: params.magicLink,
       app: params.app,
@@ -114,7 +108,8 @@ export const EMAIL_TEMPLATES = {
         message: `Hello ${params.user.name || params.user.email},<br><br>Click the button below to sign in to your INITE account:`,
         button: 'Sign In',
         expiry: 'This link will expire in 15 minutes.',
-        security: 'If you did not request this, please ignore this email or contact support if you have concerns.',
+        security:
+          'If you did not request this, please ignore this email or contact support if you have concerns.',
         footer: {
           copyright: '© 2024 INITE. All rights reserved.',
           questions: 'Questions? Contact us at ',
@@ -136,9 +131,10 @@ export const EMAIL_TEMPLATES = {
       translations: {
         title: 'Sign-in from new device',
         message: `Hello, ${params.user.name || params.user.email}!`,
-        description: 'We detected a sign-in to your INITE account from a device or browser you haven\'t used before.',
+        description:
+          "We detected a sign-in to your INITE account from a device or browser you haven't used before.",
         deviceLabel: 'Device:',
-        warning: 'If this wasn\'t you, we recommend changing your password in security settings.',
+        warning: "If this wasn't you, we recommend changing your password in security settings.",
         footer: {
           copyright: '© 2024 INITE. All rights reserved.',
           questions: 'Questions? Contact us at ',

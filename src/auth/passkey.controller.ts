@@ -1,21 +1,9 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  UseGuards,
-  Req,
-  Res,
-  HttpCode,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req, Res, HttpCode } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
-import type {
-  RegistrationResponseJSON,
-  AuthenticationResponseJSON,
-} from '@simplewebauthn/types';
+import type { RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/types';
 import { AuthService } from './auth.service';
 import { PasskeyService } from './passkey.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -40,9 +28,7 @@ export class PasskeyController {
   ) {
     this.logger.setContext('PasskeyController');
     this.sessionSecret =
-      this.config.get<string>('SESSION_SECRET') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
+      this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
   // ==================== Passkey Auth (WebAuthn) ====================
@@ -66,10 +52,7 @@ export class PasskeyController {
 
   @Post('passkey/registration/verify')
   @UseGuards(JwtAuthGuard)
-  async verifyRegistration(
-    @CurrentUserId() userId: string,
-    @Body() body: PasskeyResponseDto,
-  ) {
+  async verifyRegistration(@CurrentUserId() userId: string, @Body() body: PasskeyResponseDto) {
     // body.challenge is intentionally ignored — the expected challenge is
     // read from server-side Redis where it was stored by the options
     // endpoint. Trusting client-supplied challenge defeats WebAuthn replay
@@ -119,10 +102,12 @@ export class PasskeyController {
       amr: result.userVerified ? ['fido', 'mfa'] : ['fido'],
     });
 
-    this.authService.notifyNewDeviceIfNeeded(result.user.id, {
-      userAgent: req.get('user-agent') || req.headers['user-agent'],
-      ip: req.ip || req.socket?.remoteAddress,
-    }).catch(swallow(this.logger, 'new-device notification'));
+    this.authService
+      .notifyNewDeviceIfNeeded(result.user.id, {
+        userAgent: req.get('user-agent') || req.headers['user-agent'],
+        ip: req.ip || req.socket?.remoteAddress,
+      })
+      .catch(swallow(this.logger, 'new-device notification'));
 
     this.logger.auth('Passkey authentication success', { userId: result.user.id });
 
@@ -146,10 +131,7 @@ export class PasskeyController {
 
   @Post('passkey/delete')
   @UseGuards(JwtAuthGuard)
-  async deletePasskey(
-    @CurrentUserId() userId: string,
-    @Body() body: DeletePasskeyDto,
-  ) {
+  async deletePasskey(@CurrentUserId() userId: string, @Body() body: DeletePasskeyDto) {
     await this.passkeyService.deletePasskey(userId, body.passkeyId);
     this.logger.auth('Passkey deleted', { userId, passkeyId: body.passkeyId });
     return { success: true };

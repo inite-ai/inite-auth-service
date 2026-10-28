@@ -31,7 +31,10 @@ export class AuditWebhookService {
   sign(body: string): string {
     return (
       'sha256=' +
-      crypto.createHmac('sha256', this.secret ?? '').update(body).digest('hex')
+      crypto
+        .createHmac('sha256', this.secret ?? '')
+        .update(body)
+        .digest('hex')
     );
   }
 
@@ -49,10 +52,7 @@ export class AuditWebhookService {
     if (this.secret) headers['X-INITE-Signature'] = this.sign(body);
 
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      AuditWebhookService.TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => controller.abort(), AuditWebhookService.TIMEOUT_MS);
     try {
       const res = await fetch(this.url, {
         method: 'POST',
@@ -64,9 +64,7 @@ export class AuditWebhookService {
         this.logger.warn(`audit webhook returned HTTP ${res.status}`);
       }
     } catch (err) {
-      this.logger.warn(
-        `audit webhook delivery failed: ${(err as Error)?.message ?? 'unknown'}`,
-      );
+      this.logger.warn(`audit webhook delivery failed: ${(err as Error)?.message ?? 'unknown'}`);
     } finally {
       clearTimeout(timer);
     }

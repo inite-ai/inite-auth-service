@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Delete,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,10 +16,7 @@ export class SessionController {
   }
 
   @Delete(':sessionId')
-  async revokeSession(
-    @CurrentUserId() userId: string,
-    @Param('sessionId') sessionId: string,
-  ) {
+  async revokeSession(@CurrentUserId() userId: string, @Param('sessionId') sessionId: string) {
     await this.sessionService.revokeSession(userId, sessionId);
     return { success: true };
   }
@@ -37,16 +27,8 @@ export class SessionController {
    * the user out of the tab they are securing the account from.
    */
   @Delete()
-  async revokeAllSessions(
-    @CurrentUserId() userId: string,
-    @Query('except') except?: string,
-  ) {
+  async revokeAllSessions(@CurrentUserId() userId: string, @Query('except') except?: string) {
     await this.sessionService.revokeAllSessions(userId, except);
     return { success: true };
   }
 }
-
-
-
-
-

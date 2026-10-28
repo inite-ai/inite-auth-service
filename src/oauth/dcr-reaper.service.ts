@@ -50,9 +50,7 @@ export class DcrReaperService {
       return;
     }
 
-    const usedClientIds = await this.findUsedClientIds(
-      stale.map((client) => client.clientId),
-    );
+    const usedClientIds = await this.findUsedClientIds(stale.map((client) => client.clientId));
     const reapableIds = stale
       .filter((client) => !usedClientIds.has(client.clientId) && !isSelfAgent(client))
       .map((client) => client.id);

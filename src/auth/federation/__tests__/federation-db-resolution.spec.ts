@@ -1,9 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { FederationProviders } from '../federation-providers.service';
-import {
-  FederationConfigStore,
-  FederationDbEntry,
-} from '../federation-config.store';
+import { FederationConfigStore, FederationDbEntry } from '../federation-config.store';
 
 /**
  * DB-over-env resolution: a FederationProvider row wins over env, and an

@@ -1,10 +1,4 @@
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { scimError, SCIM_CONTENT_TYPE } from './scim.contracts';
 
@@ -31,7 +25,10 @@ export class ScimExceptionFilter implements ExceptionFilter {
 
     // §3.3 — a create colliding with an existing resource is a uniqueness error.
     const scimType = status === HttpStatus.CONFLICT ? 'uniqueness' : undefined;
-    res.status(status).type(SCIM_CONTENT_TYPE).json(scimError(status, detail, scimType));
+    res
+      .status(status)
+      .type(SCIM_CONTENT_TYPE)
+      .json(scimError(status, detail, scimType));
   }
 }
 

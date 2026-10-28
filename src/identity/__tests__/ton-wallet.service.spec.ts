@@ -36,15 +36,9 @@ describe('TonWalletService', () => {
       getIdentityById: jest.fn().mockResolvedValue({ id: 'u1' }),
       persistWallet: jest.fn().mockResolvedValue({ id: 'w1' }),
     };
-    verifySpy = jest
-      .spyOn(tonProof, 'verifyTonProof')
-      .mockReturnValue({ valid: true });
+    verifySpy = jest.spyOn(tonProof, 'verifyTonProof').mockReturnValue({ valid: true });
 
-    service = new TonWalletService(
-      redis as never,
-      settings as never,
-      identity as never,
-    );
+    service = new TonWalletService(redis as never, settings as never, identity as never);
   });
 
   afterEach(() => jest.restoreAllMocks());

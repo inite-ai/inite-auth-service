@@ -63,12 +63,20 @@ export class OrganizationsController {
   }
 
   @Post(':orgId/members')
-  upsertMember(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Body() dto: UpsertMembershipDto) {
+  upsertMember(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orgId') orgId: string,
+    @Body() dto: UpsertMembershipDto,
+  ) {
     return this.organizations.upsertMember(this.scope(user), orgId, dto);
   }
 
   @Delete(':orgId/members/:userId')
-  async removeMember(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Param('userId') userId: string) {
+  async removeMember(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orgId') orgId: string,
+    @Param('userId') userId: string,
+  ) {
     await this.organizations.removeMember(this.scope(user), orgId, userId);
     return { success: true };
   }
@@ -79,7 +87,11 @@ export class OrganizationsController {
   }
 
   @Post(':orgId/roles')
-  createRole(@CurrentUser() user: AuthenticatedUser, @Param('orgId') orgId: string, @Body() dto: CreateRoleDto) {
+  createRole(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orgId') orgId: string,
+    @Body() dto: CreateRoleDto,
+  ) {
     return this.organizations.createRole(this.scope(user), orgId, dto);
   }
 

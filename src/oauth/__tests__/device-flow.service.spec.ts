@@ -21,29 +21,20 @@ describe('DeviceFlowService', () => {
         findUnique: jest.fn(),
         create: jest
           .fn()
+          .mockImplementation(async ({ data }: { data: Record<string, unknown> }) => data),
+        update: jest
+          .fn()
           .mockImplementation(
-            async ({ data }: { data: Record<string, unknown> }) => data,
+            async ({ data, where }: { data: Record<string, unknown>; where: { id: string } }) => ({
+              ...data,
+              id: where.id,
+            }),
           ),
-        update: jest.fn().mockImplementation(
-          async ({
-            data,
-            where,
-          }: {
-            data: Record<string, unknown>;
-            where: { id: string };
-          }) => ({
-            ...data,
-            id: where.id,
-          }),
-        ),
         delete: jest.fn(),
       },
     };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DeviceFlowService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [DeviceFlowService, { provide: PrismaService, useValue: prisma }],
     }).compile();
     svc = module.get(DeviceFlowService);
   });
@@ -59,9 +50,7 @@ describe('DeviceFlowService', () => {
       });
       expect(out.user_code).toMatch(/^[A-Z]{4}-[A-Z]{4}$/);
       expect(out.device_code.length).toBeGreaterThan(40);
-      expect(out.verification_uri).toBe(
-        'https://auth.inite.ai/v1/oauth/device',
-      );
+      expect(out.verification_uri).toBe('https://auth.inite.ai/v1/oauth/device');
       expect(out.verification_uri_complete).toContain('?user_code=');
       expect(out.interval).toBe(5);
       expect(out.expires_in).toBe(600);
@@ -207,9 +196,9 @@ describe('DeviceFlowService', () => {
 
     it('throws for non-existent user_code', async () => {
       prisma.deviceAuthorization.findUnique.mockResolvedValue(null);
-      await expect(
-        svc.approve({ userCode: 'X', userId: 'u-1' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(svc.approve({ userCode: 'X', userId: 'u-1' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

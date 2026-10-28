@@ -7,8 +7,18 @@ describe('AdminClientsService first-party', () => {
   let service: AdminClientsService;
 
   beforeEach(() => {
-    const echo = ({ data }: { data: Record<string, unknown> }) => ({ id: 'c1', clientSecretHash: 'h', clientId: 'x', ...data });
-    prisma = { oAuthClient: { create: jest.fn().mockImplementation(echo), update: jest.fn().mockImplementation(echo) } };
+    const echo = ({ data }: { data: Record<string, unknown> }) => ({
+      id: 'c1',
+      clientSecretHash: 'h',
+      clientId: 'x',
+      ...data,
+    });
+    prisma = {
+      oAuthClient: {
+        create: jest.fn().mockImplementation(echo),
+        update: jest.fn().mockImplementation(echo),
+      },
+    };
     service = new AdminClientsService(prisma as unknown as PrismaService);
   });
 
@@ -18,7 +28,12 @@ describe('AdminClientsService first-party', () => {
   });
 
   it('registers it as third-party when unticked', async () => {
-    await service.createOAuthClient({ name: 'Partner', clientId: 'partner', redirectUris: [], firstParty: false });
+    await service.createOAuthClient({
+      name: 'Partner',
+      clientId: 'partner',
+      redirectUris: [],
+      firstParty: false,
+    });
     expect(prisma.oAuthClient.create.mock.calls[0][0].data.firstParty).toBe(false);
   });
 
@@ -30,7 +45,9 @@ describe('AdminClientsService first-party', () => {
   });
 
   it('refuses to make a self-registered dcr_ client first-party', async () => {
-    await expect(service.updateOAuthClient('dcr_abc', { firstParty: true })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateOAuthClient('dcr_abc', { firstParty: true })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     await expect(
       service.createOAuthClient({ name: 'X', clientId: 'dcr_x', redirectUris: [] }),
     ).rejects.toBeInstanceOf(BadRequestException);

@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
@@ -87,10 +78,7 @@ export class IdentityController {
 
   @Post('wallet/link')
   @UseGuards(JwtAuthGuard)
-  async linkWallet(
-    @CurrentUserId() userId: string,
-    @Body() body: LinkWalletDto,
-  ) {
+  async linkWallet(@CurrentUserId() userId: string, @Body() body: LinkWalletDto) {
     return await this.identityService.linkWallet({
       userId,
       address: body.address,
@@ -103,39 +91,22 @@ export class IdentityController {
 
   @Delete('wallet/:walletId')
   @UseGuards(JwtAuthGuard)
-  async unlinkWallet(
-    @CurrentUserId() userId: string,
-    @Param('walletId') walletId: string,
-  ) {
+  async unlinkWallet(@CurrentUserId() userId: string, @Param('walletId') walletId: string) {
     await this.identityService.unlinkWallet(userId, walletId);
     return { success: true };
   }
 
   @Post('credentials/issue')
   @UseGuards(JwtAuthGuard)
-  async issueCredential(
-    @CurrentUserId() userId: string,
-    @Body() body: IssueCredentialDto,
-  ) {
-    return await this.identityService.issueCredential(
-      userId,
-      body.type,
-      body.claims,
-    );
+  async issueCredential(@CurrentUserId() userId: string, @Body() body: IssueCredentialDto) {
+    return await this.identityService.issueCredential(userId, body.type, body.claims);
   }
 
   @Post('wallet/siwe-message')
   @UseGuards(JwtAuthGuard)
-  async generateSiweMessage(
-    @CurrentUserId() userId: string,
-    @Body() body: WalletMessageDto,
-  ) {
+  async generateSiweMessage(@CurrentUserId() userId: string, @Body() body: WalletMessageDto) {
     const user = await this.identityService.getIdentityById(userId);
-    const message = this.identityService.generateSiweMessage(
-      body.address,
-      user.did,
-      body.nonce,
-    );
+    const message = this.identityService.generateSiweMessage(body.address, user.did, body.nonce);
     return { message };
   }
 
@@ -150,10 +121,7 @@ export class IdentityController {
   @Post('wallet/ton/link')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async linkTonWallet(
-    @CurrentUserId() userId: string,
-    @Body() body: LinkTonWalletDto,
-  ) {
+  async linkTonWallet(@CurrentUserId() userId: string, @Body() body: LinkTonWalletDto) {
     return await this.tonWalletService.linkWithProof({ userId, ...body });
   }
 
@@ -161,20 +129,14 @@ export class IdentityController {
 
   @Put('profile')
   @UseGuards(JwtAuthGuard)
-  async updateProfile(
-    @CurrentUserId() userId: string,
-    @Body() body: UpdateProfileDto,
-  ) {
+  async updateProfile(@CurrentUserId() userId: string, @Body() body: UpdateProfileDto) {
     return await this.accountService.updateProfile(userId, body);
   }
 
   @Post('email/change')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async changeEmail(
-    @CurrentUserId() userId: string,
-    @Body() body: ChangeEmailDto,
-  ) {
+  async changeEmail(@CurrentUserId() userId: string, @Body() body: ChangeEmailDto) {
     await this.emailService.requestEmailChange(userId, body.newEmail, body.password);
     return { success: true, message: 'Verification email sent to new address' };
   }
@@ -202,15 +164,8 @@ export class IdentityController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async changePassword(
-    @CurrentUserId() userId: string,
-    @Body() body: ChangePasswordDto,
-  ) {
-    await this.accountService.changePassword(
-      userId,
-      body.currentPassword,
-      body.newPassword,
-    );
+  async changePassword(@CurrentUserId() userId: string, @Body() body: ChangePasswordDto) {
+    await this.accountService.changePassword(userId, body.currentPassword, body.newPassword);
     return { success: true, message: 'Password changed successfully' };
   }
 
@@ -230,19 +185,13 @@ export class IdentityController {
 
   @Post('2fa/enable')
   @UseGuards(JwtAuthGuard)
-  async enable2FA(
-    @CurrentUserId() userId: string,
-    @Body() body: TwoFactorCodeDto,
-  ) {
+  async enable2FA(@CurrentUserId() userId: string, @Body() body: TwoFactorCodeDto) {
     return await this.mfaService.enable2FA(userId, body.code);
   }
 
   @Post('2fa/disable')
   @UseGuards(JwtAuthGuard)
-  async disable2FA(
-    @CurrentUserId() userId: string,
-    @Body() body: Disable2faDto,
-  ) {
+  async disable2FA(@CurrentUserId() userId: string, @Body() body: Disable2faDto) {
     return await this.mfaService.disable2FA(userId, body.code, body.password);
   }
 
@@ -259,10 +208,7 @@ export class IdentityController {
   @Post('2fa/verify')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async verify2FA(
-    @CurrentUserId() userId: string,
-    @Body() body: TwoFactorCodeDto,
-  ) {
+  async verify2FA(@CurrentUserId() userId: string, @Body() body: TwoFactorCodeDto) {
     return await this.mfaService.verify2FA(userId, body.code);
   }
 
@@ -276,10 +222,7 @@ export class IdentityController {
 
   @Delete('account')
   @UseGuards(JwtAuthGuard)
-  async deleteAccount(
-    @CurrentUserId() userId: string,
-    @Body() body: DeleteAccountDto,
-  ) {
+  async deleteAccount(@CurrentUserId() userId: string, @Body() body: DeleteAccountDto) {
     await this.accountService.deleteAccount(userId, body.password);
     return { success: true, message: 'Account deleted successfully' };
   }

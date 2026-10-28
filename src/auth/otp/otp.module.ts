@@ -15,10 +15,7 @@ import { SMS_PROVIDER } from './sms/sms-provider.interface';
  */
 @Module({
   imports: [AuthModule, IdentityModule, EmailModule],
-  providers: [
-    OtpService,
-    { provide: SMS_PROVIDER, useClass: TwilioSmsProvider },
-  ],
+  providers: [OtpService, { provide: SMS_PROVIDER, useClass: TwilioSmsProvider }],
   controllers: [OtpController],
   exports: [OtpService],
 })

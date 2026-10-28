@@ -16,8 +16,7 @@ import { Request } from 'express';
 export class ClientIdThrottlerGuard extends ThrottlerGuard {
   protected override async getTracker(req: Request): Promise<string> {
     const body = req.body as Record<string, unknown> | undefined;
-    const clientId =
-      typeof body?.client_id === 'string' ? body.client_id : '';
+    const clientId = typeof body?.client_id === 'string' ? body.client_id : '';
     if (clientId) {
       return `oauth:client:${clientId}`;
     }

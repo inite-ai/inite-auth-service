@@ -1,4 +1,12 @@
-import { Controller, Get, GoneException, NotFoundException, Param, Res, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  GoneException,
+  NotFoundException,
+  Param,
+  Res,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { AgentsService } from './agents.service';
 

@@ -60,7 +60,14 @@ describe('IdentityService', () => {
         IdentityAccountService,
         IdentityEmailService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: DidService, useValue: { generateDid: jest.fn().mockResolvedValue({ did: 'did:key:test', publicKey: 'pk', privateKey: 'sk' }) } },
+        {
+          provide: DidService,
+          useValue: {
+            generateDid: jest
+              .fn()
+              .mockResolvedValue({ did: 'did:key:test', publicKey: 'pk', privateKey: 'sk' }),
+          },
+        },
         {
           provide: EmailService,
           useValue: {
@@ -69,7 +76,10 @@ describe('IdentityService', () => {
             sendPasswordChanged: jest.fn().mockResolvedValue(true),
           },
         },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('https://auth.inite.ai') },
+        },
       ],
     }).compile();
 
@@ -80,12 +90,16 @@ describe('IdentityService', () => {
   describe('changePassword', () => {
     it('should reject password shorter than 8 chars', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
-      await expect(accountService.changePassword('1', '', 'short')).rejects.toThrow('at least 8 characters');
+      await expect(accountService.changePassword('1', '', 'short')).rejects.toThrow(
+        'at least 8 characters',
+      );
     });
 
     it('should reject password without uppercase', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: null });
-      await expect(accountService.changePassword('1', '', 'lowercase1')).rejects.toThrow('uppercase');
+      await expect(accountService.changePassword('1', '', 'lowercase1')).rejects.toThrow(
+        'uppercase',
+      );
     });
 
     it('should reject password without number', async () => {
@@ -116,7 +130,9 @@ describe('IdentityService', () => {
     it('should verify current password if set', async () => {
       const hash = await bcrypt.hash('oldpass', 10);
       mockPrisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: hash });
-      await expect(accountService.changePassword('1', 'wrongold', 'NewPass1')).rejects.toThrow('incorrect');
+      await expect(accountService.changePassword('1', 'wrongold', 'NewPass1')).rejects.toThrow(
+        'incorrect',
+      );
     });
   });
 

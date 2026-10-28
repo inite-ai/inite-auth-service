@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Organization, Membership, OrgRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminScope, applyScopeFilter } from '../admin/admin-scope';
@@ -54,11 +50,20 @@ export class OrganizationsService {
     return this.prisma.membership.findMany({ where: { organizationId: orgId } });
   }
 
-  async upsertMember(scope: AdminScope, orgId: string, dto: UpsertMembershipDto): Promise<Membership> {
+  async upsertMember(
+    scope: AdminScope,
+    orgId: string,
+    dto: UpsertMembershipDto,
+  ): Promise<Membership> {
     await this.get(scope, orgId);
     return this.prisma.membership.upsert({
       where: { userId_organizationId: { userId: dto.userId, organizationId: orgId } },
-      create: { userId: dto.userId, organizationId: orgId, role: dto.role, status: dto.status ?? 'active' },
+      create: {
+        userId: dto.userId,
+        organizationId: orgId,
+        role: dto.role,
+        status: dto.status ?? 'active',
+      },
       update: { role: dto.role, status: dto.status ?? 'active' },
     });
   }
@@ -69,13 +74,27 @@ export class OrganizationsService {
   }
 
   /** System roles (built-in) plus any custom OrgRole rows for the org. */
-  async listRoles(scope: AdminScope, orgId: string): Promise<Array<{ slug: string; name: string; permissions: string[]; system: boolean }>> {
+  async listRoles(
+    scope: AdminScope,
+    orgId: string,
+  ): Promise<Array<{ slug: string; name: string; permissions: string[]; system: boolean }>> {
     await this.get(scope, orgId);
     const system = Object.entries(SYSTEM_ROLE_PERMISSIONS).map(([slug, permissions]) => ({
-      slug, name: slug, permissions, system: true,
+      slug,
+      name: slug,
+      permissions,
+      system: true,
     }));
     const custom = await this.prisma.orgRole.findMany({ where: { organizationId: orgId } });
-    return [...system, ...custom.map((r) => ({ slug: r.slug, name: r.name, permissions: r.permissions, system: false }))];
+    return [
+      ...system,
+      ...custom.map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        permissions: r.permissions,
+        system: false,
+      })),
+    ];
   }
 
   async createRole(scope: AdminScope, orgId: string, dto: CreateRoleDto): Promise<OrgRole> {
@@ -98,7 +117,9 @@ export class OrganizationsService {
   ): Promise<OrgRole> {
     await this.get(scope, orgId);
     if (SYSTEM_ROLE_PERMISSIONS[patch.slug]) {
-      throw new BadRequestException(`"${patch.slug}" is a reserved system role and cannot be edited`);
+      throw new BadRequestException(
+        `"${patch.slug}" is a reserved system role and cannot be edited`,
+      );
     }
     const existing = await this.prisma.orgRole.findFirst({
       where: { organizationId: orgId, slug: patch.slug },

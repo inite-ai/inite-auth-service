@@ -16,10 +16,7 @@ export class PkceService {
     }
 
     if (method === 'S256') {
-      const hash = crypto
-        .createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url');
+      const hash = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
       return hash === codeChallenge;
     }
 
@@ -35,10 +32,7 @@ export class PkceService {
     }
 
     if (method === 'S256') {
-      return crypto
-        .createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url');
+      return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
     }
 
     throw new Error(`Unsupported code challenge method: ${method}`);
@@ -51,8 +45,3 @@ export class PkceService {
     return crypto.randomBytes(32).toString('base64url');
   }
 }
-
-
-
-
-

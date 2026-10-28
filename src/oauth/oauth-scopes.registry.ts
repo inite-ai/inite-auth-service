@@ -57,6 +57,13 @@ export const WALLET_SCOPES = ['wallet:pay'] as const;
 export const BILLING_SCOPES = ['billing:account'] as const;
 
 /**
+ * inite.fund (strateg, resource `https://app.inite.fund/mcp`). Every caller
+ * of the fund's MCP needs `fund:read` (viewer); `fund:write` lets it act as
+ * an operator at most, never admin. Enforced by the fund's resource server.
+ */
+export const FUND_SCOPES = ['fund:read', 'fund:write'] as const;
+
+/**
  * Vertical scopes an anonymous RFC 7591 registration may request. The
  * sensitive tail of BRAIN_SCOPES (admin / PII / registry publishing) stays
  * operator-provisioned: a self-registered MCP client can ask a user for
@@ -68,6 +75,7 @@ export const DCR_VERTICAL_SCOPES = [
   ...MIKEFLUFF_SCOPES,
   ...WALLET_SCOPES,
   ...BILLING_SCOPES,
+  ...FUND_SCOPES,
 ] as const;
 
 /** Everything the AS can put in a token — discovery `scopes_supported`. */
@@ -78,6 +86,7 @@ export function supportedScopes(): string[] {
     ...MIKEFLUFF_SCOPES,
     ...WALLET_SCOPES,
     ...BILLING_SCOPES,
+    ...FUND_SCOPES,
   ];
 }
 

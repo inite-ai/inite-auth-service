@@ -61,6 +61,23 @@ describe('billing scope in the registry', () => {
   });
 });
 
+describe('fund scopes in the registry', () => {
+  // inite.fund's MCP (strateg) names fund:read / fund:write in its PRM; a
+  // connector that self-registers has to be able to ask for both.
+  it('advertises fund:read and fund:write and lets DCR clients ask for them', () => {
+    for (const scope of ['fund:read', 'fund:write']) {
+      expect(supportedScopes()).toContain(scope);
+      expect(dcrSupportedScopes()).toContain(scope);
+    }
+  });
+
+  it('is granted to a dynamically registered client that asks for it', () => {
+    expect(grantableScope('dcr_abc', 'openid fund:read fund:write')).toBe(
+      'openid fund:read fund:write',
+    );
+  });
+});
+
 describe('grantableScope', () => {
   it('recognises dynamically registered client ids', () => {
     expect(isDynamicClientId('dcr_abc')).toBe(true);

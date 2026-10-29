@@ -1,6 +1,6 @@
-import { Controller, Get, Header, HttpStatus, HttpException, Res, VERSION_NEUTRAL } from '@nestjs/common';
+import { Controller, Get, Header, HttpStatus, HttpException, NotFoundException, Req, Res, VERSION_NEUTRAL } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { JwksService } from './jwks.service';
 import { DbHealthService } from './db-health.service';
 import { RedisService } from './redis.service';
@@ -22,8 +22,16 @@ export class HealthController {
     private readonly settings: SettingsService,
   ) {}
 
+  /**
+   * Prometheus scrape, for the monitoring network only. Alloy scrapes the
+   * container directly; anything that came through Traefik carries a
+   * forwarded header (Traefik always sets X-Forwarded-For), so it is an
+   * outside caller and gets a 404, as if the route did not exist. Found public
+   * on auth-api.inite.ai in the family security baseline (H11, 29.10.2026).
+   */
   @Get('metrics')
-  async metricsEndpoint(@Res() res: Response): Promise<void> {
+  async metricsEndpoint(@Req() req: Request, @Res() res: Response): Promise<void> {
+    if (cameThroughProxy(req)) throw new NotFoundException();
     const { contentType, body } = await this.metrics.expose();
     res.setHeader('Content-Type', contentType);
     res.send(body);
@@ -272,7 +280,9 @@ export class HealthController {
   }
 }
 
+const FORWARDED_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded', 'cf-connecting-ip'];
 
-
-
-
+/** True when a reverse proxy (Traefik, Cloudflare) handed us the request. */
+export function cameThroughProxy(req: Pick<Request, 'headers'>): boolean {
+  return FORWARDED_HEADERS.some((h) => req.headers[h] !== undefined);
+}

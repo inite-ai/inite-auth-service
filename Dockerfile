@@ -5,6 +5,8 @@ WORKDIR /app
 
 # Copy package files and prisma schema/config
 COPY package*.json ./
+# Vendored dev tarballs the lockfile names (@inite/eslint-config)
+COPY vendor ./vendor
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY prisma ./prisma

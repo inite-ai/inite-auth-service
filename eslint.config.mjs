@@ -4,6 +4,7 @@ import eslintPluginPrettier from 'eslint-plugin-prettier/recommended';
 import sonarjs from 'eslint-plugin-sonarjs';
 import importPlugin from 'eslint-plugin-import-x';
 import globals from 'globals';
+import { familyIgnores } from '@inite/eslint-config/family-ignores';
 
 /**
  * ESLint config — Nest backend (mirrors inite-brain-service).
@@ -47,6 +48,9 @@ const sizeGates = {
 export default tseslint.config(
   {
     ignores: [
+      // What no family repo lints (build output, vendored and generated code):
+      // @inite/eslint-config's shared list, then this service's own.
+      ...familyIgnores,
       'dist/**',
       'node_modules/**',
       'coverage/**',

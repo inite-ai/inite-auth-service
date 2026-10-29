@@ -1,11 +1,27 @@
 name: Deploy INITE Auth Service
 
+# PRODUCTION MOVES ON A RELEASE, NOT ON A MERGE (family standard, 29.10.2026;
+# inite-shared/.planning/family-standards-2026-10.md). release-please cuts the
+# SemVer release when its release PR merges; it publishes it with
+# GITHUB_TOKEN, and a release made with GITHUB_TOKEN starts no `release`
+# workflow, so release-please.yml calls this workflow itself (workflow_call)
+# in the run that created the release, as it already does for the image.
+# `release: published` is for a release published by a person.
+# `workflow_dispatch` is the hotfix and rollback door (a dispatched tag that
+# was released before passes the gate as it is).
 on:
-  push:
-    branches: [ main ]
+  release:
+    types: [published]
+  workflow_call:
   workflow_dispatch:
 
-# Registry + SSH creds ride dedicated secrets; the GITHUB_TOKEN only checks out.
+# One production, one queue; a deploy is never cancelled halfway.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+# Registry + SSH creds ride dedicated secrets; the GITHUB_TOKEN only checks out
+# (and the gate reads checks and PRs).
 permissions:
   contents: read
 
@@ -15,7 +31,16 @@ env:
   API_DOMAIN: auth-api.inite.ai
 
 jobs:
+  # Only a commit main took through a green ci (or a released tag) goes out.
+  gate:
+    uses: inite-ai/inite-shared/.github/workflows/release-gate.yml@main
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+
   test:
+    needs: gate
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -260,3 +285,11 @@ jobs:
         else
           echo "❌ Deployment failed! Check the logs above."
         fi
+
+  # From outside the host: the IdP's pages and its API answer once the new
+  # containers are up.
+  verify:
+    needs: deploy
+    uses: inite-ai/inite-shared/.github/workflows/verify-deploy.yml@main
+    with:
+      urls: https://auth.inite.ai https://auth-api.inite.ai/health

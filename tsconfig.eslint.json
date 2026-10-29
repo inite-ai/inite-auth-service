@@ -1,9 +1,10 @@
 {
-  "//": "Type-aware ESLint needs every linted file in a TS project. tsconfig.json excludes test/; this variant includes src + tests for the linter only (noEmit).",
+  "//": "Type-aware ESLint needs every linted file in a TS project. tsconfig.json excludes test/; this variant includes src + tests, and the root tool configs the family lint (eslint .) reaches, for the linter only (noEmit).",
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "allowJs": true
   },
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["src/**/*", "test/**/*", "*.config.ts", "*.config.js", "eslint.config.mjs"],
   "exclude": ["node_modules", "dist"]
 }

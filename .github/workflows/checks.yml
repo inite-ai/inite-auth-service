@@ -1,0 +1,130 @@
+# The service's own checks (formerly ci.yml). Their job names are the
+# required checks on main (build-test), so they stay as they are; the
+# family gate is .github/workflows/ci.yml, whose `ci` job main will require.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      # eslint itself, not `npm run lint`: the family wrapper fetches its
+      # tools from inite-shared, which this job has no token for. Same
+      # config, no --fix; errors fail the job.
+      - name: Lint
+        run: npx eslint .
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: God-file gate
+        working-directory: frontend
+        run: npm run check:size
+
+      - name: Noindex parity gate
+        working-directory: frontend
+        run: npm run check:noindex
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  # The image on both architectures it ships for, each built natively and
+  # booted against an empty Postgres: the container migrates the database
+  # itself (scripts/migrate.js), then /health and /ready must answer.
+  docker:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    name: docker (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    needs: build-test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build image
+        run: docker build -t inite-auth-service:ci .
+
+      - name: Smoke — fresh install boots
+        run: scripts/ci/smoke-image.sh inite-auth-service:ci linux/${{ matrix.arch }}
+
+  # One migration path for every database the image will meet: an empty one,
+  # a v1.11.2 install as production built it (tracked), and a v1.11.2 self-host
+  # built with `prisma db push` as that release's docs said (untracked). Each
+  # must migrate, match schema.prisma exactly, keep its rows, and re-run as a
+  # no-op. See scripts/ci/verify-migration-paths.sh, docs/MIGRATIONS.md.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-test
+    env:
+      PREVIOUS_RELEASE: inite-auth-service-v1.11.2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Build image
+        run: docker build -t inite-auth-service:ci .
+
+      - name: Check out the previous release
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/previous" "$PREVIOUS_RELEASE"
+          cd "$RUNNER_TEMP/previous" && npm ci --no-audit --no-fund
+
+      - name: Fresh, tracked-upgrade and untracked-upgrade paths
+        run: scripts/ci/verify-migration-paths.sh inite-auth-service:ci "$RUNNER_TEMP/previous"

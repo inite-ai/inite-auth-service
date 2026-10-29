@@ -92,8 +92,12 @@ services:
       - ADMIN_NAME=${ADMIN_NAME}
       - COOKIE_DOMAIN=auth.inite.ai
       - SESSION_SECRET=${JWT_SECRET}
+    # Loopback only. Docker writes its own iptables rules, so a plain
+    # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
+    # frontend reach this container over the docker networks, not the host
+    # port. Host-local tools (an ssh tunnel, a backup on the host) still work.
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     depends_on:
       - postgres
       - redis
@@ -147,8 +151,12 @@ services:
       POSTGRES_DB: inite_auth
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Loopback only. Docker writes its own iptables rules, so a plain
+    # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
+    # frontend reach this container over the docker networks, not the host
+    # port. Host-local tools (an ssh tunnel, a backup on the host) still work.
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -166,8 +174,12 @@ services:
     command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+    # Loopback only. Docker writes its own iptables rules, so a plain
+    # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
+    # frontend reach this container over the docker networks, not the host
+    # port. Host-local tools (an ssh tunnel, a backup on the host) still work.
     ports:
-      - "6381:6379"
+      - "127.0.0.1:6381:6379"
     volumes:
       - redis_data:/data
     networks:

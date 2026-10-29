@@ -18,10 +18,8 @@ export const TOKEN_EXCHANGE_GRANT =
 
 /** Pulls IP + UA off the request for audit log enrichment. */
 export function clientContext(req: Request): AuditCtx {
-  const fwd = (req.headers["x-forwarded-for"] as string | undefined) ?? "";
-  const ip = fwd.split(",")[0]?.trim() || req.ip || "";
   return {
-    ip,
+    ip: req.ip || "",
     userAgent: (req.headers["user-agent"] as string | undefined) ?? "",
   };
 }

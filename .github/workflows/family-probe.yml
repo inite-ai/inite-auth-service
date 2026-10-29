@@ -1,0 +1,28 @@
+# The family CI (inite-shared/.github/workflows/ci.yml): the same gate the
+# pre-commit hook runs, with the tests. Main requires the `ci` job below.
+name: family-probe
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: inite-ai/inite-shared/.github/workflows/ci.yml@main
+    secrets: inherit
+    # with:
+    #   prepare: pnpm -F "@inite/*" run build && pnpm exec prisma generate
+    #   postgres: true
+    #   env: |
+    #     DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test
+
+  ci:
+    needs: checks
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.checks.result }}" = success

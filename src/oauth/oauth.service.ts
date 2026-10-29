@@ -11,7 +11,7 @@ import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.in
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 import { AuthorizationDetailsService } from './authorization-details.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
-import { grantableScope } from './oauth-scopes.registry';
+import { grantableScope, type ScopeBoundClient } from './oauth-scopes.registry';
 import { StepUpService } from './step-up.service';
 import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
 import { assertResourceAllowed } from './resource-registry';
@@ -59,12 +59,12 @@ export class OAuthService {
   }
 
   /**
-   * Normalize the requested scope into the one to grant. With a clientId, a
-   * dynamically registered client is capped to the open-registration scopes
-   * (see grantableScope).
+   * Normalize the requested scope into the one to grant: the client's own
+   * `allowedScopes` plus the OIDC baseline, or the open-registration set for
+   * a dynamically registered client (see grantableScope).
    */
-  normalizeScope(requestedScope: string, clientId?: string): string {
-    return grantableScope(clientId, requestedScope);
+  normalizeScope(requestedScope: string, client?: ScopeBoundClient): string {
+    return grantableScope(client, requestedScope);
   }
 
   /**
@@ -269,7 +269,7 @@ export class OAuthService {
 
     const client = await this.prisma.oAuthClient.findUnique({
       where: { clientId },
-      select: { allowedAudiences: true, isPublic: true },
+      select: { allowedAudiences: true, isPublic: true, redirectUris: true },
     });
     const allowedAud = client?.allowedAudiences ?? [];
     if (allowedAud.length > 0 && !allowedAud.includes(resource)) {
@@ -277,10 +277,16 @@ export class OAuthService {
         `Resource "${resource}" is not allowed for this client`,
       );
     }
-    // A client with no allow-list of its own (every dcr_* client, inite-cli)
-    // binds only to a registered family resource (resource-registry.ts).
+    // No allow-list of its own: a dcr_* or public client binds only to a
+    // registered family resource, any other client only to itself
+    // (resource-registry.ts).
     assertResourceAllowed(
-      { clientId, isPublic: client?.isPublic, allowedAudiences: allowedAud },
+      {
+        clientId,
+        isPublic: client?.isPublic,
+        allowedAudiences: allowedAud,
+        redirectUris: client?.redirectUris ?? [],
+      },
       resource,
     );
     return resource;

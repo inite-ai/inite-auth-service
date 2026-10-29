@@ -15,6 +15,7 @@ import { currentDeviceMetadata } from '../common/device-metadata';
 import { ActClaim, AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 import { platformRoleClaim } from './platform-role-claim';
+import { refreshBounds, type RefreshBoundClient } from './refresh-bounds';
 
 
 export interface GenerateTokensInput {
@@ -316,10 +317,12 @@ export class OAuthTokenIssuerService {
    *   it as theft (the legitimate user already rotated past it) and
    *   revoke the entire refresh-token family for that user+client. This
    *   is RFC 6819 §5.2.2.3 behavior.
+   * - With the client row, held to the authorization_code rule (refresh-bounds.ts).
    */
   async refreshAccessToken(
     refreshTokenValue: string,
     clientId: string,
+    client?: RefreshBoundClient,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -358,6 +361,8 @@ export class OAuthTokenIssuerService {
       throw deadRefreshToken('Refresh token expired');
     }
 
+    const bounds = refreshBounds(client, matchedToken);
+
     // Atomically claim this rotation slot — second concurrent rotate of
     // the same token loses the race and gets count=0 here.
     const claim = await this.prisma.refreshToken.updateMany({
@@ -371,12 +376,12 @@ export class OAuthTokenIssuerService {
     return this.generateTokens({
       user: matchedToken.user,
       clientId,
-      scope: matchedToken.scope ?? '',
+      scope: bounds.scope,
       rotatedFrom: matchedToken.id,
       nonce: matchedToken.nonce ?? undefined,
       authnContext: { amr: matchedToken.amr ?? [] },
       // RFC 8707: a token bound to a resource stays bound after rotation.
-      audience: matchedToken.resource ?? undefined,
+      audience: bounds.resource,
       // RFC 9396: carry the grant across rotation.
       authorizationDetails:
         (matchedToken.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,

@@ -90,6 +90,29 @@ describe('authorize step (assertResourceAllowed)', () => {
   });
 });
 
+describe('a confidential client with no allowedAudiences binds only to itself', () => {
+  const shop = {
+    clientId: 'inite-shop',
+    isPublic: false,
+    allowedAudiences: [] as string[],
+    redirectUris: ['https://inite.shop/callback', 'http://localhost:3000/callback'],
+  };
+
+  it('refuses another product, brain or inite-ai', () => {
+    invalidTarget(() => assertResourceAllowed(shop, 'brain'));
+    invalidTarget(() => assertResourceAllowed(shop, 'inite-ai'));
+    invalidTarget(() => assertResourceAllowed(shop, 'https://brain.inite.ai/mcp'));
+    invalidTarget(() => assertResourceAllowed(shop, 'https://inite.food/api'));
+    invalidTarget(() => assertResourceAllowed(shop, 'http://localhost:3000/api'));
+  });
+
+  it('lets it name its own id or its own https origin', () => {
+    expect(() => assertResourceAllowed(shop, 'inite-shop')).not.toThrow();
+    expect(() => assertResourceAllowed(shop, 'https://inite.shop/mcp')).not.toThrow();
+    expect(() => assertResourceAllowed(shop, undefined)).not.toThrow();
+  });
+});
+
 describe('authorization_code: resolveCodeAudience', () => {
   const svcFor = (row: Partial<OAuthClient> | null) => {
     const svc = Object.create(OAuthService.prototype) as OAuthService;
@@ -129,6 +152,18 @@ describe('authorization_code: resolveCodeAudience', () => {
   it('keeps the client-id audience when no resource is asked for', async () => {
     const resolve = svcFor({ allowedAudiences: [], isPublic: true });
     await expect(resolve(DCR, null)).resolves.toBeUndefined();
+  });
+
+  it('refuses a product client asking for brain at the token step', async () => {
+    const resolve = svcFor({
+      allowedAudiences: [],
+      isPublic: false,
+      redirectUris: ['https://inite.travel/callback'],
+    });
+    await expect(resolve('inite-travel', 'brain')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(resolve('inite-travel', 'https://inite.travel/api')).resolves.toBe(
+      'https://inite.travel/api',
+    );
   });
 
   it('holds a restricted client to its own list, unchanged', async () => {

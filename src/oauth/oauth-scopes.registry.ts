@@ -6,11 +6,11 @@
  *
  * Scope semantics are enforced by the resource server that owns the
  * audience; the IdP's job is to advertise them and to decide what a client
- * may be granted. The M2M grants filter through the per-client
- * `allowedScopes` allow-list; the authorization_code flow does not (the
- * person on the consent screen is the gate), except that a dynamically
- * registered client is capped to {@link dcrSupportedScopes} by
- * {@link grantableScope}.
+ * may be granted. Every grant filters through the per-client `allowedScopes`
+ * allow-list: the M2M grants strictly, the user grants (authorization_code,
+ * refresh_token, device_code) with the OIDC baseline on top, and a
+ * dynamically registered client is capped to {@link dcrSupportedScopes}
+ * instead (see {@link permittedScopes}).
  */
 
 /** OIDC baseline advertised in discovery. */
@@ -103,25 +103,65 @@ export function isDynamicClientId(clientId: string | null | undefined): boolean 
   return typeof clientId === 'string' && clientId.startsWith('dcr_');
 }
 
+/** What {@link grantableScope} needs to know about the client. */
+export interface ScopeBoundClient {
+  clientId: string;
+  allowedScopes?: readonly string[] | null;
+  isPublic?: boolean | null;
+}
+
 /**
- * What an authorization_code request may actually be granted.
+ * The requested scopes this client may hold, without any default.
  *
- * /authorize used to pass any requested scope through to the token, so a
- * self-registered MCP client could ask a person for `brain:admin` and, with
- * one click on the consent screen, get it. A dynamically registered client is
- * now held to the open-registration set; anything else it asks for is
- * dropped (RFC 6749 §3.3 lets the server grant less than was asked).
- * Operator-provisioned clients are unchanged. An empty result falls back to
- * {@link DEFAULT_SCOPE}, as an empty request always has.
+ * - A dynamically registered client is held to the open-registration set
+ *   ({@link dcrSupportedScopes}). Its registered `scope` stays informational
+ *   on purpose: an MCP client registers first and learns the scopes it needs
+ *   from the resource server afterwards.
+ * - Every other client is held to its own `allowedScopes`, plus the OIDC
+ *   baseline ({@link STANDARD_SCOPES}), which names the person and carries
+ *   no privilege at a resource server. A first-party client skips the consent
+ *   screen, so before this rule a product client (or anyone holding its
+ *   secret) could ask for `brain:admin` or `fund:write` and get it silently.
+ * - A public client (no secret, e.g. `inite-cli`) may also ask for what an
+ *   open registration could ({@link DCR_VERTICAL_SCOPES}): it is an agent's
+ *   door to the family MCPs, the same as a self-registered one, and is held
+ *   to no more than one either.
+ *
+ * Anything else is dropped (RFC 6749 §3.3 lets the server grant less than
+ * was asked; the token response's `scope` says what was granted).
  */
-export function grantableScope(
-  clientId: string | null | undefined,
+export function permittedScopes(
+  client: ScopeBoundClient | string | null | undefined,
   requested: string | null | undefined,
-): string {
-  let scopes = [...new Set((requested ?? '').split(/\s+/).filter(Boolean))];
+): string[] {
+  const scopes = [...new Set((requested ?? '').split(/\s+/).filter(Boolean))];
+  const clientId = typeof client === 'string' ? client : client?.clientId;
   if (isDynamicClientId(clientId)) {
     const allowed = new Set(dcrSupportedScopes());
-    scopes = scopes.filter((s) => allowed.has(s));
+    return scopes.filter((s) => allowed.has(s));
   }
+  if (!client || typeof client === 'string') {
+    // No row to check against: the OIDC baseline only.
+    const std = new Set<string>(STANDARD_SCOPES);
+    return scopes.filter((s) => std.has(s));
+  }
+  const allowed = new Set<string>([
+    ...STANDARD_SCOPES,
+    ...(client.allowedScopes ?? []),
+    ...(client.isPublic === true ? DCR_VERTICAL_SCOPES : []),
+  ]);
+  return scopes.filter((s) => allowed.has(s));
+}
+
+/**
+ * What an authorization_code request may actually be granted: the
+ * {@link permittedScopes}, or {@link DEFAULT_SCOPE} when nothing is left, as
+ * an empty request always has.
+ */
+export function grantableScope(
+  client: ScopeBoundClient | string | null | undefined,
+  requested: string | null | undefined,
+): string {
+  const scopes = permittedScopes(client, requested);
   return scopes.length > 0 ? scopes.join(' ') : DEFAULT_SCOPE;
 }

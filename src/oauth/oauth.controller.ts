@@ -59,7 +59,7 @@ export class OAuthController {
     // person signs in, not after (resource-registry.ts; the token endpoint
     // checks again in resolveCodeAudience).
     assertResourceAllowed(client, p.resource);
-    const grantedScope = this.oauthService.normalizeScope(p.scope || '', p.clientId);
+    const grantedScope = this.oauthService.normalizeScope(p.scope || '', client);
     this.assertPkce(p);
 
     // `wallet:pay` is the wallet grant with its default limits.

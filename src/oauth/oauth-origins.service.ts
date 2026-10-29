@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { isDynamicClientId } from './oauth-scopes.registry';
 
 @Injectable()
 export class OAuthOriginsService {
@@ -14,7 +15,14 @@ export class OAuthOriginsService {
   private allowedOriginsCacheTime = 0;
 
   /**
-   * Load all allowed origins from DB + config. Cached for 60s.
+   * The origins this IdP trusts: FRONTEND_URL, CORS_ORIGINS and the redirect
+   * origins of active first-party clients. Cached for 60s.
+   *
+   * Three things read this set: credentialed CORS, the choice of the
+   * SameSite=None embed cookie, and the session-establish redirect. A
+   * self-registered (`dcr_*`) client is never in it: registration is open
+   * and unauthenticated, so its origins used to join all three within a
+   * minute, an open redirect and a credentialed CORS hole for anyone.
    */
   async getAllowedOrigins(): Promise<Set<string>> {
     const now = Date.now();
@@ -32,8 +40,12 @@ export class OAuthOriginsService {
       origins.add(o.replace(/\/$/, ''));
     }
 
-    const clients = await this.prisma.oAuthClient.findMany({ where: { active: true } });
+    const clients = await this.prisma.oAuthClient.findMany({
+      where: { active: true, firstParty: true, NOT: { clientId: { startsWith: 'dcr_' } } },
+      select: { clientId: true, redirectUris: true },
+    });
     for (const client of clients) {
+      if (isDynamicClientId(client.clientId)) continue;
       for (const uri of client.redirectUris) {
         try { origins.add(new URL(uri).origin); } catch {}
       }

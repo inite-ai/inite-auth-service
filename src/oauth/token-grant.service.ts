@@ -12,6 +12,7 @@ import { MetricsService } from "../common/metrics.service";
 import { LoggerService } from "../common/logger.service";
 import { TokenRequestBody } from "./dto/oauth-requests";
 import { AuditCtx, IssuedTokens, requestedAudience } from "./token-support";
+import { permittedScopes } from "./oauth-scopes.registry";
 
 /** Grant handlers that need the raw request (DPoP proof / device_code). */
 export interface GrantWithRequestInput {
@@ -96,7 +97,7 @@ export class TokenGrantService {
     if (!body.refresh_token) throw new BadRequestException('refresh_token is required');
 
     const tokens = await this.tokenIssuer.refreshAccessToken(
-      body.refresh_token, clientId as string,
+      body.refresh_token, clientId as string, client,
     );
 
     this.metrics.tokensIssued.inc({ grant_type: 'refresh_token' });
@@ -130,7 +131,9 @@ export class TokenGrantService {
     const tokens = await this.tokenIssuer.generateTokens({
       user,
       clientId: clientId as string,
-      scope: approved.scope ?? '',
+      // The same rule as authorization_code: the client's own allowedScopes
+      // plus the OIDC baseline (oauth-scopes.registry.ts).
+      scope: permittedScopes(client, approved.scope).join(' '),
       // RFC 8707: the resource named at /device_authorization is the audience.
       ...(approved.resource ? { audience: approved.resource } : {}),
     });

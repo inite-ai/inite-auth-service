@@ -1,0 +1,18 @@
+{
+  "clientId": "ideaudit-dashboard",
+  "name": "inite audit",
+  "repo": "inite-ai/initeaudit",
+  "origins": [
+    "https://app.inite.studio",
+    "https://tv.inite.studio"
+  ],
+  "secret": {
+    "name": "AUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "vitrina is served under inite.studio/tv and shares this client until it has its own",
+    "extraRedirectUris": [
+      "https://inite.studio/tv/callback"
+    ]
+  }
+}

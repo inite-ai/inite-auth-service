@@ -1,0 +1,13 @@
+{
+  "clientId": "world",
+  "name": "world",
+  "origins": [
+    "https://world.inite.ai"
+  ],
+  "overrides": {
+    "reason": "its own OIDC copy still uses silent-callback",
+    "extraRedirectUris": [
+      "https://world.inite.ai/silent-callback"
+    ]
+  }
+}

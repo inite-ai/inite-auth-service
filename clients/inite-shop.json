@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-shop",
+  "name": "INITE Shop",
+  "repo": "inite-ai/initeshop",
+  "origins": [
+    "https://inite.shop"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

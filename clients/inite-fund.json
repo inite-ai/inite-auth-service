@@ -1,0 +1,19 @@
+{
+  "clientId": "inite-fund",
+  "name": "INITE Fund",
+  "repo": "inite-ai/strateg",
+  "origins": [
+    "https://app.inite.fund"
+  ],
+  "scopes": [
+    "fund:read",
+    "fund:write"
+  ],
+  "secret": {
+    "name": "INITE_AUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "strateg (Litestar) serves its callback at /auth/callback",
+    "callbackPath": "/auth/callback"
+  }
+}

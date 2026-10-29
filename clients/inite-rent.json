@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-rent",
+  "name": "inite rent",
+  "repo": "inite-ai/initerent",
+  "origins": [
+    "https://inite.rent"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

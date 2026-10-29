@@ -1,0 +1,17 @@
+{
+  "clientId": "inite-education",
+  "name": "inite education",
+  "repo": "inite-ai/initeeducation-landing",
+  "origins": [
+    "https://inite.education"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the own OIDC copy still uses silent-callback until education moves to the kit",
+    "extraRedirectUris": [
+      "https://inite.education/silent-callback"
+    ]
+  }
+}

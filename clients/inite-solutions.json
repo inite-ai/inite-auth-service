@@ -1,0 +1,17 @@
+{
+  "clientId": "inite-solutions",
+  "name": "inite solutions",
+  "repo": "inite-ai/initesolutions-landing",
+  "origins": [
+    "https://inite.solutions"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the own OIDC copy still uses silent-callback until solutions moves to the kit",
+    "extraRedirectUris": [
+      "https://inite.solutions/silent-callback"
+    ]
+  }
+}

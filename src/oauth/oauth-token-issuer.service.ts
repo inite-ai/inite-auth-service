@@ -12,10 +12,12 @@ import { CAEP_EVENTS } from '../ssf/caep-event-types';
 import { SettingsService } from '../common/settings/settings.service';
 import { sanitizeCustomClaims } from './custom-claims';
 import { currentDeviceMetadata } from '../common/device-metadata';
-import { ActClaim, AgentsService } from './agents.service';
+import { AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 import { platformRoleClaim } from './platform-role-claim';
 import { refreshBounds, type RefreshBoundClient } from './refresh-bounds';
+import { isDemoOrganization } from '../organizations/demo-tenant';
+import { orgClaims, type OrgContext } from './org-claims';
 
 
 export interface GenerateTokensInput {
@@ -45,16 +47,6 @@ interface SigningContext {
   accessTokenExpiry: string;
 }
 
-/** Resolved org/role context for token claims (union of relational RBAC + legacy metadata.roles). */
-interface OrgContext {
-  roles: string[];
-  org?: string;
-  orgId?: string;
-  /** Sanitized per-client claims (policy/packs) — see custom-claims.ts. */
-  customClaims?: Record<string, string[]>;
-  /** The agent the token is for, when the client is a third party. */
-  act?: ActClaim;
-}
 
 /**
  * A refresh token that can no longer be used, answered as RFC 6749 §5.2
@@ -152,7 +144,7 @@ export class OAuthTokenIssuerService {
         picture: user.avatarUrl,
         roles: orgCtx.roles,
         ...platformRoleClaim(user),
-        ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
+        ...orgClaims(orgCtx),
         // Per-client vertical claims (policy/packs) — allow-listed keys
         // only, so they can never shadow the registered claims above.
         ...(orgCtx.customClaims ?? {}),
@@ -191,7 +183,7 @@ export class OAuthTokenIssuerService {
       picture: user.avatarUrl,
       roles: orgCtx.roles,
       ...platformRoleClaim(user),
-      ...(orgCtx.org ? { org: orgCtx.org, org_id: orgCtx.orgId } : {}),
+      ...orgClaims(orgCtx),
     };
     if (nonce) idTokenClaims.nonce = nonce;
     // amr is RFC 8176 — list of methods that authenticated the user
@@ -248,6 +240,8 @@ export class OAuthTokenIssuerService {
         roles: [...new Set([...metaRoles, 'owner'])],
         org: provisioned.companyId,
         orgId: provisioned.id,
+        orgRole: 'owner',
+        orgSlug: provisioned.slug,
       };
     }
 
@@ -259,6 +253,9 @@ export class OAuthTokenIssuerService {
       roles: roles.length ? roles : ['user'],
       org: chosen.organization.companyId,
       orgId: chosen.organizationId,
+      orgRole: chosen.role,
+      orgSlug: chosen.organization.slug,
+      demo: isDemoOrganization(chosen.organization),
     };
   }
 

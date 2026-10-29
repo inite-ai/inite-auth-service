@@ -807,6 +807,22 @@ describe('OAuthService', () => {
       expect(result.has('https://app3.com')).toBe(true);
     });
 
+    it('never trusts a self-registered or third-party client origin', async () => {
+      mockPrisma.oAuthClient.findMany.mockResolvedValue([
+        { clientId: 'inite-shop', redirectUris: ['https://inite.shop/callback'] },
+        { clientId: 'dcr_abc', redirectUris: ['https://evil.example/cb'] },
+      ]);
+
+      const result = await origins.getAllowedOrigins();
+      expect(result.has('https://inite.shop')).toBe(true);
+      expect(result.has('https://evil.example')).toBe(false);
+      expect(mockPrisma.oAuthClient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { active: true, firstParty: true, NOT: { clientId: { startsWith: 'dcr_' } } },
+        }),
+      );
+    });
+
     it('should use cache on subsequent calls', async () => {
       mockPrisma.oAuthClient.findMany.mockResolvedValue([
         { redirectUris: ['https://app.com/callback'] },

@@ -340,6 +340,30 @@ export class AuthService {
   }
 
   /**
+   * The client an `id_token_hint` was issued to, or null when the hint is not
+   * a token this IdP signed. Expiry is ignored on purpose: OIDC RP-initiated
+   * logout sends the ID token the RP holds, which is usually expired by then.
+   * The signature is still checked against the published keys.
+   */
+  async idTokenHintClientId(token: string): Promise<string | null> {
+    try {
+      const options = { ignoreExpiration: true };
+      const payload = this.jwksService.isRs256Enabled()
+        ? this.jwtService.verify<Record<string, unknown>>(token, {
+            ...options,
+            publicKey: this.jwksService.verificationKeyForToken(token),
+          })
+        : this.jwtService.verify<Record<string, unknown>>(token, options);
+      const aud = payload.aud;
+      if (typeof aud === 'string') return aud;
+      if (Array.isArray(aud) && aud.length === 1 && typeof aud[0] === 'string') return aud[0];
+      return typeof payload.azp === 'string' ? payload.azp : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * If login is from a new device, record it and send "new device" email.
    */
   async notifyNewDeviceIfNeeded(

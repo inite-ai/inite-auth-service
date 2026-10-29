@@ -95,9 +95,20 @@ describe('grantableScope', () => {
     expect(grantableScope('dcr_abc', 'brain:admin brain:read_pii')).toBe('openid profile email');
   });
 
-  it('leaves operator-provisioned clients exactly as before', () => {
-    expect(grantableScope('brain-console', 'openid brain:admin')).toBe('openid brain:admin');
+  it('holds an operator-provisioned client to its own allowedScopes plus the OIDC baseline', () => {
+    const shop = { clientId: 'inite-shop', allowedScopes: ['openid', 'profile', 'email'] };
+    // A first-party product client never sees a consent screen: brain:admin
+    // and fund:write must not ride along just because it asked.
+    expect(grantableScope(shop, 'openid profile email offline_access brain:admin fund:write')).toBe(
+      'openid profile email offline_access',
+    );
+    const brain = { clientId: 'brain-landing', allowedScopes: ['openid', 'brain:admin'] };
+    expect(grantableScope(brain, 'openid brain:admin')).toBe('openid brain:admin');
     expect(grantableScope(undefined, '')).toBe('openid profile email');
+  });
+
+  it('grants a client known only by id the OIDC baseline and nothing more', () => {
+    expect(grantableScope('brain-console', 'openid brain:admin')).toBe('openid');
   });
 
   it('dedupes and collapses whitespace', () => {
@@ -106,16 +117,20 @@ describe('grantableScope', () => {
     );
   });
 
-  it('is what OAuthService.normalizeScope applies when given the client id', () => {
+  it('is what OAuthService.normalizeScope applies when given the client', () => {
     const svc = Object.create(OAuthService.prototype) as OAuthService;
-    expect(svc.normalizeScope('openid brain:admin', 'dcr_1')).toBe('openid');
-    expect(svc.normalizeScope('openid brain:admin')).toBe('openid brain:admin');
+    expect(svc.normalizeScope('openid brain:admin', { clientId: 'dcr_1' })).toBe('openid');
+    expect(
+      svc.normalizeScope('openid brain:admin', { clientId: 'inite-travel', allowedScopes: ['openid'] }),
+    ).toBe('openid');
+    expect(svc.normalizeScope('openid brain:admin')).toBe('openid');
   });
 });
 
 describe('device grant — RFC 8707 resource', () => {
+  // inite-cli is a public client (system-clients.seeder.ts).
   const client = (allowedAudiences: string[] = []) =>
-    ({ clientId: 'inite-cli', allowedAudiences }) as unknown as OAuthClient;
+    ({ clientId: 'inite-cli', isPublic: true, allowedAudiences }) as unknown as OAuthClient;
 
   const invalidTarget = (fn: () => unknown) => {
     try {
@@ -203,8 +218,19 @@ describe('device grant — RFC 8707 resource', () => {
       expect(generateTokens.mock.calls[0][0]).toMatchObject({
         audience: MCP_RESOURCE,
         clientId: 'inite-cli',
+        scope: 'openid mikefluff:purchase',
       });
       expect(out.access_token).toBe('at');
+    });
+
+    it('never grants a public client an operator-only scope', async () => {
+      const { generateTokens, run } = build({
+        userId: 'u1',
+        scope: 'openid brain:read brain:admin registry:publish',
+        resource: null,
+      });
+      await run();
+      expect(generateTokens.mock.calls[0][0].scope).toBe('openid brain:read');
     });
 
     it('keeps the default audience when no resource was named', async () => {

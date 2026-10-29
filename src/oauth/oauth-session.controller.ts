@@ -31,6 +31,7 @@ import { StepUpService } from './step-up.service';
 import { ApiKeysService } from './api-keys.service';
 import { ConsentService } from './consent.service';
 import { AgentsService } from './agents.service';
+import { resolvePostLogoutRedirect } from './logout-redirect';
 
 
 @ApiTags('oauth')
@@ -136,11 +137,10 @@ export class OAuthSessionController {
   /**
    * Logout endpoint
    */
-  // eslint-disable-next-line max-params -- NestJS route handler (param decorators)
+   
   @Get('logout')
   async logout(
-    @Query('post_logout_redirect_uri') postLogoutRedirectUri: string,
-    @Query('state') state: string,
+    @Query() query: Record<string, unknown>,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -154,7 +154,7 @@ export class OAuthSessionController {
     res.clearCookie('inite.sid');
     if (userDid) this.fanOutBackchannel(userDid, sid);
 
-    const target = await this.resolveLogoutRedirect(postLogoutRedirectUri, state);
+    const target = await this.resolveLogoutRedirect(query);
     return res.redirect(target ?? (this.oauthService.getFrontendUrl() || '/'));
   }
 
@@ -204,23 +204,29 @@ export class OAuthSessionController {
       );
   }
 
-  /** Validate the post-logout redirect against the allow-list; null if unsafe. */
-  private async resolveLogoutRedirect(
-    uri: string,
-    state: string,
-  ): Promise<string | null> {
-    if (!uri) return null;
-    try {
-      const url = new URL(uri);
-      if (!(await this.origins.isAllowedOrigin(url.origin))) {
-        this.logger.warn('Logout redirect blocked', { uri, origin: url.origin });
-        return null;
-      }
-      if (state) url.searchParams.set('state', state);
-      return url.toString();
-    } catch {
-      return null;
+  /**
+   * The post-logout redirect, bound to the client that asks (client_id or
+   * id_token_hint); null if unsafe (logout-redirect.ts).
+   */
+  private async resolveLogoutRedirect(query: Record<string, unknown>): Promise<string | null> {
+    const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+    const target = await resolvePostLogoutRedirect(
+      {
+        postLogoutRedirectUri: str(query.post_logout_redirect_uri),
+        state: str(query.state),
+        clientId: str(query.client_id),
+        idTokenHint: str(query.id_token_hint),
+      },
+      {
+        findClient: (id) => this.clientRegistry.validateClient(id).catch(() => null),
+        hintClientId: (t) => this.authService.idTokenHintClientId(t),
+        isTrustedOrigin: (o) => this.origins.isAllowedOrigin(o),
+      },
+    );
+    if (!target && query.post_logout_redirect_uri) {
+      this.logger.warn('Logout redirect blocked', { clientId: str(query.client_id) ?? 'none' });
     }
+    return target;
   }
 
   /**
@@ -257,7 +263,7 @@ export class OAuthSessionController {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
 
-    const grantedScope = this.oauthService.normalizeScope(input.scope || '', input.clientId);
+    const grantedScope = this.oauthService.normalizeScope(input.scope || '', client);
 
     // Step-up: record the acr the session ACTUALLY achieved (from amr), not the
     // client-requested value — an RP requiring aal2 then rejects an id_token
@@ -311,10 +317,11 @@ export class OAuthSessionController {
   ) {
     if (!clientId) throw new BadRequestException('client_id is required');
     const userId = (req.user as { userId: string }).userId;
+    const client = await this.clientRegistry.validateClient(clientId);
     const required = await this.consent.isRequired({
       userId,
       clientId,
-      scope: this.oauthService.normalizeScope(scope || '', clientId),
+      scope: this.oauthService.normalizeScope(scope || '', client),
       authorizationDetails: authorizationDetails || undefined,
     });
     return { required };

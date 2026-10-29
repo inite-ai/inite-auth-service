@@ -21,8 +21,10 @@ import { isDynamicClientId } from './oauth-scopes.registry';
  *     (comma-separated), for local development and new products.
  *
  * A bare identifier ("brain", "inite-ai") is never a registered resource.
- * A client provisioned with `allowedAudiences` keeps its own list. An absent
- * resource still yields the client-id audience, unchanged.
+ * A client provisioned with `allowedAudiences` keeps its own list. Any other
+ * client (operator-provisioned, confidential, empty list) may bind only to
+ * itself ({@link isOwnResource}). An absent resource still yields the
+ * client-id audience, unchanged.
  */
 export const FAMILY_DOMAINS: readonly string[] = [
   'inite.ai',
@@ -54,7 +56,7 @@ function extraEntries(env: string | undefined = process.env.OAUTH_RESOURCE_REGIS
     .filter(Boolean);
 }
 
-function onFamilyHost(url: URL): boolean {
+export function onFamilyHost(url: URL): boolean {
   const host = url.hostname.toLowerCase();
   return FAMILY_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
 }
@@ -77,31 +79,79 @@ export function isRegisteredResource(resource: string, env?: string): boolean {
   return onFamilyHost(url);
 }
 
+/** What the resource rule needs to know about the client. */
+export interface ResourceBoundClient {
+  clientId: string;
+  isPublic?: boolean | null;
+  allowedAudiences?: readonly string[] | null;
+  redirectUris?: readonly string[] | null;
+}
+
 /**
  * Must this client's requested resource be a registered one? True for every
  * dynamically registered client and for a public client with no allow-list.
  * A client with an explicit `allowedAudiences` list is held to that list.
  */
-export function needsRegisteredResource(client: {
-  clientId: string;
-  isPublic?: boolean | null;
-  allowedAudiences?: readonly string[] | null;
-}): boolean {
+export function needsRegisteredResource(client: ResourceBoundClient): boolean {
   if ((client.allowedAudiences ?? []).length > 0) return false;
   return isDynamicClientId(client.clientId) || client.isPublic === true;
 }
 
+/**
+ * May an operator-provisioned confidential client with no `allowedAudiences`
+ * bind a token to `resource`? Only to itself: its own client id, or an https
+ * URL on one of its own redirect origins (its own API or MCP).
+ *
+ * An empty list used to mean "any resource" for these clients, so a product
+ * client, or anyone holding its secret, could mint a token whose `aud` is
+ * `brain`, `inite-ai` or another product's resource URL. Each family product
+ * is registered with an empty list, so the empty list now means "my own".
+ * A client that must reach someone else's resource is given that resource in
+ * `allowedAudiences` by an operator.
+ */
+export function isOwnResource(client: ResourceBoundClient, resource: string): boolean {
+  if (resource === client.clientId) return true;
+  let url: URL;
+  try {
+    url = new URL(resource);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' || url.hash || resource.includes('#')) return false;
+  if (url.username || url.password) return false;
+  return (client.redirectUris ?? []).some((uri) => {
+    try {
+      const own = new URL(uri);
+      return own.protocol === 'https:' && own.origin === url.origin;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** May this client bind a token to `resource`? An absent resource always may. */
+export function isResourceAllowed(
+  client: ResourceBoundClient,
+  resource: string | null | undefined,
+): boolean {
+  if (!resource) return true;
+  const list = client.allowedAudiences ?? [];
+  if (list.length > 0) return list.includes(resource);
+  if (needsRegisteredResource(client)) return isRegisteredResource(resource);
+  return isOwnResource(client, resource);
+}
+
 /** Throws RFC 8707 `invalid_target` when the client may not bind to `resource`. */
 export function assertResourceAllowed(
-  client: { clientId: string; isPublic?: boolean | null; allowedAudiences?: readonly string[] | null },
+  client: ResourceBoundClient,
   resource: string | null | undefined,
 ): void {
-  if (!resource) return;
-  if (!needsRegisteredResource(client)) return;
-  if (!isRegisteredResource(resource)) {
-    throw new BadRequestException({
-      error: 'invalid_target',
-      error_description: `Resource "${resource}" is not a registered INITE resource`,
-    });
-  }
+  if (isResourceAllowed(client, resource)) return;
+  const registered = needsRegisteredResource(client);
+  throw new BadRequestException({
+    error: 'invalid_target',
+    error_description: registered
+      ? `Resource "${resource}" is not a registered INITE resource`
+      : `Resource "${resource}" is not allowed for this client`,
+  });
 }

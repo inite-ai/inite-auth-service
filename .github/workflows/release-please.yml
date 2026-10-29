@@ -37,3 +37,17 @@ jobs:
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # The deploy, for the same reason: a release published with GITHUB_TOKEN
+  # starts no `release: published` workflow, so the run that cut it calls
+  # deploy.yml (gate -> test -> images -> deploy -> verify). Before this,
+  # production moved on every push to main.
+  deploy:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    secrets: inherit

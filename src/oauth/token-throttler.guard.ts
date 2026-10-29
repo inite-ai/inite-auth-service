@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Request } from 'express';
+import { clientIp } from '../common/client-ip';
 
 /**
  * Token-endpoint rate limit with per-client tracker.
@@ -33,10 +34,9 @@ export class TokenEndpointThrottlerGuard extends ThrottlerGuard {
     if (grant === 'client_credentials' && clientId) {
       return `oauth:token:cc:${clientId}`;
     }
-    // Fall back to IP for user-flow grants. ThrottlerGuard's default
-    // tracker prefers x-forwarded-for-derived IP, so we mirror that.
-    const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-    const ip = fwd.split(',')[0]?.trim() || req.ip || 'unknown';
+    // Fall back to the client address for user-flow grants (req.ip, set by
+    // clientIpMiddleware; never a header the caller wrote).
+    const ip = clientIp(req);
     return `oauth:token:user:${ip}`;
   }
 }

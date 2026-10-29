@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Request } from 'express';
+import { clientIp } from '../common/client-ip';
 
 /**
  * Throttler that keys per client_id when one is present in the body,
@@ -21,8 +22,7 @@ export class ClientIdThrottlerGuard extends ThrottlerGuard {
     if (clientId) {
       return `oauth:client:${clientId}`;
     }
-    const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-    const ip = fwd.split(',')[0]?.trim() || req.ip || 'unknown';
+    const ip = clientIp(req);
     return `oauth:ip:${ip}`;
   }
 }

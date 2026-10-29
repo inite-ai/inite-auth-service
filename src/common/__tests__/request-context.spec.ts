@@ -98,12 +98,15 @@ describe('RequestContextMiddleware', () => {
     });
   });
 
-  it('extracts client IP from X-Forwarded-For when present', (done) => {
+  // The address comes from req.ip (clientIpMiddleware), never from the
+  // caller's own X-Forwarded-For: its first entry is whatever they wrote.
+  it('takes the client IP from req.ip, not the first X-Forwarded-For entry', (done) => {
     const middleware = make();
     const req = mkReq({ 'x-forwarded-for': '203.0.113.5, 10.0.0.1' });
     const res = mkRes();
     middleware.use(req, res, () => {
-      expect(requestContext.get()?.ip).toBe('203.0.113.5');
+      expect(requestContext.get()?.ip).toBe(req.ip);
+      expect(requestContext.get()?.ip).not.toBe('203.0.113.5');
       done();
     });
   });

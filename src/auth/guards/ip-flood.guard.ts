@@ -102,9 +102,7 @@ export class IpFloodGuard implements CanActivate {
     headers?: Record<string, unknown>;
     ip?: unknown;
   }): string {
-    const fwd =
-      (req?.headers?.['x-forwarded-for'] as string | undefined) ?? '';
-    const ip = typeof req?.ip === 'string' ? req.ip : undefined;
-    return fwd.split(',')[0]?.trim() || ip || 'unknown';
+    // req.ip is set by clientIpMiddleware: never the caller's own header.
+    return typeof req?.ip === 'string' && req.ip ? req.ip : 'unknown';
   }
 }

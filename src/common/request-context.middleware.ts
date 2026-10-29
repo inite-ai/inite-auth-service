@@ -24,8 +24,8 @@ export class RequestContextMiddleware implements NestMiddleware {
 
     res.setHeader('X-Request-Id', requestId);
 
-    const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-    const ip = fwd.split(',')[0]?.trim() || req.ip || '';
+    // req.ip is set by clientIpMiddleware (see common/client-ip.ts).
+    const ip = req.ip || '';
     const userAgent =
       (req.headers['user-agent'] as string | undefined) ?? '';
 

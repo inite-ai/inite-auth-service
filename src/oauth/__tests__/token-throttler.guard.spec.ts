@@ -56,7 +56,10 @@ describe('TokenEndpointThrottlerGuard.getTracker', () => {
     expect(key).toBe('oauth:token:user:10.0.0.4');
   });
 
-  it('uses x-forwarded-for first segment when present', async () => {
+  // A caller-written X-Forwarded-For must not pick the bucket: rotating it
+  // used to give every request a fresh limit. req.ip is set upstream by
+  // clientIpMiddleware from trusted hops only.
+  it('ignores a caller-written x-forwarded-for and keys on req.ip', async () => {
     const guard = makeGuard();
     const req = {
       body: {},
@@ -64,6 +67,6 @@ describe('TokenEndpointThrottlerGuard.getTracker', () => {
       ip: '10.0.0.1',
     } as unknown as Request;
     const key = await guard.getTracker(req);
-    expect(key).toBe('oauth:token:user:203.0.113.1');
+    expect(key).toBe('oauth:token:user:10.0.0.1');
   });
 });

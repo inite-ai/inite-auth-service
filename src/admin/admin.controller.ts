@@ -15,6 +15,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { AdminService } from './admin.service';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import { resolveAdminScope, applyScopeFilter } from './admin-scope';
@@ -29,8 +30,7 @@ function adminContext(req: Request): {
   userAgent: string;
   operatorSub: string | null;
 } {
-  const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-  const ip = fwd.split(',')[0]?.trim() || req.ip || '';
+  const ip = req.ip || '';
   const user = (req as Request & { user?: AuthenticatedUser }).user;
   const operatorSub =
     user?.kind === 'user'
@@ -45,6 +45,14 @@ function adminContext(req: Request): {
   };
 }
 
+/**
+ * Users and OAuth clients are platform-wide: these rows carry no tenant, so a
+ * company-scoped admin has no slice of them to manage. Those routes require
+ * a superadmin (SuperadminGuard); left on AdminGuard, a scoped admin could
+ * grant itself `superadmin`, repoint any first-party client's redirect URIs,
+ * rotate its secret, or mint an untenanted `admin` M2M client. Only the audit
+ * log is tenant-scoped, so only it stays open to scoped admins.
+ */
 @ApiTags('admin')
 @Controller({ path: 'admin', version: '1' })
 @UseGuards(AdminGuard)
@@ -57,6 +65,7 @@ export class AdminController {
   // ==================== Dashboard Stats ====================
 
   @Get('stats')
+  @UseGuards(SuperadminGuard)
   async getStats() {
     return this.adminService.getStats();
   }
@@ -64,16 +73,19 @@ export class AdminController {
   // ==================== Users Management ====================
 
   @Get('users')
+  @UseGuards(SuperadminGuard)
   async getAllUsers(@Query('page') page = '1', @Query('limit') limit = '50') {
     return this.adminService.getAllUsers(parseInt(page), parseInt(limit));
   }
 
   @Get('users/:userId')
+  @UseGuards(SuperadminGuard)
   async getUserById(@Param('userId') userId: string) {
     return this.adminService.getUserById(userId);
   }
 
   @Put('users/:userId')
+  @UseGuards(SuperadminGuard)
   async updateUser(
     @Param('userId') userId: string,
     @Body()
@@ -91,6 +103,7 @@ export class AdminController {
   }
 
   @Put('users/:userId/roles')
+  @UseGuards(SuperadminGuard)
   async updateUserRoles(
     @Param('userId') userId: string,
     @Body() body: { roles: string[] },
@@ -99,6 +112,7 @@ export class AdminController {
   }
 
   @Delete('users/:userId')
+  @UseGuards(SuperadminGuard)
   async deleteUser(@Param('userId') userId: string) {
     return this.adminService.deleteUser(userId);
   }
@@ -110,6 +124,7 @@ export class AdminController {
    * live until their (short) expiry; nothing past that.
    */
   @Post('users/:userId/revoke-sessions')
+  @UseGuards(SuperadminGuard)
   async revokeUserSessions(
     @Param('userId') userId: string,
     @Body() body: { reason?: string; lockoutHours?: number } = {},
@@ -120,16 +135,19 @@ export class AdminController {
   // ==================== OAuth Clients Management ====================
 
   @Get('oauth-clients')
+  @UseGuards(SuperadminGuard)
   async getAllOAuthClients() {
     return this.adminService.getAllOAuthClients();
   }
 
   @Get('oauth-clients/:clientId')
+  @UseGuards(SuperadminGuard)
   async getOAuthClientById(@Param('clientId') clientId: string) {
     return this.adminService.getOAuthClientById(clientId);
   }
 
   @Post('oauth-clients')
+  @UseGuards(SuperadminGuard)
   async createOAuthClient(
     @Body()
     body: {
@@ -170,6 +188,7 @@ export class AdminController {
   }
 
   @Put('oauth-clients/:clientId')
+  @UseGuards(SuperadminGuard)
   async updateOAuthClient(
     @Param('clientId') clientId: string,
     @Body()
@@ -209,6 +228,7 @@ export class AdminController {
   }
 
   @Post('oauth-clients/:clientId/rotate-secret')
+  @UseGuards(SuperadminGuard)
   async rotateClientSecret(
     @Param('clientId') clientId: string,
     @Body() body: { graceWindowSeconds?: number; force?: boolean } = {},
@@ -312,6 +332,7 @@ export class AdminController {
   }
 
   @Delete('oauth-clients/:clientId')
+  @UseGuards(SuperadminGuard)
   async deleteOAuthClient(
     @Param('clientId') clientId: string,
     @Req() req: Request,

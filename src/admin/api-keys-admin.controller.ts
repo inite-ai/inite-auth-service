@@ -127,6 +127,5 @@ function operatorSub(req: Request): string | null {
 }
 
 function requestIp(req: Request): string {
-  const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-  return fwd.split(',')[0]?.trim() || req.ip || '';
+  return req.ip || '';
 }

@@ -26,6 +26,7 @@ import { OAuthOriginsService } from './oauth/oauth-origins.service';
 import { createLogger } from './common/logger.service';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { SERVICE_VERSION } from './common/service-version';
+import { clientIpConfig, clientIpMiddleware } from './common/client-ip';
 
 // Export for use in controllers
 export let sessionSecret: string;
@@ -46,6 +47,9 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI });
 
   const configService = app.get(ConfigService);
+
+  // Client address before any guard reads req.ip (see common/client-ip.ts).
+  app.use(clientIpMiddleware(clientIpConfig((k) => configService.get<string>(k))));
 
   // OpenAPI / Swagger.
   //

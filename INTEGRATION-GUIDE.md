@@ -614,6 +614,35 @@ curl -X POST https://auth.inite.ai/v1/oauth/token \
 Выданный токен сохраняет `sub` пользователя, несёт `act` (кто действует от его
 имени) и `org`/`org_id`, а scope может только сужаться.
 
+### 5a. Демо-вход (demo grant, `DEMO_GRANT_ENABLED`)
+
+Бэкенд продукта (first-party confidential клиент, сам за себя) получает токен
+демо-персоны организации «Atlântica Group (demo)» тем же token exchange, но со
+своим `subject_token_type`:
+
+```bash
+curl -X POST https://auth.inite.ai/v1/oauth/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d client_id=inite-estate -d client_secret=$SECRET \
+  -d subject_token_type=urn:inite:params:oauth:token-type:demo-persona \
+  -d subject_token=demo:owner        # demo:owner | demo:manager | demo:staff
+```
+
+Ответ: `access_token`, `issued_token_type`, `token_type=Bearer`,
+`expires_in=7200`, `scope`. Ни `refresh_token`, ни `id_token` не бывает
+(`offline_access` игнорируется). Токен несёт claims обычного входа персоны в
+демо-организации (`org`, `org_id`, `org_slug`, `org_role`, `demo: true`), без
+`platform_role`; `aud` = client id; scope всегда `openid profile <product>:read`,
+где `<product>` = client id без префикса `inite-`, дефисы → `_`
+(`inite-estate` → `estate:read`). Запрошенный `scope` не расширяет и не меняет его.
+
+Отказ: `invalid_grant` (флаг выключен, неизвестная персона, пользователь или
+организация не помечены как демо) или `unauthorized_client` (не first-party,
+публичный, `dcr_*`), без описания причины; причина пишется в аудит
+(`token.failed.demo`), выдача в `token.issued.demo`. Лимиты: 30 запросов в
+минуту на client id и 60 на адрес, сверх общего лимита `/token`. Свой
+`allowedGrants` клиенту для этого не нужен.
+
 ### 6. Пер-инструментные права агентов (RAR, RFC 9396)
 
 При включённом `RAR_ENABLED` клиент может передать в `/authorize` (и через

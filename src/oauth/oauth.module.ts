@@ -79,6 +79,8 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
   ],
   exports: [
     OAuthService,
+    OAuthClientRegistryService,
+    ConsentService,
     OAuthOriginsService,
     StepUpService,
     BackchannelLogoutService,

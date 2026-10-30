@@ -65,7 +65,7 @@
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
     "express-session": "^1.19.0",
-    "handlebars": "^4.7.9",
+    "handlebars": "^4.7.10",
     "helmet": "^8.2.0",
     "ioredis": "^6.0.0",
     "jose": "^6.2.10",

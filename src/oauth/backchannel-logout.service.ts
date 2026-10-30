@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { safeFetch } from '../common/safe-fetch';
+import { backchannelUriFor } from '../clients/manifest';
 
 /**
  * OIDC Back-Channel Logout
@@ -42,7 +43,9 @@ export class BackchannelLogoutService {
    * Fan out signed logout_tokens to every active client that:
    *   - has an active refresh token for this user (so we don't
    *     spam clients the user never logged into)
-   *   - has a backchannelLogoutUri registered
+   *   - has a back-channel URI: the registered one, or for a first-party
+   *     client the family convention <redirect origin>/api/auth/backchannel-logout
+   *     (clients/manifest.ts backchannelUriFor). Nobody fills it in by hand.
    *
    * Returns the count of RPs notified. Async; the caller should
    * await but the rest of /oauth/logout MUST NOT block on RP
@@ -76,7 +79,7 @@ export class BackchannelLogoutService {
     const activeClients = await this.prisma.oAuthClient.findMany({
       where: {
         active: true,
-        NOT: { backchannelLogoutUri: null },
+        OR: [{ NOT: { backchannelLogoutUri: null } }, { firstParty: true, isPublic: false }],
         refreshTokens: {
           some: {
             revoked: false,
@@ -84,24 +87,27 @@ export class BackchannelLogoutService {
           },
         },
       },
-      select: { clientId: true, backchannelLogoutUri: true },
+      select: { clientId: true, backchannelLogoutUri: true, firstParty: true, isPublic: true, redirectUris: true },
     });
+    const targets = activeClients
+      .map((c) => ({ clientId: c.clientId, uri: backchannelUriFor(c) }))
+      .filter((t): t is { clientId: string; uri: string } => t.uri !== null);
 
-    if (activeClients.length === 0) return 0;
+    if (targets.length === 0) return 0;
 
     const issuer = this.config.get<string>(
       'JWT_ISSUER',
       'http://localhost:3002',
     );
 
-    const deliveries = activeClients.map(async (client) => {
+    const deliveries = targets.map(async (client) => {
       const token = this.buildLogoutToken({
         issuer,
         audience: client.clientId,
         sub: opts.userDid,
         sid: opts.sid,
       });
-      await this.deliver(client.backchannelLogoutUri!, token, client.clientId);
+      await this.deliver(client.uri, token, client.clientId);
     });
 
     const results = await Promise.allSettled(deliveries);

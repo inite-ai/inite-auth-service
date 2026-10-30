@@ -1,0 +1,17 @@
+{
+  "clientId": "neuralcosmology",
+  "name": "Neural Cosmology",
+  "repo": "inite-ai/neuralcosmology",
+  "origins": [
+    "https://neuralcosmology.com",
+    "https://www.neuralcosmology.com"
+  ],
+  "outsideFamily": "the owner's own site, signed in through INITE",
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "its sign-in mounts the callback under /api/auth/callback",
+    "callbackPath": "/api/auth/callback"
+  }
+}

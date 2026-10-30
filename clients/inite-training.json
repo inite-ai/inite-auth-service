@@ -1,0 +1,12 @@
+{
+  "clientId": "inite-training",
+  "name": "INITE Training",
+  "repo": "inite-ai/initesport",
+  "origins": [
+    "https://inite.training",
+    "https://www.inite.training"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

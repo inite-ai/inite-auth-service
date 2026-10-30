@@ -156,3 +156,27 @@ describe('BackchannelLogoutService', () => {
     });
   });
 });
+
+describe('BackchannelLogoutService: the convention', () => {
+  it('notifies a first-party client at <origin>/api/auth/backchannel-logout when it registered none', async () => {
+    const prisma = {
+      oAuthClient: {
+        findMany: jest.fn().mockResolvedValue([
+          { clientId: 'inite-estate', backchannelLogoutUri: null, firstParty: true, isPublic: false, redirectUris: ['https://inite.estate/callback'] },
+          { clientId: 'dcr_x', backchannelLogoutUri: null, firstParty: false, isPublic: false, redirectUris: ['https://x.example/cb'] },
+        ]),
+      },
+      refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    };
+    const fetchMock = (safeFetch as jest.Mock).mockReset().mockResolvedValue({ ok: true, status: 200 });
+    const svc = new BackchannelLogoutService(
+      prisma as unknown as PrismaService,
+      { sign: jest.fn().mockReturnValue('t') } as unknown as JwtService,
+      { get: jest.fn().mockReturnValue('https://auth-api.inite.ai') } as unknown as ConfigService,
+    );
+    expect(await svc.fanOut({ userDid: 'did:k:1' })).toBe(1);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['https://inite.estate/api/auth/backchannel-logout']);
+    const where = prisma.oAuthClient.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ NOT: { backchannelLogoutUri: null } }, { firstParty: true, isPublic: false }]);
+  });
+});

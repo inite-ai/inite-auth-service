@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-events",
+  "name": "inite events",
+  "repo": "inite-ai/initevents-landing",
+  "origins": [
+    "https://inite.events"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

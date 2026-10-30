@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-travel",
+  "name": "INITE Travel",
+  "repo": "inite-ai/initetravel",
+  "origins": [
+    "https://inite.travel"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

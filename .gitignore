@@ -73,3 +73,6 @@ frontend/CLAUDE.md
 # Claude Code: personal settings and session locks stay local
 .claude/settings.local.json
 .claude/*.lock
+
+# clients-apply backups (every column of the touched rows; never commit)
+clients-backup-*.local.json

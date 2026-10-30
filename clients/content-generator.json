@@ -1,0 +1,17 @@
+{
+  "clientId": "content-generator",
+  "name": "content-generator",
+  "repo": "inite-ai/content-generator",
+  "origins": [
+    "https://inite.digital"
+  ],
+  "secret": {
+    "name": "CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the own OIDC copy still uses silent-callback until digital moves to the kit",
+    "extraRedirectUris": [
+      "https://inite.digital/silent-callback"
+    ]
+  }
+}

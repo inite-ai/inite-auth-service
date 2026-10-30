@@ -1,0 +1,19 @@
+{
+  "clientId": "smart-chat-admin",
+  "name": "Smart Chat Admin Panel",
+  "repo": "inite-ai/break3-admin",
+  "origins": [
+    "https://admin.break3.inite.health",
+    "https://staging-admin.break3.inite.health"
+  ],
+  "scopes": [
+    "admin"
+  ],
+  "secret": {
+    "name": "AUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the Break3 admin SPA lands on /auth-callback",
+    "callbackPath": "/auth-callback"
+  }
+}

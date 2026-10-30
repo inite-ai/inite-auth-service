@@ -1,0 +1,23 @@
+{
+  "clientId": "smart-chat",
+  "name": "Smart Chat (Break³)",
+  "repo": "inite-ai/break3-backend",
+  "origins": [
+    "https://break3.inite.health",
+    "https://staging.break3.inite.health"
+  ],
+  "scopes": [
+    "wallet"
+  ],
+  "secret": {
+    "name": "AUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the Break3 SPA's own PKCE code still lands on /auth/callback and silent-callback until it moves to the kit",
+    "extraRedirectUris": [
+      "https://break3.inite.health/auth/callback",
+      "https://break3.inite.health/silent-callback",
+      "https://staging.break3.inite.health/auth/callback"
+    ]
+  }
+}

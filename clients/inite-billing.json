@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-billing",
+  "name": "billing",
+  "repo": "inite-ai/inite-billing-service",
+  "origins": [
+    "https://billing.inite.ai"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

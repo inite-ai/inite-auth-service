@@ -30,6 +30,7 @@
     "create-admin": "node scripts/create-admin-user.ts",
     "encrypt-totp-secrets": "ts-node -r tsconfig-paths/register scripts/encrypt-totp-secrets.ts",
     "backfill-memberships": "ts-node -r tsconfig-paths/register scripts/backfill-memberships.ts",
+    "clients:apply": "ts-node -r tsconfig-paths/register scripts/clients-apply.ts",
     "seed-demo-org": "ts-node -r tsconfig-paths/register scripts/seed-demo-org.ts"
   },
   "dependencies": {

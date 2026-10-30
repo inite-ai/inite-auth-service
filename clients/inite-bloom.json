@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-bloom",
+  "name": "BloomCheck",
+  "repo": "inite-ai/bloomcheck",
+  "origins": [
+    "https://bloom.inite.ai"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "clientId": "inite-health",
+  "name": "INITE Health",
+  "repo": "inite-ai/initehealth-landing",
+  "origins": [
+    "https://www.inite.health",
+    "https://inite.health"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-estate",
+  "name": "inite estate",
+  "repo": "inite-ai/initeestate-landing",
+  "origins": [
+    "https://inite.estate"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

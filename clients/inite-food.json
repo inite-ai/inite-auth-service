@@ -1,0 +1,11 @@
+{
+  "clientId": "inite-food",
+  "name": "INITE Food",
+  "repo": "inite-ai/initefood",
+  "origins": [
+    "https://inite.food"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

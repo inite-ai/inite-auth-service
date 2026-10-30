@@ -1,0 +1,13 @@
+{
+  "clientId": "nobodyquits",
+  "name": "Nobody Quits",
+  "repo": "inite-ai/nobodyquits",
+  "origins": [
+    "https://nobody-quits.com",
+    "https://www.nobody-quits.com"
+  ],
+  "outsideFamily": "the owner's own site, signed in through INITE",
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

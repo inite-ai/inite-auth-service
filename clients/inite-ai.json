@@ -1,0 +1,22 @@
+{
+  "clientId": "inite-ai",
+  "name": "inite ai",
+  "repo": "inite-ai/initeai-landing",
+  "origins": [
+    "https://inite.ai"
+  ],
+  "scopes": [
+    "audit:handoff"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "inite.ai's worker calls family services as itself (client_credentials)",
+    "grants": [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials"
+    ]
+  }
+}

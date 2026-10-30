@@ -1,0 +1,17 @@
+{
+  "clientId": "inite-club",
+  "name": "inite-club",
+  "repo": "inite-ai/initeclub-landing",
+  "origins": [
+    "https://inite.club"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "the own OIDC copy still uses silent-callback until club moves to the kit",
+    "extraRedirectUris": [
+      "https://inite.club/silent-callback"
+    ]
+  }
+}

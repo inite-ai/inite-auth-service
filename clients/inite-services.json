@@ -1,0 +1,14 @@
+{
+  "clientId": "inite-services",
+  "name": "inite services",
+  "repo": "inite-ai/initeservices",
+  "origins": [
+    "https://inite.services"
+  ],
+  "audiences": [
+    "inite-services"
+  ],
+  "secret": {
+    "name": "INITE_AUTH_CLIENT_SECRET"
+  }
+}

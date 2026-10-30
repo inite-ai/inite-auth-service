@@ -17,8 +17,8 @@ services:
       # /v1            — все версионированные endpoints (auth/oauth/admin/...)
       # /.well-known   — OIDC discovery + JWKS + apple-app-site-association
       # /health /ready — orchestrator health probes
-      # /metrics       — Prometheus scrape
-      - "traefik.http.routers.auth-api-path.rule=Host(`auth.inite.ai`) && (PathPrefix(`/v1`) || PathPrefix(`/.well-known`) || PathPrefix(`/health`) || PathPrefix(`/ready`) || PathPrefix(`/metrics`))"
+      # /metrics is not routed: it is scraped on the docker network only.
+      - "traefik.http.routers.auth-api-path.rule=Host(`auth.inite.ai`) && (PathPrefix(`/v1`) || PathPrefix(`/.well-known`) || PathPrefix(`/health`) || PathPrefix(`/ready`))"
       - "traefik.http.routers.auth-api-path.entrypoints=websecure"
       - "traefik.http.routers.auth-api-path.tls=true"
       - "traefik.http.routers.auth-api-path.tls.certresolver=letsencrypt"

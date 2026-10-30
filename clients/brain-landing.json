@@ -1,0 +1,31 @@
+{
+  "clientId": "brain-landing",
+  "name": "brain-landing",
+  "repo": "inite-ai/inite-brain-service",
+  "origins": [
+    "https://brain.inite.ai"
+  ],
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:admin",
+    "brain:read_pii"
+  ],
+  "audiences": [
+    "brain"
+  ],
+  "companyId": "co_admin",
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  },
+  "overrides": {
+    "reason": "brain-landing mounts its callback under /api/auth/callback (moves to /callback with the kit), and calls brain as itself (client_credentials) and for the person (token exchange)",
+    "callbackPath": "/api/auth/callback",
+    "grants": [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials",
+      "urn:ietf:params:oauth:grant-type:token-exchange"
+    ]
+  }
+}

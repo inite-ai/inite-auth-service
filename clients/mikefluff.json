@@ -1,0 +1,12 @@
+{
+  "clientId": "mikefluff",
+  "name": "mikefluff",
+  "repo": "inite-ai/mikefluff-landing",
+  "origins": [
+    "https://www.mikefluff.com",
+    "https://mikefluff.com"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

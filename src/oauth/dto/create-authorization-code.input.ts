@@ -27,4 +27,8 @@ export interface CreateAuthorizationCodeInput {
    * /par. Validated + persisted in createAuthorizationCode.
    */
   authorizationDetails?: string;
+  /** Customer-lane org hint (slug) from /authorize or create-code; see customer-lane.ts. */
+  organization?: string;
+  /** The customer-lane marker ('1'): only then does the hint make a customer. */
+  customer?: string;
 }

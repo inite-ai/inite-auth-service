@@ -11,7 +11,7 @@ import { LOGIN_HINT_MAX_LENGTH } from '../../oauth/login-hint';
  * is present. That object is built from URLSearchParams.get(...), so every
  * field can be `null` (absent query param) — @IsOptional treats null/undefined
  * as "missing" and skips @IsString, matching the previously-unvalidated
- * behaviour. All thirteen keys it can send are whitelisted here so a live
+ * behaviour. All fifteen keys it can send are whitelisted here so a live
  * OAuth-flow magic-link request is not rejected by forbidNonWhitelisted.
  *
  * Keep in step with OAuthParamsDto (the stored shape) and the frontend's
@@ -75,4 +75,16 @@ export class MagicLinkOAuthParamsDto {
   @IsString()
   @MaxLength(LOGIN_HINT_MAX_LENGTH)
   loginHint?: string;
+
+  /** The org hint (slug) — a customer-lane sign-in resumes for its org. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  organization?: string;
+
+  /** The customer-lane marker ('1') — the resumed flow stays a customer sign-in. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1)
+  customer?: string;
 }

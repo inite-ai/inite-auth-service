@@ -2,6 +2,17 @@ import { BadRequestException } from '@nestjs/common';
 import { permittedScopes, type ScopeBoundClient } from './oauth-scopes.registry';
 import { isResourceAllowed, type ResourceBoundClient } from './resource-registry';
 
+/**
+ * A refresh token that can no longer be used, answered as RFC 6749 §5.2
+ * says: 400 with `error: invalid_grant`. Clients branch on that code — it
+ * is how an MCP client (Claude among them) learns the sign-in is gone and
+ * asks the person to connect again; a 401 here read as a transient fault
+ * and the client kept retrying a dead token.
+ */
+export function deadRefreshToken(description: string): BadRequestException {
+  return new BadRequestException({ error: 'invalid_grant', error_description: description });
+}
+
 /** The client row as the refresh grant sees it. */
 export type RefreshBoundClient = ScopeBoundClient & ResourceBoundClient;
 

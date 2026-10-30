@@ -43,6 +43,8 @@ const ALL_PARAMS: Required<ResolvedAuthorizeParams> = {
   authorizationDetails: '[{"type":"inite_mcp_resource","actions":["read"]}]',
   uiLocales: 'pt-BR es',
   loginHint: 'invitee@example.com',
+  organization: 'acme-bistro',
+  customer: '1',
 };
 
 /** camelCase param -> the query key it travels as. */
@@ -61,6 +63,8 @@ const QUERY_KEY: Record<keyof ResolvedAuthorizeParams, keyof AuthorizeQuery> = {
   authorizationDetails: 'authorization_details',
   uiLocales: 'ui_locales',
   loginHint: 'login_hint',
+  organization: 'organization',
+  customer: 'customer',
 };
 
 /**
@@ -105,6 +109,9 @@ function harness({
   const oauthService = {
     normalizeScope: (scope: string) => scope,
     createAuthorizationCode,
+    // Not a customer-lane client: the org hint only travels.
+    customerLaneOrg: jest.fn().mockResolvedValue(null),
+    customerLaneNeedsPasswordless: jest.fn().mockResolvedValue(false),
     findUserById: jest.fn().mockResolvedValue({ id: 'user-1', email: sessionEmail }),
   } as unknown as OAuthService;
 
@@ -241,6 +248,8 @@ describe('/authorize → authorization code binding', () => {
         resource: ALL_PARAMS.resource,
         authorizationDetails: ALL_PARAMS.authorizationDetails,
         nonce: ALL_PARAMS.nonce,
+        organization: ALL_PARAMS.organization,
+        customer: ALL_PARAMS.customer,
       }),
     );
   });

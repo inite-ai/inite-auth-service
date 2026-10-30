@@ -78,6 +78,17 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
       'Off = unchanged behaviour: no membership, no org.',
   },
   {
+    key: 'CUSTOMER_LANE_ENABLED',
+    type: 'flag',
+    group: 'Tokens',
+    label: 'Customer lane (storefront sign-in)',
+    description:
+      "A tenant's own customers sign in through auth: a client marked customerLane " +
+      'that sends organization=<slug> gets a passwordless (email code or link) person ' +
+      'a `customer` membership in that org, and a token for it (org_role=customer). ' +
+      'Off = the organization parameter is ignored and no customer is ever created.',
+  },
+  {
     key: 'JWT_ACCESS_TOKEN_EXPIRY',
     type: 'duration',
     group: 'Tokens',

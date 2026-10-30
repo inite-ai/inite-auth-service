@@ -24,4 +24,8 @@ export interface OAuthParamsDto {
   uiLocales?: string;
   /** OIDC login_hint — a form prefill only, never identity. */
   loginHint?: string;
+  /** The org hint (slug) — customer-lane.ts. */
+  organization?: string;
+  /** The customer-lane marker ('1'). */
+  customer?: string;
 }

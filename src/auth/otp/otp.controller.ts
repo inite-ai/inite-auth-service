@@ -16,6 +16,7 @@ import { establishSession } from '../session/establish-session';
 import { AuthService } from '../auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { LoginEmailThrottlerGuard } from '../guards/login-throttler.guard';
+import { IpFloodGuard } from '../guards/ip-flood.guard';
 import { LoggerService } from '../../common/logger.service';
 import { RequestOtpLoginDto } from './dto/request-otp-login.dto';
 import { VerifyOtpLoginDto } from './dto/verify-otp-login.dto';
@@ -51,7 +52,9 @@ export class OtpController {
 
   @Post('request')
   @HttpCode(200)
-  @UseGuards(LoginEmailThrottlerGuard)
+  // Per address (LoginEmailThrottlerGuard + OtpService's cooldown and hourly
+  // cap), per IP (the global throttler) and per IP across addresses (IpFloodGuard).
+  @UseGuards(LoginEmailThrottlerGuard, IpFloodGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Email a one-time login code' })
   async requestLogin(@Body() body: RequestOtpLoginDto) {

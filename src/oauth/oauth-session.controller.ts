@@ -291,6 +291,9 @@ export class OAuthSessionController {
       amr,
       resource: input.resource,
       authorizationDetails: input.authorizationDetails,
+      // Customer lane: the org hint the login screen carried (customer-lane.ts).
+      organization: input.organization,
+      customer: input.customer,
     });
 
     // The person approved on the consent screen (or had nothing to be asked):

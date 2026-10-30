@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -15,9 +15,10 @@ import { currentDeviceMetadata } from '../common/device-metadata';
 import { AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 import { platformRoleClaim } from './platform-role-claim';
-import { refreshBounds, type RefreshBoundClient } from './refresh-bounds';
+import { deadRefreshToken, refreshBounds, type RefreshBoundClient } from './refresh-bounds';
 import { isDemoOrganization } from '../organizations/demo-tenant';
 import { orgClaims, type OrgContext } from './org-claims';
+import { staffRoles, tokenTenant } from './customer-lane';
 
 
 export interface GenerateTokensInput {
@@ -39,6 +40,13 @@ export interface GenerateTokensInput {
    * the same grant.
    */
   authorizationDetails?: AuthorizationDetail[];
+  /**
+   * The org (Organization.companyId) the grant was made for: the code's or the
+   * refresh token's companyId. Honoured only for a customer-lane client, whose
+   * code names the hinted org (customer-lane.ts); every other client keeps
+   * choosing by its own companyId, as before.
+   */
+  tenant?: string | null;
 }
 
 /** Issuer + access-token expiry resolved once per token issuance. */
@@ -47,17 +55,6 @@ interface SigningContext {
   accessTokenExpiry: string;
 }
 
-
-/**
- * A refresh token that can no longer be used, answered as RFC 6749 §5.2
- * says: 400 with `error: invalid_grant`. Clients branch on that code — it
- * is how an MCP client (Claude among them) learns the sign-in is gone and
- * asks the person to connect again; a 401 here read as a transient fault
- * and the client kept retrying a dead token.
- */
-function deadRefreshToken(description: string): BadRequestException {
-  return new BadRequestException({ error: 'invalid_grant', error_description: description });
-}
 
 @Injectable()
 export class OAuthTokenIssuerService {
@@ -217,7 +214,7 @@ export class OAuthTokenIssuerService {
     // RBAC feature, and must survive the flag being off.
     const clientRow = await this.prisma.oAuthClient.findUnique({
       where: { clientId: input.clientId },
-      select: { companyId: true, customClaims: true },
+      select: { companyId: true, customClaims: true, customerLane: true },
     });
     const customClaims = sanitizeCustomClaims(clientRow?.customClaims);
     const base: OrgContext = {
@@ -245,9 +242,10 @@ export class OAuthTokenIssuerService {
       };
     }
 
+    const tenant = tokenTenant(clientRow, input.tenant);
     const chosen =
-      memberships.find((m) => m.organization.companyId === clientRow?.companyId) ?? memberships[0]!; // memberships is non-empty (checked above)
-    const roles = [...new Set([...metaRoles, ...memberships.map((m) => m.role)])];
+      memberships.find((m) => m.organization.companyId === tenant) ?? memberships[0]!; // memberships is non-empty (checked above)
+    const roles = [...new Set([...metaRoles, ...staffRoles(memberships)])];
     return {
       ...base,
       roles: roles.length ? roles : ['user'],
@@ -275,7 +273,7 @@ export class OAuthTokenIssuerService {
     // (and survive a client delete).
     const clientRow = await this.prisma.oAuthClient.findUnique({
       where: { clientId },
-      select: { companyId: true },
+      select: { companyId: true, customerLane: true },
     });
 
     await this.prisma.refreshToken.create({
@@ -283,7 +281,8 @@ export class OAuthTokenIssuerService {
         tokenLookup,
         userId: user.id,
         clientId,
-        companyId: clientRow?.companyId ?? null,
+        // A customer-lane token keeps its org across rotation.
+        companyId: tokenTenant(clientRow, input.tenant),
         scope,
         nonce: nonce ?? null,
         amr: authnContext.amr ?? [],
@@ -375,6 +374,7 @@ export class OAuthTokenIssuerService {
       clientId,
       scope: bounds.scope,
       rotatedFrom: matchedToken.id,
+      tenant: matchedToken.companyId,
       nonce: matchedToken.nonce ?? undefined,
       authnContext: { amr: matchedToken.amr ?? [] },
       // RFC 8707: a token bound to a resource stays bound after rotation.

@@ -49,6 +49,12 @@ export interface ClientManifest {
   /** A host outside FAMILY_DOMAINS, and why. */
   outsideFamily?: string;
   active?: boolean;
+  /**
+   * Signs in a tenant's own customers (src/oauth/customer-lane.ts): with
+   * CUSTOMER_LANE_ENABLED, `organization=<slug>` gives a passwordless person
+   * a `customer` membership in that org. Off unless set.
+   */
+  customerLane?: boolean;
   /** Only where the product does not follow the convention. Each with its reason. */
   overrides?: {
     reason: string;
@@ -77,6 +83,7 @@ export interface ClientRow {
   tokenEndpointAuthMethod: string;
   companyId: string | null;
   active: boolean;
+  customerLane: boolean;
 }
 
 export const MANAGED_FIELDS: readonly (keyof ClientRow)[] = [
@@ -91,6 +98,7 @@ export const MANAGED_FIELDS: readonly (keyof ClientRow)[] = [
   'tokenEndpointAuthMethod',
   'companyId',
   'active',
+  'customerLane',
 ];
 
 const uniq = (xs: string[]) => [...new Set(xs)];
@@ -120,6 +128,7 @@ export function deriveClient(m: ClientManifest): ClientRow {
     tokenEndpointAuthMethod: 'client_secret_post',
     companyId: m.companyId ?? null,
     active: m.active ?? true,
+    customerLane: m.customerLane === true,
   };
 }
 

@@ -21,6 +21,7 @@ import { ParService } from './par.service';
 import { DeviceFlowService } from './device-flow.service';
 import { AuthorizeQuery } from './dto/oauth-requests';
 import { normalizeLoginHint } from './login-hint';
+import { normalizeCustomerMarker, normalizeOrganizationHint } from './customer-lane';
 
 
 /**
@@ -95,6 +96,8 @@ export class OAuthRequestController {
           authorizationDetails: p.authorization_details,
           uiLocales: p.ui_locales,
           loginHint: normalizeLoginHint(p.login_hint),
+          organization: normalizeOrganizationHint(p.organization),
+          customer: normalizeCustomerMarker(p.customer),
         })
       ).requestUri,
       expires_in: 60,

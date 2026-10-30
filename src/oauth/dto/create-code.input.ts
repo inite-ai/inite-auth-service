@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsIn, IsString, IsNotEmpty, IsOptional, MaxLength } from 'class-validator';
 
 export class CreateCodeInput {
   // Definite-assignment: populated by the global ValidationPipe from the
@@ -44,6 +44,17 @@ export class CreateCodeInput {
   @IsString()
   @IsOptional()
   authorizationDetails?: string;
+
+  /** The org hint (slug) carried from /authorize — customer-lane.ts. */
+  @IsString()
+  @IsOptional()
+  @MaxLength(64)
+  organization?: string;
+
+  /** The customer-lane marker carried from /authorize ('1'). */
+  @IsIn(['1'])
+  @IsOptional()
+  customer?: string;
 }
 
 

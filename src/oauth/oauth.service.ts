@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
@@ -15,6 +15,8 @@ import { grantableScope, type ScopeBoundClient } from './oauth-scopes.registry';
 import { StepUpService } from './step-up.service';
 import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
 import { assertResourceAllowed } from './resource-registry';
+import { CustomerLaneService } from './customer-lane.service';
+import type { LaneClient, LaneOrg } from './customer-lane';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -39,7 +41,19 @@ export class OAuthService {
     private readonly emailService: EmailService,
     private readonly tokenIssuer: OAuthTokenIssuerService,
     private readonly authorizationDetails: AuthorizationDetailsService,
+    @Optional() private readonly customerLane?: CustomerLaneService,
   ) {}
+
+  /** The customer-lane org an /authorize request is for (customer-lane.ts), or null. Throws on a bad hint. */
+  async customerLaneOrg(client: LaneClient, hint: { organization?: string; customer?: string }): Promise<LaneOrg | null> {
+    return (await this.customerLane?.orgFor({ client, organization: hint.organization, customer: hint.customer })) ?? null;
+  }
+
+  /** Whether a lane sign-in must start again passwordless: a would-be customer with a password session. */
+  async customerLaneNeedsPasswordless(org: LaneOrg | null, who: { userId: string; amr: string[] }): Promise<boolean> {
+    if (!org || !this.customerLane) return false;
+    return (await this.customerLane.verdict({ ...who, org })) === 'passwordless';
+  }
 
   /**
    * Look up a user by id. Lets controllers stay out of the persistence
@@ -89,7 +103,7 @@ export class OAuthService {
     // even when the caller already validated the client elsewhere.
     const clientRow = await this.prisma.oAuthClient.findUnique({
       where: { clientId: input.clientId },
-      select: { companyId: true },
+      select: { clientId: true, companyId: true, customerLane: true },
     });
 
     // RFC 9396: validate the raw authorization_details here (the single valve
@@ -106,12 +120,17 @@ export class OAuthService {
       });
     }
 
+    // The customer lane: the single valve again, so the direct-authorize and
+    // the create-code paths both admit the person before a code exists.
+    const companyId = await this.codeTenant(input, clientRow);
+
     await this.prisma.authorizationCode.create({
       data: {
         code,
         userId: input.userId,
         clientId: input.clientId,
-        companyId: clientRow?.companyId ?? null,
+        // A lane code is for the hinted org: the token is issued for it.
+        companyId,
         redirectUri: input.redirectUri,
         scope: input.scope,
         codeChallenge: input.codeChallenge,
@@ -129,6 +148,19 @@ export class OAuthService {
     });
 
     return code;
+  }
+
+  /**
+   * customer-lane.ts: for a lane client with an `organization` hint, admit the
+   * person (a new `customer`, or the member they are): the code is for that
+   * org. Otherwise the code carries the client's own companyId, as before.
+   */
+  private async codeTenant(input: CreateAuthorizationCodeInput, clientRow: LaneClient | null): Promise<string | null> {
+    if (!clientRow) return null;
+    const org = await this.customerLane?.orgFor({ client: clientRow, organization: input.organization, customer: input.customer });
+    if (!org) return clientRow.companyId;
+    await this.customerLane!.admit({ userId: input.userId, clientId: input.clientId, org, amr: input.amr ?? [] });
+    return org.companyId;
   }
 
   /**
@@ -203,6 +235,8 @@ export class OAuthService {
       user: authCode.user,
       clientId,
       scope,
+      // The org the code was issued for (a customer-lane code's hinted org).
+      tenant: authCode.companyId,
       nonce: authCode.nonce ?? undefined,
       audience,
       authnContext: {

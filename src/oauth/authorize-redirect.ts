@@ -44,6 +44,13 @@ const CARRIED_AUTHORIZE_PARAMS: ReadonlyArray<readonly [string, keyof ResolvedAu
   // OIDC login_hint — prefills the email field (an invite's address). The
   // SPA treats it as a suggestion only; the login itself proves identity.
   ['login_hint', 'loginHint'],
+  // The org hint — a customer-lane sign-in must still name its org when the
+  // code is created after the login screen (customer-lane.ts).
+  ['organization', 'organization'],
+  // The customer-lane marker (customer=1, as @inite/auth's storefront login
+  // sends it): the login screen offers only the passwordless methods, and the
+  // code is created for a customer (customer-lane.ts).
+  ['customer', 'customer'],
 ];
 
 /** Build a /login or /consent redirect carrying the OAuth params forward. */

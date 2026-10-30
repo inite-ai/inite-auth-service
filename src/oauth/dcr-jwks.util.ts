@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { BlockedFetch, checkUrl } from '../common/safe-fetch-address';
 
 /**
  * Validate the key material an RFC 7591 registration presents for a
@@ -6,7 +7,10 @@ import { BadRequestException } from '@nestjs/common';
  *
  * - jwks and jwks_uri are mutually exclusive (RFC 7591 §2).
  * - a private_key_jwt client MUST supply one of them.
- * - jwks_uri must be https (SSRF).
+ * - jwks_uri must be https (SSRF), on port 443 (or 80), with no credentials,
+ *   and must not name a literal private/loopback/metadata IP or an internal
+ *   name. A name that only RESOLVES privately is refused when it is fetched
+ *   (ClientJwksService → safeFetch), since DNS can change after registration.
  */
 export function validateDcrClientKeys(input: {
   method: string | undefined;
@@ -30,6 +34,7 @@ export function validateDcrClientKeys(input: {
     if (url.protocol !== 'https:') {
       throw new BadRequestException('jwks_uri must use https');
     }
+    assertFetchableJwksUri(url);
   }
   if (jwks) assertPublicJwks(jwks);
 }
@@ -49,5 +54,16 @@ export function assertPublicJwks(jwks: unknown): void {
     if (jwk && (jwk.d !== undefined || jwk.kty === 'oct')) {
       throw new BadRequestException('jwks must contain only public keys (found private key material)');
     }
+  }
+}
+
+function assertFetchableJwksUri(url: URL): void {
+  try {
+    checkUrl(url, { requireHttps: true });
+  } catch (err) {
+    if (err instanceof BlockedFetch) {
+      throw new BadRequestException(`jwks_uri is not fetchable: ${err.message}`);
+    }
+    throw err;
   }
 }

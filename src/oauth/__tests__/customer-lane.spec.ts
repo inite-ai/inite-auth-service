@@ -4,7 +4,12 @@ import type { JwtService } from '@nestjs/jwt';
 import type { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { CustomerLaneService } from '../customer-lane.service';
-import { CUSTOMER_ROLE, isPasswordlessSession, laneVerdict, orgAllowsClient } from '../customer-lane';
+import {
+  CUSTOMER_ROLE,
+  isPasswordlessSession,
+  laneVerdict,
+  orgAllowsClient,
+} from '../customer-lane';
 import { OAuthService } from '../oauth.service';
 import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { OAuthController } from '../oauth.controller';
@@ -29,9 +34,26 @@ import type { PrismaService } from '../../prisma/prisma.service';
 
 type Row = Record<string, unknown>;
 
-const BISTRO = { id: 'org-bistro', companyId: 'co_bistro', slug: 'bistro', name: 'Bistro', metadata: null as unknown };
-const OTHER = { id: 'org-other', companyId: 'co_other', slug: 'other', name: 'Other', metadata: null as unknown };
-const FOOD = { clientId: 'inite-food', companyId: 'co_bistro', customerLane: true, customClaims: null };
+const BISTRO = {
+  id: 'org-bistro',
+  companyId: 'co_bistro',
+  slug: 'bistro',
+  name: 'Bistro',
+  metadata: null as unknown,
+};
+const OTHER = {
+  id: 'org-other',
+  companyId: 'co_other',
+  slug: 'other',
+  name: 'Other',
+  metadata: null as unknown,
+};
+const FOOD = {
+  clientId: 'inite-food',
+  companyId: 'co_bistro',
+  customerLane: true,
+  customClaims: null,
+};
 
 function db(opts: { orgs?: Row[]; clients?: Row[] } = {}) {
   const orgs: Row[] = opts.orgs ?? [{ ...BISTRO }, { ...OTHER }];
@@ -43,30 +65,55 @@ function db(opts: { orgs?: Row[]; clients?: Row[] } = {}) {
   const byId = (id: unknown) => users.find((u) => u.id === id) ?? null;
   const prisma = {
     organization: {
-      findUnique: jest.fn(async ({ where }: { where: { slug: string } }) => orgs.find((o) => o.slug === where.slug) ?? null),
+      findUnique: jest.fn(
+        async ({ where }: { where: { slug: string } }) =>
+          orgs.find((o) => o.slug === where.slug) ?? null,
+      ),
     },
     oAuthClient: {
-      findUnique: jest.fn(async ({ where }: { where: { clientId: string } }) => clients.find((c) => c.clientId === where.clientId) ?? null),
+      findUnique: jest.fn(
+        async ({ where }: { where: { clientId: string } }) =>
+          clients.find((c) => c.clientId === where.clientId) ?? null,
+      ),
     },
     user: {
       findUnique: jest.fn(async ({ where }: { where: { id?: string; email?: string } }) =>
         where.id ? byId(where.id) : (users.find((u) => u.email === where.email) ?? null),
       ),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => Object.assign(byId(where.id)!, data)),
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) =>
+        Object.assign(byId(where.id)!, data),
+      ),
     },
     membership: {
-      findUnique: jest.fn(async ({ where }: { where: { userId_organizationId: { userId: string; organizationId: string } } }) => {
-        const k = where.userId_organizationId;
-        return memberships.find((m) => m.userId === k.userId && m.organizationId === k.organizationId) ?? null;
-      }),
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId_organizationId: { userId: string; organizationId: string } };
+        }) => {
+          const k = where.userId_organizationId;
+          return (
+            memberships.find(
+              (m) => m.userId === k.userId && m.organizationId === k.organizationId,
+            ) ?? null
+          );
+        },
+      ),
       findMany: jest.fn(async ({ where }: { where: { userId: string } }) =>
         memberships
           .filter((m) => m.userId === where.userId && m.status === 'active')
           .map((m) => ({ ...m, organization: orgs.find((o) => o.id === m.organizationId) })),
       ),
       create: jest.fn(async ({ data }: { data: Row }) => {
-        if (memberships.some((m) => m.userId === data.userId && m.organizationId === data.organizationId)) {
-          throw new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'test' });
+        if (
+          memberships.some(
+            (m) => m.userId === data.userId && m.organizationId === data.organizationId,
+          )
+        ) {
+          throw new Prisma.PrismaClientKnownRequestError('unique', {
+            code: 'P2002',
+            clientVersion: 'test',
+          });
         }
         memberships.push({ ...data });
         return data;
@@ -74,12 +121,23 @@ function db(opts: { orgs?: Row[]; clients?: Row[] } = {}) {
       update: jest.fn(),
       upsert: jest.fn(),
     },
-    authorizationCode: { create: jest.fn(async ({ data }: { data: Row }) => (codes.push(data), data)) },
-    refreshToken: { create: jest.fn(async ({ data }: { data: Row }) => (refresh.push(data), data)) },
+    authorizationCode: {
+      create: jest.fn(async ({ data }: { data: Row }) => (codes.push(data), data)),
+    },
+    refreshToken: {
+      create: jest.fn(async ({ data }: { data: Row }) => (refresh.push(data), data)),
+    },
   };
   const identity = {
     createIdentity: jest.fn(async (email: string) => {
-      const u = { id: `u${users.length + 1}`, did: `did:key:z${users.length + 1}`, email, name: null, emailVerified: false, metadata: {} };
+      const u = {
+        id: `u${users.length + 1}`,
+        did: `did:key:z${users.length + 1}`,
+        email,
+        name: null,
+        emailVerified: false,
+        metadata: {},
+      };
       users.push(u);
       return u;
     }),
@@ -97,7 +155,10 @@ function services(d: Db, env: Record<string, string> = LANE_ON) {
   const lane = new CustomerLaneService(prisma, settings, audit as never);
   const signed: Row[] = [];
   const jwt = { sign: (p: Row) => (signed.push(p), 'jwt') } as unknown as JwtService;
-  const config = { get: (k: string, dflt?: string) => (k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-only-hmac-secret' : (dflt ?? '')) } as unknown as ConfigService;
+  const config = {
+    get: (k: string, dflt?: string) =>
+      k === 'REFRESH_TOKEN_HMAC_SECRET' ? 'test-only-hmac-secret' : (dflt ?? ''),
+  } as unknown as ConfigService;
   const issuer = new OAuthTokenIssuerService(prisma, jwt, config, settings);
   const oauth = new OAuthService(
     prisma,
@@ -118,7 +179,9 @@ function fakeRedis() {
     set: jest.fn(async (k: string, v: string) => void store.set(k, v)),
     get: jest.fn(async (k: string) => store.get(k) ?? null),
     del: jest.fn(async (k: string) => void store.delete(k)),
-    setIfAbsent: jest.fn(async (k: string, v: string) => (store.has(k) ? false : (store.set(k, v), true))),
+    setIfAbsent: jest.fn(async (k: string, v: string) =>
+      store.has(k) ? false : (store.set(k, v), true),
+    ),
   };
 }
 
@@ -126,12 +189,27 @@ function fakeRedis() {
 async function signInByCode(d: Db, email: string) {
   let code = '';
   const mail = { sendOtpCode: jest.fn(async (_to: string, c: string) => ((code = c), true)) };
-  const otp = new OtpService(d.prisma as never, fakeRedis() as never, mail as never, d.identity as never, { enabled: false } as never);
+  const otp = new OtpService(
+    d.prisma as never,
+    fakeRedis() as never,
+    mail as never,
+    d.identity as never,
+    { enabled: false } as never,
+  );
   await otp.requestEmailLoginCode(email);
   return (await otp.verifyEmailLoginCode(email, code)).user;
 }
 
-function codeFor(oauth: OAuthService, input: { userId: string; amr: string[]; organization?: string; clientId?: string; customer?: string }) {
+function codeFor(
+  oauth: OAuthService,
+  input: {
+    userId: string;
+    amr: string[];
+    organization?: string;
+    clientId?: string;
+    customer?: string;
+  },
+) {
   return oauth.createAuthorizationCode({
     clientId: input.clientId ?? 'inite-food',
     redirectUri: 'https://inite.food/callback',
@@ -152,9 +230,13 @@ describe('customer lane: a new customer', () => {
 
     await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' });
 
-    expect(d.memberships).toEqual([{ userId: user.id, organizationId: 'org-bistro', role: CUSTOMER_ROLE, status: 'active' }]);
+    expect(d.memberships).toEqual([
+      { userId: user.id, organizationId: 'org-bistro', role: CUSTOMER_ROLE, status: 'active' },
+    ]);
     expect(d.codes[0]).toMatchObject({ companyId: 'co_bistro', amr: ['otp'] });
-    expect(s.audit.record).toHaveBeenCalledWith(expect.objectContaining({ event: 'membership.customer.created', companyId: 'co_bistro' }));
+    expect(s.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'membership.customer.created', companyId: 'co_bistro' }),
+    );
   });
 
   it('is issued a token for that org: org_role=customer, no platform_role, not in roles', async () => {
@@ -163,11 +245,21 @@ describe('customer lane: a new customer', () => {
     const user = await signInByCode(d, 'guest@example.test');
     await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' });
 
-    await s.issuer.generateTokens({ user: user as never, clientId: 'inite-food', scope: 'openid', tenant: d.codes[0]!.companyId as string });
+    await s.issuer.generateTokens({
+      user: user as never,
+      clientId: 'inite-food',
+      scope: 'openid',
+      tenant: d.codes[0]!.companyId as string,
+    });
 
     expect(s.signed).toHaveLength(2);
     for (const claims of s.signed) {
-      expect(claims).toMatchObject({ org: 'co_bistro', org_id: 'org-bistro', org_slug: 'bistro', org_role: 'customer' });
+      expect(claims).toMatchObject({
+        org: 'co_bistro',
+        org_id: 'org-bistro',
+        org_slug: 'bistro',
+        org_role: 'customer',
+      });
       expect(claims.platform_role).toBeUndefined();
       expect(claims.roles).toEqual(['user']);
     }
@@ -184,7 +276,8 @@ describe('customer lane: a new customer', () => {
     expect(d.identity.createIdentity).toHaveBeenCalledWith('guest@example.test');
     expect(d.users[0]).toMatchObject({ emailVerified: true });
     expect(d.users[0]).not.toHaveProperty('passwordHash');
-    for (const [arg] of d.prisma.user.update.mock.calls) expect(Object.keys(arg.data)).toEqual(['emailVerified']);
+    for (const [arg] of d.prisma.user.update.mock.calls)
+      expect(Object.keys(arg.data)).toEqual(['emailVerified']);
   });
 
   it('signs in by magic link the same way', async () => {
@@ -225,7 +318,12 @@ describe('customer lane: people already in the org', () => {
     const user = await member(d, 'admin');
 
     await codeFor(s.oauth, { userId: user.id, amr: ['pwd'], organization: 'bistro' });
-    await s.issuer.generateTokens({ user: user as never, clientId: 'inite-food', scope: 'openid', tenant: 'co_bistro' });
+    await s.issuer.generateTokens({
+      user: user as never,
+      clientId: 'inite-food',
+      scope: 'openid',
+      tenant: 'co_bistro',
+    });
 
     expect(d.prisma.membership.create).not.toHaveBeenCalled();
     expect(d.prisma.membership.update).not.toHaveBeenCalled();
@@ -239,7 +337,9 @@ describe('customer lane: people already in the org', () => {
     const s = services(d);
     const user = await member(d, CUSTOMER_ROLE, 'suspended');
 
-    await expect(codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' })).rejects.toMatchObject({ status: 403 });
+    await expect(
+      codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' }),
+    ).rejects.toMatchObject({ status: 403 });
     expect(d.memberships[0]!.status).toBe('suspended');
     expect(d.codes).toHaveLength(0);
   });
@@ -251,7 +351,12 @@ describe('customer lane: people already in the org', () => {
     user.emailVerified = true;
     // An admin adds the person between the lane's read and its insert.
     d.prisma.membership.findUnique.mockResolvedValueOnce(null);
-    d.memberships.push({ userId: user.id, organizationId: 'org-bistro', role: 'member', status: 'active' });
+    d.memberships.push({
+      userId: user.id,
+      organizationId: 'org-bistro',
+      role: 'member',
+      status: 'active',
+    });
 
     await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' });
 
@@ -268,7 +373,9 @@ describe('customer lane: passwordless only', () => {
     user.emailVerified = true;
 
     for (const amr of [['pwd'], ['pwd', 'otp'], ['hwk'], []]) {
-      await expect(codeFor(s.oauth, { userId: user.id, amr, organization: 'bistro' })).rejects.toMatchObject({ status: 401 });
+      await expect(
+        codeFor(s.oauth, { userId: user.id, amr, organization: 'bistro' }),
+      ).rejects.toMatchObject({ status: 401 });
     }
     expect(d.memberships).toHaveLength(0);
     expect(d.codes).toHaveLength(0);
@@ -278,9 +385,16 @@ describe('customer lane: passwordless only', () => {
     const d = db();
     const s = services(d);
     const user = await d.identity.createIdentity('pw@example.test');
-    d.memberships.push({ userId: user.id, organizationId: 'org-bistro', role: CUSTOMER_ROLE, status: 'active' });
+    d.memberships.push({
+      userId: user.id,
+      organizationId: 'org-bistro',
+      role: CUSTOMER_ROLE,
+      status: 'active',
+    });
 
-    await expect(codeFor(s.oauth, { userId: user.id, amr: ['pwd'], organization: 'bistro' })).rejects.toMatchObject({ status: 401 });
+    await expect(
+      codeFor(s.oauth, { userId: user.id, amr: ['pwd'], organization: 'bistro' }),
+    ).rejects.toMatchObject({ status: 401 });
   });
 
   it('never adds an unverified address', async () => {
@@ -288,7 +402,9 @@ describe('customer lane: passwordless only', () => {
     const s = services(d);
     const user = await d.identity.createIdentity('unverified@example.test');
 
-    await expect(codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' })).rejects.toMatchObject({ status: 401 });
+    await expect(
+      codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro' }),
+    ).rejects.toMatchObject({ status: 401 });
     expect(d.memberships).toHaveLength(0);
   });
 
@@ -304,12 +420,19 @@ describe('customer lane: passwordless only', () => {
 
 describe('customer lane: the org hint', () => {
   it('refuses an unknown org, a malformed slug and an inactive org', async () => {
-    const d = db({ orgs: [{ ...BISTRO, metadata: { status: 'suspended' } }, { ...OTHER, slug: 'closed', metadata: { active: false } }] });
+    const d = db({
+      orgs: [
+        { ...BISTRO, metadata: { status: 'suspended' } },
+        { ...OTHER, slug: 'closed', metadata: { active: false } },
+      ],
+    });
     const s = services(d);
     const user = await signInByCode(d, 'guest@example.test');
 
     for (const organization of ['nowhere', 'Not A Slug!', 'bistro', 'closed']) {
-      await expect(codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization })).rejects.toMatchObject({ status: 400 });
+      await expect(
+        codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization }),
+      ).rejects.toMatchObject({ status: 400 });
     }
     expect(d.memberships).toHaveLength(0);
   });
@@ -319,23 +442,40 @@ describe('customer lane: the org hint', () => {
     const s = services(d);
     const user = await signInByCode(d, 'guest@example.test');
 
-    await expect(codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'other' })).rejects.toMatchObject({
+    await expect(
+      codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'other' }),
+    ).rejects.toMatchObject({
       response: { error: 'unauthorized_client' },
     });
     expect(d.memberships).toHaveLength(0);
   });
 
   it('accepts an org that names the client in metadata.customerLane.clients', async () => {
-    const shop = { clientId: 'inite-shop', companyId: null, customerLane: true, customClaims: null };
-    const d = db({ clients: [shop], orgs: [{ ...OTHER, metadata: { customerLane: { clients: ['inite-shop'] } } }] });
+    const shop = {
+      clientId: 'inite-shop',
+      companyId: null,
+      customerLane: true,
+      customClaims: null,
+    };
+    const d = db({
+      clients: [shop],
+      orgs: [{ ...OTHER, metadata: { customerLane: { clients: ['inite-shop'] } } }],
+    });
     const s = services(d);
     const user = await signInByCode(d, 'guest@example.test');
 
-    await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'other', clientId: 'inite-shop' });
+    await codeFor(s.oauth, {
+      userId: user.id,
+      amr: ['otp'],
+      organization: 'other',
+      clientId: 'inite-shop',
+    });
 
     expect(d.memberships[0]).toMatchObject({ organizationId: 'org-other', role: CUSTOMER_ROLE });
     expect(d.codes[0]).toMatchObject({ companyId: 'co_other' });
-    expect(orgAllowsClient({ ...OTHER, metadata: { customerLane: { clients: ['inite-food'] } } }, shop)).toBe(false);
+    expect(
+      orgAllowsClient({ ...OTHER, metadata: { customerLane: { clients: ['inite-food'] } } }, shop),
+    ).toBe(false);
   });
 });
 
@@ -345,19 +485,34 @@ describe('customer lane: off unless switched on for the client', () => {
     const s = services(d);
     const user = await signInByCode(d, 'merchant@example.test');
 
-    await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'bistro', customer: undefined });
+    await codeFor(s.oauth, {
+      userId: user.id,
+      amr: ['otp'],
+      organization: 'bistro',
+      customer: undefined,
+    });
 
     expect(d.prisma.organization.findUnique).not.toHaveBeenCalled();
     expect(d.memberships).toHaveLength(0);
   });
 
   it('ignores the hint for a client without the lane flag', async () => {
-    const rent = { clientId: 'inite-rent', companyId: 'co_bistro', customerLane: false, customClaims: null };
+    const rent = {
+      clientId: 'inite-rent',
+      companyId: 'co_bistro',
+      customerLane: false,
+      customClaims: null,
+    };
     const d = db({ clients: [rent] });
     const s = services(d);
     const user = await signInByCode(d, 'guest@example.test');
 
-    await codeFor(s.oauth, { userId: user.id, amr: ['otp'], organization: 'other', clientId: 'inite-rent' });
+    await codeFor(s.oauth, {
+      userId: user.id,
+      amr: ['otp'],
+      organization: 'other',
+      clientId: 'inite-rent',
+    });
 
     expect(d.prisma.organization.findUnique).not.toHaveBeenCalled();
     expect(d.memberships).toHaveLength(0);
@@ -365,14 +520,34 @@ describe('customer lane: off unless switched on for the client', () => {
   });
 
   it('a non-lane client keeps choosing the org by its own companyId at /token', async () => {
-    const rent = { clientId: 'inite-rent', companyId: 'co_bistro', customerLane: false, customClaims: null };
+    const rent = {
+      clientId: 'inite-rent',
+      companyId: 'co_bistro',
+      customerLane: false,
+      customClaims: null,
+    };
     const d = db({ clients: [rent] });
     const s = services(d);
     const user = await d.identity.createIdentity('staff@example.test');
-    d.memberships.push({ userId: user.id, organizationId: 'org-other', role: 'member', status: 'active' });
-    d.memberships.push({ userId: user.id, organizationId: 'org-bistro', role: 'admin', status: 'active' });
+    d.memberships.push({
+      userId: user.id,
+      organizationId: 'org-other',
+      role: 'member',
+      status: 'active',
+    });
+    d.memberships.push({
+      userId: user.id,
+      organizationId: 'org-bistro',
+      role: 'admin',
+      status: 'active',
+    });
 
-    await s.issuer.generateTokens({ user: user as never, clientId: 'inite-rent', scope: 'openid', tenant: 'co_other' });
+    await s.issuer.generateTokens({
+      user: user as never,
+      clientId: 'inite-rent',
+      scope: 'openid',
+      tenant: 'co_other',
+    });
 
     expect(s.signed[0]).toMatchObject({ org: 'co_bistro', org_role: 'admin' });
     expect(d.refresh[0]!.companyId).toBe('co_bistro');
@@ -408,15 +583,29 @@ describe('customer lane: /authorize', () => {
 
   function controller(d: Db) {
     const s = services(d);
-    const createAuthorizationCode = jest.spyOn(s.oauth, 'createAuthorizationCode').mockResolvedValue('code-1');
+    const createAuthorizationCode = jest
+      .spyOn(s.oauth, 'createAuthorizationCode')
+      .mockResolvedValue('code-1');
     const registry = {
-      validateClient: jest.fn(async () => ({ ...FOOD, allowedScopes: ['openid'], allowedAudiences: [], redirectUris: [] })),
+      validateClient: jest.fn(async () => ({
+        ...FOOD,
+        allowedScopes: ['openid'],
+        allowedAudiences: [],
+        redirectUris: [],
+      })),
       validateRedirectUri: () => true,
       validateGrantType: () => undefined,
     };
     const stepUp = { isSatisfied: () => true, achievedAcr: () => undefined };
     const consent = { isRequired: async () => false };
-    const c = new OAuthController(s.oauth, registry as never, {} as never, stepUp as never, {} as never, consent as never);
+    const c = new OAuthController(
+      s.oauth,
+      registry as never,
+      {} as never,
+      stepUp as never,
+      {} as never,
+      consent as never,
+    );
     return { c, createAuthorizationCode };
   }
 
@@ -431,7 +620,8 @@ describe('customer lane: /authorize', () => {
     customer: '1',
   };
   const res = () => ({ redirect: jest.fn() });
-  const req = (session?: Row) => ({ headers: { host: 'auth-api.inite.test' }, session }) as unknown as Request;
+  const req = (session?: Row) =>
+    ({ headers: { host: 'auth-api.inite.test' }, session }) as unknown as Request;
 
   it('sends a person with no session to a passwordless login screen, the org hint carried', async () => {
     const d = db();
@@ -461,8 +651,14 @@ describe('customer lane: /authorize', () => {
     const d = db();
     const { c, createAuthorizationCode } = controller(d);
     const r = res();
-    await c.authorize({ ...query, prompt: 'none' }, req({ userId: 'u9', amr: ['pwd'] }), r as unknown as Response);
-    expect(new URL(r.redirect.mock.calls[0][0] as string).searchParams.get('error')).toBe('login_required');
+    await c.authorize(
+      { ...query, prompt: 'none' },
+      req({ userId: 'u9', amr: ['pwd'] }),
+      r as unknown as Response,
+    );
+    expect(new URL(r.redirect.mock.calls[0][0] as string).searchParams.get('error')).toBe(
+      'login_required',
+    );
     expect(createAuthorizationCode).not.toHaveBeenCalled();
   });
 
@@ -471,22 +667,34 @@ describe('customer lane: /authorize', () => {
     const { c, createAuthorizationCode } = controller(d);
     const r = res();
     await c.authorize(query, req({ userId: 'u9', amr: ['otp'] }), r as unknown as Response);
-    expect(createAuthorizationCode).toHaveBeenCalledWith(expect.objectContaining({ organization: 'bistro', customer: '1', amr: ['otp'] }));
+    expect(createAuthorizationCode).toHaveBeenCalledWith(
+      expect.objectContaining({ organization: 'bistro', customer: '1', amr: ['otp'] }),
+    );
   });
 
   it('refuses an unknown org before anyone signs in', async () => {
     const d = db();
     const { c } = controller(d);
-    await expect(c.authorize({ ...query, organization: 'nowhere' }, req(undefined), res() as unknown as Response)).rejects.toMatchObject({ status: 400 });
+    await expect(
+      c.authorize(
+        { ...query, organization: 'nowhere' },
+        req(undefined),
+        res() as unknown as Response,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });
 
 describe('customer lane: sends are rate limited', () => {
   const guardsOf = (target: object, method: string) =>
-    (Reflect.getMetadata('__guards__', (target as Record<string, unknown>)[method] as object) ?? []) as unknown[];
+    (Reflect.getMetadata('__guards__', (target as Record<string, unknown>)[method] as object) ??
+      []) as unknown[];
 
   it('caps the email code and the sign-in link per address and per IP', () => {
-    for (const guards of [guardsOf(OtpController.prototype, 'requestLogin'), guardsOf(AuthController.prototype, 'sendMagicLink')]) {
+    for (const guards of [
+      guardsOf(OtpController.prototype, 'requestLogin'),
+      guardsOf(AuthController.prototype, 'sendMagicLink'),
+    ]) {
       expect(guards).toEqual(expect.arrayContaining([LoginEmailThrottlerGuard, IpFloodGuard]));
     }
   });
@@ -494,9 +702,17 @@ describe('customer lane: sends are rate limited', () => {
   it('refuses a second code to the same address inside the cooldown', async () => {
     const d = db();
     const mail = { sendOtpCode: jest.fn(async () => true) };
-    const otp = new OtpService(d.prisma as never, fakeRedis() as never, mail as never, d.identity as never, { enabled: false } as never);
+    const otp = new OtpService(
+      d.prisma as never,
+      fakeRedis() as never,
+      mail as never,
+      d.identity as never,
+      { enabled: false } as never,
+    );
     await otp.requestEmailLoginCode('guest@example.test');
-    await expect(otp.requestEmailLoginCode('GUEST@example.test')).rejects.toMatchObject({ status: 429 });
+    await expect(otp.requestEmailLoginCode('GUEST@example.test')).rejects.toMatchObject({
+      status: 429,
+    });
     expect(mail.sendOtpCode).toHaveBeenCalledTimes(1);
   });
 });

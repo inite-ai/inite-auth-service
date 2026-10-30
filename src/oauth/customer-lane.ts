@@ -89,7 +89,8 @@ export function isOrganizationActive(org: { metadata: unknown }): boolean {
 export function orgAllowsClient(org: LaneOrgRow, client: LaneClient): boolean {
   if (client.companyId && client.companyId === org.companyId) return true;
   const lane = metadataOf(org).customerLane;
-  const clients = lane && typeof lane === 'object' ? (lane as { clients?: unknown }).clients : undefined;
+  const clients =
+    lane && typeof lane === 'object' ? (lane as { clients?: unknown }).clients : undefined;
   return Array.isArray(clients) && clients.includes(client.clientId);
 }
 

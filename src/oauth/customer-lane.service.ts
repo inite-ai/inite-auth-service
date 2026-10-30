@@ -23,7 +23,10 @@ import {
 } from './customer-lane';
 
 /** Refusals of the hint itself, before anyone signs in. */
-const UNKNOWN_ORG = { error: 'invalid_request', error_description: 'Unknown or inactive organization' };
+const UNKNOWN_ORG = {
+  error: 'invalid_request',
+  error_description: 'Unknown or inactive organization',
+};
 const NOT_BOUND = {
   error: 'unauthorized_client',
   error_description: 'This client may not sign in customers for that organization',
@@ -49,9 +52,14 @@ export class CustomerLaneService {
    * marked customer=1. Throws when a lane
    * client names an org that does not exist, is closed, or does not have it.
    */
-  async orgFor(input: { client: LaneClient; organization?: string | null; customer?: string | null }): Promise<LaneOrg | null> {
+  async orgFor(input: {
+    client: LaneClient;
+    organization?: string | null;
+    customer?: string | null;
+  }): Promise<LaneOrg | null> {
     const slug = normalizeOrganizationHint(input.organization);
-    if (!slug || !normalizeCustomerMarker(input.customer) || !input.client.customerLane) return null;
+    if (!slug || !normalizeCustomerMarker(input.customer) || !input.client.customerLane)
+      return null;
     if (!this.settings.flag('CUSTOMER_LANE_ENABLED')) return null;
     if (!isSlug(slug)) throw new BadRequestException(UNKNOWN_ORG);
     const org = await this.prisma.organization.findUnique({
@@ -64,7 +72,11 @@ export class CustomerLaneService {
   }
 
   /** What this person's membership (or none) means for a sign-in with these methods. */
-  async verdict(input: { userId: string; org: LaneOrg; amr: readonly string[] }): Promise<LaneVerdict> {
+  async verdict(input: {
+    userId: string;
+    org: LaneOrg;
+    amr: readonly string[];
+  }): Promise<LaneVerdict> {
     return laneVerdict(await this.membershipOf(input.userId, input.org.id), input.amr);
   }
 
@@ -83,7 +95,10 @@ export class CustomerLaneService {
     const existing = await this.membershipOf(input.userId, input.org.id);
     const verdict = laneVerdict(existing, input.amr);
     if (verdict === 'closed') {
-      throw new ForbiddenException({ error: 'access_denied', error_description: 'Membership is not active' });
+      throw new ForbiddenException({
+        error: 'access_denied',
+        error_description: 'Membership is not active',
+      });
     }
     if (verdict === 'passwordless') {
       throw new UnauthorizedException({
@@ -107,9 +122,15 @@ export class CustomerLaneService {
 
   /** Belt and braces: the code or link verified the address; never add an unverified one. */
   private async assertEmailVerified(userId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { emailVerified: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true },
+    });
     if (!user?.emailVerified) {
-      throw new UnauthorizedException({ error: 'login_required', error_description: 'Email address not verified' });
+      throw new UnauthorizedException({
+        error: 'login_required',
+        error_description: 'Email address not verified',
+      });
     }
   }
 
@@ -132,7 +153,11 @@ export class CustomerLaneService {
     }
   }
 
-  private async recordJoined(input: { userId: string; clientId: string; org: LaneOrg }): Promise<void> {
+  private async recordJoined(input: {
+    userId: string;
+    clientId: string;
+    org: LaneOrg;
+  }): Promise<void> {
     await this.audit?.record({
       event: 'membership.customer.created',
       clientId: input.clientId,

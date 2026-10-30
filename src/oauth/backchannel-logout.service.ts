@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeFetch } from '../common/safe-fetch';
 import { backchannelUriFor } from '../clients/manifest';
 
 /**
@@ -139,13 +140,11 @@ export class BackchannelLogoutService {
     logoutToken: string,
     clientId: string,
   ): Promise<void> {
-    const controller = new AbortController();
-    const t = setTimeout(
-      () => controller.abort(),
-      BackchannelLogoutService.DELIVERY_TIMEOUT_MS,
-    );
     try {
-      const res = await fetch(uri, {
+      // safeFetch: the URI is client data, so no private/metadata address
+      // (checked at connect time), no redirects, a hard deadline, a capped
+      // reply. A refusal is logged like any other failed delivery.
+      const res = await safeFetch(uri, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -153,10 +152,12 @@ export class BackchannelLogoutService {
           // caching a logout (it's a one-shot event).
           'Cache-Control': 'no-store',
         },
-        body: new URLSearchParams({ logout_token: logoutToken }),
-        signal: controller.signal,
+        body: new URLSearchParams({ logout_token: logoutToken }).toString(),
+        timeoutMs: BackchannelLogoutService.DELIVERY_TIMEOUT_MS,
+        maxRedirects: 0,
+        maxBytes: 64 * 1024,
       });
-      if (!res.ok) {
+      if (res.status < 200 || res.status >= 300) {
         this.logger.warn(
           `backchannel logout: ${clientId} returned ${res.status}`,
         );
@@ -167,8 +168,6 @@ export class BackchannelLogoutService {
       this.logger.warn(
         `backchannel logout: ${clientId} delivery failed (${name}: ${message})`,
       );
-    } finally {
-      clearTimeout(t);
     }
   }
 }

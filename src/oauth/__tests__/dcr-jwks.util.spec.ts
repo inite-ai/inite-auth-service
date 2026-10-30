@@ -45,4 +45,20 @@ describe('validateDcrClientKeys', () => {
     expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: undefined, jwksUri: 'not a url' }))
       .toThrow(/valid URL/);
   });
+  it.each([
+    'https://169.254.169.254/jwks',
+    'https://127.0.0.1/jwks',
+    'https://[::ffff:127.0.0.1]/jwks',
+    'https://localhost/jwks',
+    'https://user:pw@keys.example.com/jwks',
+    'https://keys.example.com:8443/jwks',
+  ])('rejects a jwks_uri that cannot be fetched safely: %s', (jwksUri) => {
+    expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: undefined, jwksUri }))
+      .toThrow(/not fetchable/);
+  });
+
+  it('accepts a public https jwks_uri', () => {
+    expect(() => validateDcrClientKeys({ method: 'private_key_jwt', jwks: undefined, jwksUri: 'https://keys.example.com/jwks' }))
+      .not.toThrow();
+  });
 });

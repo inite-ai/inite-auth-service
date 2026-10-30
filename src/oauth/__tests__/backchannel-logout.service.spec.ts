@@ -3,6 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { BackchannelLogoutService } from '../backchannel-logout.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { safeFetch } from '../../common/safe-fetch';
+
+// Delivery goes through safeFetch (the URI is client data); its guard has its
+// own spec (src/common/__tests__/safe-fetch.spec.ts).
+jest.mock('../../common/safe-fetch', () => ({ safeFetch: jest.fn() }));
 
 describe('BackchannelLogoutService', () => {
   let svc: BackchannelLogoutService;
@@ -22,9 +27,7 @@ describe('BackchannelLogoutService', () => {
     jwt = {
       sign: jest.fn().mockReturnValue('logout-jwt'),
     };
-    fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 204 });
-    (global as typeof globalThis & { fetch?: typeof fetch }).fetch =
-      fetchMock as unknown as typeof fetch;
+    fetchMock = (safeFetch as jest.Mock).mockReset().mockResolvedValue({ status: 204 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,10 +42,6 @@ describe('BackchannelLogoutService', () => {
     }).compile();
 
     svc = module.get<BackchannelLogoutService>(BackchannelLogoutService);
-  });
-
-  afterEach(() => {
-    delete (global as { fetch?: unknown }).fetch;
   });
 
   it('returns 0 when no clients have a backchannel uri', async () => {
@@ -69,7 +68,11 @@ describe('BackchannelLogoutService', () => {
       'application/x-www-form-urlencoded',
     );
     expect(optsA.headers['Cache-Control']).toBe('no-store');
-    expect((optsA.body as URLSearchParams).get('logout_token')).toBe('logout-jwt');
+    expect(new URLSearchParams(optsA.body as string).get('logout_token')).toBe('logout-jwt');
+    // No redirects, a hard deadline and a capped reply on a client-chosen URI.
+    expect(optsA.maxRedirects).toBe(0);
+    expect(optsA.timeoutMs).toBe(3000);
+    expect(optsA.maxBytes).toBeGreaterThan(0);
   });
 
   it('embeds the required claims in the logout_token (sub, sid, events, jti)', async () => {
@@ -112,7 +115,7 @@ describe('BackchannelLogoutService', () => {
       { clientId: 'bad', backchannelLogoutUri: 'https://bad.example.com/lo' },
     ]);
     fetchMock
-      .mockResolvedValueOnce({ ok: true, status: 204 })
+      .mockResolvedValueOnce({ status: 204 })
       .mockRejectedValueOnce(new Error('connection refused'));
 
     const n = await svc.fanOut({ userDid: 'did:k:1' });
@@ -165,8 +168,7 @@ describe('BackchannelLogoutService: the convention', () => {
       },
       refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
-    (global as typeof globalThis & { fetch?: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = (safeFetch as jest.Mock).mockReset().mockResolvedValue({ ok: true, status: 200 });
     const svc = new BackchannelLogoutService(
       prisma as unknown as PrismaService,
       { sign: jest.fn().mockReturnValue('t') } as unknown as JwtService,
@@ -176,6 +178,5 @@ describe('BackchannelLogoutService: the convention', () => {
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['https://inite.estate/api/auth/backchannel-logout']);
     const where = prisma.oAuthClient.findMany.mock.calls[0][0].where;
     expect(where.OR).toEqual([{ NOT: { backchannelLogoutUri: null } }, { firstParty: true, isPublic: false }]);
-    delete (global as { fetch?: unknown }).fetch;
   });
 });

@@ -47,7 +47,7 @@ export class PersonalWorkspaceService {
   async provisionFor(
     userId: string,
     scope: string | undefined,
-  ): Promise<{ id: string; companyId: string } | null> {
+  ): Promise<{ id: string; companyId: string; slug: string } | null> {
     if (!this.settings.flag('PERSONAL_WORKSPACE_PROVISIONING_ENABLED')) return null;
     if (!requestsProvisioningVertical(scope)) return null;
 
@@ -62,7 +62,7 @@ export class PersonalWorkspaceService {
           name: 'Personal workspace',
           metadata: { personal: true, provisionedFor: userId },
         },
-        select: { id: true, companyId: true },
+        select: { id: true, companyId: true, slug: true },
       });
       await this.prisma.membership.upsert({
         where: {

@@ -4,6 +4,47 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.13.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.12.0...inite-auth-service-v1.13.0) (2026-10-31)
+
+
+### Features
+
+* **clients:** first-party OAuth clients as code, every URL derived from the origin ([7cae13f](https://github.com/inite-ai/inite-auth-service/commit/7cae13f06954d107f1cc871318d9c91e2bd8f532))
+* **clients:** first-party OAuth clients as code, every URL derived from the origin ([b9c3f8c](https://github.com/inite-ai/inite-auth-service/commit/b9c3f8c27d0822bdd7dcaaa1affa081a9a5e7568))
+* invitee sign-in — login_hint, no dropped OAuth params, password reset that returns to the client ([#251](https://github.com/inite-ai/inite-auth-service/issues/251)) ([33bcf55](https://github.com/inite-ai/inite-auth-service/commit/33bcf55f67a064f7e03352d59538a84517755d50))
+* **mtls:** INITE Client CA issuing, edge on the file provider, and a revocation deny-list ([#258](https://github.com/inite-ai/inite-auth-service/issues/258)) ([8f04894](https://github.com/inite-ai/inite-auth-service/commit/8f04894738066110ee8faa0ca394b571d6fe6b83))
+* **oauth:** ask which account instead of answering as whoever is signed in ([#255](https://github.com/inite-ai/inite-auth-service/issues/255)) ([e1791d5](https://github.com/inite-ai/inite-auth-service/commit/e1791d5ad6a7133ddbb25af0431a97ceb2529fab))
+* **oauth:** demo grant, a read-only 2 h token for a demo persona ([3b2a37b](https://github.com/inite-ai/inite-auth-service/commit/3b2a37b5a81f3adc666daa1d97a32233beb5391d))
+* **oauth:** demo grant, a read-only 2 h token for a demo persona ([4de2a1a](https://github.com/inite-ai/inite-auth-service/commit/4de2a1a69289b4ba51e0e798869b7e4bb67efe6e))
+* **oauth:** fund:read and fund:write scopes for inite.fund's MCP ([#263](https://github.com/inite-ai/inite-auth-service/issues/263)) ([a741db5](https://github.com/inite-ai/inite-auth-service/commit/a741db518335deb3554e2dd8370c1e451ceb7eb0))
+* **oauth:** platform_role claim for INITE's own operators ([#262](https://github.com/inite-ai/inite-auth-service/issues/262)) ([0306073](https://github.com/inite-ai/inite-auth-service/commit/030607315acfb61a5e8964d84e2507b689939140))
+* **oauth:** Telegram as a sign-in provider (Login Widget and Mini App initData) ([c0a77e8](https://github.com/inite-ai/inite-auth-service/commit/c0a77e8cd45feee8e1c9c575c1d310124f77c1e2))
+* **oauth:** Telegram as a sign-in provider (Login Widget and Mini App initData) ([001f93a](https://github.com/inite-ai/inite-auth-service/commit/001f93adedf8a52e86228ef588be83c584435ddf))
+* **oauth:** the customer lane, passwordless storefront customers in the tenant's org ([3ee504c](https://github.com/inite-ai/inite-auth-service/commit/3ee504c813fe231215ffb9a13fb2d9827ace6890))
+* **oauth:** the customer lane, passwordless storefront customers in the tenant's org ([3719693](https://github.com/inite-ai/inite-auth-service/commit/3719693cc7f3d4d1c8cbcf99903ac5c6fbff8ea4))
+* **oauth:** the family tenant in the token (org_role, org_slug, demo) and the demo org seed ([21bd17e](https://github.com/inite-ai/inite-auth-service/commit/21bd17e6cf36fb71350d37724426e6f2d920ba6f))
+* **oauth:** the family tenant in the token (org_role, org_slug, demo) and the demo org seed ([7f3753e](https://github.com/inite-ai/inite-auth-service/commit/7f3753e7ff3d4232d81753f63f78e70adaa58146))
+
+
+### Bug Fixes
+
+* **admin:** users and OAuth clients require a superadmin ([6809c3d](https://github.com/inite-ai/inite-auth-service/commit/6809c3d01b27f9e739ca2b0569c248b257f295b7))
+* **deploy:** publish the API, Postgres and Redis on loopback only ([6571c57](https://github.com/inite-ai/inite-auth-service/commit/6571c572cfd65c99acee40b56cb3a529b049a8ab))
+* **deploy:** remove only this repo's own images, never host-wide ([470b716](https://github.com/inite-ai/inite-auth-service/commit/470b71645ef90c49225b0cff593ade5241536ab7))
+* **deploy:** remove only this repo's own images, never host-wide ([902ca7c](https://github.com/inite-ai/inite-auth-service/commit/902ca7cd37aacf883b260970b93fa91ba730998b))
+* **deploy:** the mTLS host's router ships only when its edge exists ([#257](https://github.com/inite-ai/inite-auth-service/issues/257)) ([cbf9b1d](https://github.com/inite-ai/inite-auth-service/commit/cbf9b1d866e099f18ab38ee3355a2a1c27902a48))
+* **health:** /health reports the running release, not a hardcoded 1.1.0 ([#249](https://github.com/inite-ai/inite-auth-service/issues/249)) ([95b3615](https://github.com/inite-ai/inite-auth-service/commit/95b36150e287aabc9131a6de4aea164ada8c3035))
+* **oauth:** a self-registered client binds only to a family resource ([#261](https://github.com/inite-ai/inite-auth-service/issues/261)) ([88e86a9](https://github.com/inite-ai/inite-auth-service/commit/88e86a966375e8504bc3e7839b8804b1b620c27a))
+* **oauth:** bind post-logout redirect to its client; hold user grants to allowedScopes and own audience ([#264](https://github.com/inite-ai/inite-auth-service/issues/264)) ([dd1044e](https://github.com/inite-ai/inite-auth-service/commit/dd1044e31a1ca2b2e1913e269ea4a70fbb64d332))
+* **oauth:** fetch client jwks_uri and back-channel logout URIs through an SSRF guard ([ac27262](https://github.com/inite-ai/inite-auth-service/commit/ac272622e7092a4ef65aec6e0a17ea21231d820f))
+* **oauth:** fetch client jwks_uri and back-channel logout URIs through an SSRF guard ([bcaa8ab](https://github.com/inite-ai/inite-auth-service/commit/bcaa8aba01a622eac8dae0d1de7a5edc6c2fcf72))
+* **ratelimit:** the client address is never a header the caller wrote ([5adbbfb](https://github.com/inite-ai/inite-auth-service/commit/5adbbfb44f07ea4492e8ba7cd7f125cd9f4fdb64))
+* **scripts:** create-admin runs in the release image; Prisma 7 adapter in every script ([#241](https://github.com/inite-ai/inite-auth-service/issues/241)) ([d507e93](https://github.com/inite-ai/inite-auth-service/commit/d507e93f5e8fe6ee6a235b91183390bbf68d6ee7))
+* **security:** /metrics answers the monitoring network only ([2c88dd8](https://github.com/inite-ai/inite-auth-service/commit/2c88dd89d926c63ced473c61ba8157d60937ed62))
+* **security:** /metrics answers the monitoring network only ([eda3c09](https://github.com/inite-ai/inite-auth-service/commit/eda3c09936ec7021f97956cfbba31950c0ce15b7))
+* **security:** scoped admins can't reach platform routes; unspoofable client IP; loopback-only ports ([e3f9156](https://github.com/inite-ai/inite-auth-service/commit/e3f9156ed702c12cf2e4141e17d94a1daa18ecab))
+* **telegram:** collect fields in a Map so no key reaches a prototype ([cc65459](https://github.com/inite-ai/inite-auth-service/commit/cc654590825eace92817a9e7b86de7996475da79))
+
 ## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-10-16)
 
 

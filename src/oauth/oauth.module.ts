@@ -83,6 +83,8 @@ import { DemoGrantThrottlerGuard } from './demo-grant-throttler.guard';
   ],
   exports: [
     OAuthService,
+    OAuthClientRegistryService,
+    ConsentService,
     OAuthOriginsService,
     StepUpService,
     BackchannelLogoutService,

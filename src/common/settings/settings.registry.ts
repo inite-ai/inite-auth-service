@@ -58,6 +58,23 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     label: 'SAML 2.0 SSO',
     description: 'Inbound enterprise SSO at /v1/auth/saml (Service Provider).',
   },
+  {
+    key: 'TELEGRAM_PROVIDER_ENABLED',
+    type: 'flag',
+    group: 'Security features',
+    label: 'Telegram sign-in',
+    description:
+      'Accept Telegram Login Widget and Mini App initData sign-ins at /v1/auth/telegram, ' +
+      'verified with the bots in TELEGRAM_BOTS (tokens env-only). Off = the surface 404s.',
+  },
+  {
+    key: 'TELEGRAM_AUTH_MAX_AGE',
+    type: 'duration',
+    group: 'Security features',
+    label: 'Telegram payload max age',
+    description: 'Oldest auth_date a Telegram widget payload or initData is accepted with (e.g. 1h, 1d).',
+    default: '1d',
+  },
   // --- Tokens ---
   {
     key: 'RBAC_TOKEN_CLAIMS_ENABLED',

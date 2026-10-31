@@ -14,6 +14,7 @@ import * as signature from 'cookie-signature';
 import { FederationService } from './federation.service';
 import { FederationEmailConflictError } from './contracts/federation-email-conflict.error';
 import { LoggerService } from '../../common/logger.service';
+import { extractOAuthParams } from './contracts/oauth-passthrough';
 
 /**
  * Social login / external IdP federation endpoints.
@@ -30,30 +31,6 @@ export class FederationController {
   private readonly logger = new LoggerService();
   private readonly sessionSecret: string;
 
-  // OAuth-continuation params we forward through the round-trip so an
-  // /authorize flow that bounced through social login can resume afterwards.
-  private static readonly OAUTH_PASSTHROUGH = [
-    'client_id',
-    'redirect_uri',
-    'scope',
-    'state',
-    'code_challenge',
-    'code_challenge_method',
-    'response_type',
-    'nonce',
-    'prompt',
-    // A federated login is an interactive login: anything dropped here is
-    // dropped for the whole flow. acr_values/resource/authorization_details
-    // used to be, so the resumed /authorize lost its step-up requirement and
-    // its RFC 8707 audience binding on every social sign-in.
-    'acr_values',
-    'resource',
-    'authorization_details',
-    // Display-only hints: the RP's language, and the invitee's email so the
-    // /login screen a failed round-trip lands on is still prefilled.
-    'ui_locales',
-    'login_hint',
-  ];
 
   constructor(
     private readonly federation: FederationService,
@@ -82,7 +59,7 @@ export class FederationController {
     @Query() query: Record<string, string>,
     @Res() res: Response,
   ): Promise<void> {
-    const oauthParams = this.extractOAuthParams(query);
+    const oauthParams = extractOAuthParams(query);
     const { url } = await this.federation.getAuthorizationUrl(provider, {
       returnTo: this.loginUrl(oauthParams),
       oauthParams,
@@ -164,15 +141,6 @@ export class FederationController {
     });
   }
 
-  private extractOAuthParams(
-    query: Record<string, string>,
-  ): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const key of FederationController.OAUTH_PASSTHROUGH) {
-      if (query[key]) out[key] = query[key];
-    }
-    return out;
-  }
 
   /** Frontend login URL, carrying any OAuth-continuation params + error code. */
   private loginUrl(

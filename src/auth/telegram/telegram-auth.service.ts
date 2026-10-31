@@ -161,12 +161,12 @@ export class TelegramAuthService {
 
 /** Telegram's fields as strings; a repeated query key (an array) is refused. */
 function stringFields(query: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out = new Map<string, string>();
   for (const [k, v] of Object.entries(query)) {
     if (typeof v !== 'string') throw new TelegramAuthError('malformed');
-    out[k] = v;
+    out.set(k, v);
   }
-  return out;
+  return Object.fromEntries(out);
 }
 
 function sameText(a: string, b: string): boolean {

@@ -107,12 +107,13 @@ export function verifyLoginWidget(
 
 /** initData as a flat map; a repeated key is refused rather than guessed at. */
 export function parseInitData(initData: string): Record<string, string> {
-  const fields: Record<string, string> = {};
+  // A Map, then fromEntries: a key such as __proto__ cannot reach a prototype.
+  const fields = new Map<string, string>();
   for (const [key, value] of new URLSearchParams(initData)) {
-    if (key in fields) throw new TelegramAuthError('malformed');
-    fields[key] = value;
+    if (fields.has(key)) throw new TelegramAuthError('malformed');
+    fields.set(key, value);
   }
-  return fields;
+  return Object.fromEntries(fields);
 }
 
 function parseWebAppUser(raw: string | undefined): Record<string, unknown> {

@@ -12,7 +12,7 @@
  * password, no passkey, no federated identity, and an address under the
  * reserved `.invalid` TLD (RFC 2606), so no sign-in form, magic link or
  * provider can ever reach them. They get tokens only through the demo grant
- * (design doc §4, behind DEMO_GRANT_ENABLED; not in this change).
+ * (src/oauth/demo-grant.ts, behind DEMO_GRANT_ENABLED).
  */
 
 export const DEMO_ORG_ID = 'a7a71c00-de00-4000-8000-000000000001';

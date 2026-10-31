@@ -6,6 +6,7 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
+  Optional,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -22,6 +23,9 @@ import { LoggerService } from "../common/logger.service";
 import { TokenRequestBody } from "./dto/oauth-requests";
 import { TokenGrantService } from "./token-grant.service";
 import { AuditCtx, clientContext, TOKEN_EXCHANGE_GRANT } from "./token-support";
+import { DemoGrantThrottlerGuard } from "./demo-grant-throttler.guard";
+import { DemoGrantService } from "./demo-grant.service";
+import { demoInvalidGrant, isDemoGrantRequest } from "./demo-grant";
 
 /**
  * OAuth 2.0 token endpoint. Thin HTTP dispatch: authenticate the client,
@@ -40,6 +44,9 @@ export class TokenController {
     private readonly metrics: MetricsService,
     private readonly grants: TokenGrantService,
     private readonly clientAuth: ClientAuthService,
+    // Optional: unit fixtures build the controller with five arguments; a
+    // controller without it refuses the demo grant like any other.
+    @Optional() private readonly demoGrant?: DemoGrantService,
   ) {
     this.logger.setContext("TokenController");
   }
@@ -49,7 +56,7 @@ export class TokenController {
    * POST /oauth/token
    */
   @Post('token')
-  @UseGuards(TokenEndpointThrottlerGuard)
+  @UseGuards(TokenEndpointThrottlerGuard, DemoGrantThrottlerGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   async token(@Body() body: TokenRequestBody, @Req() req: Request) {
@@ -69,6 +76,14 @@ export class TokenController {
       }
 
       const client = await this.authenticateTokenClient({ body, ctx, grantType, req });
+      // The demo grant is decided by DemoGrantService alone (flag, first-party
+      // confidential client, demo persona), not by the client's allowedGrants:
+      // product clients hold no token-exchange grant, and must not get the
+      // agent exchange just to offer a demo.
+      if (isDemoGrantRequest(body)) {
+        if (!this.demoGrant) throw demoInvalidGrant();
+        return await this.demoGrant.issue({ body, client, ctx });
+      }
       await this.assertGrantAllowed(client, grantType, ctx);
 
       switch (grantType) {

@@ -78,6 +78,17 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
       'Off = unchanged behaviour: no membership, no org.',
   },
   {
+    key: 'DEMO_GRANT_ENABLED',
+    type: 'flag',
+    group: 'Tokens',
+    label: 'Demo sign-in grant',
+    description:
+      'Let a first-party confidential client exchange `demo:<persona>` ' +
+      '(RFC 8693, subject_token_type urn:inite:params:oauth:token-type:demo-persona) ' +
+      'for a read-only 2 h token of that persona in the «Atlântica Group (demo)» org. ' +
+      'No refresh token. Off = every demo request is refused with invalid_grant.',
+  },
+  {
     key: 'JWT_ACCESS_TOKEN_EXPIRY',
     type: 'duration',
     group: 'Tokens',

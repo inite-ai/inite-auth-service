@@ -36,6 +36,8 @@ import { IdentityModule } from '../identity/identity.module';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
 import { ClientIdThrottlerGuard } from './client-throttler.guard';
+import { DemoGrantService } from './demo-grant.service';
+import { DemoGrantThrottlerGuard } from './demo-grant-throttler.guard';
 
 @Module({
   imports: [IdentityModule, EmailModule, forwardRef(() => AuthModule)],
@@ -51,6 +53,8 @@ import { ClientIdThrottlerGuard } from './client-throttler.guard';
     StepUpService,
     TokenEndpointThrottlerGuard,
     ClientIdThrottlerGuard,
+    DemoGrantThrottlerGuard,
+    DemoGrantService,
     BackchannelLogoutService,
     DpopService,
     ParService,

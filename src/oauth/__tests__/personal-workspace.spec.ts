@@ -12,6 +12,8 @@ import {
   personalWorkspaceCompanyId,
   personalWorkspaceSlug,
   requestsProvisioningVertical,
+  parseClientList,
+  DEFAULT_PERSONAL_WORKSPACE_CLIENTS,
 } from '../personal-workspace';
 
 const DID = 'did:inite:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
@@ -54,5 +56,27 @@ describe('requestsProvisioningVertical', () => {
     expect(requestsProvisioningVertical('')).toBe(false);
     // Not a prefix match on the whole string — the scope itself must be ours.
     expect(requestsProvisioningVertical('notbrain:read')).toBe(false);
+  });
+});
+
+describe('requestsProvisioningVertical for a listed client', () => {
+  const clients = parseClientList(DEFAULT_PERSONAL_WORKSPACE_CLIENTS);
+
+  it('fires for a product whose plan an organisation buys, on plain OIDC scopes', () => {
+    for (const c of ['inite-rent', 'inite-education', 'inite-ai', 'ideaudit-dashboard']) {
+      expect(requestsProvisioningVertical('openid profile email', c, clients)).toBe(true);
+    }
+  });
+
+  it('leaves an unlisted client unchanged', () => {
+    expect(requestsProvisioningVertical('openid profile email', 'inite-club', clients)).toBe(false);
+    expect(requestsProvisioningVertical('openid profile email', undefined, clients)).toBe(false);
+    // An empty list is the old, brain-only behaviour.
+    expect(requestsProvisioningVertical('openid profile email', 'inite-rent', [])).toBe(false);
+  });
+
+  it('parses the operator list, dropping blanks', () => {
+    expect(parseClientList(' a, ,b ,')).toEqual(['a', 'b']);
+    expect(parseClientList(undefined)).toEqual([]);
   });
 });

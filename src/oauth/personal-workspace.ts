@@ -33,12 +33,39 @@ export function isPersonalWorkspace(companyId: string): boolean {
 }
 
 /**
- * Which verticals provision on first use. Deliberately not "any scope":
- * one IdP serves several products, and only the ones that can create a
- * tenant out of nothing should do so. A request that asks for no
- * brain scope gets the old behaviour — no org claim, no workspace.
+ * The OAuth clients whose sign-in provisions a workspace by default: the
+ * family products that sell a plan to an organisation (billing subscriber
+ * `org:<org_id>`, owner decision 31.10.2026). Their sign-in asks for plain
+ * OIDC scopes, so the brain-scope test below never fires for them, and a
+ * brand-new customer would reach checkout with no org and be refused.
+ * Operators override the list with PERSONAL_WORKSPACE_CLIENTS.
  */
-export function requestsProvisioningVertical(scope: string | undefined): boolean {
+export const DEFAULT_PERSONAL_WORKSPACE_CLIENTS =
+  'inite-rent,inite-education,inite-ai,ideaudit-dashboard';
+
+/** Parse a comma-separated client list (blank entries dropped). */
+export function parseClientList(csv: string | undefined): string[] {
+  return (csv ?? '')
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Which requests provision on first use. Deliberately not "any request":
+ * one IdP serves several products, and only the ones that can create a
+ * tenant out of nothing should do so. Two ways in:
+ * - the request asks for a brain scope (an MCP client's first contact);
+ * - the request comes from a listed client (a product whose plan is bought
+ *   by an organisation).
+ * Anything else gets the old behaviour: no org claim, no workspace.
+ */
+export function requestsProvisioningVertical(
+  scope: string | undefined,
+  clientId?: string,
+  provisioningClients: readonly string[] = [],
+): boolean {
+  if (clientId && provisioningClients.includes(clientId)) return true;
   return (scope ?? '')
     .split(/\s+/)
     .filter(Boolean)

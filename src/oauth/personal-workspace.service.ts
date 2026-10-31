@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../common/settings/settings.service';
 import {
+  DEFAULT_PERSONAL_WORKSPACE_CLIENTS,
+  parseClientList,
   personalWorkspaceCompanyId,
   personalWorkspaceSlug,
   requestsProvisioningVertical,
@@ -20,8 +22,9 @@ import {
  *
  * Deliberately narrow: off unless the operator enables
  * PERSONAL_WORKSPACE_PROVISIONING_ENABLED, and even then only for a
- * request that asks for a provisioning vertical's scopes. One IdP serves
- * several products; the others keep the old behaviour exactly.
+ * request that asks for a provisioning vertical's scopes or comes from a
+ * client in PERSONAL_WORKSPACE_CLIENTS. One IdP serves several products;
+ * the others keep the old behaviour exactly.
  */
 @Injectable()
 export class PersonalWorkspaceService {
@@ -44,12 +47,17 @@ export class PersonalWorkspaceService {
    * a race loses to the unique index and re-reads instead of forking the
    * tenant.
    */
-  async provisionFor(
-    userId: string,
-    scope: string | undefined,
-  ): Promise<{ id: string; companyId: string; slug: string } | null> {
+  async provisionFor(request: {
+    user: { id: string };
+    scope?: string;
+    clientId?: string;
+  }): Promise<{ id: string; companyId: string; slug: string } | null> {
+    const userId = request.user.id;
     if (!this.settings.flag('PERSONAL_WORKSPACE_PROVISIONING_ENABLED')) return null;
-    if (!requestsProvisioningVertical(scope)) return null;
+    const clients = parseClientList(
+      this.settings.value('PERSONAL_WORKSPACE_CLIENTS', DEFAULT_PERSONAL_WORKSPACE_CLIENTS),
+    );
+    if (!requestsProvisioningVertical(request.scope, request.clientId, clients)) return null;
 
     const companyId = personalWorkspaceCompanyId(userId);
     try {

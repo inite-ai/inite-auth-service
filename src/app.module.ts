@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { FederationModule } from './auth/federation/federation.module';
+import { TelegramModule } from './auth/telegram/telegram.module';
 import { OtpModule } from './auth/otp/otp.module';
 import { WalletModule } from './auth/wallet/wallet.module';
 import { IdentityModule } from './identity/identity.module';
@@ -102,6 +103,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     // Feature Modules
     AuthModule,
     FederationModule,
+    TelegramModule,
     OtpModule,
     WalletModule,
     IdentityModule,

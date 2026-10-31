@@ -58,6 +58,23 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     label: 'SAML 2.0 SSO',
     description: 'Inbound enterprise SSO at /v1/auth/saml (Service Provider).',
   },
+  {
+    key: 'TELEGRAM_PROVIDER_ENABLED',
+    type: 'flag',
+    group: 'Security features',
+    label: 'Telegram sign-in',
+    description:
+      'Accept Telegram Login Widget and Mini App initData sign-ins at /v1/auth/telegram, ' +
+      'verified with the bots in TELEGRAM_BOTS (tokens env-only). Off = the surface 404s.',
+  },
+  {
+    key: 'TELEGRAM_AUTH_MAX_AGE',
+    type: 'duration',
+    group: 'Security features',
+    label: 'Telegram payload max age',
+    description: 'Oldest auth_date a Telegram widget payload or initData is accepted with (e.g. 1h, 1d).',
+    default: '1d',
+  },
   // --- Tokens ---
   {
     key: 'RBAC_TOKEN_CLAIMS_ENABLED',
@@ -87,6 +104,17 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
       'that sends organization=<slug> gets a passwordless (email code or link) person ' +
       'a `customer` membership in that org, and a token for it (org_role=customer). ' +
       'Off = the organization parameter is ignored and no customer is ever created.',
+  },
+  {
+    key: 'DEMO_GRANT_ENABLED',
+    type: 'flag',
+    group: 'Tokens',
+    label: 'Demo sign-in grant',
+    description:
+      'Let a first-party confidential client exchange `demo:<persona>` ' +
+      '(RFC 8693, subject_token_type urn:inite:params:oauth:token-type:demo-persona) ' +
+      'for a read-only 2 h token of that persona in the «Atlântica Group (demo)» org. ' +
+      'No refresh token. Off = every demo request is refused with invalid_grant.',
   },
   {
     key: 'JWT_ACCESS_TOKEN_EXPIRY',

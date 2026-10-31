@@ -6,6 +6,8 @@
  * are intentionally absent — they stay env-only).
  */
 
+import { DEFAULT_PERSONAL_WORKSPACE_CLIENTS } from '../../oauth/personal-workspace';
+
 export type SettingType = 'flag' | 'duration' | 'csv' | 'text';
 
 export interface SettingDef {
@@ -93,6 +95,17 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
       "they request a provisioning vertical's scopes — so an OAuth flow from " +
       'an MCP client ends in a usable tenant instead of a token with no org claim. ' +
       'Off = unchanged behaviour: no membership, no org.',
+  },
+  {
+    key: 'PERSONAL_WORKSPACE_CLIENTS',
+    type: 'csv',
+    group: 'Tokens',
+    label: 'Clients that provision a workspace',
+    description:
+      'OAuth client ids whose sign-in gives a user with no organisation a personal ' +
+      'workspace (owner), alongside brain scopes: the products whose plan is bought by ' +
+      'an organisation. Only applies while PERSONAL_WORKSPACE_PROVISIONING_ENABLED is on.',
+    default: DEFAULT_PERSONAL_WORKSPACE_CLIENTS,
   },
   {
     key: 'CUSTOMER_LANE_ENABLED',

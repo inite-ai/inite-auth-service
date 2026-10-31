@@ -108,6 +108,41 @@ describe('personal workspace provisioning in the token issuer', () => {
     expect(prisma.organization.upsert).not.toHaveBeenCalled();
   });
 
+  it('gives a product customer with no organisation one, so checkout has a subscriber', async () => {
+    const issuer = makeIssuer({
+      RBAC_TOKEN_CLAIMS_ENABLED: 'true',
+      PERSONAL_WORKSPACE_PROVISIONING_ENABLED: 'true',
+    });
+
+    // A rent sign-in asks for plain OIDC scopes; the client is what qualifies it.
+    await issuer.generateTokens({ user, clientId: 'inite-rent', scope: 'openid profile email' });
+
+    expect(accessClaims().org_id).toBe('org-1');
+    expect(accessClaims().org_role).toBe('owner');
+  });
+
+  it('follows the operator list over the default', async () => {
+    const issuer = makeIssuer({
+      RBAC_TOKEN_CLAIMS_ENABLED: 'true',
+      PERSONAL_WORKSPACE_PROVISIONING_ENABLED: 'true',
+      PERSONAL_WORKSPACE_CLIENTS: 'inite-shop',
+    });
+
+    await issuer.generateTokens({ user, clientId: 'inite-rent', scope: 'openid profile email' });
+
+    expect(accessClaims().org).toBeUndefined();
+    expect(prisma.organization.upsert).not.toHaveBeenCalled();
+  });
+
+  it('does not provision for a listed client while the flag is off', async () => {
+    const issuer = makeIssuer({ RBAC_TOKEN_CLAIMS_ENABLED: 'true' });
+
+    await issuer.generateTokens({ user, clientId: 'inite-rent', scope: 'openid profile email' });
+
+    expect(accessClaims().org).toBeUndefined();
+    expect(prisma.organization.upsert).not.toHaveBeenCalled();
+  });
+
   it('never fails the login when the workspace cannot be created', async () => {
     const issuer = makeIssuer({
       RBAC_TOKEN_CLAIMS_ENABLED: 'true',

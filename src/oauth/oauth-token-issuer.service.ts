@@ -230,7 +230,7 @@ export class OAuthTokenIssuerService {
       include: { organization: true },
     });
     if (memberships.length === 0) {
-      const provisioned = await this.personalWorkspace?.provisionFor(input.user.id, input.scope);
+      const provisioned = await this.personalWorkspace?.provisionFor(input);
       if (!provisioned) return base;
       return {
         ...base,

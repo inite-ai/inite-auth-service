@@ -318,6 +318,11 @@ model OAuthClient {
   /// (new admin-registered clients default to true). Never honoured for a
   /// dynamically registered (`dcr_*`) client, whatever this column says.
   firstParty              Boolean   @default(false) @map("firstParty")
+  /// Customer lane: this client signs in a tenant's own customers. With
+  /// CUSTOMER_LANE_ENABLED, /authorize?organization=<slug> from this client
+  /// gives a passwordless person a `customer` membership in that org (one the
+  /// client is bound to) and a token for it. See src/oauth/customer-lane.ts.
+  customerLane            Boolean   @default(false) @map("customerLane")
   logoUrl                 String?   @map("logoUrl")
   privacyPolicyUrl        String?   @map("privacyPolicyUrl")
   termsOfServiceUrl       String?   @map("termsOfServiceUrl")

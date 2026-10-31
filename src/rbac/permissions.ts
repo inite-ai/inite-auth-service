@@ -9,6 +9,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['org:read', 'org:members:manage', 'org:roles:manage'],
   member: ['org:read'],
   viewer: ['org:read'],
+  // A tenant's own customer (customer-lane.ts): an account in the org, no
+  // staff permission at all, not even reading the org.
+  customer: [],
 };
 
 /**

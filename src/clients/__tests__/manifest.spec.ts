@@ -36,7 +36,13 @@ describe('the family conventions', () => {
       tokenEndpointAuthMethod: 'client_secret_post',
       companyId: null,
       active: true,
+      customerLane: false,
     });
+  });
+
+  it('sign in customers only when the manifest says so', () => {
+    expect(deriveClient({ ...rent, customerLane: true }).customerLane).toBe(true);
+    expect(deriveClient(rent).customerLane).toBe(false);
   });
 
   it('take the back-channel on the first origin, and a redirect for each', () => {

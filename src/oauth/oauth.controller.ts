@@ -6,15 +6,16 @@ import { OAuthService } from './oauth.service';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { LoggerService } from '../common/logger.service';
 import { AuthorizeQuery, ResolvedAuthorizeParams } from './dto/oauth-requests';
-import { ParPayload, ParService } from './par.service';
+import { ParService } from './par.service';
 import { RequestObjectService } from './request-object.service';
 import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
 import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
-import { normalizeLoginHint } from './login-hint';
 import { AccountChoice, accountChoiceFor } from './account-choice';
 import { buildClientRedirect } from './authorize-redirect';
 import { assertResourceAllowed } from './resource-registry';
+import { type LaneOrg } from './customer-lane';
+import { mergePushed, queryToParams } from './authorize-params';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -45,28 +46,7 @@ export class OAuthController {
   @Get('authorize')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async authorize(@Query() query: AuthorizeQuery, @Req() req: Request, @Res() res: Response) {
-    const p = await this.resolveAuthorizeParams(query);
-
-    // Order matters: validate the basics, then the client, then PKCE —
-    // preserving the original error precedence.
-    this.assertAuthorizeBasics(p);
-    const client = await this.clientRegistry.validateClient(p.clientId);
-    if (!this.clientRegistry.validateRedirectUri(client, p.redirectUri)) {
-      throw new BadRequestException('Invalid redirect_uri');
-    }
-    this.clientRegistry.validateGrantType(client, 'authorization_code');
-    // RFC 8707: refuse a resource this client may not bind to before the
-    // person signs in, not after (resource-registry.ts; the token endpoint
-    // checks again in resolveCodeAudience).
-    assertResourceAllowed(client, p.resource);
-    const grantedScope = this.oauthService.normalizeScope(p.scope || '', client);
-    this.assertPkce(p);
-
-    // `wallet:pay` is the wallet grant with its default limits.
-    p.authorizationDetails = withWalletScopeGrant(grantedScope, p.authorizationDetails);
-    // A request for the person's wallet is approved with a passkey: ask for
-    // it before the consent screen, through the ordinary step-up.
-    if (rawHasWalletGrant(p.authorizationDetails)) p.acrValues = withWalletAcr(p.acrValues);
+    const { p, grantedScope, laneOrg } = await this.validateAuthorize(query);
 
     const userId = req.session?.userId;
     this.logger.oauth('Authorize request', {
@@ -76,6 +56,11 @@ export class OAuthController {
       prompt: p.prompt,
     });
 
+    if (await this.needsPasswordlessCustomer(req, laneOrg)) {
+      return p.prompt === 'none'
+        ? this.redirectWithError(res, p, ['login_required', 'Customers sign in passwordless'])
+        : this.redirectToLogin(res, req, { params: p, stepUp: true });
+    }
     if (p.prompt === 'none') {
       return this.handleSilentSso(res, req, { params: p, grantedScope, userId });
     }
@@ -108,6 +93,36 @@ export class OAuthController {
     return res.redirect(buildClientRedirect(req, '/consent', { params: p }));
   }
 
+  /** Everything /authorize checks before it looks at the session. */
+  private async validateAuthorize(query: AuthorizeQuery) {
+    const p = await this.resolveAuthorizeParams(query);
+
+    // Order matters: validate the basics, then the client, then PKCE —
+    // preserving the original error precedence.
+    this.assertAuthorizeBasics(p);
+    const client = await this.clientRegistry.validateClient(p.clientId);
+    if (!this.clientRegistry.validateRedirectUri(client, p.redirectUri)) {
+      throw new BadRequestException('Invalid redirect_uri');
+    }
+    this.clientRegistry.validateGrantType(client, 'authorization_code');
+    // RFC 8707: refuse a resource this client may not bind to before the
+    // person signs in, not after (resource-registry.ts; the token endpoint
+    // checks again in resolveCodeAudience).
+    assertResourceAllowed(client, p.resource);
+    // Customer lane (customer-lane.ts): a bad org hint is refused here, before
+    // the person signs in, like a bad resource.
+    const laneOrg = await this.oauthService.customerLaneOrg(client, p);
+    const grantedScope = this.oauthService.normalizeScope(p.scope || '', client);
+    this.assertPkce(p);
+
+    // `wallet:pay` is the wallet grant with its default limits.
+    p.authorizationDetails = withWalletScopeGrant(grantedScope, p.authorizationDetails);
+    // A request for the person's wallet is approved with a passkey: ask for
+    // it before the consent screen, through the ordinary step-up.
+    if (rawHasWalletGrant(p.authorizationDetails)) p.acrValues = withWalletAcr(p.acrValues);
+    return { p, grantedScope, laneOrg };
+  }
+
   /**
    * RFC 9126: when request_uri is presented, the inbound query params are
    * ignored (other than client_id, which binds the PAR consumption) and the
@@ -127,33 +142,9 @@ export class OAuthController {
       });
       effective = { ...q, ...merged };
     }
-    const base = this.queryToParams(effective);
+    const base = queryToParams(effective);
     if (!effective.request_uri) return base;
     return this.applyPushedRequest(effective.request_uri, base);
-  }
-
-  /** Map the raw query to normalized params (before any PAR override). */
-  private queryToParams(q: AuthorizeQuery): ResolvedAuthorizeParams {
-    return {
-      responseType: q.response_type,
-      clientId: q.client_id ?? '',
-      redirectUri: q.redirect_uri ?? '',
-      scope: q.scope,
-      state: q.state,
-      codeChallenge: q.code_challenge,
-      codeChallengeMethod: q.code_challenge_method,
-      nonce: q.nonce,
-      acrValues: q.acr_values,
-      prompt: q.prompt,
-      // RFC 8707 Resource Indicator.
-      resource: q.resource,
-      // RFC 9396 — raw JSON, validated at code creation.
-      authorizationDetails: q.authorization_details,
-      // OIDC ui_locales — only ever shown to the login/consent UI.
-      uiLocales: q.ui_locales,
-      // OIDC login_hint — dropped unless it looks like an email; prefill only.
-      loginHint: normalizeLoginHint(q.login_hint),
-    };
   }
 
   /**
@@ -171,30 +162,7 @@ export class OAuthController {
     if (!pushed) {
       throw new BadRequestException('Invalid or expired request_uri');
     }
-    return OAuthController.mergePushed(base, pushed);
-  }
-
-  /**
-   * RFC 9126 §4: pushed values take over the inbound query.
-   *
-   * Merged generically rather than field by field. ParPayload's keys are the
-   * ResolvedAuthorizeParams keys, so a param added to the pushed request is
-   * carried through on its own — this used to be a hand-written list, and
-   * `resource` never made it onto that list, which is how an RFC 8707
-   * indicator pushed out-of-band was dropped before it could bind the
-   * audience. `undefined` entries are stripped so a param the client did not
-   * push falls back to the query copy instead of blanking it.
-   */
-  private static mergePushed(
-    base: ResolvedAuthorizeParams,
-    pushed: ParPayload,
-  ): ResolvedAuthorizeParams {
-    const defined = Object.fromEntries(
-      Object.entries(pushed).filter(([, value]) => value !== undefined),
-    ) as Partial<ResolvedAuthorizeParams>;
-    // redirectUri stays authoritative even if blank — par.push already 400s on
-    // a missing one, so an empty value here can only mean a tampered payload.
-    return { ...base, ...defined, redirectUri: pushed.redirectUri };
+    return mergePushed(base, pushed);
   }
 
   private assertAuthorizeBasics(p: ResolvedAuthorizeParams): void {
@@ -317,6 +285,16 @@ export class OAuthController {
     return accountChoiceFor({ prompt: p.prompt, loginHint: p.loginHint, sessionEmail });
   }
 
+  /**
+   * Customer lane (customer-lane.ts rule 4): a would-be customer whose session
+   * used a password signs in again, passwordless; under prompt=none, cannot.
+   */
+  private async needsPasswordlessCustomer(req: Request, laneOrg: LaneOrg | null): Promise<boolean> {
+    const userId = req.session?.userId;
+    if (!userId) return false;
+    return this.oauthService.customerLaneNeedsPasswordless(laneOrg, { userId, amr: req.session?.amr ?? [] });
+  }
+
   /** OIDC core 3.1.2.6: an authorization error goes back to the RP, with its state. */
   private redirectWithError(
     res: Response,
@@ -350,6 +328,8 @@ export class OAuthController {
       amr,
       resource: p.resource,
       authorizationDetails: p.authorizationDetails,
+      organization: p.organization,
+      customer: p.customer,
     });
 
     const successUrl = new URL(p.redirectUri);

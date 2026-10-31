@@ -44,6 +44,9 @@ export default function AuthPage({ variant }: AuthPageProps) {
   const stepUp = searchParams.get('step_up') === '1'
   // /authorize asked which account (src/oauth/account-choice.ts).
   const accountMode = readAccountMode(searchParams.get('account'))
+  // A storefront's customer sign-in (src/oauth/customer-lane.ts): customers
+  // are passwordless, so only the email code and the sign-in link are offered.
+  const customer = searchParams.get('customer') === '1'
   const { checkingAuth, signedInAs } = useAuthGate(variant, oauthParams, stepUp, accountMode)
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null)
   // Step-up MFA fast path: when the RP demands higher assurance but the user
@@ -101,6 +104,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
       icon: Wallet,
     },
   ]
+  const shown = customer ? methods.filter((m) => m.id === 'otp' || m.id === 'magic-link') : methods
 
   if (checkingAuth) return <AuthPageFallback />
   if (signedInAs) {
@@ -118,7 +122,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
     <div className="min-h-screen bg-[var(--bg)]">
       <AppHeader hideUserMenu />
       <main className="max-w-md mx-auto px-4 py-12 sm:py-16">
-        {stepUp && mfaEligible && !showAllMethods && !selectedMethod ? (
+        {stepUp && mfaEligible && !customer && !showAllMethods && !selectedMethod ? (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -165,7 +169,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
             </motion.div>
 
             <div className="mt-8 border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-elevated)]">
-              {methods.map((method, i) => {
+              {shown.map((method, i) => {
                 const Icon = method.icon
                 return (
                   <button
@@ -200,7 +204,7 @@ export default function AuthPage({ variant }: AuthPageProps) {
               })}
             </div>
 
-            <SocialLogin oauthParams={oauthParams} />
+            {!customer && <SocialLogin oauthParams={oauthParams} />}
 
             <div className="mt-6 text-sm text-[var(--text-muted)]">
               {isRegister ? t('auth.switch.haveAccount') : t('auth.switch.noAccount')}{' '}

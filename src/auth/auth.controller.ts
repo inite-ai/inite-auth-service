@@ -165,6 +165,10 @@ export class AuthController {
   // ==================== Magic Link Auth ====================
 
   @Post('email/send-magic-link')
+  // Per IP (the global throttler), per address (LoginEmailThrottlerGuard) and
+  // per IP across addresses (IpFloodGuard): a sign-in link mints an account,
+  // and on the customer lane a membership, so it is capped like a login.
+  @UseGuards(LoginEmailThrottlerGuard, IpFloodGuard)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async sendMagicLink(@Body() body: SendMagicLinkDto) {
     await this.authService.sendMagicLink(body.email, body.oauthParams);

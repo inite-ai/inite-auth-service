@@ -26,6 +26,13 @@ export interface OAuthParams {
    * proof of who anyone is.
    */
   loginHint?: string | null
+  /**
+   * The org the sign-in is for, by slug. A storefront's customer-lane client
+   * signs its customers into this org (src/oauth/customer-lane.ts).
+   */
+  organization?: string | null
+  /** The customer-lane marker ('1'): a storefront's customer, passwordless only. */
+  customer?: string | null
 }
 
 /**
@@ -61,6 +68,8 @@ const PASSTHROUGH: ReadonlyArray<readonly [string, keyof OAuthParams]> = [
   ['authorization_details', 'authorizationDetails'],
   ['ui_locales', 'uiLocales'],
   ['login_hint', 'loginHint'],
+  ['organization', 'organization'],
+  ['customer', 'customer'],
 ]
 
 function applyPassthrough(url: URL, params: OAuthParams): void {
@@ -192,6 +201,8 @@ export async function createAuthorizationCode(
       acrValues: params.acrValues,
       resource: params.resource,
       authorizationDetails: params.authorizationDetails ?? undefined,
+      organization: params.organization ?? undefined,
+      customer: params.customer === '1' ? '1' : undefined,
     }),
   })
 
@@ -221,6 +232,8 @@ export function extractOAuthParams(searchParams: Pick<URLSearchParams, 'get'>): 
     authorizationDetails: searchParams.get('authorization_details'),
     uiLocales: searchParams.get('ui_locales'),
     loginHint: searchParams.get('login_hint'),
+    organization: searchParams.get('organization'),
+    customer: searchParams.get('customer'),
   }
 }
 

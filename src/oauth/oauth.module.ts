@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { OAuthService } from './oauth.service';
+import { CustomerLaneService } from './customer-lane.service';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
 import { PersonalWorkspaceService } from './personal-workspace.service';
@@ -43,6 +44,7 @@ import { DemoGrantThrottlerGuard } from './demo-grant-throttler.guard';
   imports: [IdentityModule, EmailModule, forwardRef(() => AuthModule)],
   providers: [
     OAuthService,
+    CustomerLaneService,
     OAuthClientRegistryService,
     OAuthTokenIssuerService,
     PersonalWorkspaceService,

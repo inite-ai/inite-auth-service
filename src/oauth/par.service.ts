@@ -41,6 +41,10 @@ export interface ParPayload {
   uiLocales?: string;
   /** OIDC login_hint — a login-screen prefill, never identity. */
   loginHint?: string;
+  /** The org hint (slug) — customer-lane.ts. */
+  organization?: string;
+  /** The customer-lane marker ('1'). */
+  customer?: string;
 }
 
 @Injectable()

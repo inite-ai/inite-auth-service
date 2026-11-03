@@ -4,8 +4,10 @@
   "repo": "inite-ai/break3-backend",
   "origins": [
     "https://break3.inite.health",
+    "https://break3.app",
     "https://staging.break3.inite.health"
   ],
+  "outsideFamily": "break3.app is Break3's own product domain (moving from break3.inite.health); the old origin stays until the move is done",
   "scopes": [
     "wallet"
   ],
@@ -17,6 +19,8 @@
     "extraRedirectUris": [
       "https://break3.inite.health/auth/callback",
       "https://break3.inite.health/silent-callback",
+      "https://break3.app/auth/callback",
+      "https://break3.app/silent-callback",
       "https://staging.break3.inite.health/auth/callback"
     ]
   }

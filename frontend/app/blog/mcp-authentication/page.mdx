@@ -1,0 +1,135 @@
+import { getPost } from '@/lib/blog'
+import { buildPostMetadata, buildPostJsonLd } from '@/lib/blog-seo'
+import { jsonLdScript } from '@/lib/seo'
+import { PostHeader, PostFooter } from '@/components/blog/PostParts'
+
+export const post = getPost('mcp-authentication')
+export const metadata = buildPostMetadata(post)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPostJsonLd(post)) }}
+/>
+
+<PostHeader post={post} />
+
+MCP authentication is how a Model Context Protocol server decides who is on the other end of a request: which client application is connecting, and which person that client is acting for. The question looks simple until you notice that the MCP specification never uses the word "authentication" for a section of its own. It defines authorization, built on OAuth, and leaves the authentication of people to the authorization server. This post separates the pieces, shows what the spec requires for each transport, and lists the attacks the spec's security pages tell you to design against.
+
+All quotes come from the current revision of the specification, [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), and its [security best practices](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices).
+
+## Three questions hidden in "MCP authentication"
+
+"MCP authentication" can mean any of three things.
+
+The first is the person. Before a tool reads someone's files or sends mail in their name, the system has to know who they are, usually through a sign-in with a password, a passkey or a social login.
+
+The second is the client. Claude Desktop, an IDE plugin and a script written last night are all MCP clients, and an authorization server may want to know which one is asking before it shows a consent screen.
+
+The third is the request. Every call that reaches the MCP server has to carry proof that the first two checks happened, and that proof has to be meant for this server and nobody else.
+
+The spec covers the second and third with OAuth. The first happens inside the authorization server, which the spec describes as "responsible for interacting with the user (if necessary) and issuing access tokens" ([roles](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#roles)). The MCP server sees only a token, never a password or a passkey.
+
+## What the spec requires, by transport
+
+The rules depend on how the client reaches the server. The [protocol requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#protocol-requirements) say:
+
+- "Authorization is **OPTIONAL** for MCP implementations."
+- "Implementations using an HTTP-based transport **SHOULD** conform to this specification."
+- "Implementations using an STDIO transport **SHOULD NOT** follow this specification, and instead retrieve credentials from the environment."
+- "Implementations using alternative transports **MUST** follow established security best practices for their protocol."
+
+### STDIO servers
+
+A STDIO server runs as a child process of the client on the user's machine. There is no network hop to protect, so the spec skips OAuth and expects the server to read credentials from its environment: an API key in an environment variable, a token file in the user's home directory, the operating system's keychain. Authentication here is whatever the upstream API needs. The server holds the user's own credential and acts as the user.
+
+The risk moves elsewhere. The best practices page has a section on [local MCP server compromise](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#local-mcp-server-compromise), because a local server runs with the user's privileges and a malicious one installed from a config snippet can read whatever the user can. Treat installing a STDIO server like installing any other program.
+
+### HTTP servers
+
+A remote server over HTTP should follow the authorization spec, and that spec is OAuth 2.1 from end to end. The server acts as a resource server; it answers unauthenticated requests with `401`, publishes [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) protected resource metadata that names its authorization server, and accepts only access tokens issued for it. The step-by-step flow, with discovery, PKCE and resource indicators, is in the companion post on [MCP OAuth](/blog/mcp-oauth).
+
+## How the server knows the request is authentic
+
+The client "MUST use the Authorization request header field (`Authorization: Bearer <access-token>`)", authorization "MUST be included in every HTTP request from client to server", and tokens "MUST NOT be included in the URI query string" ([access token usage](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#access-token-usage)). A token in a query string ends up in server logs, proxy logs and browser history, which is why [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750#section-2.3) discouraged that method and [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700) forbids it.
+
+Receiving a token proves nothing until the server validates it. For a JWT access token, that means verifying the signature against the authorization server's published keys, checking the issuer, rejecting it after `exp` (per [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519), a JWT past its expiry "MUST NOT be accepted for processing") and checking the audience. For an opaque token, the server asks the authorization server through [token introspection, RFC 7662](https://www.rfc-editor.org/rfc/rfc7662), whose response has a required `active` field.
+
+The audience check is the one MCP insists on. "MCP servers MUST validate that access tokens were issued specifically for them as the intended audience, according to RFC 8707 Section 2." The client asks for that audience with the `resource` parameter from [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707) in every authorization and token request. If the audience check is skipped, any token from the same identity provider works on your server, including one a user gave to a different, possibly malicious, MCP server.
+
+## How the authorization server knows the client
+
+Before a user sees a consent screen, the authorization server needs a client ID. MCP clients "MUST obtain a client ID through one of three registration mechanisms" ([client registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration)), tried in this order when a client supports all of them: pre-registered credentials, a Client ID Metadata Document, Dynamic Client Registration. Asking the user for client details is the last fallback.
+
+A Client ID Metadata Document is the recommended path for clients meeting a new server. The client ID is an HTTPS URL the client controls, and the authorization server fetches it to learn the client's name and redirect URIs. The authorization server "MUST validate that the fetched document's `client_id` matches the URL exactly" and must validate redirect URIs. Since that document is hosted on the client's own domain, the consent screen can show where the client really comes from.
+
+[Dynamic Client Registration, RFC 7591](https://www.rfc-editor.org/rfc/rfc7591), lets a client register itself by POSTing metadata. The 2026-07-28 revision marks it deprecated: "New implementations should use Client ID Metadata Documents instead." It remains a MAY for backwards compatibility.
+
+Neither mechanism proves that the software is what it claims to be. A metadata document proves that whoever runs the client controls a domain, and a dynamic registration proves even less. So the redirect URI rules carry real weight. Redirect URIs "MUST be either `localhost` or use HTTPS", and authorization servers "MUST validate exact redirect URIs" ([security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations)). An attacker who registers a lookalike client still cannot receive the authorization code at an address they do not control.
+
+## How the person is authenticated
+
+The spec stops at the authorization server's door, so sign-in quality is a property of the identity provider you choose. Three things are worth checking.
+
+**Sign-in methods.** Phishing-resistant sign-in has a finished standard: passkeys, built on W3C [Web Authentication](https://www.w3.org/TR/webauthn-3/), which the [OIDC provider post](/blog/oidc-provider) covers in more detail.
+
+**Reporting how the user signed in.** OpenID Connect providers can put an `amr` claim in the ID token listing the methods used, and clients can ask for a level of assurance with `acr_values`, both defined in [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html). An MCP server that guards a destructive tool can refuse tokens from a weak sign-in.
+
+**Step-up.** MCP already has the mechanism on its side: when a token lacks a scope, the server "SHOULD respond with HTTP 403 Forbidden" and `error="insufficient_scope"`, and the client re-runs authorization for the larger scope set ([scope challenges](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling)). That second round is the moment an identity provider can ask for a passkey before granting write access.
+
+## Bridging local clients to remote servers
+
+For desktop clients that launch MCP servers as local processes, one pattern is a small local process that speaks STDIO to the client and HTTP to the remote server, and handles sign-in on the way. The local process opens a browser for the authorization code flow, receives the code on a loopback redirect, caches the token and forwards each call with it. That arrangement is legitimate under both halves of the spec: the local hop follows the STDIO rule and takes its credential from the user's environment, and the remote hop is plain OAuth. INITE's [MCP integration docs](/docs/mcp) describe one such proxy, `@inite/cli`, which runs as a STDIO MCP server and, the first time a call returns 401, opens the browser, runs PKCE with a loopback redirect, caches the token and retries.
+
+Whatever proxy you use, check where it stores tokens and with what file permissions, and whether it uses PKCE with the `S256` method that MCP clients "MUST use ... when technically capable" ([authorization code protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-code-protection)).
+
+## Attacks the spec tells you to plan for
+
+The security best practices page names the failure modes that follow from getting authentication wrong. Four of them apply to any server that accepts OAuth tokens.
+
+[Token passthrough](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#token-passthrough) is "explicitly forbidden in the authorization specification". An MCP server that receives a user's token and forwards it to an upstream API breaks the audience model and makes the upstream API trust a party it never authorized. Use a separate credential for upstream calls.
+
+The [confused deputy problem](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#confused-deputy-problem) hits MCP servers that act as proxies to a third-party API using one static client ID. If the third party remembers consent per client ID, a malicious client can ride on another user's earlier consent. The rule is that "MCP proxy servers using static client IDs MUST obtain user consent for each dynamically registered client".
+
+[Mix-up attacks](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#mix-up-attacks) target clients talking to several authorization servers. The 2026-07-28 revision added the defence from [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207): clients must validate the `iss` parameter in the authorization response before sending the code anywhere.
+
+[Server-side request forgery](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#server-side-request-forgery-ssrf) matters to authorization servers that fetch Client ID Metadata Documents and to clients that follow metadata URLs. Both fetch URLs supplied by someone else, so both need to refuse internal addresses.
+
+## What to check before you ship
+
+For a remote MCP server:
+
+- return 401 with a `WWW-Authenticate` header that points to your protected resource metadata;
+- validate signature, issuer, expiry and audience on every request;
+- keep upstream credentials separate from the tokens clients send you;
+- ask for more scope with 403 `insufficient_scope` rather than requesting everything up front.
+
+For the identity provider behind it:
+
+- PKCE with `S256` advertised in `code_challenge_methods_supported`;
+- the `resource` parameter honoured and written into the token audience;
+- exact redirect URI matching;
+- passkeys among the sign-in methods, and `amr` in the ID token if you want to act on how a user signed in.
+
+## FAQ
+
+### What is MCP authentication?
+
+It is the combination of checks that tells an MCP server who is calling. Over HTTP, the server validates an OAuth access token issued for it by an authorization server, which authenticated the person and identified the client. Over STDIO, the server uses credentials from the local environment.
+
+### Does an MCP server need OAuth?
+
+Only if it is reached over HTTP and protects anything. Authorization is optional in the spec, HTTP servers should follow the OAuth-based authorization spec, and STDIO servers should not use it at all.
+
+### Can I protect an MCP server with an API key instead of OAuth?
+
+The spec does not ban it, since authorization is optional, but a static key does not identify a person, cannot be scoped per user, and is not what MCP clients expect when they see a 401. For a server used by more than one person, the OAuth flow the spec defines is the path clients support.
+
+### Is MCP just HTTP?
+
+No. MCP defines JSON-RPC messages that can run over several transports. The spec's authorization rules apply to HTTP-based transports; STDIO has its own rule, and other transports must follow the security practices of their own protocol.
+
+### Where do passkeys fit into MCP authentication?
+
+At the authorization server. The MCP server never handles the passkey; it receives a token issued after the person signed in. Choose an identity provider that supports WebAuthn if you want phishing-resistant sign-in for your MCP users.
+
+<PostFooter post={post} />

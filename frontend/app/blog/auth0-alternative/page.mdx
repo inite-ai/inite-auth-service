@@ -1,0 +1,123 @@
+import { getPost } from '@/lib/blog'
+import { buildPostMetadata, buildPostJsonLd } from '@/lib/blog-seo'
+import { jsonLdScript } from '@/lib/seo'
+import { PostHeader, PostFooter } from '@/components/blog/PostParts'
+
+export const post = getPost('auth0-alternative')
+export const metadata = buildPostMetadata(post)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPostJsonLd(post)) }}
+/>
+
+<PostHeader post={post} />
+
+A common reason to look for an Auth0 alternative is a pricing page that surprised you, or a first enterprise customer asking for SAML single sign-on. Both are good reasons, and both are easier to judge once you know how each vendor counts what it charges for. This post lists the questions that actually decide the choice, then goes through how Clerk, WorkOS, Stytch, Supabase Auth, Amazon Cognito, Firebase and Google Identity Platform, and the open-source servers Keycloak, Zitadel, Ory and Logto price their plans. Every price below was read on the vendor's own pricing page on 3 November 2026 and links there. Prices change, so open the link before you decide.
+
+## Start with what Auth0 charges
+
+The [Auth0 pricing page](https://auth0.com/pricing) has a B2C and a B2B toggle and four plans: Free, Essentials, Professional and Enterprise. The Free plan is "$0 / month" for "Up to 25,000 monthly active users" and includes one custom domain and one enterprise connection. On the B2C toggle, Essentials is listed at "$35 / month" and Professional at "$240 / month", each for "Up to 500 monthly active users"; the slider on the page runs up to 20,000 users and switches to a sales contact at 30,000 and above. Enterprise is "Contact us".
+
+The shape matters more than the numbers. Auth0 sells plans in steps of monthly active users, and enterprise features move you along a second axis. The page's own footnote on the B2C plans reads "Upgrade to B2B to continue using EC, Self-Service SSO, and SCIM", so the day a customer asks for an enterprise connection is often the day the bill changes plan.
+
+## The questions that decide an Auth0 alternative
+
+Before you compare prices, write down the answers to these. They narrow the list faster than any feature matrix.
+
+**Who are your users?** A consumer app with many occasional users needs a low price per active user. A B2B product with a few hundred users across dozens of companies needs cheap organizations, SAML or OIDC connections to each customer's directory, and often SCIM provisioning. Vendors price these two shapes very differently.
+
+**What is the billing unit?** Auth0, Supabase, Cognito and Firebase count monthly active users. Clerk counts "MRU", monthly retained users. Zitadel counts daily active users and Ory counts "aDAU". WorkOS bills enterprise SSO per connection. Translate each into your own traffic before comparing headline numbers.
+
+**Which features cost extra?** SSO connections, directory sync, multi-factor authentication, custom domains and log retention are add-ons on several of the pricing pages below, so the base price can change once a sales-led customer arrives.
+
+**Do you need to self-host?** Data residency rules, an air-gapped customer or a strong preference for owning the user table point to open-source servers. Those move the cost from a monthly bill to your own operations.
+
+**How hard is it to leave?** Check whether you can export password hashes, whether the vendor speaks standard OpenID Connect so your apps can switch issuers, and whether user IDs are portable. The [OIDC provider checklist](/blog/oidc-provider) covers the protocol side.
+
+## Hosted alternatives and how they price
+
+### Clerk
+
+[Clerk's pricing](https://clerk.com/pricing) has Hobby, Pro, Business and Enterprise plans. Hobby is free with a "50,000 MRU limit per app". Pro is "$25/mo, $20/mo billed annually", includes 50,000 MRU per app, and charges "$0.02/mo" for each additional MRU between 50,001 and 100,000, with lower rates in higher bands. Pro includes one SSO connection, "Additional $75/mo each". Business is "$300/mo, $250/mo billed annually". At the published Pro rate, an app with 100,000 retained users would pay $25 plus 50,000 extra users at $0.02 each, so $1,025 a month before add-ons.
+
+Clerk ships prebuilt UI components and is the fastest route for a React or Next.js app that wants sign-in screens out of the box.
+
+### WorkOS
+
+[WorkOS](https://workos.com/pricing) splits user management from enterprise features. Its AuthKit user management is "Up to 1 million users Free", then "$2,500 / mo" per additional million. Enterprise SSO is billed per connection: "$125 / ea" for connections 1 to 15, falling to "$65 / ea" for 51 to 100. Directory Sync follows the same tiers. Custom domains are "$99 / mo".
+
+That model suits B2B products. You pay little for users and pay per customer who wants SSO, which you can pass on in your own enterprise plan.
+
+### Stytch
+
+[Stytch](https://stytch.com/pricing) has a pay-as-you-go plan "Starting at: $0 / Month" with "Always free: 10,000 monthly active users and AI agents", unlimited organizations and "5 SSO or SCIM Connections". Further connections are "$125/connection". The per-user price above the free allowance sits in a calculator on the page and could not be read as text, so check it there with your own numbers.
+
+### Supabase Auth
+
+Supabase sells auth as part of its database platform. [Its pricing page](https://supabase.com/pricing) gives the Free plan 50,000 monthly active users. Pro is "From $25 / month" with "100,000 monthly active users then $0.00325 per MAU". SAML single sign-on is not included on Free; on Pro, 50 SSO users are included, then "$0.015 per MAU". By those rates, 150,000 monthly active users on Pro cost $25 plus 50,000 extra users at $0.00325 each, about $188 a month for auth before compute and storage.
+
+The catch is the coupling. Supabase Auth is cheapest if Supabase is also your database.
+
+### Amazon Cognito
+
+[Cognito](https://aws.amazon.com/cognito/pricing/) has Lite, Essentials and Plus tiers. Essentials and Lite share a free tier of 10,000 monthly active users per account; "There is no free tier for the Plus tier". Above the free tier, Essentials is $0.015 per MAU and Plus $0.020. Users who sign in through SAML or OIDC federation are free up to 50, then $0.015 each. AWS's own worked example on that page puts 950,000 Essentials users at $14,100 a month.
+
+Cognito makes sense when the rest of your stack is on AWS and you are comfortable building more of the UI yourself.
+
+### Firebase Authentication and Google Identity Platform
+
+[Firebase](https://firebase.google.com/pricing) offers authentication at no cost up to 50,000 monthly active users and 50 SAML or OIDC users, then "Google Cloud pricing". [Google Identity Platform](https://cloud.google.com/identity-platform/pricing) lists those rates: email, phone, anonymous and social sign-in are free up to 50,000 MAU, then $0.0055 per MAU up to 100,000, $0.0046 up to a million, and lower beyond. SAML and OIDC users are free up to 50, then $0.015 each. Phone sign-in adds SMS charges by country.
+
+## Open-source and self-hosted alternatives
+
+### Keycloak
+
+[Keycloak](https://www.keycloak.org/) is the long-standing open-source option, licensed under [Apache 2.0](https://github.com/keycloak/keycloak/blob/main/LICENSE.txt). Its homepage lists "support for OpenID Connect, OAuth 2.0, and SAML", user federation with LDAP and Active Directory, and fine-grained authorization services. There is no licence fee. You pay in servers and in the people who run them, and the [Keycloak alternative](/blog/keycloak-alternative) post looks at what that costs.
+
+### Zitadel
+
+Zitadel's self-hosted server is licensed under [AGPL-3.0](https://github.com/zitadel/zitadel/blob/main/LICENSE). Its [cloud pricing](https://zitadel.com/pricing) counts daily active users: Free is "US$ 0 /Month" with "100 Daily Active Users"; Pro is "US$ 100 /Month" and starts "with 25'000 Daily Active Users per month included". Enterprise is custom and can run on your own infrastructure under a commercial licence.
+
+### Ory
+
+Ory's servers, [Kratos](https://github.com/ory/kratos/blob/master/LICENSE) for identities and [Hydra](https://github.com/ory/hydra/blob/master/LICENSE) for OAuth and OpenID Connect, are Apache 2.0. The hosted [Ory Network](https://www.ory.com/pricing) has a free Developer plan, Production at "$770 /year" with "$0.14 / aDAU / month", and Growth at "$9350 /year" with "$0.12 / aDAU / month". Ory's split into separate services gives you control and asks more integration work in return.
+
+### Logto
+
+[Logto](https://logto.io/pricing) is licensed under [MPL-2.0](https://github.com/logto-io/logto/blob/master/LICENSE). Its cloud Free plan covers "Up to 50,000 MAU"; Pro starts "From $24/mo", with enterprise SSO at "$48 Each connector" and MFA at "$48".
+
+### Running your own OIDC provider
+
+Self-hosted servers differ mostly in what they bundle and what they ask you to operate. INITE Identity, for example, describes its own self-hosted deployment in its [docs](/docs/self-hosting) as two containers, a backend and a Next.js frontend, plus Postgres and Redis. Whichever server you pick, budget for the database, backups, upgrades and an on-call rotation, because those replace the vendor's bill.
+
+## How to compare them on your own numbers
+
+Take your expected monthly active users at launch and in two years, the number of business customers who will ask for SSO, and whether you need SCIM. Then:
+
+1. find each candidate's billing unit and convert your users into it;
+2. add the per-connection or per-feature charges for SSO, SCIM and MFA;
+3. check the step where you cross into a sales-led plan;
+4. for self-hosted options, estimate the hours a month to run and upgrade the server, and price them at your own rate.
+
+Because the billing units differ, the cheapest vendor at a small user count can be an expensive one at a large count, and a B2B product with several enterprise customers can pay more for connections than for users. Writing the numbers down usually settles it.
+
+## FAQ
+
+### What is the best Auth0 alternative?
+
+It depends on your users. For B2B products that sell to enterprises, vendors that price SSO per connection, such as WorkOS or Stytch, are usually the cleaner fit. For consumer apps, compare per-user rates at your expected scale; Supabase Auth and Google Identity Platform publish the lowest per-MAU rates of those listed here. If you must self-host, look at Keycloak, Zitadel, Ory or Logto.
+
+### Is there a free Auth0 alternative?
+
+Yes, in two senses. Open-source servers such as Keycloak, Zitadel, Ory and Logto cost nothing to license, though you pay to run them. Several hosted vendors have large free tiers: WorkOS AuthKit up to a million users, and Supabase, Firebase and Logto at 50,000.
+
+### Can I migrate from Auth0 without forcing password resets?
+
+Only if you can bring the password hashes with you. Check that your new provider can import them, and plan the export with Auth0 before you commit, since it decides whether users notice the migration.
+
+### Is Keycloak a good Auth0 alternative?
+
+It is a capable one if you are prepared to run it. Keycloak supports OpenID Connect, OAuth 2.0 and SAML under an Apache 2.0 licence with no fee. The cost moves from a monthly bill to operations, which the [Keycloak alternative](/blog/keycloak-alternative) post covers.
+
+<PostFooter post={post} />

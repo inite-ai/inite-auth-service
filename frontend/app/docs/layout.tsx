@@ -56,6 +56,12 @@ export default function DocsLayout({ children }: Props) {
                 </ul>
               </div>
             ))}
+            <Link
+              href="/blog"
+              className="block px-2 py-1 text-sm rounded text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-overlay)] transition-colors"
+            >
+              Blog
+            </Link>
           </nav>
         </aside>
 

@@ -1,0 +1,160 @@
+import { getPost } from '@/lib/blog'
+import { buildPostMetadata, buildPostJsonLd } from '@/lib/blog-seo'
+import { jsonLdScript } from '@/lib/seo'
+import { PostHeader, PostFooter } from '@/components/blog/PostParts'
+
+export const post = getPost('mcp-oauth')
+export const metadata = buildPostMetadata(post)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPostJsonLd(post)) }}
+/>
+
+<PostHeader post={post} />
+
+MCP OAuth is the part of the Model Context Protocol that decides how a client gets a token for a remote MCP server and how the server checks it. The protocol builds on existing standards. Its authorization spec takes OAuth 2.1 and four published RFCs, says which parts each side must implement, and adds a few rules of its own about audience and token handling. This post walks through that flow in the order a client meets it, cites the clause behind each step, and ends with common questions about MCP authorization.
+
+Everything here is read from the current revision of the spec, [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization). In that revision, authorization is split over four pages: the main page, [authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), [client registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration) and [security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations). Older guides were written against the single page of [2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) or earlier, and a few of their recommendations have since changed.
+
+## Who plays which OAuth role
+
+The spec maps MCP onto the three OAuth roles in [one short section](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#roles). A protected MCP server "acts as an OAuth 2.1 resource server". An MCP client "acts as an OAuth 2.1 client, making protected resource requests on behalf of a resource owner". The authorization server interacts with the user and issues tokens, and it "may be hosted with the resource server or a separate entity".
+
+Until the [2025-06-18 revision](https://modelcontextprotocol.io/specification/2025-06-18/changelog), the MCP server was expected to be its own authorization server in the simplest setup. That revision reclassified MCP servers as OAuth resource servers and added protected resource metadata so a server can point at an authorization server it does not run. Since then the design matches an ordinary OAuth-protected API. Your MCP server validates tokens, and an identity provider you already have issues them.
+
+The OAuth version is a draft. The 2026-07-28 page cites [draft-ietf-oauth-v2-1-13](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13). The IETF working group has since published [draft 17](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/), dated 30 October 2026, so the reference is four drafts behind. For an implementer this is mostly harmless, because the parts MCP relies on (authorization code with PKCE, no implicit grant, bearer tokens in a header) have been stable across those drafts and are also required by the published [OAuth 2.0 Security BCP, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700).
+
+Authorization itself is optional. The spec says "Authorization is **OPTIONAL** for MCP implementations", that HTTP-based transports "SHOULD" conform, and that STDIO implementations "SHOULD NOT follow this specification, and instead retrieve credentials from the environment" ([protocol requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#protocol-requirements)). Everything below applies to remote servers over HTTP.
+
+## Step 1: the 401 and protected resource metadata
+
+A client starts by calling the MCP server without a token. The server answers `401 Unauthorized`, and from there the client has to find out which authorization server to use. MCP servers "MUST implement OAuth 2.0 Protected Resource Metadata (RFC9728)", and clients "MUST use OAuth 2.0 Protected Resource Metadata for authorization server discovery" ([overview](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#overview)).
+
+[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) defines a small JSON document served at `/.well-known/oauth-protected-resource`. Its `resource` field is required, and its `authorization_servers` field lists issuer identifiers. The RFC leaves `authorization_servers` optional; MCP makes it mandatory, since the document "MUST include the `authorization_servers` field containing at least one authorization server" ([discovery page](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-location)).
+
+The server can advertise the document in two ways, and must use at least one. It can put the URL in the `WWW-Authenticate` header of the 401, in a `resource_metadata` parameter as [RFC 9728 section 5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1) describes. Or it can serve the document at a well-known path, either with the MCP endpoint's path inserted (`/.well-known/oauth-protected-resource/public/mcp` for an endpoint at `/public/mcp`) or at the root. Clients must support both and try the header first, then the well-known URLs in that order.
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp", scope="files:read"
+```
+
+```json
+{
+  "resource": "https://mcp.example.com/mcp",
+  "authorization_servers": ["https://auth.example.com"],
+  "scopes_supported": ["files:read", "files:write"]
+}
+```
+
+RFC 9728 also requires the `resource` value to be identical to the identifier the well-known path was built from, so a client can reject metadata that claims to describe a different server.
+
+## Step 2: authorization server metadata
+
+With an issuer in hand, the client fetches that authorization server's own metadata. MCP authorization servers "MUST provide at least one" of two mechanisms, [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) authorization server metadata or [OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html), and clients "MUST support both".
+
+For an issuer without a path, the client tries `/.well-known/oauth-authorization-server` and then `/.well-known/openid-configuration`. For an issuer with a path, such as `https://auth.example.com/tenant1`, there are three URLs in a fixed order: the RFC 8414 form with the path appended, the OIDC form with the path appended, and the OIDC form with the well-known suffix after the path ([metadata discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery)). A client that tries only one of them will miss a provider that serves its metadata under another.
+
+The issuer check is strict. The `issuer` in the document "MUST be identical to the issuer identifier used to construct the well-known URL. If they differ, the client MUST NOT use the metadata." RFC 8414 states the same rule in [section 3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3).
+
+## Step 3: getting a client ID
+
+An MCP client usually meets an authorization server it has never seen, so it cannot rely on someone having registered it by hand. The spec lists three ways to get a client ID, a manual fallback, and a priority order for clients that support all of them ([client registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration)):
+
+1. pre-registered client credentials, if the user or operator has them;
+2. a Client ID Metadata Document, if the authorization server advertises `client_id_metadata_document_supported`;
+3. Dynamic Client Registration, if the server has a `registration_endpoint`;
+4. asking the user to enter client details.
+
+A Client ID Metadata Document turns the client ID into an HTTPS URL that the client hosts. The authorization server fetches that URL and reads the client's name and redirect URIs from it. The URL "MUST use the "https" scheme and contain a path component", and the document must contain at least `client_id`, `client_name` and `redirect_uris`. The authorization server must check that the fetched `client_id` matches the URL exactly and must validate the redirect URIs. The underlying IETF draft is [draft-ietf-oauth-client-id-metadata-document](https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/); MCP cites revision 00, and the draft reached revision 03 on 2 November 2026.
+
+[Dynamic Client Registration, RFC 7591](https://www.rfc-editor.org/rfc/rfc7591), is what the 2025 revisions of the spec described: the client POSTs its metadata to a registration endpoint and gets a `client_id` back. In 2026-07-28 it is deprecated. The registration page says "Dynamic Client Registration is deprecated. New implementations should use Client ID Metadata Documents instead," and support drops to MAY. The [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog) lists the deprecation alongside a new rule that clients using it must send an `application_type`. If your authorization server already supports DCR, nothing breaks, but a new client should look for metadata document support first.
+
+Credentials are bound to the authorization server that issued them. Clients "MUST NOT reuse client credentials from a different authorization server and MUST re-register", and when a resource lists several authorization servers the client keeps separate registration state for each.
+
+## Step 4: the authorization request, PKCE and the resource parameter
+
+The flow itself is the OAuth authorization code grant, with two parameters that carry most of MCP's security.
+
+PKCE comes from [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636). The client creates a random verifier, sends its SHA-256 hash as `code_challenge`, and proves possession of the verifier when it exchanges the code. MCP clients "MUST implement PKCE" and "MUST use the `S256` code challenge method when technically capable" ([authorization code protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-code-protection)). They must also confirm that the server supports it before starting: "If `code_challenge_methods_supported` is absent, the authorization server does not support PKCE and MCP clients MUST refuse to proceed." RFC 8414 lists that field as optional, so this is a rule an otherwise valid authorization server can fail. Check that your provider publishes it.
+
+The `resource` parameter comes from [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707), Resource Indicators for OAuth 2.0. It names the API the token is for, as an absolute URI without a fragment. MCP clients "MUST implement Resource Indicators", and the parameter "MUST be included in both authorization requests and token requests", carrying the canonical URI of the MCP server ([resource parameter](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#resource-parameter-implementation)). Clients must send it "regardless of whether authorization servers support it".
+
+```http
+GET /authorize?response_type=code
+  &client_id=https%3A%2F%2Fclient.example.org%2Fclient.json
+  &redirect_uri=http%3A%2F%2F127.0.0.1%3A33418%2Fcallback
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+  &resource=https%3A%2F%2Fmcp.example.com%2Fmcp
+  &scope=files%3Aread
+  &state=af0ifjsldkj
+```
+
+The canonical URI rules are short. `https://mcp.example.com/mcp`, `https://mcp.example.com`, a URI with a port and a URI with a deeper path are all valid; a URI without a scheme or with a fragment is not. Implementations "SHOULD consistently use the form without the trailing slash" and should accept an uppercase scheme and host. Pick one form and use it everywhere, because the server will compare it against the token's audience.
+
+One check was added in 2026-07-28. Authorization servers "SHOULD include the `iss` parameter" in the authorization response, and clients "MUST apply the validation in RFC9207 Section 2.4 before transmitting the authorization code" ([response validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)). [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207) exists to stop mix-up attacks, where a client talking to several authorization servers is tricked into sending a code from one to another.
+
+## Step 5: sending and checking the token
+
+Once the client has a token, it sends it the same way on every request. The client "MUST use the Authorization request header field", authorization "MUST be included in every HTTP request from client to server", and tokens "MUST NOT be included in the URI query string" ([access token usage](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#access-token-usage)). [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750#section-2.3) already discouraged query-string tokens, and RFC 9700 forbids them outright.
+
+On the server side, one sentence carries most of the security model: "MCP servers MUST validate that access tokens were issued specifically for them as the intended audience, according to RFC 8707 Section 2." In practice that means checking the token's `aud` claim (or the introspection response) against your server's canonical URI, along with signature, issuer and expiry. Invalid or expired tokens get a 401.
+
+The resource parameter in step 4 and the audience check here are two halves of one defence. A token minted for `https://mcp.example.com/mcp` will not be accepted by `https://other.example.net/mcp`, so a malicious server that receives a user's token cannot replay it against another server. The [2025-06-18 changelog](https://modelcontextprotocol.io/specification/2025-06-18/changelog) gives exactly this reason for requiring resource indicators. It only works if your authorization server puts the requested resource into the token. For example, the [INITE Identity OIDC reference](/docs/oidc) says its access tokens carry as `aud` the RFC 8707 `resource` the client asked for, and the client ID otherwise. Whatever provider you use, request a token with a `resource`, decode it, and confirm that the audience is your server.
+
+The same audience rule forbids token passthrough. Servers "MUST NOT accept or transit any other tokens", and an MCP server "MUST NOT pass through the token it received from the MCP client" to an upstream API. If your server calls a third-party API, it needs its own credentials or a token exchange. The [security best practices page](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#token-passthrough) explains why: a passed-through token makes the upstream API's audit trail and rate limits point at the wrong party.
+
+## Scopes and step-up authorization
+
+Scopes in MCP are driven by the server's challenges. Servers "SHOULD include a `scope` parameter in the `WWW-Authenticate` header", and clients "MUST treat the scopes provided in the challenge as authoritative"; without a challenge scope, the client asks for the `scopes_supported` from the resource metadata ([scope selection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-selection-strategy)).
+
+When a token is valid but lacks a scope for the operation, the server "SHOULD respond with HTTP 403 Forbidden" and `error="insufficient_scope"`, the status code [RFC 6750 section 3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) assigns to that error. The client then runs the flow again for the union of the scopes it already had and the scopes in the new challenge. This lets a server start with read access and ask for write access only when a tool that writes is called.
+
+Two smaller rules affect refresh tokens. Clients "MUST NOT assume refresh tokens will be issued", and servers should not list `offline_access` in their challenges or supported scopes. Public clients that do get refresh tokens must have them rotated, per the token theft section of the security page.
+
+## A checklist for an MCP OAuth setup
+
+For the MCP server:
+
+- serve RFC 9728 metadata with at least one entry in `authorization_servers`, and advertise it in the 401 header, at a well-known path, or both;
+- return 401 for missing, invalid or expired tokens and 403 with `insufficient_scope` when a scope is missing;
+- validate signature, issuer, expiry and audience on every request, and reject tokens whose audience is not your canonical URI;
+- never forward the client's token upstream.
+
+For the authorization server you put behind it:
+
+- publish RFC 8414 or OIDC Discovery metadata with an `issuer` that matches the URL exactly;
+- include `code_challenge_methods_supported` with `S256`;
+- honour the `resource` parameter and write it into the token audience;
+- support Client ID Metadata Documents or, for older clients, Dynamic Client Registration, and validate redirect URIs exactly;
+- return `iss` in the authorization response.
+
+## FAQ
+
+### What is MCP OAuth?
+
+It is the authorization flow defined in the MCP specification for servers reached over HTTP. The MCP server acts as an OAuth 2.1 resource server, the MCP client as an OAuth client, and a separate or co-hosted authorization server issues tokens through the authorization code flow with PKCE.
+
+### Is MCP authorization required?
+
+No. The spec makes authorization optional for MCP implementations. HTTP-based servers that do protect themselves should follow the authorization spec, and STDIO servers should take credentials from the environment instead.
+
+### Does MCP use OAuth 2.0 or OAuth 2.1?
+
+OAuth 2.1, which is still an IETF draft. The current MCP revision cites draft 13. OAuth 2.1 mostly consolidates OAuth 2.0 with the security practices in RFC 9700, such as mandatory PKCE and no implicit grant.
+
+### Do I still need Dynamic Client Registration for MCP?
+
+Not for new work. Since the 2026-07-28 revision, Dynamic Client Registration is deprecated and optional, and Client ID Metadata Documents are the recommended way for a client to identify itself to an authorization server it has not met before. The spec keeps it as an option for backwards compatibility, so an authorization server may keep supporting it for older clients.
+
+### Is OAuth obsolete for MCP?
+
+No. Every revision since authorization was added in [2025-03-26](https://modelcontextprotocol.io/specification/2025-03-26/changelog) builds on OAuth, and the latest one adds more OAuth standards (RFC 9207, client metadata documents) rather than fewer.
+
+### What is the difference between MCP authentication and MCP authorization?
+
+The spec only defines authorization: how a client obtains a token scoped to one server. Authentication of the person happens at the authorization server, by whatever method it uses. The companion post on [MCP authentication](/blog/mcp-authentication) covers that side.
+
+<PostFooter post={post} />

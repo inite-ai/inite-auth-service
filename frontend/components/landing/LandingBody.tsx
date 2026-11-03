@@ -245,6 +245,9 @@ export function LandingBody() {
           <Link href="/docs" className="hover:text-[var(--text)]">
             Docs
           </Link>
+          <Link href="/blog" className="hover:text-[var(--text)]">
+            Blog
+          </Link>
           <a href="/.well-known/openid-configuration" className="hover:text-[var(--text)]">
             OIDC
           </a>

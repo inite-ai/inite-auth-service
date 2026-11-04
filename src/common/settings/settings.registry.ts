@@ -138,6 +138,18 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     default: '10m',
   },
   {
+    key: 'REFRESH_REUSE_GRACE',
+    type: 'duration',
+    group: 'Tokens',
+    label: 'Refresh-token reuse grace',
+    description:
+      'RFC 9700 §4.14.2 — how long after a rotation the same client may present the ' +
+      'rotated refresh token again (processes sharing one sign-in refreshing at once) and ' +
+      'get its own sibling pair, at most 3 per token, while the chain is live. Later, or ' +
+      'once the family is revoked, a replay revokes the family as theft. 0 = off.',
+    default: '30s',
+  },
+  {
     key: 'JWT_M2M_ACCESS_TOKEN_EXPIRY',
     type: 'duration',
     group: 'Tokens',

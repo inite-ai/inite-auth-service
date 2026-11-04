@@ -25,8 +25,8 @@ Last reviewed: 2026-07-07 (v1.5.0).
 |---|----------------|--------|-----------------|
 | 2.2 | Sender-constrained access tokens (DPoP or mTLS) available | ✅ | DPoP (RFC 9449) with `cnf.jkt` binding — `dpop.service.ts` — and mTLS certificate-bound tokens (RFC 8705) with `cnf["x5t#S256"]` — `mtls.service.ts`, behind `MTLS_ENABLED`. |
 | 2.2.2 | Refresh-token rotation for public clients | ✅ | Every refresh rotates; the used token is revoked in the same transaction — `oauth-token-issuer.service.ts` `refreshAccessToken`. |
-| 2.2.2 | Refresh-token replay / theft detection | ✅ | Replay of an already-revoked token revokes the whole family (RFC 6819 §5.2.2.3) — `oauth-token-issuer.service.ts:257`. Concurrent-rotation race is claimed atomically (`updateMany … revoked:false`). |
-| 2.2 | Access tokens are short-lived | ✅ | User-flow access/id tokens ~10 min; M2M ~5 min (`JWT_M2M_ACCESS_TOKEN_EXPIRY`). |
+| 2.2.2 | Refresh-token replay / theft detection | ✅ | Replay of an already-revoked token revokes the whole family (RFC 6819 §5.2.2.3) — `refresh-grant.ts`. The rotation claim (`updateMany … revoked:false`) and the child insert are one transaction. §4.14.2 grace for concurrent requests: within `REFRESH_REUSE_GRACE` (default 30 s, `0` = off) the same client replaying a token revoked by rotation, whose chain still reaches a live token within 5 hops, gets a sibling pair (at most 3 per token, cap held under a row lock) — `refresh-grace.ts`. Theft and grace replays are audited (`token.failed.refresh_reuse`, `token.refreshed.grace_replay`). |
+| 2.2 | Access tokens are short-lived | ✅ | User-flow access/id tokens `JWT_ACCESS_TOKEN_EXPIRY` (default 10 min; INITE's deployment runs 1 h), `expires_in` reports it; M2M ~5 min (`JWT_M2M_ACCESS_TOKEN_EXPIRY`). |
 
 ## 2.3 Restricting access-token privilege
 

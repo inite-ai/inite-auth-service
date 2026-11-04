@@ -20,6 +20,7 @@ describe('RAR — authorization_details in the token issuer', () => {
   let prisma: {
     oAuthClient: { findUnique: jest.Mock };
     refreshToken: { create: jest.Mock; findUnique: jest.Mock; updateMany: jest.Mock };
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
   };
 
   beforeEach(() => {
@@ -45,6 +46,7 @@ describe('RAR — authorization_details in the token issuer', () => {
         findUnique: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      $transaction: (fn) => fn(prisma),
     };
     issuer = new OAuthTokenIssuerService(
       prisma as unknown as PrismaService,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -15,11 +15,15 @@ import { currentDeviceMetadata } from '../common/device-metadata';
 import { AgentsService } from './agents.service';
 import { hashRefreshToken, refreshTokenSecret } from './refresh-token-secret';
 import { platformRoleClaim } from './platform-role-claim';
-import { deadRefreshToken, refreshBounds, type RefreshBoundClient } from './refresh-bounds';
+import { type RefreshBoundClient } from './refresh-bounds';
 import { isDemoOrganization } from '../organizations/demo-tenant';
 import { orgClaims, type OrgContext } from './org-claims';
 import { staffRoles, tokenTenant } from './customer-lane';
-
+import { OAuthAuditService } from '../audit/oauth-audit.service';
+import type { IssuedTokens } from './token-support';
+import { expirySeconds } from './token-expiry';
+import { type RefreshTokenGate } from './refresh-grace';
+import { RefreshGrant } from './refresh-grant';
 
 export interface GenerateTokensInput {
   user: User;
@@ -55,10 +59,9 @@ interface SigningContext {
   accessTokenExpiry: string;
 }
 
-
 @Injectable()
 export class OAuthTokenIssuerService {
-  private readonly logger = new Logger(OAuthTokenIssuerService.name);
+  private readonly refreshGrant: RefreshGrant;
 
   // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
   constructor(
@@ -73,7 +76,18 @@ export class OAuthTokenIssuerService {
     @Optional() private readonly personalWorkspace?: PersonalWorkspaceService,
     // Optional for the same reason: without it no token carries an agent.
     @Optional() private readonly agents?: AgentsService,
-  ) {}
+    // Optional: without it the refresh-reuse paths are logged, not audited.
+    @Optional() audit?: OAuthAuditService,
+  ) {
+    this.refreshGrant = new RefreshGrant({
+      prisma,
+      settings,
+      secret: () => this.getRefreshTokenSecret(),
+      issue: (input, gate) => this.generateTokens(input, gate),
+      signalRevoked: (did, companyId) => this.signalTokenRevoked(did, companyId),
+      audit,
+    });
+  }
 
   private getRefreshTokenSecret(): string {
     return refreshTokenSecret(this.configService);
@@ -86,14 +100,12 @@ export class OAuthTokenIssuerService {
    * in the rotation chain. Setting it on creation (rather than via a
    * second updateMany after) is what fixes the previous silent-corruption
    * bug — bcrypt's salted hash made the post-create lookup never match.
+   *
+   * `gate`, when present, runs in the same transaction as the refresh-token
+   * insert and may abort it (RefreshGateRefused): the rotation claim and the
+   * grace sibling cap (refresh-grace.ts).
    */
-  async generateTokens(input: GenerateTokensInput): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    idToken: string;
-    expiresIn: number;
-    scope: string;
-  }> {
+  async generateTokens(input: GenerateTokensInput, gate?: RefreshTokenGate): Promise<IssuedTokens> {
     const sctx = this.signingContext();
     // A third-party application acts as an agent of the person (RFC 8693 `act`).
     const act = await this.agents?.actFor(input.user.id, input.clientId, input.authorizationDetails);
@@ -103,13 +115,14 @@ export class OAuthTokenIssuerService {
     const idToken = this.buildIdToken(input, sctx, orgCtx);
 
     const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
-    await this.persistRefreshToken(input, refreshTokenValue);
+    await this.persistRefreshToken(input, refreshTokenValue, gate);
 
     return {
       accessToken,
       refreshToken: refreshTokenValue,
       idToken,
-      expiresIn: 600,
+      // The access token's real lifetime, so a client refreshes when it must.
+      expiresIn: expirySeconds(sctx.accessTokenExpiry),
       scope: input.scope,
     };
   }
@@ -260,6 +273,7 @@ export class OAuthTokenIssuerService {
   private async persistRefreshToken(
     input: GenerateTokensInput,
     refreshTokenValue: string,
+    gate?: RefreshTokenGate,
   ): Promise<void> {
     const { user, clientId, scope, nonce, rotatedFrom } = input;
     const authnContext = input.authnContext ?? {};
@@ -276,113 +290,47 @@ export class OAuthTokenIssuerService {
       select: { companyId: true, customerLane: true },
     });
 
-    await this.prisma.refreshToken.create({
-      data: {
-        tokenLookup,
-        userId: user.id,
-        clientId,
-        // A customer-lane token keeps its org across rotation.
-        companyId: tokenTenant(clientRow, input.tenant),
-        scope,
-        nonce: nonce ?? null,
-        amr: authnContext.amr ?? [],
-        ...currentDeviceMetadata(), // ip, userAgent
-        lastUsedAt: new Date(),
-        // RFC 8707: persist the bound resource so rotation keeps the audience.
-        resource: input.audience ?? null,
-        // RFC 9396: persist the grant so rotation re-emits the same details.
-        authorizationDetails: input.authorizationDetails?.length
-          ? (input.authorizationDetails as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-        expiresAt,
-        revoked: false,
-        rotatedFrom: rotatedFrom ?? null,
-      },
+    const data: Prisma.RefreshTokenUncheckedCreateInput = {
+      tokenLookup,
+      userId: user.id,
+      clientId,
+      // A customer-lane token keeps its org across rotation.
+      companyId: tokenTenant(clientRow, input.tenant),
+      scope,
+      nonce: nonce ?? null,
+      amr: authnContext.amr ?? [],
+      ...currentDeviceMetadata(), // ip, userAgent
+      lastUsedAt: new Date(),
+      // RFC 8707: persist the bound resource so rotation keeps the audience.
+      resource: input.audience ?? null,
+      // RFC 9396: persist the grant so rotation re-emits the same details.
+      authorizationDetails: input.authorizationDetails?.length
+        ? (input.authorizationDetails as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      expiresAt,
+      revoked: false,
+      rotatedFrom: rotatedFrom ?? null,
+    };
+    if (!gate) {
+      await this.prisma.refreshToken.create({ data });
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await gate(tx);
+      await tx.refreshToken.create({ data });
     });
   }
 
   /**
-   * Refresh access token using refresh token (with rotation + theft
-   * detection).
-   *
-   * - Lookup is O(1) via the unique tokenLookup index (HMAC-SHA256 of the
-   *   raw token under the server's secret). Knowing the HMAC value proves
-   *   the token was minted by this server, so HMAC match is enough — no
-   *   separate verification step needed.
-   * - If a token is presented that exists but is already REVOKED, treat
-   *   it as theft (the legitimate user already rotated past it) and
-   *   revoke the entire refresh-token family for that user+client. This
-   *   is RFC 6819 §5.2.2.3 behavior.
-   * - With the client row, held to the authorization_code rule (refresh-bounds.ts).
+   * Refresh access token using refresh token: rotation, theft detection and
+   * the reuse grace (refresh-grant.ts).
    */
   async refreshAccessToken(
     refreshTokenValue: string,
     clientId: string,
     client?: RefreshBoundClient,
-  ): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    idToken: string;
-    expiresIn: number;
-    scope: string;
-  }> {
-    const tokenLookup = hashRefreshToken(refreshTokenValue, this.getRefreshTokenSecret());
-
-    const matchedToken = await this.prisma.refreshToken.findUnique({
-      where: { tokenLookup },
-      include: { user: true },
-    });
-
-    if (!matchedToken || matchedToken.clientId !== clientId) {
-      throw deadRefreshToken('Invalid refresh token');
-    }
-
-    if (matchedToken.revoked) {
-      this.logger.warn(
-        `Revoked refresh token replayed — possible theft. Revoking family for user=${matchedToken.userId} client=${matchedToken.clientId}`,
-      );
-      await this.prisma.refreshToken.updateMany({
-        where: {
-          userId: matchedToken.userId,
-          clientId: matchedToken.clientId,
-          revoked: false,
-        },
-        data: { revoked: true, revokedAt: new Date() },
-      });
-      await this.signalTokenRevoked(matchedToken.user?.did, matchedToken.companyId);
-      throw deadRefreshToken('Refresh token revoked');
-    }
-
-    if (matchedToken.expiresAt < new Date()) {
-      throw deadRefreshToken('Refresh token expired');
-    }
-
-    const bounds = refreshBounds(client, matchedToken);
-
-    // Atomically claim this rotation slot — second concurrent rotate of
-    // the same token loses the race and gets count=0 here.
-    const claim = await this.prisma.refreshToken.updateMany({
-      where: { id: matchedToken.id, revoked: false },
-      data: { revoked: true, revokedAt: new Date() },
-    });
-    if (claim.count !== 1) {
-      throw deadRefreshToken('Refresh token already rotated');
-    }
-
-    return this.generateTokens({
-      user: matchedToken.user,
-      clientId,
-      scope: bounds.scope,
-      rotatedFrom: matchedToken.id,
-      tenant: matchedToken.companyId,
-      nonce: matchedToken.nonce ?? undefined,
-      authnContext: { amr: matchedToken.amr ?? [] },
-      // RFC 8707: a token bound to a resource stays bound after rotation.
-      audience: bounds.resource,
-      // RFC 9396: carry the grant across rotation.
-      authorizationDetails:
-        (matchedToken.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,
-    });
+  ): Promise<IssuedTokens> {
+    return this.refreshGrant.refresh(refreshTokenValue, clientId, client);
   }
 
   /**
@@ -419,4 +367,3 @@ export class OAuthTokenIssuerService {
     });
   }
 }
-

@@ -42,7 +42,8 @@ openssl rsa -in next.pem -pubout -out next.pub.pem
    keep verifying against the prev slot.
 
 3. **Retire prev.** After the longest token lifetime has elapsed (access + id
-   tokens are ~10 min; refresh-derived access tokens re-mint under the active
+   tokens live for `JWT_ACCESS_TOKEN_EXPIRY`, 10 min by default and 1 h on
+   INITE's deployment; refresh-derived access tokens re-mint under the active
    key), remove `JWT_PUBLIC_KEY_PREV`/`JWT_KID_PREV` and deploy. Overlap closed.
 
 ## Notes

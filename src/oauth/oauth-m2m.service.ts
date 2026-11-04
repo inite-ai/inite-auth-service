@@ -10,6 +10,7 @@ import { sanitizeCustomClaims } from './custom-claims';
 import { agentDid, isSelfAgent } from './self-agent';
 import { isRegisteredResource } from './resource-registry';
 import { isDynamicClientId } from './oauth-scopes.registry';
+import { expirySeconds } from './token-expiry';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -117,7 +118,7 @@ export class OAuthM2mService {
       issuer,
     });
 
-    const expiresIn = this.parseExpiryToSeconds(accessTokenExpiry);
+    const expiresIn = expirySeconds(accessTokenExpiry);
     return {
       accessToken,
       expiresIn,
@@ -197,7 +198,7 @@ export class OAuthM2mService {
 
     return {
       accessToken,
-      expiresIn: this.parseExpiryToSeconds(accessTokenExpiry),
+      expiresIn: expirySeconds(accessTokenExpiry),
       scope: grantedScopes.join(' '),
       issuedTokenType: TOKEN_TYPE_ACCESS,
       tokenType: 'Bearer',
@@ -349,30 +350,5 @@ export class OAuthM2mService {
       return audience;
     }
     return allowedAud[0] ?? client.clientId;
-  }
-
-  /**
-   * Translate the expressive JWT expiry string ('10m', '1h', '3600s')
-   * into seconds for the OAuth token-response `expires_in` field.
-   * RFC 6749 §5.1 requires this as a number.
-   */
-  private parseExpiryToSeconds(expiry: string): number {
-    const m = /^(\d+)([smhd]?)$/.exec(expiry.trim());
-    if (!m) return 600;
-    // Group 1 (\d+) is mandatory in the matched regex, so it is present.
-    const value = parseInt(m[1]!, 10);
-    switch (m[2]) {
-      case 's':
-      case '':
-        return value;
-      case 'm':
-        return value * 60;
-      case 'h':
-        return value * 3600;
-      case 'd':
-        return value * 86400;
-      default:
-        return value;
-    }
   }
 }

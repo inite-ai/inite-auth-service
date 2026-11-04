@@ -6,7 +6,8 @@
   "private": true,
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && npm run build:scripts",
+    "build:scripts": "tsc -p tsconfig.scripts.json && node -e \"require('node:fs').cpSync('clients', 'dist/cli/clients', { recursive: true })\"",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

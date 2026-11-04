@@ -7,11 +7,5 @@
   ],
   "secret": {
     "name": "OAUTH_CLIENT_SECRET"
-  },
-  "overrides": {
-    "reason": "the own OIDC copy still uses silent-callback until education moves to the kit",
-    "extraRedirectUris": [
-      "https://inite.education/silent-callback"
-    ]
   }
 }

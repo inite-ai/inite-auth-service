@@ -22,7 +22,8 @@ import { staffRoles, tokenTenant } from './customer-lane';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import type { IssuedTokens } from './token-support';
 import { expirySeconds } from './token-expiry';
-import { type RefreshFamily, type RefreshTokenGate } from './refresh-grace';
+import { type RefreshTokenGate } from './refresh-grace';
+import { FieldCrypto } from '../common/field-crypto';
 import { RefreshGrant } from './refresh-grant';
 
 export interface GenerateTokensInput {
@@ -51,8 +52,6 @@ export interface GenerateTokensInput {
    * choosing by its own companyId, as before.
    */
   tenant?: string | null;
-  /** The refresh token's rotation family and grace marks (refresh-grace.ts); a sign-in starts one. */
-  family?: RefreshFamily;
 }
 
 /** Issuer + access-token expiry resolved once per token issuance. */
@@ -81,6 +80,9 @@ export class OAuthTokenIssuerService {
     @Optional() private readonly agents?: AgentsService,
     // Optional: without it the refresh-reuse paths are logged, not audited.
     @Optional() audit?: OAuthAuditService,
+    // Optional: without it (or without FIELD_ENCRYPTION_KEY) no rotation's
+    // pair is kept, so the refresh reuse grace is off.
+    @Optional() fieldCrypto?: FieldCrypto,
   ) {
     this.refreshGrant = new RefreshGrant({
       prisma,
@@ -89,6 +91,7 @@ export class OAuthTokenIssuerService {
       issue: (input, gate) => this.generateTokens(input, gate),
       signalRevoked: (did, companyId) => this.signalTokenRevoked(did, companyId),
       audit,
+      fieldCrypto,
     });
   }
 
@@ -105,8 +108,9 @@ export class OAuthTokenIssuerService {
    * bug — bcrypt's salted hash made the post-create lookup never match.
    *
    * `gate`, when present, runs in the same transaction as the refresh-token
-   * insert and may abort it (RefreshGateRefused): the rotation claim and the
-   * grace sibling cap (refresh-grace.ts).
+   * insert, with the pair about to be returned, and may abort it
+   * (RefreshGateRefused): the rotation claim, which also keeps the pair for
+   * the reuse grace (refresh-grace.ts).
    */
   async generateTokens(input: GenerateTokensInput, gate?: RefreshTokenGate): Promise<IssuedTokens> {
     const sctx = this.signingContext();
@@ -117,17 +121,16 @@ export class OAuthTokenIssuerService {
     const accessToken = this.buildAccessToken(input, sctx, orgCtx);
     const idToken = this.buildIdToken(input, sctx, orgCtx);
 
-    const refreshTokenValue = crypto.randomBytes(32).toString('base64url');
-    await this.persistRefreshToken(input, refreshTokenValue, gate);
-
-    return {
+    const issued: IssuedTokens = {
       accessToken,
-      refreshToken: refreshTokenValue,
+      refreshToken: crypto.randomBytes(32).toString('base64url'),
       idToken,
       // The access token's real lifetime, so a client refreshes when it must.
       expiresIn: sctx.accessTokenTtl,
       scope: input.scope,
     };
+    await this.persistRefreshToken(input, issued, gate);
+    return issued;
   }
 
   private signingContext(): SigningContext {
@@ -275,12 +278,12 @@ export class OAuthTokenIssuerService {
 
   private async persistRefreshToken(
     input: GenerateTokensInput,
-    refreshTokenValue: string,
+    issued: IssuedTokens,
     gate?: RefreshTokenGate,
   ): Promise<void> {
     const { user, clientId, scope, nonce, rotatedFrom } = input;
     const authnContext = input.authnContext ?? {};
-    const tokenLookup = hashRefreshToken(refreshTokenValue, this.getRefreshTokenSecret());
+    const tokenLookup = hashRefreshToken(issued.refreshToken, this.getRefreshTokenSecret());
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -313,16 +316,13 @@ export class OAuthTokenIssuerService {
       expiresAt,
       revoked: false,
       rotatedFrom: rotatedFrom ?? null,
-      // familyId / graceMinted / graceLineage; a sign-in leaves the defaults
-      // (null = this row starts its family, not a grace sibling).
-      ...input.family,
     };
     if (!gate) {
       await this.prisma.refreshToken.create({ data });
       return;
     }
     await this.prisma.$transaction(async (tx) => {
-      await gate(tx);
+      await gate(tx, issued);
       await tx.refreshToken.create({ data });
     });
   }

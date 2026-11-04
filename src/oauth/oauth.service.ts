@@ -9,6 +9,7 @@ import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
+import { eraseExpiredReplays } from './refresh-grace';
 import { AuthorizationDetailsService } from './authorization-details.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { grantableScope, type ScopeBoundClient } from './oauth-scopes.registry';
@@ -414,5 +415,7 @@ export class OAuthService {
     if (count) {
       this.oauthLogger.log(`Deleted ${count} expired refresh tokens`);
     }
+    // Refresh reuse grace: a rotation's kept pair lives no longer than its window.
+    await eraseExpiredReplays(this.prisma, now);
   }
 }

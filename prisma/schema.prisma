@@ -507,17 +507,13 @@ model RefreshToken {
   resource             String?   @map("resource")
   expiresAt            DateTime  @map("expiresAt")
   rotatedFrom          String?   @map("rotatedFrom") @db.Uuid
-  /// Rotation family (refresh reuse grace, issue #287): the id of the token
-  /// the family started from, carried to every token rotated or minted from
-  /// it. Null on a family's first token (its own id is the family), and on
-  /// rows minted before 0033, whose family starts at their next child.
-  familyId             String?   @map("familyId") @db.Uuid
-  /// Minted by the reuse grace (a sibling), not by a sign-in or a rotation.
-  /// Grace siblings are capped per family.
-  graceMinted          Boolean   @default(false) @map("graceMinted")
-  /// A grace sibling or a token rotated from one: never eligible for grace
-  /// itself, so a sibling cannot spawn siblings.
-  graceLineage         Boolean   @default(false) @map("graceLineage")
+  /// Refresh reuse grace (issue #287): the pair this token's rotation
+  /// returned, AES-256-GCM encrypted under FIELD_ENCRYPTION_KEY (FieldCrypto
+  /// v1 envelope, never plaintext), so a replay by the same client within
+  /// REFRESH_REUSE_GRACE gets the SAME pair. Erased once graceReplayUntil has
+  /// passed: lazily on read, and by the hourly cleanup.
+  graceReplay          String?   @map("graceReplay")
+  graceReplayUntil     DateTime? @map("graceReplayUntil")
   revoked              Boolean   @default(false)
   revokedAt            DateTime? @map("revokedAt")
   createdAt            DateTime  @default(now()) @map("createdAt")
@@ -535,7 +531,6 @@ model RefreshToken {
   @@index([userId])
   @@index([userId, clientId, revoked])
   @@index([companyId, revoked], map: "refresh_tokens_companyId_revoked_idx")
-  @@index([familyId])
   @@map("refresh_tokens")
 }
 

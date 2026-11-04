@@ -63,43 +63,45 @@ allows a short grace for such concurrent requests, and we take it:
 
 - Within `REFRESH_REUSE_GRACE` of the rotation (default 30 s, `0` = off,
   at most 60 s; Admin → Settings → Tokens), the **same client**
-  presenting an unexpired token revoked **by rotation**, whose rotation
-  chain still reaches a live token within 5 hops, gets a sibling pair
-  minted from the presented token: same grant, scope (narrowed to what
-  the client may hold today) and bound resource. The newest token is not
-  rotated.
-- The cap is **per sign-in family** (every token rotated or minted from
-  one sign-in): at most 3 siblings over the family's life. A sibling,
-  and every token rotated from one, is never eligible for grace itself,
-  so a replayed sibling is theft. Without both rules one stolen token
-  could be replayed, each sibling rotated and replayed again, fanning out
-  into unlimited live sessions; with them a family holds at most 1 + 3
-  live tokens however it is replayed.
-- The live token is claimed (row lock) while a sibling is inserted, so
-  concurrent replays in one family are counted one after another and
-  cannot exceed the cap, and a family revoke that locked it first makes
-  the grace refuse.
+  presenting an unexpired token revoked **by rotation** gets back the
+  **same pair** that rotation returned (the reuse-interval pattern of
+  Auth0 and Okta), as long as that child refresh token is still live.
+  Nothing new is minted: one chain, however many processes race, and no
+  limit to wear out over a sign-in's life.
+- To hand the pair back, the rotated row keeps it for the window only,
+  AES-256-GCM encrypted under `FIELD_ENCRYPTION_KEY` (`FieldCrypto` v1
+  envelope, bound to that row), never in plaintext. Without the key
+  nothing is kept and the grace is off. The kept pair is erased when a
+  replay after the window ends in the theft branch, by every theft
+  verdict for the family, and by the hourly cleanup.
+- The access token handed back is the winner's own (still valid, with
+  `expires_in` reduced to what is left of its life), not a fresh one: a
+  replay never adds a bearer token in circulation.
+- Within the window, if the child has already been rotated, the replay
+  is refused with `invalid_grant` and nothing is revoked (logged). If the
+  child was revoked (theft, logout, `/oauth/revoke` of it), nothing is
+  returned and the replay is theft as before.
 - Another client's token is refused (`invalid_grant`) as before. After
-  the window, past the cap, for an expired token, or once the family's
-  newest token was revoked (theft, logout, or `/oauth/revoke` of that
-  token), a replay is theft as before. Revoking one sibling with
-  `/oauth/revoke` ends that sibling's line only; the rest of the family
-  keeps whatever grace it has left under the cap.
-- Grace replays are logged and audited (`token.refreshed.grace_replay`),
+  the window, or for an expired token, a replay is theft as before.
+- The child's liveness is checked with a conditional update, so a family
+  revoke that committed first wins.
+- Grace replays are logged and audited (`token.refreshed.grace_reuse`),
   and so is the theft branch (`token.failed.refresh_reuse`).
 
-**Risk accepted:** an attacker who replays a stolen refresh token within
-the window of its rotation, with the client's credentials (public
-clients have none), gets a sibling instead of triggering the family
-revoke. Bounded by the window and by 3 siblings per sign-in family, none
-of which can mint more; outside them detection is unchanged.
+**Risk accepted:** a thief replaying a stolen refresh token within the
+same window, with the client's credentials (public clients have none),
+gets the same pair as the owner rather than tripping the family revoke.
+The next replay outside the window, by either of them, trips theft.
 
-**Residual race (not new):** a family revoke (theft branch, logout)
-whose statement starts while a rotation or grace insert is in flight, after
-that transaction took its lock, does not see the row being inserted, and
-the new token survives the revoke. Rotation had this race before the
-grace existed; the tip claim narrows it for siblings but does not close
-it. Closing it needs the revoke side to lock the family first.
+**Residual race (not new):** a family revoke (theft branch, logout,
+consent revoke) is one `UPDATE … WHERE revoked = false` and sees only
+rows that existed when its statement took its snapshot. A rotation whose
+child row is inserted after that snapshot (whether the rotation started
+before the revoke or while it was running) is missed, and the new child
+survives the revoke. A rotation that finds its parent already revoked by
+a committed revoke fails its claim. Plain rotation had this race before
+the grace existed. Closing it needs the revoke side to lock the family
+(or the rotation to re-check after its insert under a family lock).
 
 ## Known limitations (SOTA gaps)
 

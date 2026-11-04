@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SettingsService } from '../common/settings/settings.service';
 import type { OAuthAuditService, AuditEventInput } from '../audit/oauth-audit.service';
+import type { FieldCrypto } from '../common/field-crypto';
 import { currentDeviceMetadata } from '../common/device-metadata';
 import type { AuthorizationDetail } from './contracts/authorization-detail';
 import type { GenerateTokensInput } from './oauth-token-issuer.service';
@@ -11,12 +12,11 @@ import { hashRefreshToken } from './refresh-token-secret';
 import { deadRefreshToken, refreshBounds, type RefreshBoundClient } from './refresh-bounds';
 import {
   claimRotation,
-  graceSiblingGate,
-  graceTip,
+  ERASED_REPLAY,
   graceWindowMs,
+  openReplay,
   RefreshGateRefused,
-  rotationFamily,
-  siblingFamily,
+  sealReplay,
   withinGrace,
   type RefreshTokenGate,
 } from './refresh-grace';
@@ -34,7 +34,17 @@ export interface RefreshGrantDeps {
   /** CAEP token-revoked signal after a family revoke. */
   signalRevoked: (did: string | undefined, companyId: string | null) => Promise<void>;
   audit?: OAuthAuditService;
+  /** Keeps a rotation's pair encrypted for the grace window; without it the grace is off. */
+  fieldCrypto?: FieldCrypto;
 }
+
+/** What a replay within the grace window comes to. */
+type GraceOutcome =
+  | { kind: 'pair'; tokens: IssuedTokens }
+  /** The child was itself rotated since: refused, nothing revoked. */
+  | { kind: 'rotated' }
+  /** No kept pair, or the child was revoked: the path outside the grace. */
+  | { kind: 'none' };
 
 /**
  * The refresh_token grant: rotation, theft detection (RFC 6819 §5.2.2.3)
@@ -57,8 +67,8 @@ export class RefreshGrant {
    *   it as theft (the legitimate user already rotated past it) and
    *   revoke the entire refresh-token family for that user+client. This
    *   is RFC 6819 §5.2.2.3 behavior. The one exception is a replay by the
-   *   same client within REFRESH_REUSE_GRACE of a rotation whose chain is
-   *   still live: it gets a sibling pair instead.
+   *   same client within REFRESH_REUSE_GRACE of the rotation: it gets the
+   *   same pair the rotation returned, while that child is still live.
    * - With the client row, held to the authorization_code rule (refresh-bounds.ts).
    */
   async refresh(
@@ -78,7 +88,7 @@ export class RefreshGrant {
       throw deadRefreshToken('Invalid refresh token');
     }
 
-    if (matchedToken.revoked) return this.replayed(matchedToken, client);
+    if (matchedToken.revoked) return this.replayed(matchedToken);
 
     if (matchedToken.expiresAt < new Date()) {
       throw deadRefreshToken('Refresh token expired');
@@ -87,27 +97,29 @@ export class RefreshGrant {
     const bounds = refreshBounds(client, matchedToken);
 
     // Atomically claim this rotation slot, in the transaction that inserts
-    // the child — a second concurrent rotate of the same token loses there.
+    // the child and keeps the pair — a second concurrent rotate of the same
+    // token loses there.
+    const seal = sealReplay(this.deps.fieldCrypto, graceWindowMs(this.deps.settings));
     try {
       return await this.deps.issue(
         this.rotationInput(matchedToken, bounds),
-        claimRotation(matchedToken.id),
+        claimRotation(matchedToken.id, seal),
       );
     } catch (e) {
       if (!(e instanceof RefreshGateRefused)) throw e;
     }
-    // Lost an exact race: the winner's child is in the table by now, so the
-    // loser is a replay within grace like any other.
+    // Lost an exact race: the winner's pair is kept by now, so the loser
+    // gets it like any replay within the grace — or "already rotated", as before.
     const rotated = await this.deps.prisma.refreshToken.findUnique({
       where: { id: matchedToken.id },
       include: { user: true },
     });
-    const sibling = rotated ? await this.graceSibling(rotated, client) : null;
-    if (sibling) return sibling;
+    const outcome = rotated ? await this.graceReuse(rotated) : { kind: 'none' as const };
+    if (outcome.kind === 'pair') return outcome.tokens;
     throw deadRefreshToken('Refresh token already rotated');
   }
 
-  /** The grant a rotated (or sibling) refresh token carries over. */
+  /** The grant a rotated refresh token carries over. */
   private rotationInput(
     token: StoredRefreshToken,
     bounds: { scope: string; resource: string | undefined },
@@ -125,24 +137,33 @@ export class RefreshGrant {
       // RFC 9396: carry the grant across rotation.
       authorizationDetails:
         (token.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,
-      family: rotationFamily(token),
     };
   }
 
-  /** A revoked token presented: a grace sibling, or the theft branch. */
-  private async replayed(
-    token: StoredRefreshToken,
-    client?: RefreshBoundClient,
-  ): Promise<IssuedTokens> {
-    const sibling = await this.graceSibling(token, client);
-    if (sibling) return sibling;
+  /** A revoked token presented: the kept pair, a plain refusal, or the theft branch. */
+  private async replayed(token: StoredRefreshToken): Promise<IssuedTokens> {
+    const outcome = await this.graceReuse(token);
+    if (outcome.kind === 'pair') return outcome.tokens;
+    if (outcome.kind === 'rotated') {
+      this.logger.warn(
+        `Refresh token replayed within grace after its child was rotated — refused, nothing revoked, for user=${token.userId} client=${token.clientId}`,
+      );
+      throw deadRefreshToken('Refresh token already rotated');
+    }
 
     this.logger.warn(
       `Revoked refresh token replayed — possible theft. Revoking family for user=${token.userId} client=${token.clientId}`,
     );
+    const where = { userId: token.userId, clientId: token.clientId };
     await this.deps.prisma.refreshToken.updateMany({
-      where: { userId: token.userId, clientId: token.clientId, revoked: false },
+      where: { ...where, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    // No kept pair outlives a theft verdict; this is also where a pair read
+    // after its window is erased (the hourly cleanup catches the rest).
+    await this.deps.prisma.refreshToken.updateMany({
+      where: { ...where, graceReplay: { not: null } },
+      data: ERASED_REPLAY,
     });
     await this.auditReuse(token, {
       event: 'token.failed.refresh_reuse',
@@ -154,46 +175,42 @@ export class RefreshGrant {
   }
 
   /**
-   * Mint a sibling pair from a token rotated within REFRESH_REUSE_GRACE, or
-   * null when the grace rule does not hold (refresh-grace.ts). The live tip
-   * is not rotated; it is claimed for the length of the insert so the
-   * family's cap is counted under its lock. One retry covers the tip having
-   * rotated in between (another process refreshing normally); a revoked
-   * family fails the rule again and goes to the theft branch.
+   * Within REFRESH_REUSE_GRACE of the rotation, the pair the rotation
+   * returned — only while its child is still live. The child is checked
+   * with a conditional update, so a family revoke that committed first wins.
    */
-  private async graceSibling(
-    token: StoredRefreshToken,
-    client?: RefreshBoundClient,
-  ): Promise<IssuedTokens | null> {
+  private async graceReuse(token: StoredRefreshToken): Promise<GraceOutcome> {
     const now = new Date();
-    if (!withinGrace(token, graceWindowMs(this.deps.settings), now)) return null;
-    const bounds = refreshBounds(client, token);
-    const input = { ...this.rotationInput(token, bounds), family: siblingFamily(token) };
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const tip = await graceTip(this.deps.prisma, token, now);
-      if (!tip) return null;
-      try {
-        const tokens = await this.deps.issue(input, graceSiblingGate(token, tip, now));
-        await this.recordGraceReplay(token, bounds.scope, now);
-        return tokens;
-      } catch (e) {
-        if (!(e instanceof RefreshGateRefused)) throw e;
-      }
+    if (!withinGrace(token, graceWindowMs(this.deps.settings), now)) return { kind: 'none' };
+    const tokens = openReplay(this.deps.fieldCrypto, token, now);
+    if (!tokens) return { kind: 'none' };
+    const scope = { userId: token.userId, clientId: token.clientId };
+    const child = await this.deps.prisma.refreshToken.findFirst({
+      where: { ...scope, rotatedFrom: token.id },
+      select: { id: true },
+    });
+    if (!child) return { kind: 'none' };
+    const live = await this.deps.prisma.refreshToken.updateMany({
+      where: { id: child.id, revoked: false, expiresAt: { gt: now } },
+      data: { lastUsedAt: now },
+    });
+    if (live.count !== 1) {
+      const grandchild = await this.deps.prisma.refreshToken.count({
+        where: { ...scope, rotatedFrom: child.id },
+      });
+      return grandchild > 0 ? { kind: 'rotated' } : { kind: 'none' };
     }
-    return null;
-  }
-
-  private async recordGraceReplay(token: StoredRefreshToken, scope: string, now: Date) {
     const ageMs = now.getTime() - (token.revokedAt?.getTime() ?? now.getTime());
     this.logger.warn(
-      `Refresh token replayed within grace (age=${ageMs}ms) — minted sibling for user=${token.userId} client=${token.clientId}`,
+      `Refresh token replayed within grace (age=${ageMs}ms) — returned the rotation's pair for user=${token.userId} client=${token.clientId}`,
     );
     await this.auditReuse(token, {
-      event: 'token.refreshed.grace_replay',
+      event: 'token.refreshed.grace_reuse',
       success: true,
-      scopes: scope ? scope.split(' ') : [],
-      metadata: { ageMs },
+      scopes: tokens.scope ? tokens.scope.split(' ') : [],
+      metadata: { ageMs, childRefreshTokenId: child.id },
     });
+    return { kind: 'pair', tokens };
   }
 
   /** Audit a refresh-token replay (ids only — never a token value). */

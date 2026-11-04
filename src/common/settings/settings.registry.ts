@@ -148,9 +148,9 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     description:
       'RFC 9700 §4.14.2 — how long after a rotation the same client may present the ' +
       'rotated refresh token again (processes sharing one sign-in refreshing at once) and ' +
-      'get its own sibling pair while the chain is live: at most 3 per sign-in family, never ' +
-      'from a sibling. Later, past the cap, or once the family is revoked, a replay revokes ' +
-      'the family as theft. 0 = off, at most 60s.',
+      'get back the same pair the rotation returned, while that pair is live. Later, or once ' +
+      'the family is revoked, a replay revokes the family as theft. Needs ' +
+      'FIELD_ENCRYPTION_KEY (the pair is kept encrypted for the window). 0 = off, at most 60s.',
     default: '30s',
     maxSeconds: 60,
   },

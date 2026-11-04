@@ -62,25 +62,44 @@ and the loser presents a token revoked a moment ago. RFC 9700 §4.14.2
 allows a short grace for such concurrent requests, and we take it:
 
 - Within `REFRESH_REUSE_GRACE` of the rotation (default 30 s, `0` = off,
-  Admin → Settings → Tokens), the **same client** presenting a token
-  revoked **by rotation**, whose chain still reaches a live token within
-  5 hops, gets a sibling pair minted from the presented token: same
-  grant, scope (narrowed to what the client may hold today) and bound
-  resource. The newest token is left untouched.
-- At most 3 siblings per rotated token; the cap is held under a row
-  lock, so concurrent replays cannot exceed it. The next replay is theft.
+  at most 60 s; Admin → Settings → Tokens), the **same client**
+  presenting an unexpired token revoked **by rotation**, whose rotation
+  chain still reaches a live token within 5 hops, gets a sibling pair
+  minted from the presented token: same grant, scope (narrowed to what
+  the client may hold today) and bound resource. The newest token is not
+  rotated.
+- The cap is **per sign-in family** (every token rotated or minted from
+  one sign-in): at most 3 siblings over the family's life. A sibling,
+  and every token rotated from one, is never eligible for grace itself,
+  so a replayed sibling is theft. Without both rules one stolen token
+  could be replayed, each sibling rotated and replayed again, fanning out
+  into unlimited live sessions; with them a family holds at most 1 + 3
+  live tokens however it is replayed.
+- The live token is claimed (row lock) while a sibling is inserted, so
+  concurrent replays in one family are counted one after another and
+  cannot exceed the cap, and a family revoke that locked it first makes
+  the grace refuse.
 - Another client's token is refused (`invalid_grant`) as before. After
-  the window, past the cap, or once the family was revoked (theft,
-  `/oauth/revoke`, logout), a replay is theft as before: grace never
-  revives a revoked family.
+  the window, past the cap, for an expired token, or once the family's
+  newest token was revoked (theft, logout, or `/oauth/revoke` of that
+  token), a replay is theft as before. Revoking one sibling with
+  `/oauth/revoke` ends that sibling's line only; the rest of the family
+  keeps whatever grace it has left under the cap.
 - Grace replays are logged and audited (`token.refreshed.grace_replay`),
   and so is the theft branch (`token.failed.refresh_reuse`).
 
 **Risk accepted:** an attacker who replays a stolen refresh token within
 the window of its rotation, with the client's credentials (public
 clients have none), gets a sibling instead of triggering the family
-revoke. Bounded by the window and the cap; outside them detection is
-unchanged.
+revoke. Bounded by the window and by 3 siblings per sign-in family, none
+of which can mint more; outside them detection is unchanged.
+
+**Residual race (not new):** a family revoke (theft branch, logout)
+whose statement starts while a rotation or grace insert is in flight, after
+that transaction took its lock, does not see the row being inserted, and
+the new token survives the revoke. Rotation had this race before the
+grace existed; the tip claim narrows it for siblings but does not close
+it. Closing it needs the revoke side to lock the family first.
 
 ## Known limitations (SOTA gaps)
 
@@ -100,9 +119,9 @@ validate DPoP-proof headers, every downstream service (brain,
 inbox, …) must enforce the binding. A short JWT TTL plus audience
 binding bounds the damage today. The user access-token TTL is
 configurable (`JWT_ACCESS_TOKEN_EXPIRY`, Admin → Settings → Tokens):
-10 minutes by default; INITE's own deployment runs 1 hour, so there a
-leaked user bearer token is usable for up to an hour. `expires_in`
-reports the configured TTL.
+10 minutes by default. INITE's own deployment will run 1 hour once the
+refresh reuse grace has shipped (#287); a leaked user bearer token is
+then usable for up to an hour. `expires_in` reports the configured TTL.
 **Trigger to ship:** when we onboard a tenant where bearer-token
 theft would breach fiduciary / health-data regulations.
 
@@ -113,8 +132,8 @@ theft would breach fiduciary / health-data regulations.
 rotates it via the admin UI, the OLD JWT remains valid until its
 exp: up to the M2M TTL (`JWT_M2M_ACCESS_TOKEN_EXPIRY`, 5 minutes by
 default). User-flow tokens revoked at sign-out likewise live until
-their exp: up to `JWT_ACCESS_TOKEN_EXPIRY`, 10 minutes by default and
-1 hour on INITE's deployment. During that window, an attacker who
+their exp: up to `JWT_ACCESS_TOKEN_EXPIRY`, 10 minutes by default (1 hour
+on INITE's deployment once #287 has shipped). During that window, an attacker who
 already holds the JWT keeps full access.
 **Why deferred:** Token TTLs are short and configurable, so the
 exposure window is bounded. A Redis-backed jti revocation list

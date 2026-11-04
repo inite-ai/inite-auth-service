@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { Optional } from '@nestjs/common';
@@ -22,7 +22,7 @@ import { staffRoles, tokenTenant } from './customer-lane';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import type { IssuedTokens } from './token-support';
 import { expirySeconds } from './token-expiry';
-import { type RefreshTokenGate } from './refresh-grace';
+import { type RefreshFamily, type RefreshTokenGate } from './refresh-grace';
 import { RefreshGrant } from './refresh-grant';
 
 export interface GenerateTokensInput {
@@ -51,12 +51,15 @@ export interface GenerateTokensInput {
    * choosing by its own companyId, as before.
    */
   tenant?: string | null;
+  /** The refresh token's rotation family and grace marks (refresh-grace.ts); a sign-in starts one. */
+  family?: RefreshFamily;
 }
 
 /** Issuer + access-token expiry resolved once per token issuance. */
 interface SigningContext {
   issuer: string;
-  accessTokenExpiry: string;
+  /** Access/id-token lifetime in seconds: signed as `exp` and reported as `expires_in`. */
+  accessTokenTtl: number;
 }
 
 @Injectable()
@@ -122,7 +125,7 @@ export class OAuthTokenIssuerService {
       refreshToken: refreshTokenValue,
       idToken,
       // The access token's real lifetime, so a client refreshes when it must.
-      expiresIn: expirySeconds(sctx.accessTokenExpiry),
+      expiresIn: sctx.accessTokenTtl,
       scope: input.scope,
     };
   }
@@ -130,7 +133,7 @@ export class OAuthTokenIssuerService {
   private signingContext(): SigningContext {
     return {
       issuer: this.configService.get<string>('JWT_ISSUER', 'http://localhost:3002'),
-      accessTokenExpiry: this.settings.value('JWT_ACCESS_TOKEN_EXPIRY', '10m'),
+      accessTokenTtl: expirySeconds(this.settings.value('JWT_ACCESS_TOKEN_EXPIRY', '10m'), 600),
     };
   }
 
@@ -167,7 +170,7 @@ export class OAuthTokenIssuerService {
         scope,
       },
       {
-        expiresIn: sctx.accessTokenExpiry as JwtSignOptions['expiresIn'],
+        expiresIn: sctx.accessTokenTtl,
         // RFC 8707: bind the access-token audience to the requested
         // resource when present; otherwise default to the clientId.
         audience: input.audience ?? clientId,
@@ -205,7 +208,7 @@ export class OAuthTokenIssuerService {
     if (authnContext.acr) idTokenClaims.acr = authnContext.acr;
 
     return this.jwtService.sign(idTokenClaims, {
-      expiresIn: sctx.accessTokenExpiry as JwtSignOptions['expiresIn'],
+      expiresIn: sctx.accessTokenTtl,
       audience: clientId,
       issuer: sctx.issuer,
     });
@@ -310,6 +313,9 @@ export class OAuthTokenIssuerService {
       expiresAt,
       revoked: false,
       rotatedFrom: rotatedFrom ?? null,
+      // familyId / graceMinted / graceLineage; a sign-in leaves the defaults
+      // (null = this row starts its family, not a grace sibling).
+      ...input.family,
     };
     if (!gate) {
       await this.prisma.refreshToken.create({ data });

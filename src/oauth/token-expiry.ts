@@ -13,11 +13,12 @@ export function durationSeconds(value: string): number | null {
 }
 
 /**
- * Translate the expressive JWT expiry string ('10m', '1h', '3600s') into
- * seconds for the OAuth token-response `expires_in` field. RFC 6749 §5.1
- * requires this as a number, and it must be the token's real lifetime: a
- * client told less than that refreshes more often than it needs to.
+ * A token TTL setting ('10m', '1h', '3600', '3600s') in seconds. The same
+ * number is passed to `jwtService.sign` (a number there is seconds, where
+ * jsonwebtoken reads a unitless STRING as milliseconds) and returned as
+ * `expires_in` (RFC 6749 §5.1), so the token's `exp` and what the client is
+ * told always agree.
  */
-export function expirySeconds(expiry: string): number {
-  return durationSeconds(expiry) ?? 600;
+export function expirySeconds(expiry: string, fallbackSeconds: number): number {
+  return durationSeconds(expiry) ?? fallbackSeconds;
 }

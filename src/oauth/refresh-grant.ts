@@ -11,10 +11,12 @@ import { hashRefreshToken } from './refresh-token-secret';
 import { deadRefreshToken, refreshBounds, type RefreshBoundClient } from './refresh-bounds';
 import {
   claimRotation,
-  graceEligible,
   graceSiblingGate,
+  graceTip,
   graceWindowMs,
   RefreshGateRefused,
+  rotationFamily,
+  siblingFamily,
   withinGrace,
   type RefreshTokenGate,
 } from './refresh-grace';
@@ -123,6 +125,7 @@ export class RefreshGrant {
       // RFC 9396: carry the grant across rotation.
       authorizationDetails:
         (token.authorizationDetails as AuthorizationDetail[] | null) ?? undefined,
+      family: rotationFamily(token),
     };
   }
 
@@ -153,7 +156,10 @@ export class RefreshGrant {
   /**
    * Mint a sibling pair from a token rotated within REFRESH_REUSE_GRACE, or
    * null when the grace rule does not hold (refresh-grace.ts). The live tip
-   * is not touched; the cap is re-checked under a row lock as it is minted.
+   * is not rotated; it is claimed for the length of the insert so the
+   * family's cap is counted under its lock. One retry covers the tip having
+   * rotated in between (another process refreshing normally); a revoked
+   * family fails the rule again and goes to the theft branch.
    */
   private async graceSibling(
     token: StoredRefreshToken,
@@ -161,18 +167,23 @@ export class RefreshGrant {
   ): Promise<IssuedTokens | null> {
     const now = new Date();
     if (!withinGrace(token, graceWindowMs(this.deps.settings), now)) return null;
-    if (!(await graceEligible(this.deps.prisma, token, now))) return null;
     const bounds = refreshBounds(client, token);
-    let tokens: IssuedTokens;
-    try {
-      tokens = await this.deps.issue(
-        this.rotationInput(token, bounds),
-        graceSiblingGate(token, now),
-      );
-    } catch (e) {
-      if (e instanceof RefreshGateRefused) return null;
-      throw e;
+    const input = { ...this.rotationInput(token, bounds), family: siblingFamily(token) };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const tip = await graceTip(this.deps.prisma, token, now);
+      if (!tip) return null;
+      try {
+        const tokens = await this.deps.issue(input, graceSiblingGate(token, tip, now));
+        await this.recordGraceReplay(token, bounds.scope, now);
+        return tokens;
+      } catch (e) {
+        if (!(e instanceof RefreshGateRefused)) throw e;
+      }
     }
+    return null;
+  }
+
+  private async recordGraceReplay(token: StoredRefreshToken, scope: string, now: Date) {
     const ageMs = now.getTime() - (token.revokedAt?.getTime() ?? now.getTime());
     this.logger.warn(
       `Refresh token replayed within grace (age=${ageMs}ms) — minted sibling for user=${token.userId} client=${token.clientId}`,
@@ -180,10 +191,9 @@ export class RefreshGrant {
     await this.auditReuse(token, {
       event: 'token.refreshed.grace_replay',
       success: true,
-      scopes: bounds.scope ? bounds.scope.split(' ') : [],
+      scopes: scope ? scope.split(' ') : [],
       metadata: { ageMs },
     });
-    return tokens;
   }
 
   /** Audit a refresh-token replay (ids only — never a token value). */

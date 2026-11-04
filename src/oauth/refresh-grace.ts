@@ -14,14 +14,22 @@ import { durationSeconds } from './token-expiry';
  * ROTATION, whose chain still reaches a live token, gets a sibling pair
  * minted from the presented token. The live tip is left alone, and the
  * sibling is a fresh secret only this caller receives. Outside the window,
- * or when the family was revoked (theft, /oauth/revoke, logout), detection
- * is exactly as before.
+ * or when the family was revoked (theft, logout), detection is exactly as
+ * before.
+ *
+ * The grace is bounded per FAMILY, not per presented token: at most
+ * GRACE_MAX_SIBLINGS siblings over the family's life, and a sibling or any
+ * token rotated from one is never eligible itself. Counted per presented
+ * token, a thief holding one stolen token could replay, rotate each
+ * sibling and replay again, fanning out into unlimited live sessions.
  */
 
-/** Siblings that may be minted from one rotated token; the next replay is theft. */
+/** Siblings that may be minted in one rotation family, ever; the next replay is theft. */
 export const GRACE_MAX_SIBLINGS = 3;
 /** How far down the rotation chain a live tip is looked for. */
 export const GRACE_MAX_HOPS = 5;
+/** Upper bound on REFRESH_REUSE_GRACE: a concurrency window, not a session extension. */
+export const GRACE_MAX_SECONDS = 60;
 const DEFAULT_GRACE_SECONDS = 30;
 
 /** Raised inside the issuing transaction to abort it without a token. */
@@ -38,49 +46,83 @@ export interface GraceCandidate {
   userId: string;
   clientId: string;
   revokedAt: Date | null;
+  expiresAt: Date;
+  familyId: string | null;
+  graceLineage: boolean;
 }
 
-/** `REFRESH_REUSE_GRACE` in milliseconds; 0 turns the grace off. */
+/** How a new refresh token joins its family. */
+export interface RefreshFamily {
+  familyId: string;
+  graceMinted: boolean;
+  graceLineage: boolean;
+}
+
+/** A family's id: its first token's (null familyId = this row is the first). */
+export function familyOf(token: Pick<GraceCandidate, 'id' | 'familyId'>): string {
+  return token.familyId ?? token.id;
+}
+
+/** The child of an ordinary rotation: same family, same lineage. */
+export function rotationFamily(token: GraceCandidate): RefreshFamily {
+  return { familyId: familyOf(token), graceMinted: false, graceLineage: token.graceLineage };
+}
+
+/** A grace sibling: same family, marked so it never earns a grace itself. */
+export function siblingFamily(token: GraceCandidate): RefreshFamily {
+  return { familyId: familyOf(token), graceMinted: true, graceLineage: true };
+}
+
+/** `REFRESH_REUSE_GRACE` in milliseconds, at most GRACE_MAX_SECONDS; 0 turns the grace off. */
 export function graceWindowMs(settings: SettingsService): number {
   const raw = settings.value('REFRESH_REUSE_GRACE', `${DEFAULT_GRACE_SECONDS}s`);
-  return (durationSeconds(raw) ?? DEFAULT_GRACE_SECONDS) * 1000;
+  const seconds = durationSeconds(raw) ?? DEFAULT_GRACE_SECONDS;
+  return Math.min(seconds, GRACE_MAX_SECONDS) * 1000;
 }
 
-/** Revoked no longer ago than the window (and the window is on). */
+/**
+ * The presented token may be considered at all: the window is on, the token
+ * was revoked no longer ago than the window, it has not expired itself, and
+ * it is not a grace sibling or descended from one.
+ */
 export function withinGrace(token: GraceCandidate, windowMs: number, now: Date): boolean {
-  if (windowMs <= 0 || !token.revokedAt) return false;
+  if (windowMs <= 0 || !token.revokedAt || token.graceLineage) return false;
+  if (token.expiresAt <= now) return false;
   return now.getTime() - token.revokedAt.getTime() <= windowMs;
 }
 
 /**
- * The token was revoked by rotation (it has a child), fewer than
- * GRACE_MAX_SIBLINGS siblings were minted from it, and its chain reaches a
- * live token within GRACE_MAX_HOPS. A chain that ends in revoked tokens
- * without children is a revoked family: no grace revives it.
+ * The live tip a grace sibling may be minted beside, or null. The family has
+ * fewer than GRACE_MAX_SIBLINGS siblings; the presented token was revoked by
+ * rotation (it has a child in its lineage); and following that lineage
+ * reaches a live token within GRACE_MAX_HOPS. A lineage that ends in a
+ * revoked token without a child is a revoked family: no grace revives it.
  *
- * Child lookups filter on (userId, clientId, rotatedFrom), which rides the
- * existing (userId, clientId, revoked) index.
+ * In the main lineage each token has at most one rotation child (the claim
+ * is atomic), so the walk is a single chain. Lookups ride the
+ * (userId, clientId, revoked) and (familyId) indexes.
  */
-export async function graceEligible(
+export async function graceTip(
   db: RefreshDb,
   token: GraceCandidate,
   now: Date,
-): Promise<boolean> {
-  const where = { userId: token.userId, clientId: token.clientId };
-  let frontier = [token.id];
-  for (let hop = 0; hop < GRACE_MAX_HOPS && frontier.length > 0; hop++) {
-    const children = await db.refreshToken.findMany({
-      where: { ...where, rotatedFrom: { in: frontier } },
+): Promise<string | null> {
+  const scope = { userId: token.userId, clientId: token.clientId };
+  const siblings = await db.refreshToken.count({
+    where: { ...scope, familyId: familyOf(token), graceMinted: true },
+  });
+  if (siblings >= GRACE_MAX_SIBLINGS) return null;
+  let parent = token.id;
+  for (let hop = 0; hop < GRACE_MAX_HOPS; hop++) {
+    const child = await db.refreshToken.findFirst({
+      where: { ...scope, rotatedFrom: parent, graceLineage: false },
       select: { id: true, revoked: true, expiresAt: true },
     });
-    // One child is the rotation itself; the rest are grace siblings.
-    if (hop === 0 && (children.length === 0 || children.length > GRACE_MAX_SIBLINGS)) {
-      return false;
-    }
-    if (children.some((c) => !c.revoked && c.expiresAt > now)) return true;
-    frontier = children.filter((c) => c.revoked).map((c) => c.id);
+    if (!child) return null;
+    if (!child.revoked) return child.expiresAt > now ? child.id : null;
+    parent = child.id;
   }
-  return false;
+  return null;
 }
 
 /**
@@ -100,13 +142,22 @@ export function claimRotation(tokenId: string): RefreshTokenGate {
 }
 
 /**
- * Re-checks the grace rule under a row lock on the presented token, so
- * concurrent replays are serialised and the sibling cap holds: each one
- * counts the siblings the previous ones committed.
+ * Claims the live tip (a conditional update that takes its row lock), then
+ * re-checks the rule. Every grace replay in a family queues on that one row,
+ * so the per-family cap holds under concurrency; a family revoke that
+ * locked the tip first leaves it revoked, and the grace refuses.
  */
-export function graceSiblingGate(token: GraceCandidate, now: Date): RefreshTokenGate {
+export function graceSiblingGate(
+  token: GraceCandidate,
+  tipId: string,
+  now: Date,
+): RefreshTokenGate {
   return async (tx) => {
-    await tx.refreshToken.updateMany({ where: { id: token.id }, data: { lastUsedAt: now } });
-    if (!(await graceEligible(tx, token, now))) throw new RefreshGateRefused('grace refused');
+    const claim = await tx.refreshToken.updateMany({
+      where: { id: tipId, revoked: false },
+      data: { lastUsedAt: now },
+    });
+    if (claim.count !== 1) throw new RefreshGateRefused('tip no longer live');
+    if ((await graceTip(tx, token, now)) !== tipId) throw new RefreshGateRefused('grace refused');
   };
 }

@@ -7,6 +7,7 @@
  */
 
 import { DEFAULT_PERSONAL_WORKSPACE_CLIENTS } from '../../oauth/personal-workspace';
+import { durationSeconds } from '../../oauth/token-expiry';
 
 export type SettingType = 'flag' | 'duration' | 'csv' | 'text';
 
@@ -20,6 +21,8 @@ export interface SettingDef {
   default?: string;
   /** Large/sensitive value — the API returns whether it's set, not the value. */
   secret?: boolean;
+  /** `duration` only: the longest value an operator may set, in seconds. */
+  maxSeconds?: number;
 }
 
 export const SETTINGS_REGISTRY: readonly SettingDef[] = [
@@ -145,9 +148,11 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
     description:
       'RFC 9700 §4.14.2 — how long after a rotation the same client may present the ' +
       'rotated refresh token again (processes sharing one sign-in refreshing at once) and ' +
-      'get its own sibling pair, at most 3 per token, while the chain is live. Later, or ' +
-      'once the family is revoked, a replay revokes the family as theft. 0 = off.',
+      'get its own sibling pair while the chain is live: at most 3 per sign-in family, never ' +
+      'from a sibling. Later, past the cap, or once the family is revoked, a replay revokes ' +
+      'the family as theft. 0 = off, at most 60s.',
     default: '30s',
+    maxSeconds: 60,
   },
   {
     key: 'JWT_M2M_ACCESS_TOKEN_EXPIRY',
@@ -208,13 +213,22 @@ export function settingDef(key: string): SettingDef | undefined {
   return BY_KEY.get(key);
 }
 
+function validateDuration(def: SettingDef, value: string): string | null {
+  const seconds = durationSeconds(value);
+  if (seconds === null) return 'must be a duration like 10m, 1h, 3600s';
+  if (def.maxSeconds !== undefined && seconds > def.maxSeconds) {
+    return `must be at most ${def.maxSeconds}s`;
+  }
+  return null;
+}
+
 /** Validate a raw string value against a setting's type. Returns an error or null. */
 export function validateSettingValue(def: SettingDef, value: string): string | null {
   switch (def.type) {
     case 'flag':
       return value === 'true' || value === 'false' ? null : 'must be "true" or "false"';
     case 'duration':
-      return /^\d+[smhd]?$/.test(value.trim()) ? null : 'must be a duration like 10m, 1h, 3600s';
+      return validateDuration(def, value);
     case 'csv':
       return value
         .split(',')

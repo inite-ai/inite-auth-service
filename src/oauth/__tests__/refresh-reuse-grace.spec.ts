@@ -6,7 +6,9 @@ import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
 import { fakeSettings } from '../../common/settings/settings.test-fixture';
-import { GRACE_MAX_SIBLINGS } from '../refresh-grace';
+import { GRACE_MAX_SIBLINGS, graceWindowMs } from '../refresh-grace';
+import type { RefreshBoundClient } from '../refresh-bounds';
+import { settingDef, validateSettingValue } from '../../common/settings/settings.registry';
 
 /**
  * Issue #287 — refresh reuse grace (RFC 9700 §4.14.2). Several processes
@@ -30,6 +32,9 @@ interface Row {
   authorizationDetails: unknown;
   resource: string | null;
   rotatedFrom: string | null;
+  familyId: string | null;
+  graceMinted: boolean;
+  graceLineage: boolean;
   revoked: boolean;
   revokedAt: Date | null;
   lastUsedAt: Date | null;
@@ -60,8 +65,9 @@ function fakeStore() {
     },
     findFirst: async ({ where }: { where: Where }) => {
       const row = rows.find((r) => matches(r, where));
-      return row ? { companyId: row.companyId, user } : null;
+      return row ? { ...row, user } : null;
     },
+    count: async ({ where }: { where: Where }) => rows.filter((r) => matches(r, where)).length,
     findMany: async ({ where }: { where: Where }) => rows.filter((r) => matches(r, where)),
     updateMany: async ({ where, data }: { where: Where; data: Partial<Row> }) => {
       const hit = rows.filter((r) => matches(r, where));
@@ -69,7 +75,9 @@ function fakeStore() {
       return { count: hit.length };
     },
     create: async ({ data }: { data: Omit<Row, 'id'> }) => {
-      const row = { ...data, id: `rt${rows.length + 1}`, revokedAt: null } as Row;
+      // The column defaults the database applies (schema.prisma).
+      const defaults = { familyId: null, graceMinted: false, graceLineage: false };
+      const row = { ...defaults, ...data, id: `rt${rows.length + 1}`, revokedAt: null } as Row;
       rows.push(row);
       return row;
     },
@@ -92,7 +100,10 @@ describe('refresh reuse grace (issue #287)', () => {
   let audit: { record: jest.Mock };
   let issuer: OAuthTokenIssuerService;
 
-  const build = (env: Record<string, string> = {}) => {
+  const build = (
+    env: Record<string, string> = {},
+    jwt = { sign: () => 'signed.jwt' } as unknown as JwtService,
+  ) => {
     store = fakeStore();
     audit = { record: jest.fn().mockResolvedValue(undefined) };
     const config = {
@@ -101,7 +112,7 @@ describe('refresh reuse grace (issue #287)', () => {
     } as unknown as ConfigService;
     issuer = new OAuthTokenIssuerService(
       store as unknown as PrismaService,
-      { sign: () => 'signed.jwt' } as unknown as JwtService,
+      jwt,
       config,
       fakeSettings(env),
       undefined,
@@ -114,7 +125,8 @@ describe('refresh reuse grace (issue #287)', () => {
 
   const signIn = async () =>
     (await issuer.generateTokens({ user, clientId: 'cli', scope: 'openid' })).refreshToken;
-  const refresh = (token: string, clientId = 'cli') => issuer.refreshAccessToken(token, clientId);
+  const refresh = (token: string, clientId = 'cli', client?: RefreshBoundClient) =>
+    issuer.refreshAccessToken(token, clientId, client);
   const live = () => store.rows.filter((r) => !r.revoked);
   const events = () => audit.record.mock.calls.map(([e]) => (e as { event: string }).event);
 
@@ -243,13 +255,136 @@ describe('refresh reuse grace (issue #287)', () => {
   });
 
   it.each([
+    ['3600', 3600],
     ['10m', 600],
     ['1h', 3600],
     ['3600s', 3600],
-  ])('expires_in follows JWT_ACCESS_TOKEN_EXPIRY=%s', async (ttl, seconds) => {
-    build({ JWT_ACCESS_TOKEN_EXPIRY: ttl });
-    const first = await issuer.generateTokens({ user, clientId: 'cli', scope: 'openid' });
-    expect(first.expiresIn).toBe(seconds);
-    await expect(refresh(first.refreshToken)).resolves.toMatchObject({ expiresIn: seconds });
+  ])(
+    'expires_in and the signed exp both follow JWT_ACCESS_TOKEN_EXPIRY=%s',
+    async (ttl, seconds) => {
+      // The real signer: a unitless STRING would be read as milliseconds by
+      // jsonwebtoken (a 3.6 s token told `expires_in: 3600`).
+      const jwt = new JwtService({ secret: 'test-only-signing-secret-of-32-chars!' });
+      build({ JWT_ACCESS_TOKEN_EXPIRY: ttl }, jwt);
+      const first = await issuer.generateTokens({ user, clientId: 'cli', scope: 'openid' });
+      expect(first.expiresIn).toBe(seconds);
+      for (const token of [first.accessToken, first.idToken]) {
+        const { exp, iat } = jwt.decode<{ exp: number; iat: number }>(token);
+        expect(exp - iat).toBe(seconds);
+      }
+      await expect(refresh(first.refreshToken)).resolves.toMatchObject({ expiresIn: seconds });
+    },
+  );
+
+  describe('the grace is bounded per family, not per presented token', () => {
+    it('a sibling, and a token rotated from one, never earns a grace itself', async () => {
+      const a = await signIn();
+      await refresh(a);
+      const s1 = (await refresh(a)).refreshToken; // sibling of B
+      await refresh(s1); // S1 → S1'
+      await refused(refresh(s1)); // S1 replayed a moment later: theft, not a grace
+      expect(live()).toHaveLength(0);
+      expect(events()).toContain('token.failed.refresh_reuse');
+    });
+
+    it('the reviewer probe: rotate, replay ×3, rotate and replay every held token — at most 1 + 3 live', async () => {
+      const a = await signIn();
+      const held = [(await refresh(a)).refreshToken];
+      for (let i = 0; i < GRACE_MAX_SIBLINGS; i++) held.push((await refresh(a)).refreshToken);
+      expect(live()).toHaveLength(1 + GRACE_MAX_SIBLINGS);
+
+      // Every held token rotates normally, and the family never grows.
+      const rotated: string[] = [];
+      for (const t of held) rotated.push((await refresh(t)).refreshToken);
+      expect(live()).toHaveLength(1 + GRACE_MAX_SIBLINGS);
+
+      // Replaying any held token now is theft: the family's 3 siblings are spent
+      // (B, the main lineage) or the token is a sibling (S1..S3).
+      await refused(refresh(held[0]!));
+      expect(live()).toHaveLength(0);
+      for (const t of [...held.slice(1), ...rotated]) await refused(refresh(t));
+      expect(store.rows.filter((r) => r.graceMinted)).toHaveLength(GRACE_MAX_SIBLINGS);
+      expect(live()).toHaveLength(0);
+    });
+
+    it('the cap spans generations: siblings of A and of B count together', async () => {
+      const a = await signIn();
+      const b = (await refresh(a)).refreshToken;
+      await refresh(a);
+      await refresh(a); // 2 siblings of A
+      await refresh(b); // B → C
+      await refresh(b); // 3rd sibling, from B
+      expect(live()).toHaveLength(1 + GRACE_MAX_SIBLINGS);
+      await refused(refresh(b)); // 4th replay in the family: theft
+      expect(live()).toHaveLength(0);
+    });
+  });
+
+  it('an expired token on the grace path is theft as before', async () => {
+    const a = await signIn();
+    await refresh(a);
+    store.rows[0]!.expiresAt = new Date(Date.now() - 1);
+    await refused(refresh(a));
+    expect(live()).toHaveLength(0);
+  });
+
+  describe('with the client row (refresh-bounds.ts)', () => {
+    const MCP = 'https://mcp.example.com/api';
+    const signInBound = async () =>
+      (
+        await issuer.generateTokens({
+          user,
+          clientId: 'cli',
+          scope: 'openid brain:read brain:write',
+          audience: MCP,
+        })
+      ).refreshToken;
+
+    it('the sibling keeps the bound resource and only the scopes the client may hold today', async () => {
+      const client: RefreshBoundClient = {
+        clientId: 'cli',
+        allowedScopes: ['brain:read'],
+        allowedAudiences: [MCP],
+      };
+      const a = await signInBound();
+      await refresh(a, 'cli', client);
+      const sibling = await refresh(a, 'cli', client);
+      expect(sibling.scope).toBe('openid brain:read');
+      const row = store.rows[store.rows.length - 1]!;
+      expect(row).toMatchObject({ graceMinted: true, resource: MCP, scope: 'openid brain:read' });
+    });
+
+    it('a resource the client may no longer target ends the grant, and mints nothing', async () => {
+      const a = await signInBound();
+      await refresh(a, 'cli', { clientId: 'cli', allowedAudiences: [MCP] });
+      const before = store.rows.length;
+      const e = await refused(
+        refresh(a, 'cli', { clientId: 'cli', allowedAudiences: ['https://x.example'] }),
+      );
+      expect(e.getResponse()).toMatchObject({
+        error_description: 'Refresh token is bound to a resource this client may not target',
+      });
+      expect(store.rows).toHaveLength(before);
+    });
+  });
+
+  describe('REFRESH_REUSE_GRACE is at most 60 s', () => {
+    it('the settings API refuses a longer value', () => {
+      const def = settingDef('REFRESH_REUSE_GRACE')!;
+      expect(validateSettingValue(def, '60s')).toBeNull();
+      expect(validateSettingValue(def, '0')).toBeNull();
+      expect(validateSettingValue(def, '61s')).toMatch(/at most 60s/);
+      expect(validateSettingValue(def, '1h')).toMatch(/at most 60s/);
+    });
+
+    it('an env value over the bound is clamped at runtime', async () => {
+      expect(graceWindowMs(fakeSettings({ REFRESH_REUSE_GRACE: '1h' }))).toBe(60_000);
+      build({ REFRESH_REUSE_GRACE: '1h' });
+      const a = await signIn();
+      await refresh(a);
+      store.rows[0]!.revokedAt = new Date(Date.now() - 61_000);
+      await refused(refresh(a));
+      expect(live()).toHaveLength(0);
+    });
   });
 });

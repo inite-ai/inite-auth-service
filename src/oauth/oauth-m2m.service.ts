@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
@@ -91,7 +91,7 @@ export class OAuthM2mService {
     // deactivated machine client stops working within ≤5min — our
     // chosen revocation strategy in place of a real-time revocation
     // list. Override via JWT_M2M_ACCESS_TOKEN_EXPIRY.
-    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
+    const ttl = expirySeconds(this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m'), 300);
 
     const claims: Record<string, unknown> = {
       sub,
@@ -112,16 +112,16 @@ export class OAuthM2mService {
       claims.cnf = cnf;
     }
 
+    // Seconds as a number: jsonwebtoken reads a unitless string as ms.
     const accessToken = this.jwtService.sign(claims, {
-      expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'],
+      expiresIn: ttl,
       audience: effectiveAudience,
       issuer,
     });
 
-    const expiresIn = expirySeconds(accessTokenExpiry);
     return {
       accessToken,
-      expiresIn,
+      expiresIn: ttl,
       scope: grantedScopes.join(' '),
       audience: effectiveAudience,
       tokenType: dpopJkt ? 'DPoP' : 'Bearer',
@@ -171,7 +171,7 @@ export class OAuthM2mService {
       act = { sub: actorClaims.sub, client_id: client.clientId };
     }
 
-    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
+    const ttl = expirySeconds(this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m'), 300);
     const issuer = this.configService.get<string>(
       'JWT_ISSUER',
       'http://localhost:3002',
@@ -193,12 +193,12 @@ export class OAuthM2mService {
         // exchange — the target resource gates its MCP tools by them.
         ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),
       },
-      { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
+      { expiresIn: ttl, audience: effectiveAudience, issuer },
     );
 
     return {
       accessToken,
-      expiresIn: expirySeconds(accessTokenExpiry),
+      expiresIn: ttl,
       scope: grantedScopes.join(' '),
       issuedTokenType: TOKEN_TYPE_ACCESS,
       tokenType: 'Bearer',

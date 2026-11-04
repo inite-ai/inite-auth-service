@@ -80,11 +80,13 @@ Response:
 }
 ```
 
-Access tokens are short-lived (10 min default). Store the refresh token securely (HttpOnly cookie or backend session) — **never** in client-side JS storage.
+Access tokens are short-lived: `expires_in` is the configured lifetime (`JWT_ACCESS_TOKEN_EXPIRY`, 10 min by default), so refresh when it says. Store the refresh token securely (HttpOnly cookie or backend session) — **never** in client-side JS storage.
 
 ## Refresh token rotation
 
 Every refresh issues a new refresh token and revokes the previous one. Reuse of a revoked refresh token revokes the entire token family (RFC 6819 §4.4.1.1) — assume theft and force re-login.
+
+One exception, for several processes sharing one sign-in (CLI agents, IDE plugins, parallel sessions) that refresh at the same moment: within `REFRESH_REUSE_GRACE` of a rotation (30 s by default), the same client presenting the just-rotated token gets back the same token pair the first refresh returned, as long as that new refresh token has not been used or revoked yet (RFC 9700 §4.14.2). Later, from another client, or after a revoke or sign-out, reuse is treated as theft as above.
 
 ```bash
 curl -X POST https://auth.inite.ai/v1/oauth/token \

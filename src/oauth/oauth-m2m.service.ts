@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuthClient } from '@prisma/client';
 import { TokenExchangeInput } from './dto/token-exchange.input';
@@ -10,6 +10,7 @@ import { sanitizeCustomClaims } from './custom-claims';
 import { agentDid, isSelfAgent } from './self-agent';
 import { isRegisteredResource } from './resource-registry';
 import { isDynamicClientId } from './oauth-scopes.registry';
+import { expirySeconds } from './token-expiry';
 
 /** RFC 8693 token-type identifiers we accept/issue for Token Exchange. */
 const TOKEN_TYPE_ACCESS = 'urn:ietf:params:oauth:token-type:access_token';
@@ -90,7 +91,7 @@ export class OAuthM2mService {
     // deactivated machine client stops working within ≤5min — our
     // chosen revocation strategy in place of a real-time revocation
     // list. Override via JWT_M2M_ACCESS_TOKEN_EXPIRY.
-    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
+    const ttl = expirySeconds(this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m'), 300);
 
     const claims: Record<string, unknown> = {
       sub,
@@ -111,16 +112,16 @@ export class OAuthM2mService {
       claims.cnf = cnf;
     }
 
+    // Seconds as a number: jsonwebtoken reads a unitless string as ms.
     const accessToken = this.jwtService.sign(claims, {
-      expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'],
+      expiresIn: ttl,
       audience: effectiveAudience,
       issuer,
     });
 
-    const expiresIn = this.parseExpiryToSeconds(accessTokenExpiry);
     return {
       accessToken,
-      expiresIn,
+      expiresIn: ttl,
       scope: grantedScopes.join(' '),
       audience: effectiveAudience,
       tokenType: dpopJkt ? 'DPoP' : 'Bearer',
@@ -170,7 +171,7 @@ export class OAuthM2mService {
       act = { sub: actorClaims.sub, client_id: client.clientId };
     }
 
-    const accessTokenExpiry = this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m');
+    const ttl = expirySeconds(this.settings.value('JWT_M2M_ACCESS_TOKEN_EXPIRY', '5m'), 300);
     const issuer = this.configService.get<string>(
       'JWT_ISSUER',
       'http://localhost:3002',
@@ -192,12 +193,12 @@ export class OAuthM2mService {
         // exchange — the target resource gates its MCP tools by them.
         ...(mcpDetails.length > 0 ? { authorization_details: mcpDetails } : {}),
       },
-      { expiresIn: accessTokenExpiry as JwtSignOptions['expiresIn'], audience: effectiveAudience, issuer },
+      { expiresIn: ttl, audience: effectiveAudience, issuer },
     );
 
     return {
       accessToken,
-      expiresIn: this.parseExpiryToSeconds(accessTokenExpiry),
+      expiresIn: ttl,
       scope: grantedScopes.join(' '),
       issuedTokenType: TOKEN_TYPE_ACCESS,
       tokenType: 'Bearer',
@@ -349,30 +350,5 @@ export class OAuthM2mService {
       return audience;
     }
     return allowedAud[0] ?? client.clientId;
-  }
-
-  /**
-   * Translate the expressive JWT expiry string ('10m', '1h', '3600s')
-   * into seconds for the OAuth token-response `expires_in` field.
-   * RFC 6749 §5.1 requires this as a number.
-   */
-  private parseExpiryToSeconds(expiry: string): number {
-    const m = /^(\d+)([smhd]?)$/.exec(expiry.trim());
-    if (!m) return 600;
-    // Group 1 (\d+) is mandatory in the matched regex, so it is present.
-    const value = parseInt(m[1]!, 10);
-    switch (m[2]) {
-      case 's':
-      case '':
-        return value;
-      case 'm':
-        return value * 60;
-      case 'h':
-        return value * 3600;
-      case 'd':
-        return value * 86400;
-      default:
-        return value;
-    }
   }
 }

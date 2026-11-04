@@ -222,7 +222,7 @@ This is by design — the API-key path doesn't carry an admin identity. Sign int
 | `AuthAdminUnauthenticatedError` | MCP request had no `access_token` cookie | Sign into the vertical in your browser, then connect the MCP client; or supply a cookie-forwarding proxy |
 | `auth-admin request failed (403)` | Admin's user record lost `isAdmin` | Re-grant `metadata.isAdmin=true` on the user in `/admin → Users` |
 | `Tool not visible in Claude Desktop` | Vertical's MCP route filtered it via `ToolPermissionMap` | Grant the user `auth:read`/`auth:write`/`auth:admin` per the matrix above |
-| `revoke_user_sessions` returns `refreshTokensRevoked: 0` | User had no active sessions (already signed out) | Expected — short-lived access tokens may still live up to 10 min |
+| `revoke_user_sessions` returns `refreshTokensRevoked: 0` | User had no active sessions (already signed out) | Expected — short-lived access tokens may still live up to their TTL (`JWT_ACCESS_TOKEN_EXPIRY`, 10 min by default) |
 
 ## Related
 

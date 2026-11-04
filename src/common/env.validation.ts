@@ -7,6 +7,8 @@
  * needs a database and a session/JWT secret so `docker compose up` still boots.
  */
 
+import { SETTINGS_REGISTRY, validateSettingValue } from './settings/settings.registry';
+
 function present(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -59,6 +61,32 @@ function checkProduction(
   }
 }
 
+/**
+ * Operator settings given in env (SETTINGS_REGISTRY) are held to the same
+ * validator as a value written from Admin → Settings. Before, a malformed
+ * duration was read silently as something else: `REFRESH_REUSE_GRACE=off`
+ * ran a 30 s grace, `JWT_ACCESS_TOKEN_EXPIRY=1hr` issued 10-minute tokens.
+ * A bad duration fails boot in production; anything else (and anything in
+ * dev) warns and falls back to the registry default, which the validated
+ * config returned here then carries (ConfigService reads it first).
+ */
+function checkSettings(config: Record<string, unknown>, errors: string[]): void {
+  const production = config.NODE_ENV === 'production';
+  for (const def of SETTINGS_REGISTRY) {
+    const value = config[def.key];
+    if (!present(value)) continue;
+    const problem = validateSettingValue(def, value);
+    if (!problem) continue;
+    if (production && def.type === 'duration') {
+      errors.push(`${def.key} ${problem}`);
+      continue;
+    }
+    const fallback = def.default ?? (def.type === 'flag' ? 'false' : undefined);
+    console.warn(`[env] ${def.key} ${problem}; using ${fallback ?? 'the code default'}`);
+    if (fallback !== undefined) config[def.key] = fallback;
+  }
+}
+
 export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -86,6 +114,8 @@ export function validateEnv(
         'self_signed_tls_client_auth still works',
     );
   }
+
+  checkSettings(config, errors);
 
   for (const [key, ok, message] of FORMAT_RULES) {
     const value = config[key];

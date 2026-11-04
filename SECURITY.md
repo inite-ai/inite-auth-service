@@ -13,7 +13,7 @@ properties we know we have NOT yet bought.
 | Helmet CSP / HSTS / X-Frame / Referrer-Policy | ✓ on `/` |
 | RS256 JWT signing via JWKS (`auth-rs256-key-1`) | ✓ |
 | HS256 fallback when `JWT_PRIVATE_KEY` unset | dev only |
-| Refresh-token rotation + theft detection | ✓ (auto-revoke family) |
+| Refresh-token rotation + theft detection | ✓ (auto-revoke family; 30 s reuse grace for concurrent refreshes, below) |
 | HMAC'd refresh-token lookup (O(1), no bcrypt scan) | ✓ |
 | PKCE on authorization_code | ✓ (mandatory) |
 | Per-route throttling | ✓ |
@@ -52,6 +52,68 @@ tighten this with an explicit `@Throttle` (per-IP unless noted):
 Password login additionally enforces per-account lockout with exponential
 backoff (1m → 5m → 15m → 1h → 24h) after 5 consecutive failures.
 
+## Refresh-token reuse grace
+
+Every refresh rotates the refresh token; presenting a revoked one is
+treated as theft and revokes every live refresh token of that user for
+that client (RFC 6819 §5.2.2.3). Several processes sharing one sign-in
+(CLI agents, IDE plugins, parallel sessions) refresh at the same moment,
+and the loser presents a token revoked a moment ago. RFC 9700 §4.14.2
+allows a short grace for such concurrent requests, and we take it:
+
+- Within `REFRESH_REUSE_GRACE` of the rotation (default 30 s, `0` = off,
+  at most 60 s; Admin → Settings → Tokens), the **same client**
+  presenting an unexpired token revoked **by rotation** gets back the
+  **same pair** that rotation returned (the reuse-interval pattern of
+  Auth0 and Okta), as long as that child refresh token is still live.
+  Nothing new is minted: one chain, however many processes race, and no
+  limit to wear out over a sign-in's life.
+- To hand the pair back, the rotated row keeps it for the window only,
+  AES-256-GCM encrypted under `FIELD_ENCRYPTION_KEY` (`FieldCrypto` v1
+  envelope, bound to that row), never in plaintext. Without the key
+  nothing is kept and the grace is off. The kept pair (both columns) is
+  set to null:
+  - by every revoke that reaches the token's family, in the same scope:
+    the theft branch, logout (back-channel), password change, the admin's
+    revoke-all, a consent revoke, session revoke (one session: the pair on
+    it and on its parent; all sessions), `/oauth/revoke` (the pair on the
+    token and on its parent) and an authorization-code replay;
+  - when the child rotates normally (the pair could never be returned
+    again);
+  - on any read after `graceReplayUntil`;
+  - by the hourly cleanup, for every pair past `graceReplayUntil`.
+
+  A successful grace read does not erase it: other processes in the same
+  race still need it until the window ends.
+- The access token handed back is the winner's own (still valid, with
+  `expires_in` reduced to what is left of its life), not a fresh one: a
+  replay never adds a bearer token in circulation.
+- Within the window, if the child has already been rotated, the replay
+  is refused with `invalid_grant` and nothing is revoked (logged). If the
+  child was revoked (theft, logout, `/oauth/revoke` of it), nothing is
+  returned and the replay is theft as before.
+- Another client's token is refused (`invalid_grant`) as before. After
+  the window, or for an expired token, a replay is theft as before.
+- The child's liveness is checked with a conditional update, so a family
+  revoke that committed first wins.
+- Grace replays are logged and audited (`token.refreshed.grace_reuse`),
+  and so is the theft branch (`token.failed.refresh_reuse`).
+
+**Risk accepted:** a thief replaying a stolen refresh token within the
+same window, with the client's credentials (public clients have none),
+gets the same pair as the owner rather than tripping the family revoke.
+The next replay outside the window, by either of them, trips theft.
+
+**Residual race (not new):** a family revoke (theft branch, logout,
+consent revoke) is one `UPDATE … WHERE revoked = false` and sees only
+rows that existed when its statement took its snapshot. A rotation whose
+child row is inserted after that snapshot (whether the rotation started
+before the revoke or while it was running) is missed, and the new child
+survives the revoke. A rotation that finds its parent already revoked by
+a committed revoke fails its claim. Plain rotation had this race before
+the grace existed. Closing it needs the revoke side to lock the family
+(or the rotation to re-check after its insert under a family lock).
+
 ## Known limitations (SOTA gaps)
 
 Items below are tracked but not blocked. Open an issue or pull
@@ -67,8 +129,12 @@ extensions, etc.). DPoP binds the token to a client-held key via a
 `cnf` claim; the holder must sign each request with that key.
 **Why deferred:** Heavy lift on both sides — auth-service must
 validate DPoP-proof headers, every downstream service (brain,
-inbox, …) must enforce the binding. Short JWT TTL (10m) plus
-audience binding bounds the damage today.
+inbox, …) must enforce the binding. A short JWT TTL plus audience
+binding bounds the damage today. The user access-token TTL is
+configurable (`JWT_ACCESS_TOKEN_EXPIRY`, Admin → Settings → Tokens):
+10 minutes by default. INITE's own deployment will run 1 hour once the
+refresh reuse grace has shipped (#287); a leaked user bearer token is
+then usable for up to an hour. `expires_in` reports the configured TTL.
 **Trigger to ship:** when we onboard a tenant where bearer-token
 theft would breach fiduciary / health-data regulations.
 
@@ -77,9 +143,12 @@ theft would breach fiduciary / health-data regulations.
 **Status:** Not implemented.
 **Risk:** If a machine client's secret leaks AND the operator
 rotates it via the admin UI, the OLD JWT remains valid until its
-exp (up to 10 minutes). During that window, an attacker who already
-holds the JWT keeps full access.
-**Why deferred:** Token TTL is short by design (≤ 10m) so the
+exp: up to the M2M TTL (`JWT_M2M_ACCESS_TOKEN_EXPIRY`, 5 minutes by
+default). User-flow tokens revoked at sign-out likewise live until
+their exp: up to `JWT_ACCESS_TOKEN_EXPIRY`, 10 minutes by default (1 hour
+on INITE's deployment once #287 has shipped). During that window, an attacker who
+already holds the JWT keeps full access.
+**Why deferred:** Token TTLs are short and configurable, so the
 exposure window is bounded. A Redis-backed jti revocation list
 that introspection callers check would close the gap, but adds a
 hot dependency and per-request latency.

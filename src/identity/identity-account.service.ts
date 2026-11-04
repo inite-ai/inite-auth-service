@@ -6,6 +6,7 @@ import { IdentityService } from './identity.service';
 import { omit } from '../common/sanitize';
 import * as bcrypt from 'bcryptjs';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { ERASED_REPLAY, keptPairsIn } from '../oauth/refresh-grace';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 @Injectable()
@@ -87,6 +88,11 @@ export class IdentityAccountService {
     await this.prisma.refreshToken.updateMany({
       where: { userId, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    // ...and every pair kept for the refresh reuse grace.
+    await this.prisma.refreshToken.updateMany({
+      where: keptPairsIn({ userId }),
+      data: ERASED_REPLAY,
     });
 
     // Notify so the user has a compromise-recovery surface (the

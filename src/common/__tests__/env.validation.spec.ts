@@ -36,9 +36,7 @@ describe('validateEnv', () => {
   });
 
   it('rejects a non-postgres DATABASE_URL', () => {
-    expect(() => validateEnv({ ...devBase, DATABASE_URL: 'mysql://x' })).toThrow(
-      /postgres/,
-    );
+    expect(() => validateEnv({ ...devBase, DATABASE_URL: 'mysql://x' })).toThrow(/postgres/);
   });
 
   it('rejects a non-numeric PORT', () => {
@@ -66,5 +64,54 @@ describe('validateEnv', () => {
 
   it('does not require those secrets in development', () => {
     expect(() => validateEnv({ ...devBase })).not.toThrow();
+  });
+});
+
+/**
+ * Operator settings in env are held to the settings registry's validator.
+ * Before, `REFRESH_REUSE_GRACE=off` silently ran a 30 s grace and
+ * `JWT_ACCESS_TOKEN_EXPIRY=1hr` silently issued 10-minute tokens.
+ */
+describe('validateEnv — operator settings', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => warn.mockRestore());
+
+  it.each([
+    ['REFRESH_REUSE_GRACE', 'off'],
+    ['REFRESH_REUSE_GRACE', '30sec'],
+    ['REFRESH_REUSE_GRACE', '2m'],
+    ['JWT_ACCESS_TOKEN_EXPIRY', '1hr'],
+    ['JWT_ACCESS_TOKEN_EXPIRY', '2 days'],
+  ])('a malformed duration fails boot in production: %s=%s', (key, value) => {
+    expect(() => validateEnv({ ...prodBase, [key]: value })).toThrow(new RegExp(key));
+  });
+
+  it('in development a malformed duration warns and falls back to the registry default', () => {
+    const out = validateEnv({
+      ...devBase,
+      REFRESH_REUSE_GRACE: 'off',
+      JWT_ACCESS_TOKEN_EXPIRY: '1hr',
+    });
+    expect(out.REFRESH_REUSE_GRACE).toBe('30s');
+    expect(out.JWT_ACCESS_TOKEN_EXPIRY).toBe('10m');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('REFRESH_REUSE_GRACE'));
+  });
+
+  it('valid durations pass untouched, 0 included', () => {
+    const out = validateEnv({
+      ...prodBase,
+      REFRESH_REUSE_GRACE: '0',
+      JWT_ACCESS_TOKEN_EXPIRY: '1h',
+    });
+    expect(out).toMatchObject({ REFRESH_REUSE_GRACE: '0', JWT_ACCESS_TOKEN_EXPIRY: '1h' });
+  });
+
+  it('a malformed flag warns (it already reads as off) and does not block boot', () => {
+    const out = validateEnv({ ...prodBase, SCIM_ENABLED: 'yes' });
+    expect(out.SCIM_ENABLED).toBe('false');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('SCIM_ENABLED'));
   });
 });

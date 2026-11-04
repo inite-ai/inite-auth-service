@@ -12,15 +12,23 @@ import { fakeSettings } from '../../common/settings/settings.test-fixture';
  * as a transient fault and the client retried a dead token.
  */
 describe('a dead refresh token answers invalid_grant', () => {
-  let prisma: { refreshToken: { findUnique: jest.Mock; updateMany: jest.Mock } };
+  let prisma: {
+    oAuthClient: { findUnique: jest.Mock };
+    refreshToken: { findUnique: jest.Mock; updateMany: jest.Mock; create: jest.Mock };
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+  };
   let issuer: OAuthTokenIssuerService;
 
   beforeEach(() => {
     prisma = {
+      oAuthClient: { findUnique: jest.fn().mockResolvedValue({ companyId: null }) },
       refreshToken: {
         findUnique: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn(),
       },
+      // The rotation claim runs in the transaction that inserts the child.
+      $transaction: (fn) => fn(prisma),
     };
     const config = {
       get: (k: string, d?: string) =>

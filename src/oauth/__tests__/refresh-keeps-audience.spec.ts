@@ -19,6 +19,7 @@ describe('refresh rotation keeps the RFC 8707 audience', () => {
   let prisma: {
     oAuthClient: { findUnique: jest.Mock };
     refreshToken: { create: jest.Mock; findUnique: jest.Mock; updateMany: jest.Mock };
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
   };
 
   beforeEach(() => {
@@ -44,6 +45,7 @@ describe('refresh rotation keeps the RFC 8707 audience', () => {
         findUnique: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      $transaction: (fn) => fn(prisma),
     };
     issuer = new OAuthTokenIssuerService(
       prisma as unknown as PrismaService,

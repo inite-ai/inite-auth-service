@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { safeFetch } from '../common/safe-fetch';
+import { ERASED_REPLAY, keptPairsIn } from './refresh-grace';
 import { backchannelUriFor } from '../clients/manifest';
 
 /**
@@ -71,6 +72,11 @@ export class BackchannelLogoutService {
     const { count } = await this.prisma.refreshToken.updateMany({
       where: { revoked: false, user: { did: opts.userDid } },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    // No pair kept for the refresh reuse grace outlives the logout.
+    await this.prisma.refreshToken.updateMany({
+      where: keptPairsIn({ user: { did: opts.userDid } }),
+      data: ERASED_REPLAY,
     });
     return { notified, revoked: count };
   }

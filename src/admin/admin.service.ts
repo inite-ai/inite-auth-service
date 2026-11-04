@@ -13,6 +13,7 @@ import { swallow } from '../common/fire-and-forget';
 import { stripUserSecrets } from '../common/sanitize';
 import { AdminClientsService } from './admin-clients.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
+import { ERASED_REPLAY, keptPairsIn } from '../oauth/refresh-grace';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
 
 @Injectable()
@@ -198,6 +199,10 @@ export class AdminService {
     const revoked = await this.prisma.refreshToken.updateMany({
       where: { userId, revoked: false },
       data: { revoked: true, revokedAt: now },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: keptPairsIn({ userId }),
+      data: ERASED_REPLAY,
     });
 
     // 2) Lockout so password login can't immediately reissue. The

@@ -71,9 +71,20 @@ allows a short grace for such concurrent requests, and we take it:
 - To hand the pair back, the rotated row keeps it for the window only,
   AES-256-GCM encrypted under `FIELD_ENCRYPTION_KEY` (`FieldCrypto` v1
   envelope, bound to that row), never in plaintext. Without the key
-  nothing is kept and the grace is off. The kept pair is erased when a
-  replay after the window ends in the theft branch, by every theft
-  verdict for the family, and by the hourly cleanup.
+  nothing is kept and the grace is off. The kept pair (both columns) is
+  set to null:
+  - by every revoke that reaches the token's family, in the same scope:
+    the theft branch, logout (back-channel), password change, the admin's
+    revoke-all, a consent revoke, session revoke (one session: the pair on
+    it and on its parent; all sessions), `/oauth/revoke` (the pair on the
+    token and on its parent) and an authorization-code replay;
+  - when the child rotates normally (the pair could never be returned
+    again);
+  - on any read after `graceReplayUntil`;
+  - by the hourly cleanup, for every pair past `graceReplayUntil`.
+
+  A successful grace read does not erase it: other processes in the same
+  race still need it until the window ends.
 - The access token handed back is the winner's own (still valid, with
   `expires_in` reduced to what is left of its life), not a fresh one: a
   replay never adds a bearer token in circulation.

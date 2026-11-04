@@ -126,6 +126,47 @@ export function openReplay(
 /** The columns that erase a kept pair. */
 export const ERASED_REPLAY = { graceReplay: null, graceReplayUntil: null } as const;
 
+/**
+ * The rows holding a kept pair within a revoke's scope. A pair sits on the
+ * ROTATED (already revoked) row, so a revoke's own `revoked: false` filter
+ * never reaches it: every revoke runs a second updateMany over this scope,
+ * setting ERASED_REPLAY, so no kept pair outlives a revoke.
+ */
+export function keptPairsIn(scope: Prisma.RefreshTokenWhereInput): Prisma.RefreshTokenWhereInput {
+  return { ...scope, graceReplay: { not: null } };
+}
+
+/**
+ * A single token's revoke (RFC 7009, one session): the pair a token's
+ * rotation kept (on the token itself) and the pair kept for it (on its parent).
+ */
+export function keptPairsAround(token: { id: string; rotatedFrom: string | null }) {
+  const ids = token.rotatedFrom ? [token.id, token.rotatedFrom] : [token.id];
+  return keptPairsIn({ id: { in: ids } });
+}
+
+/** Can a pair be kept at all: an encryption instance with its key. */
+export function canKeepPairs(fieldCrypto: FieldCrypto | undefined): boolean {
+  return !!fieldCrypto && Object.keys(sealReplay(fieldCrypto, 1)('probe', PROBE)).length > 0;
+}
+
+/** One line for the boot log: is the grace on, and why not. */
+export function describeGrace(settings: SettingsService, fieldCrypto?: FieldCrypto): string {
+  const windowMs = graceWindowMs(settings);
+  if (windowMs <= 0) return 'Refresh reuse grace: off (REFRESH_REUSE_GRACE=0)';
+  if (!canKeepPairs(fieldCrypto)) {
+    return 'Refresh reuse grace: off (FIELD_ENCRYPTION_KEY not set, nothing can be kept)';
+  }
+  return `Refresh reuse grace: on (${windowMs / 1000}s; the rotation's pair is kept AES-256-GCM encrypted for the window)`;
+}
+const PROBE: IssuedTokens = {
+  accessToken: '',
+  refreshToken: '',
+  idToken: '',
+  expiresIn: 0,
+  scope: '',
+};
+
 /** Erase every kept pair whose window has passed (the hourly cleanup). */
 export async function eraseExpiredReplays(
   db: Pick<Prisma.TransactionClient, 'refreshToken'>,
@@ -146,14 +187,22 @@ export async function eraseExpiredReplays(
  * family revoke that got there first leaves the row revoked: the claim fails.
  */
 export function claimRotation(
-  tokenId: string,
+  token: { id: string; rotatedFrom: string | null },
   seal: ReturnType<typeof sealReplay>,
 ): RefreshTokenGate {
   return async (tx, issued) => {
     const claim = await tx.refreshToken.updateMany({
-      where: { id: tokenId, revoked: false },
-      data: { revoked: true, revokedAt: new Date(), ...seal(tokenId, issued) },
+      where: { id: token.id, revoked: false },
+      data: { revoked: true, revokedAt: new Date(), ...seal(token.id, issued) },
     });
     if (claim.count !== 1) throw new RefreshGateRefused('rotation lost');
+    // This token was the child a kept pair on its parent hands back; once it
+    // rotates, that pair can never be returned again (the child is not live).
+    if (token.rotatedFrom) {
+      await tx.refreshToken.updateMany({
+        where: keptPairsIn({ id: token.rotatedFrom }),
+        data: ERASED_REPLAY,
+      });
+    }
   };
 }

@@ -510,8 +510,11 @@ model RefreshToken {
   /// Refresh reuse grace (issue #287): the pair this token's rotation
   /// returned, AES-256-GCM encrypted under FIELD_ENCRYPTION_KEY (FieldCrypto
   /// v1 envelope, never plaintext), so a replay by the same client within
-  /// REFRESH_REUSE_GRACE gets the SAME pair. Erased once graceReplayUntil has
-  /// passed: lazily on read, and by the hourly cleanup.
+  /// REFRESH_REUSE_GRACE gets the SAME pair. Both columns are set to null by
+  /// every revoke reaching the family (theft, logout, password change, admin
+  /// revoke-all, consent revoke, session revoke, /oauth/revoke, code replay),
+  /// when the child rotates, on any read after graceReplayUntil, and by the
+  /// hourly cleanup. See SECURITY.md, "Refresh-token reuse grace".
   graceReplay          String?   @map("graceReplay")
   graceReplayUntil     DateTime? @map("graceReplayUntil")
   revoked              Boolean   @default(false)

@@ -9,7 +9,7 @@ import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
 import { OAuthTokenIssuerService } from './oauth-token-issuer.service';
-import { eraseExpiredReplays } from './refresh-grace';
+import { ERASED_REPLAY, eraseExpiredReplays, keptPairsIn } from './refresh-grace';
 import { AuthorizationDetailsService } from './authorization-details.service';
 import { AuthorizationDetail } from './contracts/authorization-detail';
 import { grantableScope, type ScopeBoundClient } from './oauth-scopes.registry';
@@ -280,10 +280,12 @@ export class OAuthService {
       this.oauthLogger.warn(
         `Authorization code replay detected — revoking refresh-token family for user=${replay.userId} client=${replay.clientId}`,
       );
+      const family = { userId: replay.userId, clientId: replay.clientId };
       await this.prisma.refreshToken.updateMany({
-        where: { userId: replay.userId, clientId: replay.clientId, revoked: false },
+        where: { ...family, revoked: false },
         data: { revoked: true, revokedAt: new Date() },
       });
+      await this.prisma.refreshToken.updateMany({ where: keptPairsIn(family), data: ERASED_REPLAY });
     }
     throw new BadRequestException('Invalid or expired authorization code');
   }

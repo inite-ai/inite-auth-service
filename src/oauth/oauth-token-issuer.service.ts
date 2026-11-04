@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -22,7 +22,12 @@ import { staffRoles, tokenTenant } from './customer-lane';
 import { OAuthAuditService } from '../audit/oauth-audit.service';
 import type { IssuedTokens } from './token-support';
 import { expirySeconds } from './token-expiry';
-import { type RefreshTokenGate } from './refresh-grace';
+import {
+  describeGrace,
+  ERASED_REPLAY,
+  keptPairsAround,
+  type RefreshTokenGate,
+} from './refresh-grace';
 import { FieldCrypto } from '../common/field-crypto';
 import { RefreshGrant } from './refresh-grant';
 
@@ -62,7 +67,7 @@ interface SigningContext {
 }
 
 @Injectable()
-export class OAuthTokenIssuerService {
+export class OAuthTokenIssuerService implements OnApplicationBootstrap {
   private readonly refreshGrant: RefreshGrant;
 
   // eslint-disable-next-line max-params -- NestJS DI constructor (per-parameter injection, not a call API)
@@ -82,7 +87,7 @@ export class OAuthTokenIssuerService {
     @Optional() audit?: OAuthAuditService,
     // Optional: without it (or without FIELD_ENCRYPTION_KEY) no rotation's
     // pair is kept, so the refresh reuse grace is off.
-    @Optional() fieldCrypto?: FieldCrypto,
+    @Optional() private readonly fieldCrypto?: FieldCrypto,
   ) {
     this.refreshGrant = new RefreshGrant({
       prisma,
@@ -93,6 +98,11 @@ export class OAuthTokenIssuerService {
       audit,
       fieldCrypto,
     });
+  }
+
+  /** Say at boot whether the refresh reuse grace is on (after the settings snapshot loads). */
+  onApplicationBootstrap(): void {
+    new Logger(OAuthTokenIssuerService.name).log(describeGrace(this.settings, this.fieldCrypto));
   }
 
   private getRefreshTokenSecret(): string {
@@ -348,12 +358,18 @@ export class OAuthTokenIssuerService {
     const tokenLookup = hashRefreshToken(token, this.getRefreshTokenSecret());
     const row = await this.prisma.refreshToken.findFirst({
       where: { tokenLookup, clientId },
-      select: { companyId: true, user: { select: { did: true } } },
+      select: { id: true, rotatedFrom: true, companyId: true, user: { select: { did: true } } },
     });
     await this.prisma.refreshToken.updateMany({
       where: { tokenLookup, clientId, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
     });
+    if (row) {
+      await this.prisma.refreshToken.updateMany({
+        where: { ...keptPairsAround(row), clientId },
+        data: ERASED_REPLAY,
+      });
+    }
     if (row) await this.signalTokenRevoked(row.user?.did, row.companyId);
   }
 

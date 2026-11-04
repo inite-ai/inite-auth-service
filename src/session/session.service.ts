@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
+import { ERASED_REPLAY, keptPairsAround, keptPairsIn } from '../oauth/refresh-grace';
 import { requestContext } from '../common/request-context';
 
 /** A user-visible active session, projected from a non-revoked refresh token. */
@@ -73,12 +74,19 @@ export class SessionService {
   async revokeSession(userId: string, sessionId: string): Promise<void> {
     const token = await this.prisma.refreshToken.findFirst({
       where: { id: sessionId, userId },
-      select: { companyId: true },
+      select: { id: true, rotatedFrom: true, companyId: true },
     });
     await this.prisma.refreshToken.updateMany({
       where: { id: sessionId, userId },
       data: { revoked: true, revokedAt: new Date() },
     });
+    if (token) {
+      // The pair the refresh reuse grace kept for this session (on its parent).
+      await this.prisma.refreshToken.updateMany({
+        where: { ...keptPairsAround(token), userId },
+        data: ERASED_REPLAY,
+      });
+    }
     await this.signalSessionRevoked(userId, token?.companyId ?? null);
   }
 
@@ -98,6 +106,12 @@ export class SessionService {
         ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
       },
       data: { revoked: true, revokedAt: new Date() },
+    });
+    // Every pair kept for the refresh reuse grace, the kept session's included:
+    // it only matters for a few seconds after a rotation.
+    await this.prisma.refreshToken.updateMany({
+      where: keptPairsIn({ userId }),
+      data: ERASED_REPLAY,
     });
     await this.signalSessionRevoked(userId, null);
   }

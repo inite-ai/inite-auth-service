@@ -12,7 +12,12 @@ function prismaMock(opts: {
       deleteMany: jest.fn().mockReturnValue('delete-op'),
       findMany: jest.fn().mockResolvedValue([]),
     },
-    refreshToken: { updateMany: jest.fn().mockReturnValue('revoke-op') },
+    refreshToken: {
+      // The revoke itself, or the erase of the refresh reuse grace's kept pairs.
+      updateMany: jest.fn(({ where }: { where: { revoked?: boolean } }) =>
+        where.revoked === false ? 'revoke-op' : 'erase-op',
+      ),
+    },
     $transaction: jest.fn().mockResolvedValue([{ count: 1 }, { count: 3 }]),
   };
 }
@@ -91,10 +96,15 @@ describe('ConsentService.record / revoke', () => {
   it('forgets the consent and revokes the application’s refresh tokens together', async () => {
     const prisma = prismaMock({});
     const result = await new ConsentService(prisma as never).revoke('u1', 'app');
-    expect(prisma.$transaction).toHaveBeenCalledWith(['delete-op', 'revoke-op']);
+    expect(prisma.$transaction).toHaveBeenCalledWith(['delete-op', 'revoke-op', 'erase-op']);
     expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: 'u1', clientId: 'app', revoked: false } }),
     );
+    // No pair kept for the refresh reuse grace outlives the disconnect (#287).
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', clientId: 'app', graceReplay: { not: null } },
+      data: { graceReplay: null, graceReplayUntil: null },
+    });
     expect(result).toEqual({ revokedTokens: 3 });
   });
 });

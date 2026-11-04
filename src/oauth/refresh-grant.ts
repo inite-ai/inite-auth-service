@@ -11,9 +11,11 @@ import type { IssuedTokens } from './token-support';
 import { hashRefreshToken } from './refresh-token-secret';
 import { deadRefreshToken, refreshBounds, type RefreshBoundClient } from './refresh-bounds';
 import {
+  canKeepPairs,
   claimRotation,
   ERASED_REPLAY,
   graceWindowMs,
+  keptPairsIn,
   openReplay,
   RefreshGateRefused,
   sealReplay,
@@ -56,7 +58,12 @@ export class RefreshGrant {
   // The issuer's log context, which operators already search for theft warnings.
   private readonly logger = new Logger('OAuthTokenIssuerService');
 
-  constructor(private readonly deps: RefreshGrantDeps) {}
+  /** Can a rotation's pair be kept at all (FIELD_ENCRYPTION_KEY set)? Without it the grace is off. */
+  private readonly graceOn: boolean;
+
+  constructor(private readonly deps: RefreshGrantDeps) {
+    this.graceOn = canKeepPairs(deps.fieldCrypto);
+  }
 
   /**
    * - Lookup is O(1) via the unique tokenLookup index (HMAC-SHA256 of the
@@ -103,7 +110,7 @@ export class RefreshGrant {
     try {
       return await this.deps.issue(
         this.rotationInput(matchedToken, bounds),
-        claimRotation(matchedToken.id, seal),
+        claimRotation(matchedToken, seal),
       );
     } catch (e) {
       if (!(e instanceof RefreshGateRefused)) throw e;
@@ -159,10 +166,9 @@ export class RefreshGrant {
       where: { ...where, revoked: false },
       data: { revoked: true, revokedAt: new Date() },
     });
-    // No kept pair outlives a theft verdict; this is also where a pair read
-    // after its window is erased (the hourly cleanup catches the rest).
+    // No kept pair outlives a theft verdict (refresh-grace.ts keptPairsIn).
     await this.deps.prisma.refreshToken.updateMany({
-      where: { ...where, graceReplay: { not: null } },
+      where: keptPairsIn(where),
       data: ERASED_REPLAY,
     });
     await this.auditReuse(token, {
@@ -181,25 +187,23 @@ export class RefreshGrant {
    */
   private async graceReuse(token: StoredRefreshToken): Promise<GraceOutcome> {
     const now = new Date();
-    if (!withinGrace(token, graceWindowMs(this.deps.settings), now)) return { kind: 'none' };
+    if (token.graceReplay && token.graceReplayUntil && token.graceReplayUntil <= now) {
+      // Read after its window: erase it now rather than at the next cleanup.
+      await this.deps.prisma.refreshToken.updateMany({
+        where: keptPairsIn({ id: token.id }),
+        data: ERASED_REPLAY,
+      });
+    }
+    if (!this.graceOn || !withinGrace(token, graceWindowMs(this.deps.settings), now)) {
+      return { kind: 'none' };
+    }
+    const child = await this.childState(token, now);
+    if (child.state === 'rotated') return { kind: 'rotated' };
+    if (child.state !== 'live') return { kind: 'none' };
+    // Only for a live child. Its kept copy is erased once the child rotates
+    // (claimRotation), which is why a rotated child is told apart above.
     const tokens = openReplay(this.deps.fieldCrypto, token, now);
     if (!tokens) return { kind: 'none' };
-    const scope = { userId: token.userId, clientId: token.clientId };
-    const child = await this.deps.prisma.refreshToken.findFirst({
-      where: { ...scope, rotatedFrom: token.id },
-      select: { id: true },
-    });
-    if (!child) return { kind: 'none' };
-    const live = await this.deps.prisma.refreshToken.updateMany({
-      where: { id: child.id, revoked: false, expiresAt: { gt: now } },
-      data: { lastUsedAt: now },
-    });
-    if (live.count !== 1) {
-      const grandchild = await this.deps.prisma.refreshToken.count({
-        where: { ...scope, rotatedFrom: child.id },
-      });
-      return grandchild > 0 ? { kind: 'rotated' } : { kind: 'none' };
-    }
     const ageMs = now.getTime() - (token.revokedAt?.getTime() ?? now.getTime());
     this.logger.warn(
       `Refresh token replayed within grace (age=${ageMs}ms) — returned the rotation's pair for user=${token.userId} client=${token.clientId}`,
@@ -211,6 +215,32 @@ export class RefreshGrant {
       metadata: { ageMs, childRefreshTokenId: child.id },
     });
     return { kind: 'pair', tokens };
+  }
+
+  /**
+   * The rotation child of a revoked token: live (checked with a conditional
+   * update, so a family revoke that committed first wins), rotated (revoked,
+   * with a child of its own), or gone (none, or revoked without a child).
+   */
+  private async childState(
+    token: StoredRefreshToken,
+    now: Date,
+  ): Promise<{ state: 'live'; id: string } | { state: 'rotated' | 'gone' }> {
+    const scope = { userId: token.userId, clientId: token.clientId };
+    const child = await this.deps.prisma.refreshToken.findFirst({
+      where: { ...scope, rotatedFrom: token.id },
+      select: { id: true },
+    });
+    if (!child) return { state: 'gone' };
+    const live = await this.deps.prisma.refreshToken.updateMany({
+      where: { id: child.id, revoked: false, expiresAt: { gt: now } },
+      data: { lastUsedAt: now },
+    });
+    if (live.count === 1) return { state: 'live', id: child.id };
+    const grandchild = await this.deps.prisma.refreshToken.count({
+      where: { ...scope, rotatedFrom: child.id },
+    });
+    return { state: grandchild > 0 ? 'rotated' : 'gone' };
   }
 
   /** Audit a refresh-token replay (ids only — never a token value). */

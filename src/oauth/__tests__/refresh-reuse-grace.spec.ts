@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import type { User } from '@prisma/client';
 import { OAuthTokenIssuerService } from '../oauth-token-issuer.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OAuthAuditService } from '../../audit/oauth-audit.service';
@@ -10,6 +9,7 @@ import { fakeSettings } from '../../common/settings/settings.test-fixture';
 import { settingDef, validateSettingValue } from '../../common/settings/settings.registry';
 import { eraseExpiredReplays, graceWindowMs } from '../refresh-grace';
 import type { RefreshBoundClient } from '../refresh-bounds';
+import { fakeStore, fixtureUser } from './refresh-store.fixture';
 
 /**
  * Issue #287 — refresh reuse grace (RFC 9700 §4.14.2, the reuse-interval
@@ -22,88 +22,9 @@ import type { RefreshBoundClient } from '../refresh-bounds';
  * behaviour is exactly as before.
  */
 
-interface Row {
-  id: string;
-  tokenLookup: string;
-  userId: string;
-  clientId: string;
-  companyId: string | null;
-  scope: string | null;
-  nonce: string | null;
-  amr: string[];
-  authorizationDetails: unknown;
-  resource: string | null;
-  rotatedFrom: string | null;
-  graceReplay: string | null;
-  graceReplayUntil: Date | null;
-  revoked: boolean;
-  revokedAt: Date | null;
-  lastUsedAt: Date | null;
-  expiresAt: Date;
-}
-type Where = Record<string, unknown>;
-
-const user = { id: 'u1', did: 'did:key:abc', email: 'a@b.com' } as unknown as User;
+const user = fixtureUser;
 const SIGNING_SECRET = 'test-only-signing-secret-of-32-chars!';
 const FIELD_KEY = 'test-only-field-encryption-key';
-
-/** One column condition: a value, or { in | gt | lt | not }. */
-function matchesValue(actual: unknown, cond: unknown): boolean {
-  if (cond === null || typeof cond !== 'object' || cond instanceof Date) return actual === cond;
-  const c = cond as { in?: unknown[]; gt?: Date; lt?: Date; not?: unknown };
-  if (c.in) return c.in.includes(actual);
-  if (c.gt) return actual instanceof Date && actual > c.gt;
-  if (c.lt) return actual instanceof Date && actual < c.lt;
-  if ('not' in c) return actual !== c.not;
-  return false;
-}
-
-/** An in-memory refresh_tokens table; transactions run one at a time, as a row lock would. */
-function fakeStore() {
-  const rows: Row[] = [];
-  let lock: Promise<unknown> = Promise.resolve();
-  const tick = () => new Promise((r) => setImmediate(r));
-  const matches = (r: Row, where: Where) =>
-    Object.entries(where).every(([k, v]) =>
-      k === 'user'
-        ? (v as { did: string }).did === user.did && r.userId === user.id
-        : matchesValue(r[k as keyof Row], v),
-    );
-  const refreshToken = {
-    findUnique: async ({ where }: { where: Where }) => {
-      await tick();
-      const row = rows.find((r) => matches(r, where));
-      return row ? { ...row, user } : null;
-    },
-    findFirst: async ({ where }: { where: Where }) => {
-      const row = rows.find((r) => matches(r, where));
-      return row ? { ...row, user } : null;
-    },
-    count: async ({ where }: { where: Where }) => rows.filter((r) => matches(r, where)).length,
-    updateMany: async ({ where, data }: { where: Where; data: Partial<Row> }) => {
-      const hit = rows.filter((r) => matches(r, where));
-      hit.forEach((r) => Object.assign(r, data));
-      return { count: hit.length };
-    },
-    create: async ({ data }: { data: Omit<Row, 'id'> }) => {
-      // The column defaults the database applies (schema.prisma).
-      const defaults = { graceReplay: null, graceReplayUntil: null, revokedAt: null };
-      const row = { ...defaults, ...data, id: `rt${rows.length + 1}` } as Row;
-      rows.push(row);
-      return row;
-    },
-  };
-  return {
-    rows,
-    oAuthClient: { findUnique: async () => ({ companyId: null }) },
-    refreshToken,
-    $transaction: (fn: (tx: unknown) => Promise<unknown>) => {
-      const run = lock.then(() => fn({ refreshToken }));
-      lock = run.catch(() => undefined);
-      return run;
-    },
-  };
-}
 
 describe('refresh reuse grace (issue #287)', () => {
   let store: ReturnType<typeof fakeStore>;
@@ -254,19 +175,57 @@ describe('refresh reuse grace (issue #287)', () => {
     const parent = store.rows[0]!;
     expect(FieldCrypto.isEncrypted(parent.graceReplay)).toBe(true);
     expect(parent.graceReplay).not.toContain(won.refreshToken);
-    // A kept pair copied onto another row does not open there.
-    const b = store.rows[1]!;
-    b.graceReplay = parent.graceReplay;
-    b.graceReplayUntil = parent.graceReplayUntil;
-
     expect(await eraseExpiredReplays(store as unknown as PrismaService, new Date())).toBe(0);
     expect(
       await eraseExpiredReplays(store as unknown as PrismaService, new Date(Date.now() + 31_000)),
-    ).toBe(2);
-    expect(store.rows.every((r) => r.graceReplay === null && r.graceReplayUntil === null)).toBe(
-      true,
-    );
+    ).toBe(1);
+    expect(parent.graceReplay).toBeNull();
+    expect(parent.graceReplayUntil).toBeNull();
     await refused(refresh(a)); // nothing kept any more: theft as before
+  });
+
+  describe('a kept pair is only ever returned from its own row, encrypted, within its time', () => {
+    it('a sealed pair copied onto another rotated row does not open there', async () => {
+      const a = await signIn();
+      await refresh(a); // A → B, pair kept on A
+      const x = await signIn();
+      await refresh(x); // X → Y, pair kept on X, Y live
+      const rowA = store.rows.find((r) => r.id === 'rt1')!;
+      const rowX = store.rows.find((r) => r.id === 'rt3')!;
+      rowX.graceReplay = rowA.graceReplay;
+      rowX.graceReplayUntil = rowA.graceReplayUntil;
+      await refused(refresh(x)); // A's pair is bound to A: theft, not A's pair
+      expect(events()).not.toContain('token.refreshed.grace_reuse');
+    });
+
+    it('a plaintext pair in the column is never returned', async () => {
+      const a = await signIn();
+      const won = await refresh(a);
+      const rowA = store.rows.find((r) => r.id === 'rt1')!;
+      rowA.graceReplay = JSON.stringify({ ...won, parentId: rowA.id, issuedAt: Date.now() });
+      await refused(refresh(a));
+      expect(events()).not.toContain('token.refreshed.grace_reuse');
+    });
+
+    it('a pair past its time is not returned, and is erased on that read', async () => {
+      const a = await signIn();
+      await refresh(a);
+      const rowA = store.rows.find((r) => r.id === 'rt1')!;
+      rowA.graceReplayUntil = new Date(Date.now() - 1); // revokedAt still inside the window
+      await refused(refresh(a));
+      expect(rowA.graceReplay).toBeNull();
+      expect(rowA.graceReplayUntil).toBeNull();
+    });
+  });
+
+  it("the child's normal rotation erases the pair kept on its parent", async () => {
+    const a = await signIn();
+    const b = (await refresh(a)).refreshToken;
+    expect(store.rows[0]!.graceReplay).not.toBeNull();
+    await refresh(b); // B → C: A's pair could never be returned again
+    expect(store.rows[0]!.graceReplay).toBeNull();
+    expect(store.rows[0]!.graceReplayUntil).toBeNull();
+    expect(store.rows[1]!.graceReplay).not.toBeNull(); // B's own, for C
   });
 
   it('without FIELD_ENCRYPTION_KEY nothing is kept (never plaintext) and the grace is off', async () => {

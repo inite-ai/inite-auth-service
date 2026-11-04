@@ -134,18 +134,25 @@ describe('BackchannelLogoutService', () => {
         order.push('select-recipients');
         return [{ clientId: 'rp-a', backchannelLogoutUri: 'https://a.example.com/logout' }];
       });
-      prisma.refreshToken.updateMany.mockImplementation(async () => {
-        order.push('revoke');
-        return { count: 3 };
-      });
+      prisma.refreshToken.updateMany.mockImplementation(
+        async ({ where }: { where: { revoked?: boolean } }) => {
+          order.push(where.revoked === false ? 'revoke' : 'erase-kept-pairs');
+          return { count: 3 };
+        },
+      );
 
       const out = await svc.endRelyingPartySessions({ userDid: 'did:k:1', sid: 's' });
 
       expect(out).toEqual({ notified: 1, revoked: 3 });
-      expect(order).toEqual(['select-recipients', 'revoke']);
+      expect(order).toEqual(['select-recipients', 'revoke', 'erase-kept-pairs']);
       expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
         where: { revoked: false, user: { did: 'did:k:1' } },
         data: { revoked: true, revokedAt: expect.any(Date) },
+      });
+      // No pair kept for the refresh reuse grace outlives the logout (#287).
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { user: { did: 'did:k:1' }, graceReplay: { not: null } },
+        data: { graceReplay: null, graceReplayUntil: null },
       });
     });
 

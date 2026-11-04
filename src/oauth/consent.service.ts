@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ERASED_REPLAY, keptPairsIn } from './refresh-grace';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Dynamically registered clients: third parties by construction. */
@@ -103,6 +104,11 @@ export class ConsentService {
       this.prisma.refreshToken.updateMany({
         where: { userId, clientId, revoked: false },
         data: { revoked: true, revokedAt: new Date() },
+      }),
+      // No pair kept for the refresh reuse grace outlives the revoke.
+      this.prisma.refreshToken.updateMany({
+        where: keptPairsIn({ userId, clientId }),
+        data: ERASED_REPLAY,
       }),
     ]);
     return { revokedTokens: tokens.count };

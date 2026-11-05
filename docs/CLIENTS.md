@@ -11,6 +11,71 @@ are ignored) and prints the difference. Nothing is written without `--apply`.
 | `--apply` | backs up the rows it touches to `clients-backup-<ts>.local.json` (chmod 600), then writes the diff in one transaction | 0 |
 | `--apply --rotate <clientId>` | as `--apply`, plus a new secret for that client; the previous hash stays valid for two hours | 0 |
 
+## Three shapes of manifest
+
+**A product people sign in to** (the default): `origins` and nothing else in
+the usual case. Everything follows from the family convention in
+`src/clients/manifest.ts`: `<origin>/callback`, the back-channel on the first
+origin, the OIDC baseline scopes (`openid profile email offline_access`) plus
+any `scopes`, grants `authorization_code refresh_token`, confidential with
+`client_secret_post`. Unknown keys are refused, at the top, in `overrides` and
+in `secret`.
+
+**A machine client** (`"kind": "machine"`): a backend that calls another
+service as itself and signs no one in, e.g. `break3-backend` calling billing.
+
+```json
+{
+  "clientId": "break3-backend",
+  "name": "Break3 backend (billing service client)",
+  "kind": "machine",
+  "repo": "inite-ai/break3-backend",
+  "scopes": ["billing:checkout", "billing:commitments"],
+  "audiences": ["https://billing.inite.ai/v1/services"],
+  "secret": { "name": "BILLING_AUTH_CLIENT_SECRET" }
+}
+```
+
+It derives no redirect URIs, no back-channel, grants exactly
+`client_credentials`, scopes exactly as listed (no OIDC baseline; an OIDC
+scope is refused), audiences as listed, confidential with `client_secret_post`.
+`scopes` and `audiences` (https, on a family domain) are required; `origins`,
+`overrides`, `outsideFamily` and `customerLane` are refused.
+
+**A public client** (`overrides.public: true`): a sign-in with PKCE and no
+secret, auth method `none`. It is written as a product manifest whose
+override says so, with its reason, e.g. `floripa`:
+
+```json
+"overrides": {
+  "reason": "the floripa-bot portal signs in as a public PKCE client ...",
+  "public": true,
+  "callbackPath": "/api/auth/inite/callback",
+  "grants": ["authorization_code"],
+  "scopes": ["openid", "profile", "email"],
+  "backchannelLogoutUri": null
+}
+```
+
+A public manifest must set `backchannelLogoutUri` to `null` (a public client
+is never notified), and may not carry `secret`, `client_credentials` or token
+exchange. clients-apply never delivers a secret for it: a new public client is
+created with the hash of a throwaway value nobody receives (the column is
+required), and `--rotate` on it is refused.
+
+Overrides, for every product manifest:
+
+| Override | Effect |
+|---|---|
+| `callbackPath` | replaces `/callback` on every origin |
+| `extraRedirectUris` | redirect URIs kept in addition, during a migration |
+| `backchannelLogoutUri` | a back-channel on another host, or `null` for none |
+| `grants` | replaces the default grants |
+| `scopes` | replaces the baseline: exactly these scopes; keeps `openid`; not together with top-level `scopes` |
+| `public` | `true`: public client, auth method `none` (see above) |
+
+`offline_access` among the scopes needs the `refresh_token` grant.
+
 ## Locally (repo checkout, ts-node)
 
 ```sh

@@ -1,0 +1,23 @@
+{
+  "clientId": "floripa",
+  "name": "Флорипа по-русски (floripa.info)",
+  "repo": "inite-ai/floripa-bot",
+  "origins": [
+    "https://floripa.info"
+  ],
+  "outsideFamily": "floripa.info is a family member on its own domain; it stays out of FAMILY_DOMAINS, which would also make it a resource any self-registered or public client may bind a token to",
+  "overrides": {
+    "reason": "the floripa-bot portal (Python, bot/api/inite_auth.py) signs in as a public PKCE client: no secret, no refresh, callback at /api/auth/inite/callback, not @inite/auth",
+    "public": true,
+    "callbackPath": "/api/auth/inite/callback",
+    "grants": [
+      "authorization_code"
+    ],
+    "scopes": [
+      "openid",
+      "profile",
+      "email"
+    ],
+    "backchannelLogoutUri": null
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "clientId": "break3-backend",
+  "name": "Break3 backend (billing service client)",
+  "kind": "machine",
+  "repo": "inite-ai/break3-backend",
+  "scopes": [
+    "billing:checkout",
+    "billing:commitments"
+  ],
+  "audiences": [
+    "https://billing.inite.ai/v1/services"
+  ],
+  "secret": {
+    "name": "BILLING_AUTH_CLIENT_SECRET"
+  }
+}

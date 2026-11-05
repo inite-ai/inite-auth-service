@@ -12,6 +12,7 @@ import {
   describePlan,
   manifestProblems,
   planApply,
+  takesSecret,
 } from '../manifest';
 
 const rent: ClientManifest = { clientId: 'inite-rent', name: 'inite rent', repo: 'inite-ai/initerent', origins: ['https://inite.rent'], secret: { name: 'OAUTH_CLIENT_SECRET' } };
@@ -122,11 +123,178 @@ describe('clients/ in this repo', () => {
     expect(files.length).toBeGreaterThan(20);
     expect(() => loadManifests()).not.toThrow();
   });
-  it('no prod client carries a loopback redirect, and every one gets the back-channel by convention', () => {
+  it('no prod client carries a loopback redirect, and every confidential sign-in client gets the back-channel by convention', () => {
     for (const m of loadManifests()) {
       const d = deriveClient(m);
       expect(d.redirectUris.every((u) => u.startsWith('https://'))).toBe(true);
-      expect(d.backchannelLogoutUri).toMatch(/^https:\/\/[^/]+\/api\/auth\/backchannel-logout$/);
+      if (m.kind === 'machine' || d.isPublic) expect(d.backchannelLogoutUri).toBeNull();
+      else expect(d.backchannelLogoutUri).toMatch(/^https:\/\/[^/]+\/api\/auth\/backchannel-logout$/);
     }
+  });
+});
+
+// The rows in prod on 04.11.2026 (oauth_clients, managed fields). Each
+// manifest must reproduce its row exactly, so the first apply changes nothing.
+const BILLING_AUDIENCE = 'https://billing.inite.ai/v1/services';
+type ProdId = 'break3-backend' | 'inite-education-billing' | 'floripa';
+const PROD: Record<ProdId, ClientRow> = {
+  'break3-backend': {
+    clientId: 'break3-backend',
+    name: 'Break3 backend (billing service client)',
+    redirectUris: [],
+    allowedScopes: ['billing:checkout', 'billing:commitments'],
+    allowedGrants: ['client_credentials'],
+    allowedAudiences: [BILLING_AUDIENCE],
+    backchannelLogoutUri: null,
+    firstParty: true,
+    isPublic: false,
+    tokenEndpointAuthMethod: 'client_secret_post',
+    companyId: null,
+    active: true,
+    customerLane: false,
+  },
+  'inite-education-billing': {
+    clientId: 'inite-education-billing',
+    name: 'inite education (billing service client)',
+    redirectUris: [],
+    allowedScopes: ['billing:checkout'],
+    allowedGrants: ['client_credentials'],
+    allowedAudiences: [BILLING_AUDIENCE],
+    backchannelLogoutUri: null,
+    firstParty: true,
+    isPublic: false,
+    tokenEndpointAuthMethod: 'client_secret_post',
+    companyId: null,
+    active: true,
+    customerLane: false,
+  },
+  floripa: {
+    clientId: 'floripa',
+    name: 'Флорипа по-русски (floripa.info)',
+    redirectUris: ['https://floripa.info/api/auth/inite/callback'],
+    allowedScopes: ['openid', 'profile', 'email'],
+    allowedGrants: ['authorization_code'],
+    allowedAudiences: [],
+    backchannelLogoutUri: null,
+    firstParty: true,
+    isPublic: true,
+    tokenEndpointAuthMethod: 'none',
+    companyId: null,
+    active: true,
+    customerLane: false,
+  },
+};
+
+describe('the clients that were in prod before any manifest', () => {
+  const byId = new Map(loadManifests().map((m) => [m.clientId, m]));
+
+  it.each(Object.keys(PROD) as ProdId[])('%s derives exactly its prod row, field by field', (id) => {
+    const m = byId.get(id);
+    expect(m).toBeDefined();
+    const d = deriveClient(m!);
+    for (const f of Object.keys(PROD[id]) as (keyof ClientRow)[]) expect([f, d[f]]).toEqual([f, PROD[id][f]]);
+    expect(d).toEqual(PROD[id]);
+  });
+
+  it('so applying them is no change, and they leave "unmanaged"', () => {
+    const rows = Object.values(PROD);
+    const leftover = { ...PROD.floripa, clientId: 'test-flow-1779413916', active: false };
+    const plan = planApply([...byId.keys()].filter((id) => id in PROD).map((id) => deriveClient(byId.get(id)!)), [...rows, leftover]);
+    expect(plan).toEqual({ create: [], update: [], unmanaged: ['test-flow-1779413916'] });
+  });
+
+  it('the machine clients take a secret, the public one never does', () => {
+    expect(takesSecret(PROD['break3-backend'])).toBe(true);
+    expect(takesSecret(PROD['inite-education-billing'])).toBe(true);
+    expect(takesSecret(PROD.floripa)).toBe(false);
+    expect(byId.get('floripa')!.secret).toBeUndefined();
+  });
+});
+
+describe('a machine manifest', () => {
+  const machine: ClientManifest = {
+    clientId: 'svc-x',
+    name: 'svc x',
+    kind: 'machine',
+    repo: 'inite-ai/svc-x',
+    scopes: ['billing:checkout'],
+    audiences: [BILLING_AUDIENCE],
+    secret: { name: 'BILLING_AUTH_CLIENT_SECRET' },
+  };
+  const problems = (m: Partial<ClientManifest>) => manifestProblems({ ...machine, ...m } as ClientManifest, 'svc-x.json', FAMILY_DOMAINS);
+
+  it('is valid as it stands, with no origins', () => {
+    expect(problems({})).toEqual([]);
+  });
+  it('gets client_credentials only, its scopes without the OIDC baseline, no redirect and no back-channel', () => {
+    const d = deriveClient(machine);
+    expect(d.allowedGrants).toEqual(['client_credentials']);
+    expect(d.allowedScopes).toEqual(['billing:checkout']);
+    expect(d.redirectUris).toEqual([]);
+    expect(d.backchannelLogoutUri).toBeNull();
+    expect(d.isPublic).toBe(false);
+    expect(d.tokenEndpointAuthMethod).toBe('client_secret_post');
+  });
+  it('is refused with origins, overrides, outsideFamily or customerLane', () => {
+    expect(problems({ origins: ['https://billing.inite.ai'] }).join()).toMatch(/machine client has no origins/);
+    expect(problems({ overrides: { reason: 'some reason here', grants: ['client_credentials'] } }).join()).toMatch(/machine client has no overrides/);
+    expect(problems({ outsideFamily: 'because reasons' }).join()).toMatch(/machine client has no outsideFamily/);
+    expect(problems({ customerLane: true }).join()).toMatch(/machine client has no customerLane/);
+  });
+  it('is refused without scopes or audiences, with OIDC scopes, or with an audience outside the family', () => {
+    expect(problems({ scopes: [] }).join()).toMatch(/lists its scopes/);
+    expect(problems({ scopes: ['openid', 'billing:checkout'] }).join()).toMatch(/no OIDC scopes/);
+    expect(problems({ audiences: undefined }).join()).toMatch(/lists the audiences/);
+    expect(problems({ audiences: ['https://evil.example/v1'] }).join()).toMatch(/not on a family domain/);
+    expect(problems({ audiences: ['http://billing.inite.ai/v1'] }).join()).toMatch(/https only/);
+  });
+  it('is refused with an unknown kind', () => {
+    expect(problems({ kind: 'robot' as 'machine' }).join()).toMatch(/kind is "machine" or absent/);
+  });
+});
+
+describe('a public override', () => {
+  const pub: ClientManifest = {
+    clientId: 'pub-x',
+    name: 'pub x',
+    origins: ['https://pub.inite.ai'],
+    overrides: { reason: 'a PKCE-only portal', public: true, grants: ['authorization_code'], scopes: ['openid', 'profile', 'email'], backchannelLogoutUri: null },
+  };
+  const problems = (o: Partial<NonNullable<ClientManifest['overrides']>>, m: Partial<ClientManifest> = {}) =>
+    manifestProblems({ ...pub, ...m, overrides: { ...pub.overrides!, ...o } } as ClientManifest, 'pub-x.json', FAMILY_DOMAINS);
+
+  it('is valid, and gives isPublic with auth method none and exactly the listed scopes', () => {
+    expect(problems({})).toEqual([]);
+    const d = deriveClient(pub);
+    expect([d.isPublic, d.tokenEndpointAuthMethod, d.backchannelLogoutUri]).toEqual([true, 'none', null]);
+    expect(d.allowedScopes).toEqual(['openid', 'profile', 'email']);
+  });
+  it('is refused with a secret, a confidential-only grant, or a back-channel left to the convention', () => {
+    expect(problems({}, { repo: 'inite-ai/pub', secret: { name: 'OAUTH_CLIENT_SECRET' } }).join()).toMatch(/no secret to deliver/);
+    expect(problems({ grants: ['authorization_code', 'client_credentials'] }).join()).toMatch(/cannot hold client_credentials/);
+    const { backchannelLogoutUri: _drop, ...rest } = pub.overrides!;
+    void _drop;
+    expect(manifestProblems({ ...pub, overrides: rest }, 'pub-x.json', FAMILY_DOMAINS).join()).toMatch(/no back-channel/);
+    expect(problems({ backchannelLogoutUri: 'https://pub.inite.ai/bc' }).join()).toMatch(/no back-channel/);
+  });
+  it('is refused when public is not true', () => {
+    expect(problems({ public: false as unknown as true }).join()).toMatch(/overrides.public is true or absent/);
+  });
+});
+
+describe('the scope and key rules', () => {
+  const problems = (m: Partial<ClientManifest>) => manifestProblems({ ...rent, ...m } as ClientManifest, 'inite-rent.json', FAMILY_DOMAINS);
+  it('overrides.scopes replaces the baseline, keeps openid, and is not mixed with scopes', () => {
+    expect(deriveClient({ ...rent, overrides: { reason: 'exact scope list', scopes: ['openid', 'email', 'offline_access'] } }).allowedScopes).toEqual(['openid', 'email', 'offline_access']);
+    expect(problems({ overrides: { reason: 'exact scope list', scopes: ['email'] } }).join()).toMatch(/keeps openid/);
+    expect(problems({ scopes: ['fund:read'], overrides: { reason: 'exact scope list', scopes: ['openid'] } }).join()).toMatch(/not together/);
+  });
+  it('offline_access needs the refresh_token grant', () => {
+    expect(problems({ overrides: { reason: 'no refresh here', grants: ['authorization_code'] } }).join()).toMatch(/offline_access needs the refresh_token grant/);
+  });
+  it('an unknown key is refused, at the top, in overrides and in secret', () => {
+    expect(problems({ kindd: 'machine' } as Partial<ClientManifest>).join()).toMatch(/unknown key "kindd"/);
+    expect(problems({ overrides: { reason: 'a typo in here', publik: true } as unknown as ClientManifest['overrides'] }).join()).toMatch(/unknown key "overrides.publik"/);
+    expect(problems({ secret: { name: 'OAUTH_CLIENT_SECRET', env: 'prod' } as unknown as ClientManifest['secret'] }).join()).toMatch(/unknown key "secret.env"/);
   });
 });

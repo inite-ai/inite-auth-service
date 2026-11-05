@@ -1,0 +1,15 @@
+{
+  "clientId": "inite-education-billing",
+  "name": "inite education (billing service client)",
+  "kind": "machine",
+  "repo": "inite-ai/initeeducation-landing",
+  "scopes": [
+    "billing:checkout"
+  ],
+  "audiences": [
+    "https://billing.inite.ai/v1/services"
+  ],
+  "secret": {
+    "name": "BILLING_AUTH_CLIENT_SECRET"
+  }
+}

@@ -20,6 +20,8 @@
  * <repo> [--env <environment>]`, or with `--secret-sink file` to the chmod-600
  * client-secrets.local.env (scripts/lib/secret-out.ts). Only the bcrypt hash
  * reaches the database. A rotation keeps the previous hash for two hours.
+ * A public client (`overrides.public`) has no secret: it is created with the
+ * hash of a throwaway value that is never delivered, and is never rotated.
  * A dry run, --check, and an --apply with nothing to create or rotate never
  * mint a secret, so they never need `gh`. The image has no `gh`: there, a new
  * client or a rotation takes `--secret-sink file`.
@@ -36,7 +38,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
 import { loadManifests } from '../src/clients/load';
-import { type ClientManifest, type ClientRow, deriveClient, describePlan, MANAGED_FIELDS, planApply } from '../src/clients/manifest';
+import { type ClientManifest, type ClientRow, deriveClient, describePlan, MANAGED_FIELDS, planApply, takesSecret } from '../src/clients/manifest';
 import { writeSecretToFile } from './lib/secret-out';
 
 const args = process.argv.slice(2);
@@ -80,6 +82,8 @@ async function main(): Promise<void> {
     const current = (await prisma.oAuthClient.findMany({ where: { NOT: { clientId: { startsWith: 'dcr_' } } }, select: SELECT })) as ClientRow[];
     const plan = planApply(wanted, current);
     const rotate = opt('--rotate');
+    const rotated = rotate ? wanted.find((w) => w.clientId === rotate) : undefined;
+    if (rotated && !takesSecret(rotated)) throw new Error(`--rotate ${rotate}: a public client has no secret to rotate`);
     console.log(describePlan(plan));
     if (rotate) console.log(`* rotate the secret of ${rotate}`);
 
@@ -102,7 +106,9 @@ async function main(): Promise<void> {
       const m = byId.get(id);
       if (!m) throw new Error(`--rotate ${id}: no manifest`);
       const secret = crypto.randomBytes(32).toString('base64url');
-      deliverSecret(m, secret);
+      // A public client authenticates by PKCE alone; the column is required,
+      // so it holds the hash of a value nobody ever receives.
+      if (takesSecret(deriveClient(m))) deliverSecret(m, secret);
       minted.set(id, await bcrypt.hash(secret, 10));
     }
 

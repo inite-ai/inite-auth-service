@@ -19,6 +19,9 @@ RUN npx prisma generate
 # Copy source
 COPY src ./src
 COPY scripts ./scripts
+# The OAuth client manifests: `npm run build` copies them into dist/cli/clients/
+# beside dist/cli/scripts/clients-apply.js (docs/CLIENTS.md).
+COPY clients ./clients
 
 # Build
 RUN npm run build

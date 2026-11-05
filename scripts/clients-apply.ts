@@ -3,18 +3,29 @@
  * client is created or changed. No hand-written SQL.
  *
  *   npm run clients:apply                  # dry run (default): the diff, read-only
- *   npm run clients:apply -- --check       # exit 2 on any drift (the daily probe)
+ *   npm run clients:apply -- --check       # exit 2 on any drift, 0 when in sync
  *   npm run clients:apply -- --apply       # write it, in one transaction, after a backup
  *   npm run clients:apply -- --apply --rotate inite-rent
+ *
+ * In the production image (no ts-node) the same script is compiled by
+ * `npm run build` (tsconfig.scripts.json) to dist/cli/scripts/clients-apply.js,
+ * with the manifests of that build in dist/cli/clients/:
+ *
+ *   docker exec inite-auth-service node dist/cli/scripts/clients-apply.js [--check | --apply]
+ *
+ * Nothing runs --check on a schedule today; it is run by hand.
  *
  * Secrets: a new client (or --rotate) gets 32 random bytes. The plaintext is
  * never printed: it goes over stdin to `gh secret set <secret.name> --repo
  * <repo> [--env <environment>]`, or with `--secret-sink file` to the chmod-600
  * client-secrets.local.env (scripts/lib/secret-out.ts). Only the bcrypt hash
  * reaches the database. A rotation keeps the previous hash for two hours.
+ * A dry run, --check, and an --apply with nothing to create or rotate never
+ * mint a secret, so they never need `gh`. The image has no `gh`: there, a new
+ * client or a rotation takes `--secret-sink file`.
  *
- * It runs where DATABASE_URL reaches the auth database (today: docker exec in
- * the auth container on the prod host), from a reviewed commit.
+ * It runs where DATABASE_URL reaches the auth database, from a reviewed
+ * commit. Commands and the secret hand-off: docs/CLIENTS.md.
  */
 
 import { execFileSync } from 'node:child_process';

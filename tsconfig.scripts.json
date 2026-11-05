@@ -1,0 +1,14 @@
+{
+  "//": "Operator scripts that must run in the production image, where there is no ts-node: compiled into their own tree, dist/cli/ (dist/cli/scripts/*.js, the src files they import under dist/cli/src/), so nothing collides with the app nest build writes to dist/. The manifests are copied to dist/cli/clients/, where src/clients/load.ts looks by default. Runs after `nest build` (which empties dist/). See docs/CLIENTS.md.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist/cli",
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["scripts/clients-apply.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/__tests__/**", "**/*.spec.ts"]
+}

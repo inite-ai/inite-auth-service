@@ -90,7 +90,8 @@ export function TestTokenPanel({
       })
     } catch (err: any) {
       setError(
-        err?.response?.data?.message ??
+        err?.response?.data?.error_description ??
+          err?.response?.data?.message ??
           err?.response?.data?.error ??
           err?.message ??
           'Token request failed',

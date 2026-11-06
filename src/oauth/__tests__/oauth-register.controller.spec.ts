@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
 import { OAuthRegisterController } from '../oauth-register.controller';
 import { OAuthClientRegistryService } from '../oauth-client-registry.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -142,5 +143,133 @@ describe('OAuthRegisterController', () => {
 
     const res = await controller.register(dto);
     expect(res.scope).toBe('openid email brain:write');
+  });
+});
+
+/**
+ * Over HTTP, with the app's own global ValidationPipe (main.ts): the route
+ * pipe, the interceptor and the global pipe only meet here, so a direct
+ * controller call cannot show what a client actually gets.
+ */
+describe('POST /oauth/register over HTTP (RFC 7591)', () => {
+  let app: INestApplication;
+  let create: jest.Mock;
+
+  beforeEach(async () => {
+    create = jest.fn(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: 'uuid-new', ...data }),
+    );
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [OAuthRegisterController],
+      providers: [
+        OAuthClientRegistryService,
+        { provide: PrismaService, useValue: { oAuthClient: { create } } },
+      ],
+    }).compile();
+    app = module.createNestApplication();
+    // Same options as main.ts — the strict pipe the register route must survive.
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    );
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const post = (body: unknown) =>
+    request(app.getHttpServer()).post('/oauth/register').send(body as object);
+
+  it('ignores metadata it does not understand (§3.1) and registers the client', async () => {
+    const res = await post({
+      client_name: 'Connector',
+      redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      token_endpoint_auth_method: 'none',
+      some_vendor_field: 'whatever',
+      another_new_field: { nested: true },
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.client_id).toMatch(/^dcr_/);
+    expect(res.body).not.toHaveProperty('some_vendor_field');
+    expect(res.body).not.toHaveProperty('another_new_field');
+    // The unknown field never reaches the registry, let alone the row.
+    const persisted = create.mock.calls[0][0].data;
+    expect(JSON.stringify(persisted)).not.toContain('some_vendor_field');
+  });
+
+  it('still validates the fields it declares', async () => {
+    const res = await post({
+      redirect_uris: ['https://app.example.com/cb'],
+      token_endpoint_auth_method: 'client_secret_basic_or_whatever',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.body).toEqual({
+      error: 'invalid_client_metadata',
+      error_description: expect.stringContaining('token_endpoint_auth_method'),
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('answers invalid_redirect_uri when redirect_uris is missing', async () => {
+    const res = await post({ client_name: 'No callback' });
+
+    expect(res.status).toBe(400);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.body).toEqual({
+      error: 'invalid_redirect_uri',
+      error_description: expect.stringContaining('redirect_uris'),
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('answers invalid_redirect_uri when a redirect URI is not a URL', async () => {
+    const res = await post({ redirect_uris: ['not a url'] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_redirect_uri');
+  });
+
+  it('answers invalid_client_metadata for a withheld grant', async () => {
+    const res = await post({
+      redirect_uris: ['https://app.example.com/cb'],
+      grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code'],
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: 'invalid_client_metadata',
+      error_description: expect.stringContaining('device grant is provisioned by an operator'),
+    });
+  });
+
+  it('answers invalid_client_metadata for client_credentials on a public client', async () => {
+    const res = await post({ grant_types: ['client_credentials'], token_endpoint_auth_method: 'none' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_client_metadata');
+  });
+
+  it('answers invalid_client_metadata for a jwks check (shared helper keeps its Nest shape elsewhere)', async () => {
+    const res = await post({
+      redirect_uris: ['https://app.example.com/cb'],
+      token_endpoint_auth_method: 'private_key_jwt',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: 'invalid_client_metadata',
+      error_description: 'private_key_jwt requires jwks or jwks_uri',
+    });
+  });
+
+  it('refuses a body that is not a JSON object', async () => {
+    const res = await post([{ redirect_uris: ['https://app.example.com/cb'] }]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_client_metadata');
   });
 });

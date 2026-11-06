@@ -8,6 +8,7 @@ import { FederationResult } from '../federation/contracts/federation-result';
 import { NormalizedProfile } from '../federation/contracts/normalized-profile';
 import { TelegramBotsStore } from './telegram-bots.store';
 import { TelegramAuthError } from './contracts/telegram-auth.error';
+import { TelegramNotLinkedError } from './contracts/telegram-not-linked.error';
 import { TelegramUser } from './contracts/telegram-user';
 import { TelegramBot, TelegramWidgetState } from './contracts/telegram-bot';
 import { verifyLoginWidget, verifyWebAppInitData } from './telegram-signature';
@@ -117,16 +118,17 @@ export class TelegramAuthService {
   async verifyWebApp(
     initData: string,
     clientId: string,
+    opts: { createUser?: boolean } = {},
   ): Promise<{ user: FederationResult['user']; isNewUser: boolean; bot: TelegramBot }> {
     this.assertEnabled();
     const bound = this.bots.forClient(clientId);
     if (bound.length === 0) throw new TelegramAuthError('bot_not_bound');
-    const opts = { maxAgeSeconds: this.maxAgeSeconds() };
+    const verify = { maxAgeSeconds: this.maxAgeSeconds() };
     let lastError: TelegramAuthError = new TelegramAuthError('bad_signature');
     for (const bot of bound) {
       try {
-        const tgUser = verifyWebAppInitData(initData, bot.token, opts);
-        return { ...(await this.signIn(tgUser, bot)), bot };
+        const tgUser = verifyWebAppInitData(initData, bot.token, verify);
+        return { ...(await this.signIn(tgUser, bot, opts.createUser !== false)), bot };
       } catch (err) {
         if (!(err instanceof TelegramAuthError)) throw err;
         // A signature that is not this bot's says nothing yet; a valid
@@ -138,10 +140,15 @@ export class TelegramAuthService {
     throw lastError;
   }
 
-  /** One use per payload, then link or create the INITE user. */
+  /**
+   * One use per payload, then link or create the INITE user. With
+   * `createUser` false a Telegram user nobody linked yet is not given an
+   * account: TelegramNotLinkedError carries who they are, for a link ticket.
+   */
   private async signIn(
     tgUser: TelegramUser,
     bot: TelegramBot,
+    createUser = true,
   ): Promise<{ user: FederationResult['user']; isNewUser: boolean }> {
     const fresh = await this.redis.setIfAbsent(
       USED_KEY(bot.name, tgUser.hash),
@@ -149,6 +156,12 @@ export class TelegramAuthService {
       this.maxAgeSeconds() + 120,
     );
     if (!fresh) throw new TelegramAuthError('replayed');
+    if (!createUser) {
+      const linked = await this.federation.findLinkedUser(TELEGRAM_PROVIDER, tgUser.id);
+      if (!linked) throw new TelegramNotLinkedError(tgUser, bot);
+      this.logger.auth('Telegram sign-in', { bot: bot.name, userId: linked.id, isNewUser: false });
+      return { user: linked, isNewUser: false };
+    }
     const result = await this.federation.resolveUser(toProfile(tgUser, bot));
     this.logger.auth('Telegram sign-in', {
       bot: bot.name,

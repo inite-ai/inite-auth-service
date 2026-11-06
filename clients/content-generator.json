@@ -5,13 +5,21 @@
   "origins": [
     "https://inite.digital"
   ],
+  "scopes": [
+    "telegram:link"
+  ],
   "secret": {
     "name": "CLIENT_SECRET"
   },
   "overrides": {
-    "reason": "the own OIDC copy still uses silent-callback until digital moves to the kit",
+    "reason": "the own OIDC copy still uses silent-callback until digital moves to the kit; its server carries the Mini App's Telegram links over to auth as itself (client_credentials, telegram:link)",
     "extraRedirectUris": [
       "https://inite.digital/silent-callback"
+    ],
+    "grants": [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials"
     ]
   }
 }

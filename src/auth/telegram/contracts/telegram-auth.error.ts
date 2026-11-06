@@ -13,7 +13,8 @@ export type TelegramAuthReason =
   | 'replayed'
   | 'unknown_bot'
   | 'bot_not_bound'
-  | 'state_mismatch';
+  | 'state_mismatch'
+  | 'ticket_invalid';
 
 export class TelegramAuthError extends Error {
   constructor(public readonly reason: TelegramAuthReason) {

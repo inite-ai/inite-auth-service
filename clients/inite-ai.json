@@ -6,13 +6,14 @@
     "https://inite.ai"
   ],
   "scopes": [
-    "audit:handoff"
+    "audit:handoff",
+    "telegram:link"
   ],
   "secret": {
     "name": "OAUTH_CLIENT_SECRET"
   },
   "overrides": {
-    "reason": "inite.ai's worker calls family services as itself (client_credentials)",
+    "reason": "inite.ai's worker calls family services as itself (client_credentials), including carrying its Mini App's Telegram links over to auth (telegram:link)",
     "grants": [
       "authorization_code",
       "refresh_token",

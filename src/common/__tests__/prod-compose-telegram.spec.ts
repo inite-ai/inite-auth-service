@@ -35,11 +35,12 @@ describe('deploy/docker-compose.prod.yml: Telegram sign-in', () => {
     expect(text).not.toMatch(/TELEGRAM_BOT_TOKEN_\w+=\d+:/);
   });
 
-  it('the deploy writes the switch from a variable and the token from a secret', () => {
+  it('the deploy writes the switch from a variable and the token from the shared org secret', () => {
     const deploy = readFileSync(join(__dirname, '../../../.github/workflows/deploy.yml'), 'utf8');
     expect(deploy).toContain(
       "TELEGRAM_PROVIDER_ENABLED=${{ vars.TELEGRAM_PROVIDER_ENABLED || 'false' }}",
     );
-    expect(deploy).toContain('TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.TELEGRAM_BOT_TOKEN_BREAK3 }}');
+    // One token, one place: the organization secret break3-backend reads too.
+    expect(deploy).toContain('TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.BREAK3_TELEGRAM_BOT_TOKEN }}');
   });
 });

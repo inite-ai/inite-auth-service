@@ -134,10 +134,12 @@ jobs:
           echo "SMTP_USER=${{ secrets.SMTP_USER }}"
           echo "SMTP_PASS=${{ secrets.SMTP_PASS }}"
           echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}"
-          # Telegram sign-in: the switch is a repository variable, each bot's
-          # token a secret (docker-compose.prod.yml names the bots).
+          # Telegram sign-in: the switch is a repository variable; a bot's
+          # token is the organization secret its product reads too, so it
+          # lives in one place (BREAK3_TELEGRAM_BOT_TOKEN: inite-auth-service
+          # and break3-backend only). docker-compose.prod.yml names the bots.
           echo "TELEGRAM_PROVIDER_ENABLED=${{ vars.TELEGRAM_PROVIDER_ENABLED || 'false' }}"
-          echo "TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.TELEGRAM_BOT_TOKEN_BREAK3 }}"
+          echo "TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.BREAK3_TELEGRAM_BOT_TOKEN }}"
         } > "$DEPLOY_DIR/.env"
         chmod 600 "$DEPLOY_DIR/.env"
 

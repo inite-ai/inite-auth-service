@@ -137,9 +137,11 @@ jobs:
           # Telegram sign-in: the switch is a repository variable; a bot's
           # token is the organization secret its product reads too, so it
           # lives in one place (BREAK3_TELEGRAM_BOT_TOKEN: inite-auth-service
-          # and break3-backend only). docker-compose.prod.yml names the bots.
+          # and break3-backend only; FLORIPA_TELEGRAM_BOT_TOKEN: inite-auth-service
+          # and floripa-bot only). docker-compose.prod.yml names the bots.
           echo "TELEGRAM_PROVIDER_ENABLED=${{ vars.TELEGRAM_PROVIDER_ENABLED || 'false' }}"
           echo "TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.BREAK3_TELEGRAM_BOT_TOKEN }}"
+          echo "TELEGRAM_BOT_TOKEN_FLORIPA=${{ secrets.FLORIPA_TELEGRAM_BOT_TOKEN }}"
         } > "$DEPLOY_DIR/.env"
         chmod 600 "$DEPLOY_DIR/.env"
 

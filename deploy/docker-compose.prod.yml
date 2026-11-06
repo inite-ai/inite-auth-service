@@ -100,9 +100,11 @@ services:
       # the bot's product shares (deploy.yml). A bot whose token is unset is
       # skipped with a warning (telegram-bots.store.ts).
       #   break3: @break3_bot, Break3's Mini App -> client smart-chat
+      #   floripa: @floripa_ru_bot, floripa.info's Mini App and site -> client floripa
       - TELEGRAM_PROVIDER_ENABLED=${TELEGRAM_PROVIDER_ENABLED:-false}
-      - 'TELEGRAM_BOTS=[{"name":"break3","username":"break3_bot","clients":["smart-chat"]}]'
+      - 'TELEGRAM_BOTS=[{"name":"break3","username":"break3_bot","clients":["smart-chat"]},{"name":"floripa","username":"floripa_ru_bot","clients":["floripa"]}]'
       - TELEGRAM_BOT_TOKEN_BREAK3=${TELEGRAM_BOT_TOKEN_BREAK3:-}
+      - TELEGRAM_BOT_TOKEN_FLORIPA=${TELEGRAM_BOT_TOKEN_FLORIPA:-}
     # Loopback only. Docker writes its own iptables rules, so a plain
     # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
     # frontend reach this container over the docker networks, not the host

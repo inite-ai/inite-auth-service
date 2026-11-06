@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TelegramBotsStore } from '../../auth/telegram/telegram-bots.store';
 import { fakeConfig } from '../../auth/telegram/__tests__/telegram-harness';
-import { BOT_A_TOKEN } from '../../auth/telegram/__tests__/telegram-fixtures';
+import { BOT_A_TOKEN, BOT_B_TOKEN } from '../../auth/telegram/__tests__/telegram-fixtures';
 
 /**
  * Telegram sign-in on prod: which bot signs into which client is committed
@@ -19,19 +19,27 @@ describe('deploy/docker-compose.prod.yml: Telegram sign-in', () => {
     expect(env('TELEGRAM_PROVIDER_ENABLED')).toBe('${TELEGRAM_PROVIDER_ENABLED:-false}');
   });
 
-  it("binds @break3_bot to smart-chat, Break3's client, and the store accepts it", () => {
+  it('binds @break3_bot to smart-chat and @floripa_ru_bot to floripa, and the store accepts both', () => {
     const bots = env('TELEGRAM_BOTS')!;
     expect(JSON.parse(bots)).toEqual([
       { name: 'break3', username: 'break3_bot', clients: ['smart-chat'] },
+      { name: 'floripa', username: 'floripa_ru_bot', clients: ['floripa'] },
     ]);
     const store = new TelegramBotsStore(
-      fakeConfig({ TELEGRAM_BOTS: bots, TELEGRAM_BOT_TOKEN_BREAK3: BOT_A_TOKEN }),
+      fakeConfig({
+        TELEGRAM_BOTS: bots,
+        TELEGRAM_BOT_TOKEN_BREAK3: BOT_A_TOKEN,
+        TELEGRAM_BOT_TOKEN_FLORIPA: BOT_B_TOKEN,
+      }),
     );
     expect(store.forClient('smart-chat').map((b) => b.username)).toEqual(['break3_bot']);
+    // A bot signs only into its own client: floripa's bot cannot open smart-chat and back.
+    expect(store.forClient('floripa').map((b) => b.username)).toEqual(['floripa_ru_bot']);
   });
 
   it('each bot token is interpolated from the deploy, never written in the file', () => {
     expect(env('TELEGRAM_BOT_TOKEN_BREAK3')).toBe('${TELEGRAM_BOT_TOKEN_BREAK3:-}');
+    expect(env('TELEGRAM_BOT_TOKEN_FLORIPA')).toBe('${TELEGRAM_BOT_TOKEN_FLORIPA:-}');
     expect(text).not.toMatch(/TELEGRAM_BOT_TOKEN_\w+=\d+:/);
   });
 
@@ -42,5 +50,6 @@ describe('deploy/docker-compose.prod.yml: Telegram sign-in', () => {
     );
     // One token, one place: the organization secret break3-backend reads too.
     expect(deploy).toContain('TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.BREAK3_TELEGRAM_BOT_TOKEN }}');
+    expect(deploy).toContain('TELEGRAM_BOT_TOKEN_FLORIPA=${{ secrets.FLORIPA_TELEGRAM_BOT_TOKEN }}');
   });
 });

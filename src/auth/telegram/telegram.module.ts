@@ -4,7 +4,9 @@ import { OAuthModule } from '../../oauth/oauth.module';
 import { TelegramAuthService } from './telegram-auth.service';
 import { TelegramWebAppService } from './telegram-webapp.service';
 import { TelegramBotsStore } from './telegram-bots.store';
+import { TelegramLinkService } from './telegram-link.service';
 import { TelegramAuthController } from './telegram-auth.controller';
+import { TelegramLinkController } from './telegram-link.controller';
 
 /**
  * Telegram as a sign-in provider (Login Widget and Mini App initData).
@@ -14,7 +16,7 @@ import { TelegramAuthController } from './telegram-auth.controller';
  */
 @Module({
   imports: [FederationModule, OAuthModule],
-  providers: [TelegramAuthService, TelegramWebAppService, TelegramBotsStore],
-  controllers: [TelegramAuthController],
+  providers: [TelegramAuthService, TelegramWebAppService, TelegramBotsStore, TelegramLinkService],
+  controllers: [TelegramAuthController, TelegramLinkController],
 })
 export class TelegramModule {}

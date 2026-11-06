@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { OAuthClientRegistryService } from '../../oauth/oauth-client-registry.service';
 import { OAuthService } from '../../oauth/oauth.service';
 import { ConsentService } from '../../oauth/consent.service';
@@ -6,6 +11,8 @@ import { StepUpService } from '../../oauth/step-up.service';
 import { assertResourceAllowed } from '../../oauth/resource-registry';
 import { TelegramAuthService } from './telegram-auth.service';
 import { TelegramWebAppDto } from './dto/telegram-webapp.dto';
+import { TelegramLinkService } from './telegram-link.service';
+import { TelegramNotLinkedError } from './contracts/telegram-not-linked.error';
 
 /** Telegram is a single factor, recorded the way other federated logins are. */
 export const TELEGRAM_AMR = ['federated'];
@@ -34,6 +41,7 @@ export class TelegramWebAppService {
     private readonly oauthService: OAuthService,
     private readonly consent: ConsentService,
     private readonly stepUp: StepUpService,
+    private readonly links: TelegramLinkService,
   ) {}
 
   async issueCode(
@@ -48,7 +56,7 @@ export class TelegramWebAppService {
     assertResourceAllowed(client, body.resource);
     const scope = this.oauthService.normalizeScope(body.scope || '', client);
 
-    const { user, isNewUser } = await this.telegram.verifyWebApp(body.init_data, body.client_id);
+    const { user, isNewUser } = await this.verify(body);
 
     const mustAsk = await this.consent.isRequired({
       userId: user.id,
@@ -75,5 +83,30 @@ export class TelegramWebAppService {
       resource: body.resource,
     });
     return { code, ...(body.state ? { state: body.state } : {}), is_new_user: isNewUser };
+  }
+
+  /**
+   * The verified user; with `create_user: false`, a Telegram user nobody
+   * linked gets a 409 carrying a link ticket instead of a new account.
+   */
+  private async verify(body: TelegramWebAppDto) {
+    try {
+      return await this.telegram.verifyWebApp(body.init_data, body.client_id, {
+        createUser: body.create_user !== false,
+      });
+    } catch (err) {
+      if (!(err instanceof TelegramNotLinkedError)) throw err;
+      const ticket = await this.links.issueTicket(err.telegramUser, err.bot, body.client_id);
+      throw new ConflictException({
+        error: 'telegram_not_linked',
+        error_description: 'No INITE account is linked to this Telegram user',
+        link_ticket: ticket,
+        telegram: {
+          id: err.telegramUser.id,
+          username: err.telegramUser.username,
+          first_name: err.telegramUser.firstName,
+        },
+      });
+    }
   }
 }

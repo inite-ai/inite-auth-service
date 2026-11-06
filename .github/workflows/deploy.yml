@@ -134,6 +134,10 @@ jobs:
           echo "SMTP_USER=${{ secrets.SMTP_USER }}"
           echo "SMTP_PASS=${{ secrets.SMTP_PASS }}"
           echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}"
+          # Telegram sign-in: the switch is a repository variable, each bot's
+          # token a secret (docker-compose.prod.yml names the bots).
+          echo "TELEGRAM_PROVIDER_ENABLED=${{ vars.TELEGRAM_PROVIDER_ENABLED || 'false' }}"
+          echo "TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.TELEGRAM_BOT_TOKEN_BREAK3 }}"
         } > "$DEPLOY_DIR/.env"
         chmod 600 "$DEPLOY_DIR/.env"
 

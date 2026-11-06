@@ -92,6 +92,16 @@ services:
       - ADMIN_NAME=${ADMIN_NAME}
       - COOKIE_DOMAIN=auth.inite.ai
       - SESSION_SECRET=${JWT_SECRET}
+      # Telegram sign-in (src/auth/telegram/): the Login Widget and a Mini
+      # App's initData. Off unless the repository variable
+      # TELEGRAM_PROVIDER_ENABLED is true (deploy.yml writes it). Which bot
+      # may sign into which client is not secret and lives here; each bot's
+      # token is a repository secret, TELEGRAM_BOT_TOKEN_<NAME>. A bot whose
+      # token is unset is skipped with a warning (telegram-bots.store.ts).
+      #   break3: @break3_bot, Break3's Mini App -> client smart-chat
+      - TELEGRAM_PROVIDER_ENABLED=${TELEGRAM_PROVIDER_ENABLED:-false}
+      - 'TELEGRAM_BOTS=[{"name":"break3","username":"break3_bot","clients":["smart-chat"]}]'
+      - TELEGRAM_BOT_TOKEN_BREAK3=${TELEGRAM_BOT_TOKEN_BREAK3:-}
     # Loopback only. Docker writes its own iptables rules, so a plain
     # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
     # frontend reach this container over the docker networks, not the host

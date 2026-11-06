@@ -186,6 +186,24 @@ describe('Telegram link tickets', () => {
     expect(tg.db.identities[0]!.userId).toBe(existing.id);
   });
 
+  it('unlink takes Telegram off the account, and the next open is a ticket again', async () => {
+    const { webApp, controller, existing, tg } = make();
+    const { link_ticket } = await ticketFor(webApp);
+    await controller.link(person(existing.id), { ticket: link_ticket });
+
+    // Someone else's token removes nothing of theirs.
+    expect(await controller.unlink(person('acc-other'), {})).toEqual({ removed: 0 });
+    expect(await controller.unlink(person(existing.id), { telegram_id: '424242' })).toEqual({
+      removed: 1,
+    });
+    expect(tg.db.identities).toHaveLength(0);
+    const again = await ticketFor(
+      webApp,
+      initDataFields({ auth_date: String(NOW - 5), query_id: 'AAH-after-unlink' }),
+    );
+    expect(again.error).toBe('telegram_not_linked');
+  });
+
   it('the default still opens an account for a new Telegram user', async () => {
     const { webApp } = make();
     const res = await webApp.issueCode(body(signInitData(initDataFields(), BOT_A_TOKEN)));

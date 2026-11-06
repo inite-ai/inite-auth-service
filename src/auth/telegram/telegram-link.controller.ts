@@ -18,6 +18,7 @@ import { TelegramLinkService } from './telegram-link.service';
 import { TelegramAuthError } from './contracts/telegram-auth.error';
 import { TelegramLinkDto } from './dto/telegram-link.dto';
 import { TelegramImportDto } from './dto/telegram-import.dto';
+import { TelegramUnlinkDto } from './dto/telegram-unlink.dto';
 
 /** The scope a first-party product's machine token needs to import its old links. */
 export const TELEGRAM_LINK_SCOPE = 'telegram:link';
@@ -29,6 +30,8 @@ export const TELEGRAM_LINK_SCOPE = 'telegram:link';
  *   POST /v1/auth/telegram/link { ticket }  (Bearer: the person's access token)
  *        → links the ticket's Telegram user (from a Mini App sign-in with
  *          create_user: false) to that person's account.
+ *   POST /v1/auth/telegram/unlink { telegram_id? }  (Bearer: the person's access token)
+ *        → takes Telegram (that id, or every one) off that person's account.
  *   POST /v1/auth/telegram/identities/import { links: [{ user, telegram_id }] }
  *        (Bearer: a first-party product's machine token with telegram:link,
  *        requested without an audience so its `aud` is the product's client)
@@ -68,6 +71,22 @@ export class TelegramLinkController {
       }
       throw err;
     }
+  }
+
+  @Post('unlink')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: "Take Telegram off the signed-in person's account" })
+  async unlink(@CurrentUser() principal: AuthenticatedUser, @Body() body: TelegramUnlinkDto) {
+    this.telegram.assertEnabled();
+    if (principal.kind !== 'user') {
+      throw new ForbiddenException({
+        error: 'access_denied',
+        error_description: 'user_token_required',
+      });
+    }
+    return this.links.unlink(principal.userId, body.telegram_id);
   }
 
   @Post('identities/import')

@@ -81,6 +81,22 @@ export function memoryPrisma() {
           return {};
         },
       ),
+      deleteMany: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId: string; provider: string; providerSubject?: string };
+        }) => {
+          const gone = identities.filter(
+            (i) =>
+              i.userId === where.userId &&
+              i.provider === where.provider &&
+              (!where.providerSubject || i.providerSubject === where.providerSubject),
+          );
+          for (const g of gone) identities.splice(identities.indexOf(g), 1);
+          return { count: gone.length };
+        },
+      ),
       create: jest.fn(
         async ({
           data,

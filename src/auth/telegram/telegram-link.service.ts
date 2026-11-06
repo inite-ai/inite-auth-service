@@ -144,6 +144,22 @@ export class TelegramLinkService {
   }
 
   /**
+   * Take Telegram off this person's account: the identity goes, so a Mini
+   * App open no longer finds them. With `telegramId`, only that one.
+   */
+  async unlink(userId: string, telegramId?: string): Promise<{ removed: number }> {
+    const { count } = await this.prisma.oAuthIdentity.deleteMany({
+      where: {
+        userId,
+        provider: TELEGRAM_PROVIDER,
+        ...(telegramId ? { providerSubject: telegramId } : {}),
+      },
+    });
+    this.logger.auth('Telegram unlinked', { userId, removed: count });
+    return { removed: count };
+  }
+
+  /**
    * Carry over links a first-party product verified itself. `user` is the
    * INITE user's DID (the token's `sub`) or its id. A Telegram id linked to
    * a different user is reported, never moved.

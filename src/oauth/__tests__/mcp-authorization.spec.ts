@@ -78,6 +78,21 @@ describe('fund scopes in the registry', () => {
   });
 });
 
+describe('break3 scopes in the registry', () => {
+  // Break3's MCP door (https://break3.app/mcp) asks for read or write, so a
+  // person can give an assistant read-only access to their habits.
+  it('advertises break3:read and break3:write and lets DCR and metadata-document clients ask for them', () => {
+    for (const s of ['break3:read', 'break3:write']) {
+      expect(supportedScopes()).toContain(s);
+      expect(dcrSupportedScopes()).toContain(s);
+    }
+  });
+
+  it('grants read-only when only read was asked for', () => {
+    expect(grantableScope('dcr_abc', 'openid break3:read')).toBe('openid break3:read');
+  });
+});
+
 describe('grantableScope', () => {
   it('recognises dynamically registered client ids', () => {
     expect(isDynamicClientId('dcr_abc')).toBe(true);

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, CheckCircle, XCircle, User, LogOut, ExternalLink, AppWindow } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { authStorage } from '@/lib/authStorage'
-import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, parseAuthorizationDetails, approveWithoutAsking, OAuthParams } from '@/lib/oauthHelpers'
+import { extractOAuthParams, buildLoginUrl, createAuthorizationCode, buildRedirectWithCode, buildDeniedRedirect, parseAuthorizationDetails, approveWithoutAsking, OAuthParams } from '@/lib/oauthHelpers'
 import { Button, Card } from '@/components/ui'
 import { AppHeader } from '@/components/AppHeader'
 import { ConsentGrants } from '@/components/ConsentGrants'
@@ -135,11 +135,7 @@ function ConsentContent() {
 
   const handleDeny = () => {
     if (oauthParams?.redirectUri) {
-      const url = new URL(oauthParams.redirectUri)
-      url.searchParams.set('error', 'access_denied')
-      url.searchParams.set('error_description', 'User denied the request')
-      if (oauthParams.state) url.searchParams.set('state', oauthParams.state)
-      window.location.href = url.toString()
+      window.location.href = buildDeniedRedirect(oauthParams.redirectUri, oauthParams.state)
     } else {
       router.push('/')
     }

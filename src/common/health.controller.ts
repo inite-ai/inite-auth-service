@@ -203,6 +203,10 @@ export class HealthController {
       userinfo_endpoint: `${issuer}/v1/oauth/userinfo`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
       registration_endpoint: `${issuer}/v1/oauth/register`,
+      // draft-ietf-oauth-client-id-metadata-document: an https client_id names its own metadata.
+      client_id_metadata_document_supported: true,
+      // RFC 9207: every authorization response carries `iss`.
+      authorization_response_iss_parameter_supported: true,
       revocation_endpoint: `${issuer}/v1/oauth/revoke`,
       introspection_endpoint: `${issuer}/v1/oauth/introspect`,
       end_session_endpoint: `${issuer}/v1/oauth/logout`,

@@ -26,6 +26,7 @@ import { AuditCtx, clientContext, TOKEN_EXCHANGE_GRANT } from "./token-support";
 import { DemoGrantThrottlerGuard } from "./demo-grant-throttler.guard";
 import { DemoGrantService } from "./demo-grant.service";
 import { demoInvalidGrant, isDemoGrantRequest } from "./demo-grant";
+import { tokenErrors } from "./oauth-error.interceptor";
 
 /**
  * OAuth 2.0 token endpoint. Thin HTTP dispatch: authenticate the client,
@@ -57,7 +58,9 @@ export class TokenController {
    */
   @Post('token')
   @UseGuards(TokenEndpointThrottlerGuard, DemoGrantThrottlerGuard)
-  @UseInterceptors(IdempotencyInterceptor)
+  // tokenErrors first, so it is outermost: every error leaves in RFC 6749
+  // §5.2 shape, including one the idempotency layer raises.
+  @UseInterceptors(tokenErrors, IdempotencyInterceptor)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   async token(@Body() body: TokenRequestBody, @Req() req: Request) {
     const grantType = body.grant_type;

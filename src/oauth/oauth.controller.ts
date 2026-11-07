@@ -1,4 +1,12 @@
-import { Controller, Get, Query, Res, Req, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Res,
+  Req,
+  BadRequestException,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
@@ -16,6 +24,7 @@ import { buildClientRedirect } from './authorize-redirect';
 import { assertResourceAllowed } from './resource-registry';
 import { type LaneOrg } from './customer-lane';
 import { mergePushed, queryToParams } from './authorize-params';
+import { authorizeErrors } from './oauth-error.interceptor';
 
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -45,6 +54,7 @@ export class OAuthController {
    */
   @Get('authorize')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseInterceptors(authorizeErrors)
   async authorize(@Query() query: AuthorizeQuery, @Req() req: Request, @Res() res: Response) {
     const { p, grantedScope, laneOrg } = await this.validateAuthorize(query);
 

@@ -53,6 +53,15 @@ const CARRIED_AUTHORIZE_PARAMS: ReadonlyArray<readonly [string, keyof ResolvedAu
   ['customer', 'customer'],
 ];
 
+/**
+ * RFC 9207: the `iss` every authorization response carries. The same value
+ * discovery publishes as `issuer` (health.controller.ts), so a client can
+ * compare it with the server it started the flow with.
+ */
+export function authorizationIssuer(): string {
+  return process.env.OIDC_ISSUER || 'http://localhost:3002';
+}
+
 /** Build a /login or /consent redirect carrying the OAuth params forward. */
 export function buildClientRedirect(
   req: Request,

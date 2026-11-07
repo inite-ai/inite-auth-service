@@ -38,6 +38,14 @@ export const BRAIN_SCOPES = [
 export const MIKEFLUFF_SCOPES = ['mikefluff:purchase', 'mikefluff:booking'] as const;
 
 /**
+ * Break3's MCP server (resource `https://break3.app/mcp`). `break3:read`
+ * lets an assistant see the person's habits, check-ins and progress;
+ * `break3:write` lets it check in, start a habit and ask the coach for them.
+ * A person can give an assistant read-only access. Enforced by Break3's MCP door.
+ */
+export const BREAK3_SCOPES = ['break3:read', 'break3:write'] as const;
+
+/**
  * The person's INITE wallet (billing, resource `https://billing.inite.ai/mcp/wallet`).
  * `wallet:pay` lets an agent pay from it: on the way in it becomes an
  * `inite_wallet` authorization detail with the default limits, so the person
@@ -76,6 +84,7 @@ export const DCR_VERTICAL_SCOPES = [
   ...WALLET_SCOPES,
   ...BILLING_SCOPES,
   ...FUND_SCOPES,
+  ...BREAK3_SCOPES,
 ] as const;
 
 /** Everything the AS can put in a token — discovery `scopes_supported`. */
@@ -87,6 +96,7 @@ export function supportedScopes(): string[] {
     ...WALLET_SCOPES,
     ...BILLING_SCOPES,
     ...FUND_SCOPES,
+    ...BREAK3_SCOPES,
   ];
 }
 

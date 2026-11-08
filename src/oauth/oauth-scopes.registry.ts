@@ -72,6 +72,15 @@ export const BILLING_SCOPES = ['billing:account'] as const;
 export const FUND_SCOPES = ['fund:read', 'fund:write'] as const;
 
 /**
+ * Identity scopes only a first-party family product may hold. `telegram` adds
+ * the `telegram_id` claim (telegram-claim.ts): the person's Telegram id is the
+ * same in every product, so a third-party client must never see it. Never in
+ * {@link DCR_VERTICAL_SCOPES}; {@link permittedScopes} drops it for any client
+ * that is not first-party, whatever its allow-list says (issue #299).
+ */
+export const FIRST_PARTY_SCOPES = ['telegram'] as const;
+
+/**
  * Vertical scopes an anonymous RFC 7591 registration may request. The
  * sensitive tail of BRAIN_SCOPES (admin / PII / registry publishing) stays
  * operator-provisioned: a self-registered MCP client can ask a user for
@@ -97,6 +106,7 @@ export function supportedScopes(): string[] {
     ...BILLING_SCOPES,
     ...FUND_SCOPES,
     ...BREAK3_SCOPES,
+    ...FIRST_PARTY_SCOPES,
   ];
 }
 
@@ -118,6 +128,8 @@ export interface ScopeBoundClient {
   clientId: string;
   allowedScopes?: readonly string[] | null;
   isPublic?: boolean | null;
+  /** Without it (a caller that selected less) {@link FIRST_PARTY_SCOPES} are dropped. */
+  firstParty?: boolean | null;
 }
 
 /**
@@ -160,6 +172,9 @@ export function permittedScopes(
     ...(client.allowedScopes ?? []),
     ...(client.isPublic === true ? DCR_VERTICAL_SCOPES : []),
   ]);
+  if (client.firstParty !== true) {
+    for (const s of FIRST_PARTY_SCOPES) allowed.delete(s);
+  }
   return scopes.filter((s) => allowed.has(s));
 }
 

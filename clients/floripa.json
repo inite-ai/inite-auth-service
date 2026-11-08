@@ -16,7 +16,8 @@
     "scopes": [
       "openid",
       "profile",
-      "email"
+      "email",
+      "telegram"
     ],
     "backchannelLogoutUri": null
   }

@@ -269,6 +269,8 @@ export class HealthController {
         'nonce',
         'amr',
         'acr',
+        // First-party clients with the `telegram` scope only (telegram-claim.ts).
+        'telegram_id',
       ],
       // Back-channel logout — RP can register backchannel_logout_uri
       // on its OAuth client; IdP fans out signed logout_tokens on

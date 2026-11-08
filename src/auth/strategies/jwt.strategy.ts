@@ -96,6 +96,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       metadata: user.metadata,
       scope: normalizeScope(payload.scope ?? payload.scopes),
+      clientId: payload.client_id ?? null,
     };
   }
 }

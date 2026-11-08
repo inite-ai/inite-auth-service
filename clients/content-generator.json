@@ -5,6 +5,9 @@
   "origins": [
     "https://inite.digital"
   ],
+  "scopes": [
+    "telegram"
+  ],
   "secret": {
     "name": "CLIENT_SECRET"
   },

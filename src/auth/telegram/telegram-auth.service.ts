@@ -11,8 +11,9 @@ import { TelegramAuthError } from './contracts/telegram-auth.error';
 import { TelegramUser } from './contracts/telegram-user';
 import { TelegramBot, TelegramWidgetState } from './contracts/telegram-bot';
 import { verifyLoginWidget, verifyWebAppInitData } from './telegram-signature';
+import { TELEGRAM_PROVIDER } from './contracts/telegram-provider';
 
-export const TELEGRAM_PROVIDER = 'telegram';
+export { TELEGRAM_PROVIDER };
 const DEFAULT_MAX_AGE = '1d';
 const STATE_TTL_SECONDS = 600;
 const STATE_KEY = (state: string) => `telegram:state:${state}`;

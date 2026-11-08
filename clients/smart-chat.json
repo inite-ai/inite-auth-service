@@ -9,7 +9,8 @@
   ],
   "outsideFamily": "break3.app is Break3's own product domain (moving from break3.inite.health); the old origin stays until the move is done",
   "scopes": [
-    "wallet"
+    "wallet",
+    "telegram"
   ],
   "secret": {
     "name": "AUTH_CLIENT_SECRET"

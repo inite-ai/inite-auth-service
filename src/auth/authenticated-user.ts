@@ -17,6 +17,8 @@ export interface UserPrincipal {
   email: string | null;
   metadata: Record<string, unknown> | null;
   scope: Set<string>;
+  /** The client the access token was issued to (RFC 9068 client_id), when it says. */
+  clientId?: string | null;
 }
 
 export interface MachinePrincipal {

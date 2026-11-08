@@ -6,6 +6,9 @@
     "https://inite.training",
     "https://www.inite.training"
   ],
+  "scopes": [
+    "telegram"
+  ],
   "secret": {
     "name": "OAUTH_CLIENT_SECRET"
   }

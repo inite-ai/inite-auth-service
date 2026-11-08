@@ -28,10 +28,20 @@ const STATE_COOKIE_PATH = '/v1/auth/telegram';
 /**
  * Telegram sign-in. Off unless TELEGRAM_PROVIDER_ENABLED (404 otherwise).
  *
- *   GET  /v1/auth/telegram/start?bot=<name>&<authorize params>
+ *   GET  /v1/auth/telegram/bots?client_id=<id>
+ *        → { bots: [{ name, username }] }: whether the login page offers
+ *          Telegram for this client, and with which bot.
+ *   GET  /v1/auth/telegram/start?[bot=<name>&]<authorize params>
  *        → { bot_username, bot_id, auth_url }; sets the one-use state cookie.
  *          The login page renders the Login Widget with
  *          data-telegram-login=bot_username and data-auth-url=auth_url.
+ *          Without `bot`, the client's own bot.
+ *
+ * The widget lives on the login page (FRONTEND_URL, auth.inite.ai), so its
+ * callback is on that host too: a bot's /setdomain must be the host of the
+ * page that embeds the widget, and the state cookie set by /start on that
+ * host only comes back to a callback on the same host. auth.inite.ai/v1/*
+ * reaches this API already (the login page calls it there).
  *   GET  /v1/auth/telegram/callback?tg_state=…&<Telegram's fields>
  *        → the widget's redirect: verify, link/create the user, set the
  *          first-party session, 302 to /login with the authorize params,
@@ -55,6 +65,13 @@ export class TelegramAuthController {
       this.config.get<string>('SESSION_SECRET') || this.config.get<string>('JWT_SECRET') || '';
   }
 
+  @Get('bots')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: "The Telegram bots a client's login page may offer" })
+  bots(@Query('client_id') clientId?: string): { bots: Array<{ name: string; username: string }> } {
+    return { bots: this.telegram.botsForClient(typeof clientId === 'string' ? clientId : '') };
+  }
+
   @Get('start')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Begin a Telegram Login Widget sign-in for an /authorize in flight' })
@@ -72,7 +89,7 @@ export class TelegramAuthController {
         maxAge: 10 * 60 * 1000,
         path: STATE_COOKIE_PATH,
       });
-      const authUrl = new URL(`${STATE_COOKIE_PATH}/callback`, this.issuer());
+      const authUrl = new URL(`${STATE_COOKIE_PATH}/callback`, this.widgetBase());
       authUrl.searchParams.set('tg_state', state);
       return { bot_username: bot.username, bot_id: bot.botId, auth_url: authUrl.toString() };
     } catch (err) {
@@ -130,13 +147,14 @@ export class TelegramAuthController {
     return new UnauthorizedException({ error: 'access_denied', error_description: err.reason });
   }
 
-  /** The public base the federation callbacks use (FederationProviders.redirectUri). */
-  private issuer(): string {
-    return (
-      this.config.get<string>('FEDERATION_REDIRECT_BASE') ??
-      this.config.get<string>('OIDC_ISSUER') ??
-      'http://localhost:3002'
-    );
+  /**
+   * Where the widget's callback lives: the login page's own host. Telegram
+   * refuses a widget whose page is not the bot's domain («Bot domain
+   * invalid»), and the state cookie /start set there would not reach a
+   * callback on the API host (auth-api.inite.ai).
+   */
+  private widgetBase(): string {
+    return this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
   }
 
   /** Frontend /login carrying the authorize params, as the federation callback does. */

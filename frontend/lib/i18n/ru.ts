@@ -88,6 +88,7 @@ export const ru: Partial<Dict> = {
   'auth.social.error.emailConflict':
     'Аккаунт с этой почтой уже есть. Войдите привычным способом, а затем привяжите этот сервис в настройках аккаунта.',
   'auth.social.error.failed': 'Не удалось войти через соцсеть. Попробуйте ещё раз.',
+  'auth.social.error.telegram': 'Не удалось войти через Telegram. Попробуйте ещё раз.',
 
   'consent.header': 'Доступ для приложения',
   'consent.title': 'Подтвердите вход',

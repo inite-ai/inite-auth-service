@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { LogIn } from 'lucide-react'
 import { OAuthParams, buildPassthroughHref } from '@/lib/oauthHelpers'
 import { useT, type TKey } from '@/lib/i18n'
+import TelegramLogin from '@/components/TelegramLogin'
 
 interface Provider {
   id: string
@@ -20,6 +21,7 @@ interface SocialLoginProps {
 const ERROR_COPY: Record<string, TKey> = {
   email_conflict: 'auth.social.error.emailConflict',
   federation_failed: 'auth.social.error.failed',
+  telegram_failed: 'auth.social.error.telegram',
 }
 
 /**
@@ -30,6 +32,7 @@ const ERROR_COPY: Record<string, TKey> = {
 export default function SocialLogin({ oauthParams }: SocialLoginProps) {
   const t = useT()
   const [providers, setProviders] = useState<Provider[]>([])
+  const [telegram, setTelegram] = useState(false)
   const searchParams = useSearchParams()
   const error = searchParams.get('federation_error')
 
@@ -59,10 +62,11 @@ export default function SocialLogin({ oauthParams }: SocialLoginProps) {
     )
   }
 
-  if (providers.length === 0 && !error) return null
+  const any = providers.length > 0 || telegram
 
+  // Nothing to offer yet: no gap either (TelegramLogin still mounts to ask).
   return (
-    <div className="mt-6">
+    <div className={any || error ? 'mt-6' : undefined}>
       {error && (
         <p
           role="alert"
@@ -72,15 +76,20 @@ export default function SocialLogin({ oauthParams }: SocialLoginProps) {
         </p>
       )}
 
+      {any && (
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-px flex-1 bg-[var(--border)]" />
+          <span className="text-xs text-[var(--text-faint)]">{t('auth.social.or')}</span>
+          <span className="h-px flex-1 bg-[var(--border)]" />
+        </div>
+      )}
+
+      {/* Mounted even before it is known to exist: it asks /bots itself. */}
+      <TelegramLogin oauthParams={oauthParams} onAvailable={setTelegram} />
+
       {providers.length > 0 && (
         <>
-          <div className="flex items-center gap-3 mb-4">
-            <span className="h-px flex-1 bg-[var(--border)]" />
-            <span className="text-xs text-[var(--text-faint)]">{t('auth.social.or')}</span>
-            <span className="h-px flex-1 bg-[var(--border)]" />
-          </div>
-
-          <div className="space-y-2">
+          <div className={telegram ? 'space-y-2 mt-2' : 'space-y-2'}>
             {providers.map((p) => (
               <a
                 key={p.id}

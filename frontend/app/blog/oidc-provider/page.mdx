@@ -1,0 +1,122 @@
+import { getPost } from '@/lib/blog'
+import { buildPostMetadata, buildPostJsonLd } from '@/lib/blog-seo'
+import { jsonLdScript } from '@/lib/seo'
+import { PostHeader, PostFooter } from '@/components/blog/PostParts'
+
+export const post = getPost('oidc-provider')
+export const metadata = buildPostMetadata(post)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPostJsonLd(post)) }}
+/>
+
+<PostHeader post={post} />
+
+An OIDC provider is the server that signs people in for other applications and tells those applications, in a signed token, who signed in. The OpenID Connect specifications call it an OpenID Provider, or OP; the applications that rely on it are Relying Parties. If you are adding sign-in to a SaaS product, connecting a CLI to an API, or wiring an MCP server to an identity provider, you are choosing or running an OIDC provider. This post explains what the provider does, which flows it runs, and what to check before you pick one, with a link to the spec behind every item.
+
+## What OpenID Connect adds to OAuth
+
+OAuth 2.0, defined in [RFC 6749](https://www.rfc-editor.org/rfc/rfc6749), lets an application obtain "limited access to an HTTP service". It issues access tokens for APIs and says nothing about who the user is. Applications that used OAuth for sign-in had to call some profile endpoint and trust whatever came back.
+
+[OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) adds an identity layer on top. The provider issues an ID token, a JWT whose claims describe the authentication event: `iss` (who issued it), `sub` (a stable identifier for the user), `aud` (the client it was issued to), `exp` and `iat`. All five are required. The client validates the token's signature and claims and then knows, without another call, who signed in and for which application.
+
+The specification is mature. Core 1.0 was first published as final on [25 February 2014](https://openid.net/specs/openid-connect-core-1_0-final.html); the current text incorporates errata set 2, dated 15 December 2023. The OpenID Foundation [lists twelve](https://openid.net/developers/specs/) OpenID Connect specifications published as ISO/IEC standards, Core among them as ISO/IEC 26131:2024.
+
+## OIDC provider and IdP: the difference
+
+"Identity provider" is the broader term. Any system that authenticates users and asserts their identity to others is an IdP, whether it speaks SAML, OpenID Connect, LDAP or something proprietary. An OIDC provider is an IdP that makes those assertions with OpenID Connect. Many identity products are both: they act as an OIDC provider to your applications and may also federate to other IdPs, such as a customer's corporate SAML directory, behind the scenes.
+
+## The flows an OIDC provider runs
+
+Core defines three ways to authenticate: "the Authorization Code Flow (response_type=code), the Implicit Flow (response_type=id_token token or response_type=id_token), or the Hybrid Flow".
+
+The authorization code flow is the one to use. The browser is redirected to the provider, the user signs in, the provider redirects back with a short-lived code, and the application exchanges that code for tokens over a direct back-channel request. With PKCE from [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636), the exchange is bound to a secret the client generated, so an intercepted code is useless.
+
+The implicit flow returned tokens straight in the redirect. The OAuth security best practice, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700), now says clients "SHOULD NOT use the implicit grant (response type token) or other response types issuing access tokens in the authorization response". Single-page applications use the code flow with PKCE instead.
+
+Three OAuth grants often sit next to the OIDC flows. Refresh tokens keep a session alive without another sign-in. The client credentials grant from RFC 6749 issues tokens to a backend service with no user involved. The [device authorization grant, RFC 8628](https://www.rfc-editor.org/rfc/rfc8628), is "designed for Internet-connected devices that either lack a browser ... or are input constrained": a TV or a CLI shows a code, and the user approves it on a phone.
+
+## What to check before you pick an OIDC provider
+
+The checklist below follows the order in which a client library meets each item, starting with the first URL it fetches.
+
+### Discovery
+
+[OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) says providers "MUST make a JSON document available at the path formed by concatenating the string /.well-known/openid-configuration to the Issuer". Libraries such as `openid-client` or `oidc-client-ts` configure themselves from that one URL.
+
+Fetch it and look for the required fields: `issuer`, `authorization_endpoint`, `token_endpoint` (required unless only the implicit flow is used), `jwks_uri`, `response_types_supported`, `subject_types_supported` and `id_token_signing_alg_values_supported`. Then check that `issuer` is byte-for-byte the URL you fetched it from, minus the well-known suffix. Discovery requires that match, so a stray trailing slash is enough for a strict library to refuse to start.
+
+```bash
+curl -s https://idp.example.com/.well-known/openid-configuration | jq '{issuer, jwks_uri, code_challenge_methods_supported, backchannel_logout_supported}'
+```
+
+OAuth-only clients may look for the [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) document at `/.well-known/oauth-authorization-server` instead. MCP clients, for example, must try both. A provider that serves both saves you a support ticket.
+
+### JWKS and key rotation
+
+The `jwks_uri` points to a JSON Web Key Set, the format from [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517). Your application caches it and verifies ID tokens and JWT access tokens offline. Check three things: every key has a `kid`, the signing algorithm is one your library supports (Discovery says of the ID token algorithms that "The algorithm RS256 MUST be included"), and the provider publishes a new key before it starts signing with it. A provider that rotates by swapping keys in place will break every client with a cached set until their cache expires.
+
+### PKCE
+
+RFC 9700 is blunt: "Public clients MUST use PKCE", for confidential clients it is "RECOMMENDED", and "Authorization servers MUST support PKCE". It also says S256 is currently the only challenge method that does not expose the verifier. Check that discovery lists `code_challenge_methods_supported` with `S256`. The field is optional in RFC 8414, and some clients, including MCP clients, refuse to proceed when it is missing.
+
+### Passkeys and WebAuthn
+
+OIDC does not care how the user signs in, which means sign-in strength is a property of the provider. Passkeys are now a finished standard: W3C [Web Authentication Level 3](https://www.w3.org/TR/webauthn-3/) became a Recommendation on 25 August 2026, and the [FIDO Alliance](https://fidoalliance.org/passkeys/) maintains the passkey material built on it. Because a passkey is tied to the domain that created it, a phishing page on another domain cannot use it.
+
+Ask whether passkeys are a first-class sign-in method or a second factor bolted onto passwords, and whether the ID token reports what happened. Core defines the `amr` claim (authentication methods references) and the `acr` claim (authentication context class), and lets the client ask for a level with `acr_values`. If your app needs to require a passkey before a sensitive action, those claims are how it finds out.
+
+### Logout, including back-channel logout
+
+Signing out of one app should usually end the session at the provider and in the other apps. OpenID publishes three logout specifications, all final since 12 September 2022: [RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html) (the app sends the user to the provider's `end_session_endpoint`), [Front-Channel Logout](https://openid.net/specs/openid-connect-frontchannel-1_0.html) (the provider loads each app's logout URL in an iframe) and [Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html).
+
+Back-channel logout is the reliable one, because it does not depend on third-party cookies in the browser. The provider POSTs a signed logout token directly to each app. The token has required `iss`, `aud`, `iat`, `exp` and `jti` claims, an `events` claim containing `http://schemas.openid.net/event/backchannel-logout`, and "MUST contain either a sub or a sid Claim". A `nonce` claim "MUST NOT be present", which is how an app tells a logout token from an ID token. Look for `backchannel_logout_supported` in discovery, and plan to store the `sid` from each ID token so you can find the session the logout token refers to.
+
+### Token handling: introspection, revocation, PAR and DPoP
+
+A few OAuth extensions separate a provider that is merely compliant from one that is easy to operate:
+
+- [token introspection, RFC 7662](https://www.rfc-editor.org/rfc/rfc7662), lets an API ask whether a token is still active;
+- [token revocation, RFC 7009](https://www.rfc-editor.org/rfc/rfc7009), lets a client tell the provider a token is no longer needed;
+- [pushed authorization requests, RFC 9126](https://www.rfc-editor.org/rfc/rfc9126), move the authorization request parameters off the browser URL into a direct POST;
+- [DPoP, RFC 9449](https://www.rfc-editor.org/rfc/rfc9449), binds tokens to a key the client holds, so a stolen token cannot be replayed from elsewhere;
+- [resource indicators, RFC 8707](https://www.rfc-editor.org/rfc/rfc8707), put the target API into the token's audience.
+
+You may not need all of them on day one. Check that the provider lists the ones you will need in its discovery document, because adding them later can mean migrating providers.
+
+### Certification and conformance
+
+The OpenID Foundation runs a [certification programme](https://openid.net/certification/) and keeps a [list of certified implementations](https://openid.net/developers/certified-openid-connect-implementations/). Certification is evidence that a provider passed the foundation's conformance suite for specific profiles. Ask which profiles a vendor is certified for, rather than whether they are certified at all.
+
+## Build, use a library, or buy
+
+To run the provider yourself, you can start from a library such as [`node-oidc-provider`](https://github.com/panva/node-oidc-provider), which describes itself as an "OpenID Certified™ OAuth 2.0 Authorization Server implementation for Node.js". A library gives you protocol correctness; you still build the sign-in UI, user storage, MFA, account recovery and the admin surface.
+
+Self-hosted servers such as Keycloak, Zitadel or Ory come with those pieces and leave you with operations: a database, upgrades, backups and monitoring. Managed providers take operations off your hands for a monthly price that usually grows with monthly active users; the [Auth0 alternative](/blog/auth0-alternative) and [Keycloak alternative](/blog/keycloak-alternative) posts compare those prices.
+
+Whichever path you choose, run the checklist against the provider's live discovery document rather than its marketing page. A discovery document is published by the provider itself and is easy to compare. INITE Identity's [OIDC reference](/docs/oidc), for instance, lists its discovery fields, including `code_challenge_methods_supported` with only `S256`, PAR and device endpoints, DPoP algorithms and `backchannel_logout_supported`.
+
+## FAQ
+
+### What is an OIDC provider?
+
+It is a server that authenticates users and issues ID tokens to applications using OpenID Connect. The specifications call it an OpenID Provider. Applications validate the ID token's signature and claims to learn who signed in.
+
+### What is the difference between an OIDC provider and an IdP?
+
+An IdP is any system that authenticates users and asserts their identity, in any protocol. An OIDC provider is an IdP that uses OpenID Connect. An IdP can speak SAML and act as an OIDC provider at the same time.
+
+### Is GitHub an OIDC provider?
+
+For GitHub Actions, yes. GitHub publishes a discovery document at [token.actions.githubusercontent.com](https://token.actions.githubusercontent.com/.well-known/openid-configuration) and issues OIDC tokens to workflows so they can authenticate to cloud providers without stored secrets, as its [Actions documentation](https://docs.github.com/en/actions/concepts/security/openid-connect) describes. For signing users into your app, `github.com` itself serves no OpenID discovery document at `/.well-known/openid-configuration` (it returned 404 when this post was written) and GitHub documents third-party sign-in as [OAuth apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps).
+
+### What is the simplest OIDC provider available?
+
+For a test environment, a library such as `node-oidc-provider` or a single container of a self-hosted server gets you a working issuer quickly. For production, simplicity is mostly about operations, which is the trade-off between self-hosting and a managed provider described above.
+
+### Do I need OIDC if I already use OAuth?
+
+If your application only calls APIs, OAuth is enough. If it needs to know who the user is, use OIDC, because OAuth access tokens are meant for the API and say nothing reliable to the client about the user.
+
+<PostFooter post={post} />

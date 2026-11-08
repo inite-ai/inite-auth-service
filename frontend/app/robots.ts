@@ -39,7 +39,7 @@ export const APP_PATHS = [
 ]
 
 export default function robots(): MetadataRoute.Robots {
-  const marketing = { allow: ['/', '/docs'], disallow: APP_PATHS }
+  const marketing = { allow: ['/', '/docs', '/blog'], disallow: APP_PATHS }
   return {
     rules: [
       { userAgent: '*', ...marketing },

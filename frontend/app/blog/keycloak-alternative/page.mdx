@@ -1,0 +1,122 @@
+import { getPost } from '@/lib/blog'
+import { buildPostMetadata, buildPostJsonLd } from '@/lib/blog-seo'
+import { jsonLdScript } from '@/lib/seo'
+import { PostHeader, PostFooter } from '@/components/blog/PostParts'
+
+export const post = getPost('keycloak-alternative')
+export const metadata = buildPostMetadata(post)
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPostJsonLd(post)) }}
+/>
+
+<PostHeader post={post} />
+
+This post assumes your problem with Keycloak is the work of running it: upgrades, theme customisation, resource use, realm exports that drift from production. So the useful comparison is about where the operating cost goes. You can keep Keycloak and pay someone to host it, move to a lighter self-hosted server, or hand identity to a hosted provider and pay per user. This post covers all three, with licences and prices read from each project's own pages on 3 November 2026.
+
+## What you get with Keycloak today
+
+[Keycloak](https://www.keycloak.org/) is open source under the [Apache 2.0 licence](https://github.com/keycloak/keycloak/blob/main/LICENSE.txt). Its homepage says it "is based on standard protocols and provides support for OpenID Connect, OAuth 2.0, and SAML", connects to "existing LDAP or Active Directory servers", can broker sign-in through other OpenID Connect or SAML 2.0 identity providers, and has fine-grained authorization services for when role-based access is not enough.
+
+That list explains why Keycloak is hard to replace. It answers almost every enterprise identity requirement, including SAML, which some of the hosted providers below charge extra for or leave out of their free plans. Before you move, list the Keycloak features you actually use: SAML clients, LDAP federation, identity brokering, authorization services, custom authenticators written as Java SPIs. Each one you rely on removes some alternatives from the list.
+
+If you want Keycloak with a vendor behind it, Red Hat ships a supported build. Its [own article](https://access.redhat.com/articles/7044244) says the Red Hat build of Keycloak is "not available for purchase as a separate and distinct product"; the entitlement comes with Red Hat Runtimes, Application Foundations, OpenShift Container Platform and bundles that include them.
+
+## Where the cost of running Keycloak goes
+
+Keycloak has no licence fee, so its cost is your infrastructure and your team's time. The recurring items are the same for any self-hosted identity server:
+
+- **a database** that holds users, sessions and configuration, with backups you have restored at least once;
+- **upgrades**, because identity servers ship security fixes you cannot postpone, and major versions change configuration and themes;
+- **high availability**, since an outage of the identity server is an outage of every app that signs in through it;
+- **customisation**, which for Keycloak means login themes and, for anything deeper, Java extensions you maintain across upgrades;
+- **on-call**, because somebody has to answer when sign-in stops at night.
+
+None of these has a list price, so estimate them in hours a month for your own team. That number is what you compare against the managed prices below.
+
+## Option 1: keep Keycloak, let someone else run it
+
+Managed Keycloak keeps your realms, clients and SAML integrations intact and moves the operations to a vendor. Prices are per cluster rather than per user, which suits large user bases.
+
+[Phase Two](https://phasetwo.io/pricing/hosting/) says its hosting is "priced per cluster, not per user. Users are unlimited on every tier". Starter is "$149 /month", "sized for 5K active users". Premium is $749 a month billed annually or "$999/mo billed monthly", sized for 100,000 active users with a 99.5% uptime SLA. Enterprise is $2,499 a month billed annually or "$2,999/mo billed monthly", sized for 500,000 with 99.95%.
+
+[Cloud-IAM](https://www.cloud-iam.com/pricing) prices in euros. Starter is "Starting from 225€ /month" with a 99% SLA and "Unlimited Monthly Active Users"; Essential starts from 495€ with 99.9%, and Premium from 1440€ with 99.95%.
+
+This is the lowest-risk move. Nothing changes for your applications, and the bill is predictable. It does not solve problems that come from Keycloak itself, such as theme work or Java extensions.
+
+## Option 2: a different self-hosted server
+
+If the problem is Keycloak's weight or its extension model, another open-source server may fit better. Read the licence first, because it decides what you can do with modifications.
+
+### Zitadel
+
+Zitadel is written in Go and licensed under [AGPL-3.0](https://github.com/zitadel/zitadel/blob/main/LICENSE). It is built around organizations and multi-tenancy, which suits B2B products. The AGPL requires you to publish modifications if you offer the modified server over a network, so check that with your lawyers if you plan to fork it. Zitadel also runs a [cloud service](https://zitadel.com/pricing): Free is "US$ 0 /Month" with "100 Daily Active Users", Pro is "US$ 100 /Month" starting "with 25'000 Daily Active Users per month included", and Enterprise can run on your own infrastructure under a commercial licence.
+
+### authentik
+
+[authentik](https://github.com/goauthentik/authentik/blob/main/LICENSE) is another self-hosted server. Its licence file puts the core under MIT and the `authentik/enterprise/` directory under a separate enterprise licence, so it is open core. Its [pricing page](https://goauthentik.io/pricing) lists the open-source version as free and Enterprise at "$5 / user / month" plus "$0.02 / external user* / month", billed annually.
+
+### Ory
+
+Ory splits identity into separate services. [Kratos](https://github.com/ory/kratos/blob/master/LICENSE) manages users and sign-in, [Hydra](https://github.com/ory/hydra/blob/master/LICENSE) is the OAuth 2.0 and OpenID Connect server; both are Apache 2.0. You assemble the pieces you need and build your own UI. The hosted [Ory Network](https://www.ory.com/pricing) starts with a free Developer plan, then Production at "$770 /year" with "$0.14 / aDAU / month".
+
+### Logto and FusionAuth
+
+[Logto](https://github.com/logto-io/logto/blob/master/LICENSE) is under MPL-2.0 and has a hosted plan whose [free tier](https://logto.io/pricing) covers "Up to 50,000 MAU". [FusionAuth](https://fusionauth.io/pricing) is not open source in the same sense, but its Community edition is "Self-hosted: Free" and paid plans start "Starting at: $162 / mo, Billed annually".
+
+### Smaller OIDC providers
+
+If you mostly need OpenID Connect sign-in for your own apps, with passkeys and no SAML, a smaller provider can be easier to operate. INITE Identity is one: its [docs](/docs) describe an OAuth 2.0 and OIDC provider with passkeys, magic links, password fallback and service tokens for backend-to-backend calls. Check any such server against your Keycloak feature list before you plan a migration; the [OIDC provider checklist](/blog/oidc-provider) is a starting point.
+
+## Option 3: a hosted identity provider
+
+The third path ends self-hosting. Hosted providers charge per active user and take over availability, upgrades and security patching. For consumer volumes, the per-user rates published by [Supabase](https://supabase.com/pricing) ("100,000 monthly active users then $0.00325 per MAU" on Pro) and [Google Identity Platform](https://cloud.google.com/identity-platform/pricing) ($0.0055 per MAU from 50,000 to 100,000) are among the lowest. For B2B products, [WorkOS](https://workos.com/pricing) charges per SSO connection ("$125 / ea" for the first fifteen) and gives user management free "Up to 1 million users". The [Auth0 alternative](/blog/auth0-alternative) post compares these and other vendors in more detail.
+
+Two things deserve a check before you leave a server you control. First, data residency: a hosted provider stores your users in its regions, which some contracts forbid. Second, SAML: if Keycloak serves SAML to legacy applications, confirm that the hosted provider can act as a SAML identity provider as well as an OIDC one.
+
+## How to choose
+
+Choose managed Keycloak if your applications depend on Keycloak-specific features and you want the operations gone without a migration.
+
+Choose another self-hosted server if Keycloak's operational weight or its Java extension model is the problem and you must keep the data on your infrastructure. Read the licence, and test the upgrade path on a staging copy before you commit.
+
+Choose a hosted provider if you do not need to self-host. The per-user bill replaces the database, the upgrades and the on-call rotation, and for a small team that trade often favours the bill.
+
+Whichever you pick, migrate one application first. Point it at the new issuer, confirm discovery, keys, logout and the claims your code reads, then move the rest.
+
+## What a migration off Keycloak involves
+
+Moving to managed Keycloak is a database move. Moving to anything else is a migration, and four parts of it take most of the time.
+
+**User records and passwords.** Export users with their password hashes and confirm that the new server can verify that hash format. If it cannot, users have to reset their passwords, or you run both servers side by side and move each user on their next sign-in.
+
+**Subject identifiers.** Your applications probably store the `sub` claim as the user's key. A new server issues new identifiers unless it lets you import the old ones, so either import them or keep a mapping table in each application.
+
+**Clients and redirect URIs.** Every Keycloak client becomes a client on the new server, with the same redirect URIs, scopes and token lifetimes. Diff the two configurations instead of retyping them by hand.
+
+**Claims and roles.** Keycloak puts realm and client roles into tokens in its own shape. Code that reads `realm_access` or `resource_access` needs to change when the new server names roles differently. Search your codebase for those claim names before the cut-over date, not after.
+
+## FAQ
+
+### Is authentik better than Keycloak?
+
+Neither is better in general. authentik is open core with an MIT-licensed core and a paid Enterprise edition; Keycloak is Apache 2.0 throughout and has the deeper enterprise feature set, including authorization services and a long record of SAML deployments. Compare them against the specific features you use.
+
+### Is Keycloak an OAuth server?
+
+Yes. Keycloak acts as an OAuth 2.0 authorization server and an OpenID Connect provider, and also supports SAML, as its homepage states.
+
+### Why do people use Keycloak?
+
+Because it is free to license under Apache 2.0, covers OpenID Connect, OAuth 2.0 and SAML in one server, federates with LDAP and Active Directory, and can be run entirely on your own infrastructure.
+
+### What is replacing SAML?
+
+OpenID Connect does the same single sign-on job with JSON and JWTs, which suits mobile and single-page apps, so it is the usual choice for new integrations. SAML 2.0 is still in use for enterprise single sign-on, which is why Keycloak supports both.
+
+### What does managed Keycloak cost?
+
+Published prices start at $149 a month at Phase Two and 225€ a month at Cloud-IAM, both without per-user charges, rising with cluster size and SLA.
+
+<PostFooter post={post} />

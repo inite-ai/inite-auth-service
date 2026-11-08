@@ -6,7 +6,9 @@ import { BOT_A_TOKEN, NOW, signWidget, widgetFields } from './telegram-fixtures'
 
 const ENV = {
   FRONTEND_URL: 'https://auth.example',
-  FEDERATION_REDIRECT_BASE: 'https://auth.example',
+  // The API's own host, where other federation callbacks land; the widget's
+  // callback must not (see the login-host tests below).
+  FEDERATION_REDIRECT_BASE: 'https://auth-api.example',
   SESSION_SECRET: 'test-session-secret',
 };
 
@@ -104,5 +106,54 @@ describe('Telegram widget endpoints', () => {
     expect(res.redirect).toHaveBeenCalledWith(
       'https://auth.example/login?federation_error=telegram_failed',
     );
+  });
+});
+
+/**
+ * Telegram refuses a widget on any page but the bot's domain («Bot domain
+ * invalid»), and the state cookie /start sets on the login page's host only
+ * comes back to a callback on that host. So the widget's callback is on
+ * FRONTEND_URL, never the API host; and the login page, which knows only the
+ * client of the /authorize in flight, can ask which bot to show.
+ */
+describe('Telegram widget lives on the login page host', () => {
+  function make() {
+    const tg = makeTelegram();
+    return new TelegramAuthController(tg.service, {} as TelegramWebAppService, fakeConfig(ENV));
+  }
+
+  it("start's auth_url is on the login page's host, not the API's", async () => {
+    const out = await make().start(
+      { bot: 'shop', client_id: 'inite-shop' },
+      fakeRes() as unknown as Response,
+    );
+    const url = new URL(out.auth_url);
+    expect(url.origin).toBe('https://auth.example');
+    expect(url.pathname).toBe('/v1/auth/telegram/callback');
+  });
+
+  it("start without a bot uses the client's own bot", async () => {
+    const out = await make().start(
+      { client_id: 'smart-chat', redirect_uri: 'https://break3.example/callback' },
+      fakeRes() as unknown as Response,
+    );
+    expect(out.bot_username).toBe('break3_bot');
+  });
+
+  it('start without a bot, for a client with none, refuses as bot_not_bound', async () => {
+    await expect(
+      make().start({ client_id: 'nobody' }, fakeRes() as unknown as Response),
+    ).rejects.toMatchObject({ response: { error_description: 'bot_not_bound' } });
+  });
+
+  it("bots names the client's bot by its public fields and never its token", () => {
+    const out = make().bots('inite-shop');
+    expect(out).toEqual({ bots: [{ name: 'shop', username: 'inite_shop_bot' }] });
+    expect(JSON.stringify(out)).not.toContain(BOT_A_TOKEN);
+  });
+
+  it('bots for a client without a bot, or no client, is empty', () => {
+    expect(make().bots('nobody')).toEqual({ bots: [] });
+    expect(make().bots(undefined)).toEqual({ bots: [] });
   });
 });

@@ -96,6 +96,7 @@ export const pt: Partial<Dict> = {
   'auth.social.error.emailConflict':
     'Já existe uma conta com esse e-mail. Entre pelo método que você já usa e depois vincule este provedor nas configurações da conta.',
   'auth.social.error.failed': 'Não foi possível entrar com a rede social. Tente de novo.',
+  'auth.social.error.telegram': 'Não foi possível entrar com o Telegram. Tente de novo.',
 
   // OAuth consent screen
   'consent.header': 'Autorizar app',

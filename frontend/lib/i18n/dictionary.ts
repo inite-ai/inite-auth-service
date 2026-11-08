@@ -95,6 +95,7 @@ export const en = {
   'auth.social.error.emailConflict':
     'An account already exists for that email. Sign in with your existing method, then link this provider from account settings.',
   'auth.social.error.failed': 'Social sign-in failed. Please try again.',
+  'auth.social.error.telegram': 'Telegram sign-in failed. Please try again.',
 
   // OAuth consent screen
   'consent.header': 'Authorize app',

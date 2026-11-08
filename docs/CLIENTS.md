@@ -136,3 +136,25 @@ ssh <prod> docker exec inite-auth-service rm /app/client-secrets.local.env
 Or run the new-client/rotation step from a machine that has `gh` and reaches
 the database (`npm run clients:apply -- --apply`), where the secret goes
 straight to the client's repository.
+
+## Telegram sign-in for a product
+
+A product whose people sign in with Telegram has a bot bound to its client in
+`TELEGRAM_BOTS` (`deploy/docker-compose.prod.yml`), with the token in its own
+org secret `<NAME>_TELEGRAM_BOT_TOKEN` read into `TELEGRAM_BOT_TOKEN_<NAME>`.
+Two ways in, both ending in an ordinary INITE session and token:
+
+- **Mini App** (`POST /v1/auth/telegram/webapp`): the product's own page
+  inside Telegram sends `initData`. Nothing to set in BotFather beyond the
+  Mini App itself.
+- **Login Widget on auth.inite.ai/login**: shown when the `/authorize` in
+  flight is for a client with a bound bot (`GET /v1/auth/telegram/bots`). The
+  page and the widget's callback are both on auth.inite.ai, so in BotFather:
+
+  ```
+  /setdomain  → choose the bot → auth.inite.ai
+  ```
+
+  A bot has one domain. A bot set to auth.inite.ai can no longer show a
+  Login Widget on the product's own site; the product sends people to
+  INITE sign-in instead (its `/authorize`), where the widget is.

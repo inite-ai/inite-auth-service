@@ -71,9 +71,11 @@ export class TelegramAuthService {
     oauthParams: Record<string, string>,
   ): Promise<{ state: string; bot: TelegramBot }> {
     this.assertEnabled();
-    const bot = this.bots.byName(botName);
-    if (!bot) throw new TelegramAuthError('unknown_bot');
     const clientId = oauthParams.client_id;
+    // No bot named: the client's own bot. The login page knows the client of
+    // the /authorize in flight, not which bot serves it.
+    const bot = botName ? this.bots.byName(botName) : this.bots.forClient(clientId ?? '')[0];
+    if (!bot) throw new TelegramAuthError(botName ? 'unknown_bot' : 'bot_not_bound');
     if (!clientId || !bot.clients.includes(clientId)) {
       throw new TelegramAuthError('bot_not_bound');
     }
@@ -81,6 +83,16 @@ export class TelegramAuthService {
     const data: TelegramWidgetState = { bot: bot.name, clientId, oauthParams };
     await this.redis.set(STATE_KEY(state), JSON.stringify(data), STATE_TTL_SECONDS);
     return { state, bot };
+  }
+
+  /**
+   * The bots a client's login page may offer, public fields only: the page
+   * shows «Sign in with Telegram» when there is one. An unknown client gets
+   * none, the same answer as a client with no bot.
+   */
+  botsForClient(clientId: string): Array<{ name: string; username: string }> {
+    this.assertEnabled();
+    return this.bots.forClient(clientId).map((b) => ({ name: b.name, username: b.username }));
   }
 
   /**

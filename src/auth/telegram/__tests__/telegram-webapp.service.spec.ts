@@ -4,6 +4,9 @@ import { OAuthService } from '../../../oauth/oauth.service';
 import { ConsentService } from '../../../oauth/consent.service';
 import { StepUpService } from '../../../oauth/step-up.service';
 import { TelegramWebAppService } from '../telegram-webapp.service';
+import { TelegramLinkService } from '../telegram-link.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { RedisService } from '../../../common/redis.service';
 import { makeTelegram } from './telegram-harness';
 import { BOT_A_TOKEN, BOT_B_TOKEN, NOW, initDataFields, signInitData } from './telegram-fixtures';
 
@@ -34,6 +37,10 @@ function makeWebApp(
     oauth as unknown as OAuthService,
     consent as unknown as ConsentService,
     new StepUpService(),
+    new TelegramLinkService(
+      tg.db.prisma as unknown as PrismaService,
+      tg.redis as unknown as RedisService,
+    ),
   );
   return { service, oauth, consent, tg };
 }

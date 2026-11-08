@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /**
  * POST /v1/auth/telegram/webapp: a Mini App's initData plus the parameters of
@@ -45,4 +45,13 @@ export class TelegramWebAppDto {
   @IsOptional()
   @IsString()
   resource?: string;
+
+  /**
+   * False: a Telegram user no INITE account is linked to gets no account and
+   * no code, but a 409 `telegram_not_linked` with a link ticket (see
+   * TelegramLinkService). For a Mini App that serves only existing accounts.
+   */
+  @IsOptional()
+  @IsBoolean()
+  create_user?: boolean;
 }

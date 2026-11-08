@@ -101,10 +101,17 @@ services:
       # skipped with a warning (telegram-bots.store.ts).
       #   break3: @break3_bot, Break3's Mini App -> client smart-chat
       #   floripa: @floripa_ru_bot, floripa.info's Mini App and site -> client floripa
+      #   initeai: inite.ai's bot (its cabinet Mini App) -> client inite-ai
+      #   digital: inite.digital's platform bot (its Mini App) -> client content-generator
+      # The last two bots' @usernames are repository variables
+      # (INITEAI_TELEGRAM_BOT_USERNAME, DIGITAL_TELEGRAM_BOT_USERNAME): until
+      # one is set its entry is malformed and the store skips it.
       - TELEGRAM_PROVIDER_ENABLED=${TELEGRAM_PROVIDER_ENABLED:-false}
-      - 'TELEGRAM_BOTS=[{"name":"break3","username":"break3_bot","clients":["smart-chat"]},{"name":"floripa","username":"floripa_ru_bot","clients":["floripa"]}]'
+      - 'TELEGRAM_BOTS=[{"name":"break3","username":"break3_bot","clients":["smart-chat"]},{"name":"floripa","username":"floripa_ru_bot","clients":["floripa"]},{"name":"initeai","username":"${TELEGRAM_BOT_USERNAME_INITEAI:-}","clients":["inite-ai"]},{"name":"digital","username":"${TELEGRAM_BOT_USERNAME_DIGITAL:-}","clients":["content-generator"]}]'
       - TELEGRAM_BOT_TOKEN_BREAK3=${TELEGRAM_BOT_TOKEN_BREAK3:-}
       - TELEGRAM_BOT_TOKEN_FLORIPA=${TELEGRAM_BOT_TOKEN_FLORIPA:-}
+      - TELEGRAM_BOT_TOKEN_INITEAI=${TELEGRAM_BOT_TOKEN_INITEAI:-}
+      - TELEGRAM_BOT_TOKEN_DIGITAL=${TELEGRAM_BOT_TOKEN_DIGITAL:-}
     # Loopback only. Docker writes its own iptables rules, so a plain
     # "PORT:PORT" is open to the internet whatever ufw says; Traefik and the
     # frontend reach this container over the docker networks, not the host

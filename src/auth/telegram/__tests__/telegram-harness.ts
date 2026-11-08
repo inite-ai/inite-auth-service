@@ -74,7 +74,29 @@ export function memoryPrisma() {
           return row ? { ...row, user: users.get(row.userId) } : null;
         },
       ),
-      update: jest.fn(async () => ({})),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: { userId?: string } }) => {
+          const row = identities.find((i) => i.id === where.id);
+          if (row && data.userId) row.userId = data.userId;
+          return {};
+        },
+      ),
+      deleteMany: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId: string; provider: string; providerSubject?: string };
+        }) => {
+          const gone = identities.filter(
+            (i) =>
+              i.userId === where.userId &&
+              i.provider === where.provider &&
+              (!where.providerSubject || i.providerSubject === where.providerSubject),
+          );
+          for (const g of gone) identities.splice(identities.indexOf(g), 1);
+          return { count: gone.length };
+        },
+      ),
       create: jest.fn(
         async ({
           data,
@@ -87,7 +109,13 @@ export function memoryPrisma() {
       ),
     },
     user: {
-      findUnique: jest.fn(async () => null),
+      /** By id or DID (the link import); never by email, as the provider asserts none. */
+      findUnique: jest.fn(async ({ where }: { where: { id?: string; did?: string } }) => {
+        const found = [...users.values()].find(
+          (u) => (where.id && u.id === where.id) || (where.did && u.did === where.did),
+        );
+        return found ?? null;
+      }),
       update: jest.fn(async ({ where }: { where: { id: string } }) => users.get(where.id)),
     },
   };

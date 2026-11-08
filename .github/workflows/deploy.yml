@@ -138,10 +138,16 @@ jobs:
           # token is the organization secret its product reads too, so it
           # lives in one place (BREAK3_TELEGRAM_BOT_TOKEN: inite-auth-service
           # and break3-backend only; FLORIPA_TELEGRAM_BOT_TOKEN: inite-auth-service
-          # and floripa-bot only). docker-compose.prod.yml names the bots.
+          # and floripa-bot only; INITEAI_ and DIGITAL_TELEGRAM_BOT_TOKEN: this
+          # repo and initeai-landing / content-generator). docker-compose.prod.yml
+          # names the bots; two of their @usernames are repository variables.
           echo "TELEGRAM_PROVIDER_ENABLED=${{ vars.TELEGRAM_PROVIDER_ENABLED || 'false' }}"
           echo "TELEGRAM_BOT_TOKEN_BREAK3=${{ secrets.BREAK3_TELEGRAM_BOT_TOKEN }}"
           echo "TELEGRAM_BOT_TOKEN_FLORIPA=${{ secrets.FLORIPA_TELEGRAM_BOT_TOKEN }}"
+          echo "TELEGRAM_BOT_TOKEN_INITEAI=${{ secrets.INITEAI_TELEGRAM_BOT_TOKEN }}"
+          echo "TELEGRAM_BOT_TOKEN_DIGITAL=${{ secrets.DIGITAL_TELEGRAM_BOT_TOKEN }}"
+          echo "TELEGRAM_BOT_USERNAME_INITEAI=${{ vars.INITEAI_TELEGRAM_BOT_USERNAME }}"
+          echo "TELEGRAM_BOT_USERNAME_DIGITAL=${{ vars.DIGITAL_TELEGRAM_BOT_USERNAME }}"
         } > "$DEPLOY_DIR/.env"
         chmod 600 "$DEPLOY_DIR/.env"
 

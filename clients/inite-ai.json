@@ -6,7 +6,8 @@
     "https://inite.ai"
   ],
   "scopes": [
-    "audit:handoff"
+    "audit:handoff",
+    "telegram"
   ],
   "secret": {
     "name": "OAUTH_CLIENT_SECRET"

@@ -185,6 +185,16 @@ const PROD: Record<ProdId, ClientRow> = {
   },
 };
 
+/**
+ * Changes made on purpose since the snapshot above, one per line: the manifest
+ * may differ from the pre-manifest prod row by exactly these fields.
+ */
+const SINCE_PROD: Partial<Record<ProdId, Partial<ClientRow>>> = {
+  // Issue #299: floripa asks for the first-party `telegram` scope (telegram_id claim).
+  floripa: { allowedScopes: ['openid', 'profile', 'email', 'telegram'] },
+};
+const expectedRow = (id: ProdId): ClientRow => ({ ...PROD[id], ...SINCE_PROD[id] });
+
 describe('the clients that were in prod before any manifest', () => {
   const byId = new Map(loadManifests().map((m) => [m.clientId, m]));
 
@@ -192,15 +202,20 @@ describe('the clients that were in prod before any manifest', () => {
     const m = byId.get(id);
     expect(m).toBeDefined();
     const d = deriveClient(m!);
-    for (const f of Object.keys(PROD[id]) as (keyof ClientRow)[]) expect([f, d[f]]).toEqual([f, PROD[id][f]]);
-    expect(d).toEqual(PROD[id]);
+    const want = expectedRow(id);
+    for (const f of Object.keys(want) as (keyof ClientRow)[]) expect([f, d[f]]).toEqual([f, want[f]]);
+    expect(d).toEqual(want);
   });
 
-  it('so applying them is no change, and they leave "unmanaged"', () => {
+  it('so applying them changes only what changed on purpose, and they leave "unmanaged"', () => {
     const rows = Object.values(PROD);
     const leftover = { ...PROD.floripa, clientId: 'test-flow-1779413916', active: false };
     const plan = planApply([...byId.keys()].filter((id) => id in PROD).map((id) => deriveClient(byId.get(id)!)), [...rows, leftover]);
-    expect(plan).toEqual({ create: [], update: [], unmanaged: ['test-flow-1779413916'] });
+    expect(plan.create).toEqual([]);
+    expect(plan.unmanaged).toEqual(['test-flow-1779413916']);
+    expect(plan.update.map((u) => [u.clientId, Object.keys(u.changes)])).toEqual(
+      Object.entries(SINCE_PROD).map(([id, row]) => [id, Object.keys(row ?? {})]),
+    );
   });
 
   it('the machine clients take a secret, the public one never does', () => {

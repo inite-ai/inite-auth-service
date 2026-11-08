@@ -23,7 +23,8 @@ import { OAuthOriginsService } from './oauth-origins.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtOrSessionGuard } from '../auth/guards/jwt-or-session.guard';
-import { CurrentUserId } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/authenticated-user';
 import { LoggerService } from '../common/logger.service';
 import { CreateCodeInput } from './dto/create-code.input';
 import { BackchannelLogoutService } from './backchannel-logout.service';
@@ -61,8 +62,13 @@ export class OAuthSessionController {
    */
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
-  async userinfo(@CurrentUserId() userId: string) {
-    return await this.oauthService.getUserInfo(userId);
+  async userinfo(@CurrentUser() principal: AuthenticatedUser) {
+    if (principal.kind !== 'user') throw new UnauthorizedException('user access token required');
+    // The grant (client and scope) decides first-party claims such as telegram_id.
+    return await this.oauthService.getUserInfo(principal.userId, {
+      clientId: principal.clientId,
+      scope: principal.scope,
+    });
   }
 
   /**

@@ -18,6 +18,7 @@ import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
 import { assertResourceAllowed } from './resource-registry';
 import { CustomerLaneService } from './customer-lane.service';
 import type { LaneClient, LaneOrg } from './customer-lane';
+import { telegramIdClaim, type TelegramClaimQuery } from './telegram-claim';
 
 export interface ExchangeAuthorizationCodeInput {
   code: string;
@@ -373,7 +374,10 @@ export class OAuthService {
   /**
    * Get user info (OIDC endpoint)
    */
-  async getUserInfo(userId: string): Promise<Record<string, unknown>> {
+  async getUserInfo(
+    userId: string,
+    grant?: Pick<TelegramClaimQuery, 'clientId' | 'scope'>,
+  ): Promise<Record<string, unknown>> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -392,6 +396,7 @@ export class OAuthService {
         address: w.address,
         chain: w.chain,
       })),
+      ...(grant ? await telegramIdClaim(this.prisma, { userId, ...grant }) : {}),
     };
   }
 

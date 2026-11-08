@@ -30,6 +30,7 @@ import {
 } from './refresh-grace';
 import { FieldCrypto } from '../common/field-crypto';
 import { RefreshGrant } from './refresh-grant';
+import { telegramIdClaim } from './telegram-claim';
 
 export interface GenerateTokensInput {
   user: User;
@@ -58,6 +59,9 @@ export interface GenerateTokensInput {
    */
   tenant?: string | null;
 }
+
+/** The id_token's input: identity claims resolved before signing (telegram-claim.ts). */
+type IdTokenInput = GenerateTokensInput & { identityClaims?: Record<string, string> };
 
 /** Issuer + access-token expiry resolved once per token issuance. */
 interface SigningContext {
@@ -129,7 +133,13 @@ export class OAuthTokenIssuerService implements OnApplicationBootstrap {
     const orgCtx = { ...(await this.resolveOrgContext(input)), act };
 
     const accessToken = this.buildAccessToken(input, sctx, orgCtx);
-    const idToken = this.buildIdToken(input, sctx, orgCtx);
+    // id_token only: the access token goes to resource servers, which never need it.
+    const identityClaims = await telegramIdClaim(this.prisma, {
+      userId: input.user.id,
+      clientId: input.clientId,
+      scope: input.scope,
+    });
+    const idToken = this.buildIdToken({ ...input, identityClaims }, sctx, orgCtx);
 
     const issued: IssuedTokens = {
       accessToken,
@@ -193,7 +203,7 @@ export class OAuthTokenIssuerService implements OnApplicationBootstrap {
   }
 
   private buildIdToken(
-    input: GenerateTokensInput,
+    input: IdTokenInput,
     sctx: SigningContext,
     orgCtx: OrgContext,
   ): string {
@@ -210,6 +220,7 @@ export class OAuthTokenIssuerService implements OnApplicationBootstrap {
       roles: orgCtx.roles,
       ...platformRoleClaim(user),
       ...orgClaims(orgCtx),
+      ...input.identityClaims,
     };
     if (nonce) idTokenClaims.nonce = nonce;
     // amr is RFC 8176 — list of methods that authenticated the user

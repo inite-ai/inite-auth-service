@@ -656,9 +656,10 @@ describe('customer lane: /authorize', () => {
       req({ userId: 'u9', amr: ['pwd'] }),
       r as unknown as Response,
     );
-    expect(new URL(r.redirect.mock.calls[0][0] as string).searchParams.get('error')).toBe(
-      'login_required',
-    );
+    const back = new URL(r.redirect.mock.calls[0][0] as string);
+    expect(back.searchParams.get('error')).toBe('login_required');
+    // RFC 9207 covers error responses too.
+    expect(back.searchParams.get('iss')).toBe(process.env.OIDC_ISSUER || 'http://localhost:3002');
     expect(createAuthorizationCode).not.toHaveBeenCalled();
   });
 
@@ -670,6 +671,10 @@ describe('customer lane: /authorize', () => {
     expect(createAuthorizationCode).toHaveBeenCalledWith(
       expect.objectContaining({ organization: 'bistro', customer: '1', amr: ['otp'] }),
     );
+    // RFC 9207: the response names the issuer discovery publishes.
+    const back = new URL(r.redirect.mock.calls[0][0] as string);
+    expect(back.searchParams.get('code')).toBe('code-1');
+    expect(back.searchParams.get('iss')).toBe(process.env.OIDC_ISSUER || 'http://localhost:3002');
   });
 
   it('refuses an unknown org before anyone signs in', async () => {

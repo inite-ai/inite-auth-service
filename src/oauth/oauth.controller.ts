@@ -20,7 +20,7 @@ import { StepUpService } from './step-up.service';
 import { ConsentService } from './consent.service';
 import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
 import { AccountChoice, accountChoiceFor } from './account-choice';
-import { buildClientRedirect } from './authorize-redirect';
+import { authorizationIssuer, buildClientRedirect } from './authorize-redirect';
 import { assertResourceAllowed } from './resource-registry';
 import { type LaneOrg } from './customer-lane';
 import { mergePushed, queryToParams } from './authorize-params';
@@ -315,6 +315,7 @@ export class OAuthController {
     errorUrl.searchParams.set('error', error);
     errorUrl.searchParams.set('error_description', description);
     if (p.state) errorUrl.searchParams.set('state', p.state);
+    errorUrl.searchParams.set('iss', authorizationIssuer());
     return res.redirect(errorUrl.toString());
   }
 
@@ -345,6 +346,8 @@ export class OAuthController {
     const successUrl = new URL(p.redirectUri);
     successUrl.searchParams.set('code', code);
     if (p.state) successUrl.searchParams.set('state', p.state);
+    // RFC 9207: names who answered, so a client talking to several servers cannot be mixed up.
+    successUrl.searchParams.set('iss', authorizationIssuer());
     return res.redirect(successUrl.toString());
   }
 

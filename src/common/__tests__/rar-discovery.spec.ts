@@ -45,4 +45,12 @@ describe('HealthController — RAR discovery metadata', () => {
     }).openidConfiguration() as Record<string, unknown>;
     expect(meta.authorization_details_types_supported).toEqual(['custom_a', 'custom_b']);
   });
+
+  // MCP 2026-07-28 clients look for both before they register or redeem a code.
+  it('advertises client ID metadata documents and the RFC 9207 iss parameter', () => {
+    const meta = controllerWith({ OIDC_ISSUER: 'https://auth-api.inite.test' }).oauthAuthorizationServer() as Record<string, unknown>;
+    expect(meta.client_id_metadata_document_supported).toBe(true);
+    expect(meta.authorization_response_iss_parameter_supported).toBe(true);
+    expect(meta.issuer).toBe('https://auth-api.inite.test');
+  });
 });

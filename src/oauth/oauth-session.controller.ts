@@ -32,6 +32,7 @@ import { ApiKeysService } from './api-keys.service';
 import { ConsentService } from './consent.service';
 import { AgentsService } from './agents.service';
 import { resolvePostLogoutRedirect } from './logout-redirect';
+import { authorizationIssuer } from './authorize-redirect';
 
 
 @ApiTags('oauth')
@@ -301,7 +302,8 @@ export class OAuthSessionController {
     await this.consent.record(userId, input.clientId, grantedScope);
 
     this.logger.oauth('Code created', { clientId: input.clientId, userId });
-    return { code };
+    // RFC 9207: the consent screen appends `iss` to the redirect it builds.
+    return { code, iss: authorizationIssuer() };
   }
 
   /**
@@ -327,7 +329,7 @@ export class OAuthSessionController {
       scope: this.oauthService.normalizeScope(scope || '', client),
       authorizationDetails: authorizationDetails || undefined,
     });
-    return { required };
+    return { required, iss: authorizationIssuer() };
   }
 
   /** The applications the signed-in person has let in. */

@@ -126,12 +126,32 @@ export function buildAuthorizeUrl(params: OAuthParams): string {
 }
 
 /**
+ * RFC 9207: the issuer every authorization response names. The server says
+ * it with the consent check and with each code; the redirects below add it.
+ */
+let knownIssuer: string | null = null
+function rememberIssuer(data: { iss?: unknown }) {
+  if (typeof data?.iss === 'string' && data.iss) knownIssuer = data.iss
+}
+
+/**
  * Build redirect URL with authorization code
  */
 export function buildRedirectWithCode(redirectUri: string, code: string, state?: string | null): string {
   const url = new URL(redirectUri)
   url.searchParams.set('code', code)
   if (state) url.searchParams.set('state', state)
+  if (knownIssuer) url.searchParams.set('iss', knownIssuer)
+  return url.toString()
+}
+
+/** The "person said no" redirect (RFC 6749 §4.1.2.1), with its state and issuer. */
+export function buildDeniedRedirect(redirectUri: string, state?: string | null): string {
+  const url = new URL(redirectUri)
+  url.searchParams.set('error', 'access_denied')
+  url.searchParams.set('error_description', 'User denied the request')
+  if (state) url.searchParams.set('state', state)
+  if (knownIssuer) url.searchParams.set('iss', knownIssuer)
   return url.toString()
 }
 
@@ -151,6 +171,7 @@ export async function isConsentRequired(accessToken: string, params: OAuthParams
     })
     if (!response.ok) return true
     const data = await response.json()
+    rememberIssuer(data)
     return data.required !== false
   } catch {
     return true
@@ -212,6 +233,7 @@ export async function createAuthorizationCode(
   }
 
   const data = await response.json()
+  rememberIssuer(data)
   return data.code
 }
 

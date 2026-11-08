@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, Optional, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { OAuthClient, Prisma } from '@prisma/client';
@@ -7,6 +7,11 @@ import { RegisterClientDto } from './dto/register-client.dto';
 import { validateDcrClientKeys } from './dcr-jwks.util';
 import { dcrSupportedScopes } from './oauth-scopes.registry';
 import { dcrError } from './oauth-errors';
+import { ClientMetadataDocuments, isMetadataDocumentClientId, MetadataDocumentError } from './client-metadata-document';
+import type { SafeFetchOptions } from '../common/safe-fetch';
+
+/** safeFetch options for client metadata documents (tests inject a resolver). */
+export const CLIENT_METADATA_FETCH_OPTIONS = Symbol('CLIENT_METADATA_FETCH_OPTIONS');
 
 /** Input contract for the programmatic registerClient (not public DCR). */
 export interface RegisterClientInput {
@@ -70,7 +75,27 @@ function isLoopbackHost(hostname: string): boolean {
 
 @Injectable()
 export class OAuthClientRegistryService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly documents: ClientMetadataDocuments;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(CLIENT_METADATA_FETCH_OPTIONS) fetchOptions: Partial<SafeFetchOptions> = {},
+  ) {
+    this.documents = new ClientMetadataDocuments(prisma, fetchOptions);
+  }
+
+  /**
+   * An https client_id is its own registration (client-metadata-document.ts):
+   * the document is read before the row, so the row says what the document says.
+   */
+  private async readMetadataDocument(clientId: string): Promise<void> {
+    try {
+      await this.documents.ensure(clientId);
+    } catch (err) {
+      if (err instanceof MetadataDocumentError) throw new UnauthorizedException(`Invalid client: ${err.message}`);
+      throw err;
+    }
+  }
 
   /**
    * Validate OAuth client (no secret required — for authorize endpoint)
@@ -81,6 +106,7 @@ export class OAuthClientRegistryService {
    */
   async validateClient(clientId: string, clientSecret: string): Promise<OAuthClient>;
   async validateClient(clientId: string, clientSecret?: string): Promise<OAuthClient> {
+    if (!clientSecret && isMetadataDocumentClientId(clientId)) await this.readMetadataDocument(clientId);
     const client = await this.prisma.oAuthClient.findFirst({
       where: { clientId, active: true },
     });

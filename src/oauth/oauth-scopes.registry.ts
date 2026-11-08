@@ -81,6 +81,14 @@ export const FUND_SCOPES = ['fund:read', 'fund:write'] as const;
 export const FIRST_PARTY_SCOPES = ['telegram'] as const;
 
 /**
+ * Machine scope of a customer-lane client that keeps its own storefront orgs
+ * (PUT /v1/customer-lane/orgs/:slug, issue #304). Granted only through a
+ * manifest's customerLanePrefix (src/clients/manifest.ts), never to a
+ * dynamically registered client (it is not in DCR_VERTICAL_SCOPES).
+ */
+export const CUSTOMER_LANE_SCOPES = ['customer-lane:orgs'] as const;
+
+/**
  * Vertical scopes an anonymous RFC 7591 registration may request. The
  * sensitive tail of BRAIN_SCOPES (admin / PII / registry publishing) stays
  * operator-provisioned: a self-registered MCP client can ask a user for
@@ -107,6 +115,7 @@ export function supportedScopes(): string[] {
     ...FUND_SCOPES,
     ...BREAK3_SCOPES,
     ...FIRST_PARTY_SCOPES,
+    ...CUSTOMER_LANE_SCOPES,
   ];
 }
 

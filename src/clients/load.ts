@@ -19,6 +19,14 @@ export function loadManifests(dir = join(__dirname, '..', '..', 'clients')): Cli
     problems.push(...manifestProblems(m, f, FAMILY_DOMAINS));
     out.push(m);
   }
+  // Prefixes keep products' storefront orgs apart (Organization.slug is family-wide unique).
+  const prefixes = new Map<string, string>();
+  for (const m of out) {
+    if (!m.customerLanePrefix) continue;
+    const other = prefixes.get(m.customerLanePrefix);
+    if (other) problems.push(`${m.clientId}.json: customerLanePrefix "${m.customerLanePrefix}" is already ${other}'s`);
+    else prefixes.set(m.customerLanePrefix, m.clientId);
+  }
   if (problems.length) throw new Error(`clients/ has problems:\n  ${problems.join('\n  ')}`);
   return out;
 }

@@ -10,5 +10,7 @@
   ],
   "secret": {
     "name": "OAUTH_CLIENT_SECRET"
-  }
+  },
+  "customerLane": true,
+  "customerLanePrefix": "shop-"
 }

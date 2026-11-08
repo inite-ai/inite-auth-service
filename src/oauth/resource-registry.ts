@@ -46,7 +46,12 @@ export const FAMILY_DOMAINS: readonly string[] = [
   'inite.sport',
   // www.mikefluff.com/mcp, the owner's own site, is served from this AS
   // (oauth-scopes.registry.ts MIKEFLUFF_SCOPES).
-  'mikefluff.com',
+  'mikefluff.com',  // Family products on their own names. Both PRMs name this AS
+  // (https://break3.app/.well-known/oauth-protected-resource/mcp,
+  // https://floripa.info/.well-known/oauth-protected-resource/mcp); without
+  // them a self-registered connector got invalid_target for their doors.
+  'break3.app',
+  'floripa.info',
 ];
 
 function extraEntries(env: string | undefined = process.env.OAUTH_RESOURCE_REGISTRY): string[] {

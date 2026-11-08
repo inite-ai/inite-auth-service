@@ -224,3 +224,28 @@ describe('client_credentials and token exchange: resolveExchangeAudience', () =>
     expect(() => resolve(restricted, 'billing')).toThrow(/not allowed/);
   });
 });
+
+/**
+ * Family doors outside the inite.* names. Both PRMs name auth-api.inite.ai as
+ * their authorization server, so a connector that self-registers here and
+ * asks for their door must get a token bound to it, not invalid_target.
+ */
+describe('family doors on their own domains', () => {
+  it.each([
+    'https://break3.app/mcp',
+    'https://break3.app/mcp/open',
+    'https://api.break3.app/mcp',
+    'https://floripa.info/mcp',
+    'https://floripa.info/mcp/operator',
+  ])('a dcr_ client may bind to %s', (resource) => {
+    expect(isRegisteredResource(resource)).toBe(true);
+    expect(() => assertResourceAllowed(client(), resource)).not.toThrow();
+  });
+
+  it('look-alikes of the new domains stay refused', () => {
+    expect(isRegisteredResource('https://break3.app.evil.com/mcp')).toBe(false);
+    expect(isRegisteredResource('https://evilbreak3.app/mcp')).toBe(false);
+    expect(isRegisteredResource('http://break3.app/mcp')).toBe(false);
+    expect(isRegisteredResource('https://floripa.info.evil.com/mcp')).toBe(false);
+  });
+});

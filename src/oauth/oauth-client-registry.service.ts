@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { validateDcrClientKeys } from './dcr-jwks.util';
 import { dcrSupportedScopes } from './oauth-scopes.registry';
+import { dcrError } from './oauth-errors';
 
 /** Input contract for the programmatic registerClient (not public DCR). */
 export interface RegisterClientInput {
@@ -282,14 +283,15 @@ export class OAuthClientRegistryService {
     const withheld = (requested ?? []).filter((g) => g in DCR_WITHHELD_GRANTS);
     const first = withheld[0];
     if (first) {
-      throw new BadRequestException(
+      throw dcrError(
+        'invalid_client_metadata',
         `grant_type "${first}" is not available through dynamic registration: ${DCR_WITHHELD_GRANTS[first]}`,
       );
     }
     const valid = (requested ?? []).filter((g) => DCR_ALLOWED_GRANTS.includes(g));
     const grants = valid.length > 0 ? [...new Set(valid)] : [...DCR_DEFAULT_GRANTS];
     if (grants.includes('client_credentials') && isPublic) {
-      throw new BadRequestException('confidential client required for client_credentials');
+      throw dcrError('invalid_client_metadata', 'confidential client required for client_credentials');
     }
     return grants;
   }
@@ -303,10 +305,10 @@ export class OAuthClientRegistryService {
   private sanitizeRedirectUris(uris: string[] | undefined, grants: string[]): string[] {
     const list = uris ?? [];
     if (grants.includes('authorization_code') && list.length === 0) {
-      throw new BadRequestException('redirect_uris is required for the authorization_code grant');
+      throw dcrError('invalid_redirect_uri', 'redirect_uris is required for the authorization_code grant');
     }
     if (list.length > DCR_MAX_REDIRECT_URIS) {
-      throw new BadRequestException(`redirect_uris cannot exceed ${DCR_MAX_REDIRECT_URIS} entries`);
+      throw dcrError('invalid_redirect_uri', `redirect_uris cannot exceed ${DCR_MAX_REDIRECT_URIS} entries`);
     }
     return list;
   }

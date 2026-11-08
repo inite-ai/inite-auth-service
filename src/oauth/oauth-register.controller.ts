@@ -1,8 +1,10 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, Post, UseInterceptors } from '@nestjs/common';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { OAuthClientRegistryService } from './oauth-client-registry.service';
 import { RegisterClientDto } from './dto/register-client.dto';
+import { DcrMetadataPipe } from './dcr-metadata.pipe';
+import { registerErrors } from './oauth-error.interceptor';
 
 /**
  * RFC 7591 Dynamic Client Registration endpoint.
@@ -11,6 +13,11 @@ import { RegisterClientDto } from './dto/register-client.dto';
  * the /v1/oauth route prefix with OAuthController/TokenController. All
  * privilege-escalation guardrails live in registerDynamicClient; this
  * controller is a thin HTTP shell that shapes the RFC 7591 response.
+ *
+ * The body is typed `unknown` on purpose: the global ValidationPipe skips an
+ * untyped body, and DcrMetadataPipe validates it against RegisterClientDto
+ * while ignoring unknown metadata (RFC 7591 §3.1). Errors answer in RFC 7591
+ * §3.2.2 shape (registerErrors).
  */
 @ApiTags('oauth')
 @Controller({ path: 'oauth', version: '1' })
@@ -20,9 +27,11 @@ export class OAuthRegisterController {
   @Post('register')
   @HttpCode(201)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async register(@Body() dto: RegisterClientDto) {
+  @UseInterceptors(registerErrors)
+  @ApiBody({ type: RegisterClientDto })
+  async register(@Body(DcrMetadataPipe) dto: unknown) {
     const { client, clientSecret } =
-      await this.clientRegistry.registerDynamicClient(dto);
+      await this.clientRegistry.registerDynamicClient(dto as RegisterClientDto);
 
     const response: Record<string, unknown> = {
       client_id: client.clientId,

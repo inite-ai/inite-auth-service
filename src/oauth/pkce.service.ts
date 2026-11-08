@@ -1,21 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { PKCE_METHOD } from './pkce-method';
 
 @Injectable()
 export class PkceService {
   /**
-   * Verify PKCE code challenge
+   * Verify a PKCE code challenge. S256 only: discovery advertises S256 alone,
+   * and a `plain` challenge is the verifier itself, so it proves nothing to
+   * whoever saw the authorization request. A stored `plain` code never
+   * verifies.
    */
   verifyCodeChallenge(
     codeVerifier: string,
     codeChallenge: string,
-    method: string = 'S256',
+    method: string = PKCE_METHOD,
   ): boolean {
-    if (method === 'plain') {
-      return codeVerifier === codeChallenge;
-    }
-
-    if (method === 'S256') {
+    if (method === PKCE_METHOD) {
       const hash = crypto
         .createHash('sha256')
         .update(codeVerifier)

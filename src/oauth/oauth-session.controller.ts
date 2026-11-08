@@ -34,6 +34,7 @@ import { ConsentService } from './consent.service';
 import { AgentsService } from './agents.service';
 import { resolvePostLogoutRedirect } from './logout-redirect';
 import { authorizationIssuer } from './authorize-redirect';
+import { assertS256Method } from './pkce-method';
 
 
 @ApiTags('oauth')
@@ -269,6 +270,8 @@ export class OAuthSessionController {
     if (!input.codeChallenge) {
       throw new BadRequestException('code_challenge is required (PKCE)');
     }
+    // Same rule as /authorize: S256 only, refused before a code exists.
+    assertS256Method(input.codeChallengeMethod);
 
     const grantedScope = this.oauthService.normalizeScope(input.scope || '', client);
 

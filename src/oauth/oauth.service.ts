@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PkceService } from './pkce.service';
+import { assertS256Method } from './pkce-method';
 import { IdentityService } from '../identity/identity.service';
 import { EmailService } from '../email/email.service';
 import { CreateAuthorizationCodeInput } from './dto/create-authorization-code.input';
@@ -111,6 +112,9 @@ export class OAuthService {
     // RFC 9396: validate the raw authorization_details here (the single valve
     // covering both the direct-authorize and consent code-issuance paths).
     // Throws invalid_authorization_details on any violation.
+    // PKCE is S256 only, on every code-issuing path (the create-code one
+    // stored `plain` before): the single valve again.
+    assertS256Method(input.codeChallengeMethod);
     const details = this.authorizationDetails.parse(input.authorizationDetails);
     // Money: an agent gets the person's wallet only on a passkey-approved
     // consent. The single valve again — both code-issuance paths pass here.

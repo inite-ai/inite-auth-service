@@ -323,6 +323,11 @@ model OAuthClient {
   /// gives a passwordless person a `customer` membership in that org (one the
   /// client is bound to) and a token for it. See src/oauth/customer-lane.ts.
   customerLane            Boolean   @default(false) @map("customerLane")
+  /// The slug prefix this lane client's own storefront orgs carry (e.g. "shop-"),
+  /// from clients/<id>.json customerLanePrefix. With it the client may upsert
+  /// those orgs itself (PUT /v1/customer-lane/orgs/:slug, scope
+  /// customer-lane:orgs, issue #304); null = it creates none.
+  customerLanePrefix      String?   @map("customerLanePrefix")
   logoUrl                 String?   @map("logoUrl")
   privacyPolicyUrl        String?   @map("privacyPolicyUrl")
   termsOfServiceUrl       String?   @map("termsOfServiceUrl")

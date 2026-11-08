@@ -158,3 +158,27 @@ Two ways in, both ending in an ordinary INITE session and token:
   A bot has one domain. A bot set to auth.inite.ai can no longer show a
   Login Widget on the product's own site; the product sends people to
   INITE sign-in instead (its `/authorize`), where the widget is.
+
+## Storefront orgs (`customerLanePrefix`)
+
+A product whose tenants' customers sign in on a storefront (`customerLane:
+true`) keeps those tenants' orgs itself once its manifest names a prefix:
+
+```json
+{ "customerLane": true, "customerLanePrefix": "shop-" }
+```
+
+The derived row then also gets the `client_credentials` grant and the
+`customer-lane:orgs` scope (never list that scope by hand; prefixes are unique
+across the manifests). With a machine token for that scope the product calls:
+
+- `PUT /v1/customer-lane/orgs/<prefix><storefront slug>` with
+  `{ "name", "tenantId", "active" }`: creates the tenant's org or brings it to
+  this slug, name and state. Idempotent; `companyId` is `<clientId>:<tenantId>`;
+  `active: false` closes the org to customer sign-in. A slug held by any org
+  that is not this client's (or by another of its tenants) is `409 slug_taken`.
+- `GET /v1/customer-lane/orgs`: the client's own orgs, for a backfill diff.
+
+Only `organizations` rows are written; memberships, roles and API keys never.
+Products call it through `@inite/auth/storefrontOrgs` (inite-shared). Rules:
+`src/customer-lane/storefront-orgs.ts`; design: issue #304.

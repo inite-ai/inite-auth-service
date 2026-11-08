@@ -20,6 +20,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { SsfModule } from './ssf/ssf.module';
 import { ScimModule } from './scim/scim.module';
+import { StorefrontOrgsModule } from './customer-lane/storefront-orgs.module';
 import { SamlModule } from './auth/saml/saml.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
@@ -115,6 +116,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     OrganizationsModule,
     SsfModule,
     ScimModule,
+    StorefrontOrgsModule,
     SamlModule,
   ],
   controllers: [HealthController],

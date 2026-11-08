@@ -69,6 +69,14 @@ export interface ClientManifest {
    * a `customer` membership in that org. Off unless set.
    */
   customerLane?: boolean;
+  /**
+   * The slug prefix of this lane client's own storefront orgs (e.g. "shop-"):
+   * with it the client keeps its tenants' orgs itself through
+   * PUT /v1/customer-lane/orgs/:slug (issue #304), so the derived row also
+   * gets the client_credentials grant and the customer-lane:orgs scope.
+   * Only beside customerLane: true; unique across the manifests.
+   */
+  customerLanePrefix?: string;
   /** Only where the product does not follow the convention. Each with its reason. */
   overrides?: {
     reason: string;
@@ -106,7 +114,11 @@ export interface ClientRow {
   companyId: string | null;
   active: boolean;
   customerLane: boolean;
+  customerLanePrefix: string | null;
 }
+
+/** The scope a lane client's machine token needs to keep its storefront orgs (issue #304). */
+export const CUSTOMER_LANE_ORGS_SCOPE = 'customer-lane:orgs';
 
 export const MANAGED_FIELDS: readonly (keyof ClientRow)[] = [
   'name',
@@ -121,6 +133,7 @@ export const MANAGED_FIELDS: readonly (keyof ClientRow)[] = [
   'companyId',
   'active',
   'customerLane',
+  'customerLanePrefix',
 ];
 
 const uniq = (xs: string[]) => [...new Set(xs)];
@@ -147,11 +160,21 @@ function deriveMachine(m: ClientManifest): ClientRow {
     companyId: m.companyId ?? null,
     active: m.active ?? true,
     customerLane: false,
+    customerLanePrefix: null,
   };
 }
 
 /** isPublic and the token-endpoint auth method, which go together. */
 const authOf = (isPublic: boolean) => ({ isPublic, tokenEndpointAuthMethod: isPublic ? 'none' : 'client_secret_post' });
+
+/**
+ * A lane client with a prefix keeps its own storefront orgs (issue #304): it
+ * also calls auth as itself, with the one scope that allows. Else nothing.
+ */
+function storefrontOrgsOf(m: ClientManifest): { prefix: string | null; grants: readonly string[]; scopes: string[] } {
+  const prefix = m.customerLane === true && m.customerLanePrefix ? m.customerLanePrefix : null;
+  return prefix ? { prefix, grants: MACHINE_GRANTS, scopes: [CUSTOMER_LANE_ORGS_SCOPE] } : { prefix: null, grants: [], scopes: [] };
+}
 
 /** The row a manifest means. */
 export function deriveClient(m: ClientManifest): ClientRow {
@@ -159,12 +182,13 @@ export function deriveClient(m: ClientManifest): ClientRow {
   const o: Partial<NonNullable<ClientManifest['overrides']>> = m.overrides ?? {};
   const origins = (m.origins ?? []).map(origin);
   const callback = o.callbackPath ?? CALLBACK_PATH;
+  const orgs = storefrontOrgsOf(m);
   return {
     clientId: m.clientId,
     name: m.name,
     redirectUris: uniq([...origins.map((x) => x + callback), ...(o.extraRedirectUris ?? [])]),
-    allowedScopes: uniq(o.scopes ?? [...BASELINE_SCOPES, ...(m.scopes ?? [])]),
-    allowedGrants: uniq([...(o.grants ?? DEFAULT_GRANTS)]),
+    allowedScopes: uniq([...(o.scopes ?? [...BASELINE_SCOPES, ...(m.scopes ?? [])]), ...orgs.scopes]),
+    allowedGrants: uniq([...(o.grants ?? DEFAULT_GRANTS), ...orgs.grants]),
     allowedAudiences: uniq(m.audiences ?? []),
     backchannelLogoutUri: backchannelOf(m, origins),
     firstParty: true,
@@ -172,6 +196,7 @@ export function deriveClient(m: ClientManifest): ClientRow {
     companyId: m.companyId ?? null,
     active: m.active ?? true,
     customerLane: m.customerLane === true,
+    customerLanePrefix: orgs.prefix,
   };
 }
 
@@ -212,14 +237,16 @@ export function backchannelUriFor(c: {
 const ID = /^[a-z0-9][a-z0-9-]{1,62}$/;
 const MANIFEST_KEYS = new Set([
   'clientId', 'name', 'repo', 'kind', 'origins', 'scopes', 'audiences', 'companyId',
-  'secret', 'outsideFamily', 'active', 'customerLane', 'overrides',
+  'secret', 'outsideFamily', 'active', 'customerLane', 'customerLanePrefix', 'overrides',
 ]);
 const OVERRIDE_KEYS = new Set(['reason', 'public', 'callbackPath', 'extraRedirectUris', 'backchannelLogoutUri', 'grants', 'scopes']);
 const SECRET_KEYS = new Set(['name', 'environment']);
 /** Keys a machine manifest may not carry: it has no origins and signs no one in. */
-const NOT_ON_MACHINE = ['origins', 'overrides', 'outsideFamily', 'customerLane'] as const;
+const NOT_ON_MACHINE = ['origins', 'overrides', 'outsideFamily', 'customerLane', 'customerLanePrefix'] as const;
 const REPO = /^inite-ai\/[A-Za-z0-9._-]+$/;
-const SCOPE = /^[a-z][a-z0-9_]*(?::[a-z][a-z0-9_]*)?$/;
+const SCOPE = /^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)?$/;
+/** A storefront-org prefix: lower-case letters and digits, ending in a dash ("shop-"). */
+const LANE_PREFIX = /^[a-z][a-z0-9]{1,15}-$/;
 
 function idProblems(m: ClientManifest, file: string): string[] {
   const out: string[] = [];
@@ -303,6 +330,18 @@ function publicProblems(m: ClientManifest, row: ClientRow): string[] {
   return out;
 }
 
+/** customerLanePrefix: only on a lane client, well-formed; the orgs scope only derived, never listed. */
+function laneProblems(m: ClientManifest): string[] {
+  const out: string[] = [];
+  if (m.customerLanePrefix !== undefined) {
+    if (m.customerLane !== true) out.push('customerLanePrefix is only for a customerLane client');
+    if (!LANE_PREFIX.test(m.customerLanePrefix)) out.push('customerLanePrefix is lower-case letters and digits ending in "-" (e.g. "shop-")');
+  }
+  const listed = [...(m.scopes ?? []), ...(m.overrides?.scopes ?? [])];
+  if (listed.includes(CUSTOMER_LANE_ORGS_SCOPE)) out.push(`${CUSTOMER_LANE_ORGS_SCOPE} comes from customerLanePrefix; do not list it`);
+  return out;
+}
+
 function overrideFieldProblems(m: ClientManifest): string[] {
   const o = m.overrides;
   if (!o) return [];
@@ -330,7 +369,7 @@ function derivedProblems(m: ClientManifest): string[] {
 function overrideProblems(m: ClientManifest): string[] {
   const out = [...(m.scopes ?? []), ...(m.overrides?.scopes ?? [])].filter((s) => !SCOPE.test(s)).map((s) => `scope "${s}" is not a scope name`);
   if (m.kind === 'machine') return out;
-  return [...out, ...overrideFieldProblems(m), ...derivedProblems(m)];
+  return [...out, ...laneProblems(m), ...overrideFieldProblems(m), ...derivedProblems(m)];
 }
 
 /** What is wrong with a manifest, as messages ([] when it is fine). */

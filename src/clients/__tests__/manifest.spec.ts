@@ -38,6 +38,7 @@ describe('the family conventions', () => {
       companyId: null,
       active: true,
       customerLane: false,
+      customerLanePrefix: null,
     });
   });
 
@@ -152,6 +153,8 @@ const PROD: Record<ProdId, ClientRow> = {
     companyId: null,
     active: true,
     customerLane: false,
+    // Issue #304's column: null on every row that existed before it.
+    customerLanePrefix: null,
   },
   'inite-education-billing': {
     clientId: 'inite-education-billing',
@@ -167,6 +170,8 @@ const PROD: Record<ProdId, ClientRow> = {
     companyId: null,
     active: true,
     customerLane: false,
+    // Issue #304's column: null on every row that existed before it.
+    customerLanePrefix: null,
   },
   floripa: {
     clientId: 'floripa',
@@ -182,6 +187,8 @@ const PROD: Record<ProdId, ClientRow> = {
     companyId: null,
     active: true,
     customerLane: false,
+    // Issue #304's column: null on every row that existed before it.
+    customerLanePrefix: null,
   },
 };
 
@@ -311,5 +318,48 @@ describe('the scope and key rules', () => {
     expect(problems({ kindd: 'machine' } as Partial<ClientManifest>).join()).toMatch(/unknown key "kindd"/);
     expect(problems({ overrides: { reason: 'a typo in here', publik: true } as unknown as ClientManifest['overrides'] }).join()).toMatch(/unknown key "overrides.publik"/);
     expect(problems({ secret: { name: 'OAUTH_CLIENT_SECRET', env: 'prod' } as unknown as ClientManifest['secret'] }).join()).toMatch(/unknown key "secret.env"/);
+  });
+});
+
+describe('storefront orgs: customerLanePrefix (issue #304)', () => {
+  const problems = (m: Partial<ClientManifest>) => manifestProblems({ ...rent, ...m } as ClientManifest, 'inite-rent.json', FAMILY_DOMAINS);
+
+  it('a lane client with a prefix also calls auth as itself, for its orgs only', () => {
+    const row = deriveClient({ ...rent, customerLane: true, customerLanePrefix: 'rent-' });
+    expect(row.customerLanePrefix).toBe('rent-');
+    expect(row.allowedGrants).toEqual(['authorization_code', 'refresh_token', 'client_credentials']);
+    expect(row.allowedScopes).toContain('customer-lane:orgs');
+  });
+
+  it('without the prefix, or without the lane, the row is as before', () => {
+    for (const m of [{ ...rent, customerLane: true }, { ...rent }]) {
+      const row = deriveClient(m);
+      expect(row.customerLanePrefix).toBeNull();
+      expect(row.allowedGrants).not.toContain('client_credentials');
+      expect(row.allowedScopes).not.toContain('customer-lane:orgs');
+    }
+  });
+
+  it('the prefix needs the lane and a form like "shop-"; the scope is never listed by hand', () => {
+    expect(problems({ customerLanePrefix: 'rent-' }).join()).toMatch(/only for a customerLane client/);
+    for (const bad of ['rent', 'Rent-', '-', 'r-', 'rent_-', 'a'.repeat(17) + '-']) {
+      expect(problems({ customerLane: true, customerLanePrefix: bad }).join()).toMatch(/customerLanePrefix is lower-case/);
+    }
+    expect(problems({ customerLane: true, customerLanePrefix: 'rent-' })).toEqual([]);
+    expect(problems({ scopes: ['customer-lane:orgs'] }).join()).toMatch(/comes from customerLanePrefix/);
+  });
+
+  it('a machine client has no prefix', () => {
+    const machine = { clientId: 'svc-x', name: 'svc', kind: 'machine', scopes: ['a:b'], audiences: ['https://inite.ai'] } as ClientManifest;
+    expect(manifestProblems({ ...machine, customerLanePrefix: 'svc-' }, 'svc-x.json', FAMILY_DOMAINS).join()).toMatch(/no customerLanePrefix/);
+  });
+
+  it('the three storefronts keep their orgs under their own prefixes', () => {
+    const byId = new Map(loadManifests().map((m) => [m.clientId, deriveClient(m)]));
+    expect([...byId.values()].filter((r) => r.customerLanePrefix).map((r) => [r.clientId, r.customerLanePrefix]).sort()).toEqual([
+      ['inite-food', 'food-'],
+      ['inite-shop', 'shop-'],
+      ['inite-training', 'club-'],
+    ]);
   });
 });

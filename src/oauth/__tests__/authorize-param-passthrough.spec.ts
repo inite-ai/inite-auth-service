@@ -314,6 +314,8 @@ describe('/authorize → ui_locales', () => {
       codeChallenge: ALL_PARAMS.codeChallenge,
       codeChallengeMethod: 'S256',
       uiLocales: 'pt-BR',
+      // A dcr_* client must name its resource (resource-required.spec.ts).
+      resource: ALL_PARAMS.resource,
     } satisfies ParPayload);
     await h.controller.authorize(
       {

@@ -6,7 +6,7 @@ import {
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { OAuthClient, DeviceAuthorization } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { assertResourceAllowed } from './resource-registry';
+import { assertResourceAllowed, assertResourceNamed } from './resource-registry';
 
 /**
  * OAuth 2.0 Device Authorization Grant (RFC 8628).
@@ -111,9 +111,11 @@ export class DeviceFlowService {
    * RFC 8707 §2 for the device grant: the resource must be an absolute URI
    * with no fragment, and a client that restricts `allowedAudiences` can only
    * name one of them (the same rule as the authorization_code flow). Both
-   * failures are `invalid_target`. Absent → null (clientId audience).
+   * failures are `invalid_target`. Absent → null (clientId audience), or
+   * `invalid_target` for a dcr_* or metadata-document client.
    */
   static resolveResource(client: OAuthClient, resource?: string | null): string | null {
+    assertResourceNamed(client, resource);
     if (!resource) return null;
     let url: URL;
     try {

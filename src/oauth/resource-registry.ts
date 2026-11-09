@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { isDynamicClientId } from './oauth-scopes.registry';
+import { isMetadataDocumentClientId } from './client-metadata-document';
 
 /**
  * Which RFC 8707 resources an unrestricted client may bind a token to.
@@ -23,8 +24,8 @@ import { isDynamicClientId } from './oauth-scopes.registry';
  * A bare identifier ("brain", "inite-ai") is never a registered resource.
  * A client provisioned with `allowedAudiences` keeps its own list. Any other
  * client (operator-provisioned, confidential, empty list) may bind only to
- * itself ({@link isOwnResource}). An absent resource still yields the
- * client-id audience, unchanged.
+ * itself ({@link isOwnResource}). An absent resource yields the client-id
+ * audience, except for a self-registered client ({@link mustNameResource}).
  */
 export const FAMILY_DOMAINS: readonly string[] = [
   'inite.ai',
@@ -158,5 +159,33 @@ export function assertResourceAllowed(
     error_description: registered
       ? `Resource "${resource}" is not a registered INITE resource`
       : `Resource "${resource}" is not allowed for this client`,
+  });
+}
+
+/**
+ * Must this client name a resource at all? True for a dynamically registered
+ * (`dcr_*`) client and a Client ID Metadata Document client (an https URL as
+ * client_id). Both register themselves, are never first-party, and come to us
+ * for a token to one resource server. Without a resource the issuer fell back
+ * to `aud = client_id`: a token for no resource server in particular, that a
+ * server checking `aud` against client ids could take for a product's own.
+ *
+ * Operator-provisioned clients (the clients/ manifest, `inite-cli`) keep the
+ * client-id audience when they name none: their sign-in flows predate RFC
+ * 8707 and their own APIs read that audience.
+ */
+export function mustNameResource(client: Pick<ResourceBoundClient, 'clientId'>): boolean {
+  return isDynamicClientId(client.clientId) || isMetadataDocumentClientId(client.clientId);
+}
+
+/** Throws RFC 8707 `invalid_target` when a client that must name a resource named none. */
+export function assertResourceNamed(
+  client: Pick<ResourceBoundClient, 'clientId'>,
+  resource: string | null | undefined,
+): void {
+  if (resource || !mustNameResource(client)) return;
+  throw new BadRequestException({
+    error: 'invalid_target',
+    error_description: 'resource is required for this client (RFC 8707)',
   });
 }

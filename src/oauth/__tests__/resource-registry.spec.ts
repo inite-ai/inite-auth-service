@@ -149,9 +149,14 @@ describe('authorization_code: resolveCodeAudience', () => {
     await expect(resolve('inite-cli', INITE_MCP)).resolves.toBe(INITE_MCP);
   });
 
-  it('keeps the client-id audience when no resource is asked for', async () => {
+  it('keeps the client-id audience when a first-party client asks for no resource', async () => {
     const resolve = svcFor({ allowedAudiences: [], isPublic: true });
-    await expect(resolve(DCR, null)).resolves.toBeUndefined();
+    await expect(resolve('inite-cli', null)).resolves.toBeUndefined();
+  });
+
+  it('refuses a dcr client that asks for no resource (resource-required.spec.ts)', async () => {
+    const resolve = svcFor({ allowedAudiences: [], isPublic: true });
+    await expect(resolve(DCR, null)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('refuses a product client asking for brain at the token step', async () => {

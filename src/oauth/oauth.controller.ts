@@ -21,7 +21,7 @@ import { ConsentService } from './consent.service';
 import { rawHasWalletGrant, withWalletAcr, withWalletScopeGrant } from './wallet-grant';
 import { AccountChoice, accountChoiceFor } from './account-choice';
 import { authorizationIssuer, buildClientRedirect } from './authorize-redirect';
-import { assertResourceAllowed } from './resource-registry';
+import { assertResourceAllowed, assertResourceNamed } from './resource-registry';
 import { type LaneOrg } from './customer-lane';
 import { mergePushed, queryToParams } from './authorize-params';
 import { authorizeErrors } from './oauth-error.interceptor';
@@ -118,6 +118,7 @@ export class OAuthController {
     // RFC 8707: refuse a resource this client may not bind to before the
     // person signs in, not after (resource-registry.ts; the token endpoint
     // checks again in resolveCodeAudience).
+    assertResourceNamed(client, p.resource);
     assertResourceAllowed(client, p.resource);
     // Customer lane (customer-lane.ts): a bad org hint is refused here, before
     // the person signs in, like a bad resource.

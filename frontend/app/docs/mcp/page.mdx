@@ -129,6 +129,8 @@ Any MCP server that points its 401 at INITE Auth (RFC 9728) gets clients that si
 - **Client ID Metadata Document** (what MCP 2026-07-28 prefers): the `client_id` is an https URL, and the JSON at that URL describes the client (`client_id` equal to the URL, `client_name`, `redirect_uris`). INITE Auth fetches it on the first `/authorize` (https, public addresses only, no redirects, 16 KB), keeps it as a public PKCE client and reads it again when its `Cache-Control: max-age` runs out (5 minutes to a day). Such a client can only ask for the scopes open registration allows and always shows the consent screen. Discovery says `client_id_metadata_document_supported: true`.
 - **Dynamic Client Registration** (RFC 7591, `POST /v1/oauth/register`): still served, for clients that do not use metadata documents yet.
 
+Either way the client must name the MCP server it wants a token for: `resource` (RFC 8707) on `/authorize` and on the device-authorization request, the URL the server's protected-resource metadata gives. Without it INITE Auth answers `invalid_target`, at `/authorize`, at the code exchange, on the device flow, and on refresh of a token stored without one. The access token's `aud` is that resource. MCP clients already send it; the rule only closes the old fallback to `aud = client_id`. First-party clients provisioned by an operator are not affected.
+
 Every authorization response, code or error, carries `iss` (RFC 9207, `authorization_response_iss_parameter_supported: true`): a client checks it against the server it started with before redeeming the code.
 
 Product scopes an MCP client may ask for include `break3:read` and `break3:write` (Break3's door, `https://break3.app/mcp`), `mikefluff:*`, `billing:account`, `wallet:pay` and `fund:*`.

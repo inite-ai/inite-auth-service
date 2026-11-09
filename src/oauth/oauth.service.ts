@@ -16,7 +16,7 @@ import { AuthorizationDetail } from './contracts/authorization-detail';
 import { grantableScope, type ScopeBoundClient } from './oauth-scopes.registry';
 import { StepUpService } from './step-up.service';
 import { WALLET_ACR, hasWalletGrant } from './wallet-grant';
-import { assertResourceAllowed } from './resource-registry';
+import { assertResourceAllowed, assertResourceNamed } from './resource-registry';
 import { CustomerLaneService } from './customer-lane.service';
 import type { LaneClient, LaneOrg } from './customer-lane';
 import { telegramIdClaim, type TelegramClaimQuery } from './telegram-claim';
@@ -301,12 +301,15 @@ export class OAuthService {
    * `allowedAudiences`, the requested resource MUST be in that list or the
    * request is rejected — a restricted client can never mint a token for an
    * arbitrary audience. Returns `undefined` when the code carried no
-   * resource, so the token issuer keeps its default (clientId) audience.
+   * resource, so the token issuer keeps its default (clientId) audience;
+   * a dcr_* or metadata-document client gets `invalid_target` instead
+   * (resource-registry.ts mustNameResource).
    */
   private async resolveCodeAudience(
     clientId: string,
     resource: string | null,
   ): Promise<string | undefined> {
+    assertResourceNamed({ clientId }, resource);
     if (!resource) return undefined;
 
     const client = await this.prisma.oAuthClient.findUnique({

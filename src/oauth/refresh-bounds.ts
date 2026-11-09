@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { permittedScopes, type ScopeBoundClient } from './oauth-scopes.registry';
-import { isResourceAllowed, type ResourceBoundClient } from './resource-registry';
+import { assertResourceNamed, isResourceAllowed, type ResourceBoundClient } from './resource-registry';
 
 /**
  * A refresh token that can no longer be used, answered as RFC 6749 §5.2
@@ -34,6 +34,9 @@ export function refreshBounds(
   token: { scope: string | null; resource: string | null },
 ): { scope: string; resource: string | undefined } {
   if (!client) return { scope: token.scope ?? '', resource: token.resource ?? undefined };
+  // A dcr_* or metadata-document token stored without a resource would
+  // rotate into another `aud = client_id` token: refused as at /authorize.
+  assertResourceNamed(client, token.resource);
   if (!isResourceAllowed(client, token.resource)) {
     throw new BadRequestException({
       error: 'invalid_grant',

@@ -25,6 +25,9 @@ export const BRAIN_SCOPES = [
   'brain:write',
   'brain:admin',
   'brain:read_pii',
+  // Erases one person (forget, affect erase, consent withdrawal) and nothing
+  // else: a product backend's GDPR path without brain:admin (brain #948).
+  'brain:erase',
   'registry:publish',
   'indexer:write',
 ] as const;

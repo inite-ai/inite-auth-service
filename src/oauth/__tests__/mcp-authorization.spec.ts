@@ -43,6 +43,7 @@ describe('mikefluff scopes in the registry', () => {
   it('keeps the sensitive brain scopes out of open registration', () => {
     expect(dcrSupportedScopes()).not.toContain('brain:admin');
     expect(dcrSupportedScopes()).not.toContain('brain:read_pii');
+    expect(dcrSupportedScopes()).not.toContain('brain:erase');
   });
 });
 

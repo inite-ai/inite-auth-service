@@ -8,6 +8,7 @@
     "brain:read",
     "brain:write",
     "brain:read_pii",
+    "brain:erase",
     "brain:admin"
   ],
   "audiences": [

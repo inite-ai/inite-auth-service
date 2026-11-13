@@ -1,0 +1,19 @@
+{
+  "clientId": "break3-brain",
+  "name": "Break3 backend (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/break3-backend",
+  "companyId": "break3",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:read_pii",
+    "brain:admin"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

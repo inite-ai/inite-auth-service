@@ -4,6 +4,78 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.13.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.12.0...inite-auth-service-v1.13.0) (2026-11-14)
+
+
+### Features
+
+* **clients:** break3-brain, Break3's own machine client for INITE Brain ([b1b6a1f](https://github.com/inite-ai/inite-auth-service/commit/b1b6a1fb23ffa9b38ed76e0bd95f22567969db64))
+* **clients:** break3-brain, Break3's own machine client for INITE Brain ([2e439c8](https://github.com/inite-ai/inite-auth-service/commit/2e439c86bccc6929adde51c483b9dfc725fc392d))
+* **clients:** first-party OAuth clients as code, every URL derived from the origin ([7cae13f](https://github.com/inite-ai/inite-auth-service/commit/7cae13f06954d107f1cc871318d9c91e2bd8f532))
+* **clients:** first-party OAuth clients as code, every URL derived from the origin ([b9c3f8c](https://github.com/inite-ai/inite-auth-service/commit/b9c3f8c27d0822bdd7dcaaa1affa081a9a5e7568))
+* **clients:** machine and public manifests; bring break3-backend, inite-education-billing and floripa under clients/ ([#292](https://github.com/inite-ai/inite-auth-service/issues/292)) ([849585f](https://github.com/inite-ai/inite-auth-service/commit/849585f40dff98d549fd4f27c2e93b1c28e0eaf2))
+* **clients:** smart-chat signs in on break3.app as well as break3.inite.health ([#285](https://github.com/inite-ai/inite-auth-service/issues/285)) ([dcf26d5](https://github.com/inite-ai/inite-auth-service/commit/dcf26d569c381c364829cd4cad96c6297c9fa00d))
+* **customer-lane:** storefront orgs kept by their product ([#304](https://github.com/inite-ai/inite-auth-service/issues/304)) ([2e8bf01](https://github.com/inite-ai/inite-auth-service/commit/2e8bf01b37cb0b65af4181a85b8d58b0fe149364))
+* **customer-lane:** storefront orgs kept by their product ([#304](https://github.com/inite-ai/inite-auth-service/issues/304)) ([93326ef](https://github.com/inite-ai/inite-auth-service/commit/93326ef193ad47cd759fee24f3788bcca72df55a))
+* **deploy:** Telegram sign-in for floripa.info ([@floripa](https://github.com/floripa)_ru_bot) ([a4cfae1](https://github.com/inite-ai/inite-auth-service/commit/a4cfae1ef2c2fd8315d354324c7d0a4d230ff27c))
+* **deploy:** Telegram sign-in for floripa.info via [@floripa](https://github.com/floripa)_ru_bot ([df37ad2](https://github.com/inite-ai/inite-auth-service/commit/df37ad2f87abd451771967772b18904542dea379))
+* **deploy:** Telegram sign-in on prod, [@break3](https://github.com/break3)_bot for smart-chat ([edf4e7c](https://github.com/inite-ai/inite-auth-service/commit/edf4e7cbbd1656d1786b96e2af2eac70d0bbf6d7))
+* **deploy:** Telegram sign-in on prod, [@break3](https://github.com/break3)_bot for smart-chat ([5a33aee](https://github.com/inite-ai/inite-auth-service/commit/5a33aee035394d24c2755a0b0437a5c5464d581c))
+* invitee sign-in — login_hint, no dropped OAuth params, password reset that returns to the client ([#251](https://github.com/inite-ai/inite-auth-service/issues/251)) ([33bcf55](https://github.com/inite-ai/inite-auth-service/commit/33bcf55f67a064f7e03352d59538a84517755d50))
+* **mtls:** INITE Client CA issuing, edge on the file provider, and a revocation deny-list ([#258](https://github.com/inite-ai/inite-auth-service/issues/258)) ([8f04894](https://github.com/inite-ai/inite-auth-service/commit/8f04894738066110ee8faa0ca394b571d6fe6b83))
+* **oauth:** a product whose plan an organisation buys provisions the buyer's workspace ([#280](https://github.com/inite-ai/inite-auth-service/issues/280)) ([bd3a762](https://github.com/inite-ai/inite-auth-service/commit/bd3a762b33c56da43ee3c70e0d85e828fb195721))
+* **oauth:** ask which account instead of answering as whoever is signed in ([#255](https://github.com/inite-ai/inite-auth-service/issues/255)) ([e1791d5](https://github.com/inite-ai/inite-auth-service/commit/e1791d5ad6a7133ddbb25af0431a97ceb2529fab))
+* **oauth:** client ID metadata documents, RFC 9207 iss, break3 scopes ([94f580f](https://github.com/inite-ai/inite-auth-service/commit/94f580fceac57c6cc055e78e54e53a3666a164a4))
+* **oauth:** client ID metadata documents, RFC 9207 iss, break3 scopes ([4c13916](https://github.com/inite-ai/inite-auth-service/commit/4c13916d696fda9f99e4d1afc906174a08556836))
+* **oauth:** demo grant, a read-only 2 h token for a demo persona ([3b2a37b](https://github.com/inite-ai/inite-auth-service/commit/3b2a37b5a81f3adc666daa1d97a32233beb5391d))
+* **oauth:** demo grant, a read-only 2 h token for a demo persona ([4de2a1a](https://github.com/inite-ai/inite-auth-service/commit/4de2a1a69289b4ba51e0e798869b7e4bb67efe6e))
+* **oauth:** fund:read and fund:write scopes for inite.fund's MCP ([#263](https://github.com/inite-ai/inite-auth-service/issues/263)) ([a741db5](https://github.com/inite-ai/inite-auth-service/commit/a741db518335deb3554e2dd8370c1e451ceb7eb0))
+* **oauth:** platform_role claim for INITE's own operators ([#262](https://github.com/inite-ai/inite-auth-service/issues/262)) ([0306073](https://github.com/inite-ai/inite-auth-service/commit/030607315acfb61a5e8964d84e2507b689939140))
+* **oauth:** refresh reuse grace for concurrent refreshes; expires_in follows the access-token TTL ([#288](https://github.com/inite-ai/inite-auth-service/issues/288)) ([20e6f09](https://github.com/inite-ai/inite-auth-service/commit/20e6f09339d5dbfe13aa05e72fac6383ff8b8081))
+* **oauth:** self-registered clients must name a resource (RFC 8707) ([ff66bf9](https://github.com/inite-ai/inite-auth-service/commit/ff66bf91bda31751d24b44b711b26770bed9278f))
+* **oauth:** self-registered clients must name a resource (RFC 8707) ([628a0f6](https://github.com/inite-ai/inite-auth-service/commit/628a0f6fd4b8e16c504b7b294ab31e4110ea26c4)), closes [#307](https://github.com/inite-ai/inite-auth-service/issues/307)
+* **oauth:** Telegram as a sign-in provider (Login Widget and Mini App initData) ([c0a77e8](https://github.com/inite-ai/inite-auth-service/commit/c0a77e8cd45feee8e1c9c575c1d310124f77c1e2))
+* **oauth:** Telegram as a sign-in provider (Login Widget and Mini App initData) ([001f93a](https://github.com/inite-ai/inite-auth-service/commit/001f93adedf8a52e86228ef588be83c584435ddf))
+* **oauth:** telegram_id claim for first-party clients, scope telegram ([04fa138](https://github.com/inite-ai/inite-auth-service/commit/04fa1388c52e46c63b96cded7cb4a8745af218ea))
+* **oauth:** telegram_id claim for first-party clients, scope telegram ([#299](https://github.com/inite-ai/inite-auth-service/issues/299)) ([5562ff9](https://github.com/inite-ai/inite-auth-service/commit/5562ff91d416f18a388b26cd2ce02bedfd6e3918))
+* **oauth:** the customer lane, passwordless storefront customers in the tenant's org ([3ee504c](https://github.com/inite-ai/inite-auth-service/commit/3ee504c813fe231215ffb9a13fb2d9827ace6890))
+* **oauth:** the customer lane, passwordless storefront customers in the tenant's org ([3719693](https://github.com/inite-ai/inite-auth-service/commit/3719693cc7f3d4d1c8cbcf99903ac5c6fbff8ea4))
+* **oauth:** the family tenant in the token (org_role, org_slug, demo) and the demo org seed ([21bd17e](https://github.com/inite-ai/inite-auth-service/commit/21bd17e6cf36fb71350d37724426e6f2d920ba6f))
+* **oauth:** the family tenant in the token (org_role, org_slug, demo) and the demo org seed ([7f3753e](https://github.com/inite-ai/inite-auth-service/commit/7f3753e7ff3d4232d81753f63f78e70adaa58146))
+* **scopes:** brain:erase, and break3-brain may hold it ([92c5b42](https://github.com/inite-ai/inite-auth-service/commit/92c5b42a27628a30bfe503cc793f859f69fb8123))
+* **seo:** one company in the graph — the product is a node of INITE, not an Organization ([a437159](https://github.com/inite-ai/inite-auth-service/commit/a4371597ed65e48637cb546bf5d0259d99285802))
+* **seo:** one company in the graph — the product is a node of INITE, not an Organization ([602c847](https://github.com/inite-ai/inite-auth-service/commit/602c84796f4642cdab929a70478ef9de1b0ed549))
+* **seo:** the Brand carries the product's own logo and profiles ([a6417c1](https://github.com/inite-ai/inite-auth-service/commit/a6417c1147e6017994fcab132e49b8503115b332))
+* **telegram:** the Login Widget on auth.inite.ai/login, its callback on the same host ([371c720](https://github.com/inite-ai/inite-auth-service/commit/371c720ff9db0a84b75417965bea06ee7e038d1b))
+* **telegram:** the Login Widget on auth.inite.ai/login, its callback on the same host ([80c4225](https://github.com/inite-ai/inite-auth-service/commit/80c42257464812faba45488b2a6f4659199f7eed))
+
+
+### Bug Fixes
+
+* **admin:** users and OAuth clients require a superadmin ([6809c3d](https://github.com/inite-ai/inite-auth-service/commit/6809c3d01b27f9e739ca2b0569c248b257f295b7))
+* **clients:** clients-apply runs in the production image ([#291](https://github.com/inite-ai/inite-auth-service/issues/291)) ([d72213e](https://github.com/inite-ai/inite-auth-service/commit/d72213e47f65b9e21e9c46b8cdebb8c54cc6591c))
+* **deploy:** publish the API, Postgres and Redis on loopback only ([6571c57](https://github.com/inite-ai/inite-auth-service/commit/6571c572cfd65c99acee40b56cb3a529b049a8ab))
+* **deploy:** remove only this repo's own images, never host-wide ([470b716](https://github.com/inite-ai/inite-auth-service/commit/470b71645ef90c49225b0cff593ade5241536ab7))
+* **deploy:** remove only this repo's own images, never host-wide ([902ca7c](https://github.com/inite-ai/inite-auth-service/commit/902ca7cd37aacf883b260970b93fa91ba730998b))
+* **deploy:** the Break3 bot token from one organization secret ([457e3fc](https://github.com/inite-ai/inite-auth-service/commit/457e3fc3a4d0e3f9d41e3d6d4501e7a58edf9ecf))
+* **deploy:** the mTLS host's router ships only when its edge exists ([#257](https://github.com/inite-ai/inite-auth-service/issues/257)) ([cbf9b1d](https://github.com/inite-ai/inite-auth-service/commit/cbf9b1d866e099f18ab38ee3355a2a1c27902a48))
+* **health:** /health reports the running release, not a hardcoded 1.1.0 ([#249](https://github.com/inite-ai/inite-auth-service/issues/249)) ([95b3615](https://github.com/inite-ai/inite-auth-service/commit/95b36150e287aabc9131a6de4aea164ada8c3035))
+* **oauth:** a self-registered client binds only to a family resource ([#261](https://github.com/inite-ai/inite-auth-service/issues/261)) ([88e86a9](https://github.com/inite-ai/inite-auth-service/commit/88e86a966375e8504bc3e7839b8804b1b620c27a))
+* **oauth:** bind post-logout redirect to its client; hold user grants to allowedScopes and own audience ([#264](https://github.com/inite-ai/inite-auth-service/issues/264)) ([dd1044e](https://github.com/inite-ai/inite-auth-service/commit/dd1044e31a1ca2b2e1913e269ea4a70fbb64d332))
+* **oauth:** fetch client jwks_uri and back-channel logout URIs through an SSRF guard ([ac27262](https://github.com/inite-ai/inite-auth-service/commit/ac272622e7092a4ef65aec6e0a17ea21231d820f))
+* **oauth:** fetch client jwks_uri and back-channel logout URIs through an SSRF guard ([bcaa8ab](https://github.com/inite-ai/inite-auth-service/commit/bcaa8aba01a622eac8dae0d1de7a5edc6c2fcf72))
+* **oauth:** PKCE S256 on every code path; break3.app and floripa.info are family resources ([e1930a7](https://github.com/inite-ai/inite-auth-service/commit/e1930a768457cbe667d491e74dde2e49695c56ab))
+* **oauth:** PKCE S256 on every code path; break3.app and floripa.info are family resources ([21b7559](https://github.com/inite-ai/inite-auth-service/commit/21b75591cc9dac6ec3d0a2bd36a07f9e8c3346ce))
+* **oauth:** registration ignores unknown metadata; OAuth errors carry RFC codes ([288baae](https://github.com/inite-ai/inite-auth-service/commit/288baae405ccd365e54087e03e9a8ed6f44f820a))
+* **oauth:** registration ignores unknown metadata; OAuth errors carry RFC codes ([e80a088](https://github.com/inite-ai/inite-auth-service/commit/e80a088d660f967f140ca77bb5890a71aeb75a4b))
+* **ratelimit:** the client address is never a header the caller wrote ([5adbbfb](https://github.com/inite-ai/inite-auth-service/commit/5adbbfb44f07ea4492e8ba7cd7f125cd9f4fdb64))
+* **schema:** sameAs lists only this site's own profiles ([#282](https://github.com/inite-ai/inite-auth-service/issues/282)) ([e12920d](https://github.com/inite-ai/inite-auth-service/commit/e12920dfdf3fa9f617744bee2b59594a17ec1c06))
+* **scripts:** create-admin runs in the release image; Prisma 7 adapter in every script ([#241](https://github.com/inite-ai/inite-auth-service/issues/241)) ([d507e93](https://github.com/inite-ai/inite-auth-service/commit/d507e93f5e8fe6ee6a235b91183390bbf68d6ee7))
+* **security:** /metrics answers the monitoring network only ([2c88dd8](https://github.com/inite-ai/inite-auth-service/commit/2c88dd89d926c63ced473c61ba8157d60937ed62))
+* **security:** /metrics answers the monitoring network only ([eda3c09](https://github.com/inite-ai/inite-auth-service/commit/eda3c09936ec7021f97956cfbba31950c0ce15b7))
+* **security:** scoped admins can't reach platform routes; unspoofable client IP; loopback-only ports ([e3f9156](https://github.com/inite-ai/inite-auth-service/commit/e3f9156ed702c12cf2e4141e17d94a1daa18ecab))
+* **telegram:** collect fields in a Map so no key reaches a prototype ([cc65459](https://github.com/inite-ai/inite-auth-service/commit/cc654590825eace92817a9e7b86de7996475da79))
+
 ## [1.12.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.11.2...inite-auth-service-v1.12.0) (2026-10-16)
 
 

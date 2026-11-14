@@ -133,7 +133,7 @@ Either way the client must name the MCP server it wants a token for: `resource` 
 
 Every authorization response, code or error, carries `iss` (RFC 9207, `authorization_response_iss_parameter_supported: true`): a client checks it against the server it started with before redeeming the code.
 
-Product scopes an MCP client may ask for include `break3:read` and `break3:write` (Break3's door, `https://break3.app/mcp`), `mikefluff:*`, `billing:account`, `wallet:pay` and `fund:*`.
+Product scopes an MCP client may ask for include `break3:read` and `break3:write` (Break3's door, `https://break3.app/mcp`), `mikefluff:*`, `billing:account`, `wallet:pay`, `fund:*`, and `<product>:read` / `<product>:write` for the company products' doors (`https://inite.services/mcp/{companySlug}` asks for `services:read` or `services:write`).
 
 ## Step 1 — bootstrap the package
 

@@ -94,6 +94,22 @@ describe('break3 scopes in the registry', () => {
   });
 });
 
+describe('tenant door scopes', () => {
+  // inite.services' door (https://inite.services/mcp/{companySlug}) refuses a
+  // token with neither services:read nor services:write (@inite/mcp, 09.11.2026).
+  it('advertises read and write for every company product and lets DCR clients ask for them', () => {
+    for (const s of ['services:read', 'services:write', 'rent:read', 'sport:write']) {
+      expect(supportedScopes()).toContain(s);
+      expect(dcrSupportedScopes()).toContain(s);
+    }
+  });
+
+  it('grants read-only when only read was asked for, and no purchase scope', () => {
+    expect(grantableScope('dcr_abc', 'openid services:read')).toBe('openid services:read');
+    expect(supportedScopes()).not.toContain('rent:purchase');
+  });
+});
+
 describe('grantableScope', () => {
   it('recognises dynamically registered client ids', () => {
     expect(isDynamicClientId('dcr_abc')).toBe(true);

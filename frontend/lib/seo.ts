@@ -225,6 +225,9 @@ export function buildLandingJsonLd(): Json {
         '@id': `${SITE_URL}/#brand`,
         name: BRAND.name,
         url: SITE_URL,
+        // The product's own logo and profiles; never a family domain.
+        logo: `${SITE_URL}/favicon.ico`,
+        sameAs: [...BRAND.sameAs],
       },
       { ...COMPANY_REF },
       {

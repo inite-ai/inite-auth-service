@@ -157,68 +157,56 @@ export const LANDING_FAQ: Array<{ q: string; a: string }> = [
 type Json = Record<string, unknown>
 
 /**
- * Landing structured data as a single @graph: Organization, WebSite,
- * SoftwareApplication and FAQPage cross-referenced by @id.
+ * The company, inite LLC, as every family site names it: by @id, with enough
+ * to resolve on its own. Described in full on inite.ai only.
+ *
+ * Owner, 13.11.2026: there is one company and its products. A product site
+ * declares no Organization of its own, no `parentOrganization`, and no
+ * `sameAs` to family sites; INITE Identity is a SoftwareApplication of INITE
+ * (inite LLC), https://inite.ai. The four nodes below are the family
+ * registry's graph for `identity` (@inite/landing `familySchema`).
+ */
+export const COMPANY_ID = 'https://inite.ai/#organization'
+const COMPANY = { '@id': COMPANY_ID }
+const COMPANY_REF = {
+  '@type': 'Organization',
+  '@id': COMPANY_ID,
+  name: 'INITE',
+  url: 'https://inite.ai',
+}
+
+/** The product's line in the family registry (locales/en/family.json). */
+const FAMILY_LINE = 'Users, agents, services, permissions and trust.'
+
+/**
+ * Landing structured data as a single @graph: WebSite, SoftwareApplication,
+ * Brand, the company stub and FAQPage, cross-referenced by @id.
  */
 export function buildLandingJsonLd(): Json {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      /**
-       * INITE Identity, as its own entity.
-       *
-       * This node used to describe the parent instead: `@id` was
-       * https://inite.ai/#organization and the name was INITE AI, on a site
-       * that is not inite.ai. Two consequences, both measurable. inite.ai
-       * lists seventeen brands as `subOrganization`, one of them
-       * https://auth.inite.ai/#organization — and nothing declared it, so the
-       * reference resolved to nothing. And every other node here pointed its
-       * publisher at a company on a different domain, which is a claim about
-       * inite.ai rather than about this product.
-       *
-       * Identity is a product with a name, a licence, a repository and a
-       * version. It gets to be a company of its own, hanging off the one that
-       * makes it.
-       */
-      {
-        '@type': 'Organization',
-        '@id': `${SITE_URL}/#organization`,
-        name: BRAND.name,
-        legalName: ORG.legalName,
-        url: SITE_URL,
-        description: META.description,
-        logo: { '@type': 'ImageObject', url: ORG.logo, width: 512, height: 512 },
-        sameAs: BRAND.sameAs,
-        parentOrganization: {
-          '@type': 'Organization',
-          '@id': `${ORG.url}/#organization`,
-          name: ORG.name,
-          legalName: ORG.legalName,
-          url: ORG.url,
-        },
-        founder: {
-          '@type': 'Person',
-          name: ORG.founder.name,
-          jobTitle: ORG.founder.jobTitle,
-        },
-      },
       {
         '@type': 'WebSite',
         '@id': `${SITE_URL}/#website`,
-        name: BRAND.name,
         url: SITE_URL,
+        name: BRAND.name,
+        publisher: COMPANY,
         inLanguage: 'en',
-        publisher: { '@id': `${SITE_URL}/#organization` },
+        about: { '@id': `${SITE_URL}/#app` },
       },
       {
         '@type': 'SoftwareApplication',
         '@id': `${SITE_URL}/#app`,
         name: BRAND.name,
-        applicationCategory: 'SecurityApplication',
-        applicationSubCategory: 'Identity and access management',
-        operatingSystem: 'Web, Linux, Docker',
         url: SITE_URL,
-        description: META.description,
+        description: FAMILY_LINE,
+        provider: COMPANY,
+        brand: { '@id': `${SITE_URL}/#brand` },
+        publisher: COMPANY,
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Web',
+        // Product facts, not about the organization: kept.
         image: OG_IMAGE,
         license: 'https://www.gnu.org/licenses/agpl-3.0.html',
         softwareHelp: { '@type': 'CreativeWork', url: BRAND.docs },
@@ -231,9 +219,17 @@ export function buildLandingJsonLd(): Json {
           description:
             'Free and self-hostable under AGPL-3.0; commercial license available',
         },
-        publisher: { '@id': `${SITE_URL}/#organization` },
-        provider: { '@id': `${SITE_URL}/#organization` },
       },
+      {
+        '@type': 'Brand',
+        '@id': `${SITE_URL}/#brand`,
+        name: BRAND.name,
+        url: SITE_URL,
+        // The product's own logo and profiles; never a family domain.
+        logo: `${SITE_URL}/favicon.ico`,
+        sameAs: [...BRAND.sameAs],
+      },
+      { ...COMPANY_REF },
       {
         '@type': 'FAQPage',
         '@id': `${SITE_URL}/#faq`,
@@ -266,7 +262,7 @@ export function buildDocsJsonLd(opts: {
         inLanguage: 'en',
         isPartOf: { '@id': `${SITE_URL}/#website` },
         about: { '@id': `${SITE_URL}/#app` },
-        publisher: { '@id': `${SITE_URL}/#organization` },
+        publisher: COMPANY,
       },
       {
         '@type': 'BreadcrumbList',

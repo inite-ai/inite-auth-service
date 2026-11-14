@@ -38,7 +38,7 @@ export const BRAND = {
   contactEmail: 'support@inite.ai',
   license: 'AGPL-3.0-or-later (open core) + commercial',
   // Pages about this product only. ORG.sameAs are inite.ai's profiles: they
-  // identify the parent (parentOrganization in lib/seo.ts), not this product.
+  // belong to the company, described on inite.ai, not to this product.
   sameAs: ['https://github.com/inite-ai/inite-auth-service'],
   /** Verifiable product facts — keep true to the codebase. */
   facts: {

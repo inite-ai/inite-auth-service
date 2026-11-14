@@ -75,6 +75,32 @@ export const BILLING_SCOPES = ['billing:account'] as const;
 export const FUND_SCOPES = ['fund:read', 'fund:write'] as const;
 
 /**
+ * The company products' tenant doors (`https://<product site>/mcp/{companySlug}`),
+ * from inite-shared's family door registry (packages/mcp/src/registry/doors.ts,
+ * owner decision 9, 09.11.2026): `<product>:read` for the read-only tools,
+ * `<product>:write` for the rest. Since @inite/mcp's tenant door of 09.11.2026
+ * (owner decision 1) a token that names neither is 403, so a door that moves
+ * to it needs its scopes here first: inite.services was the first (14.11.2026).
+ * The product key is the registry's: `sport` is inite.training. Purchase
+ * scopes are not here yet: no door enforces one.
+ */
+export const TENANT_PRODUCTS = [
+  'rent',
+  'shop',
+  'food',
+  'sport',
+  'travel',
+  'events',
+  'services',
+  'estate',
+  'health',
+  'digital',
+  'bloom',
+  'education',
+] as const;
+export const TENANT_SCOPES: readonly string[] = TENANT_PRODUCTS.flatMap((p) => [`${p}:read`, `${p}:write`]);
+
+/**
  * Identity scopes only a first-party family product may hold. `telegram` adds
  * the `telegram_id` claim (telegram-claim.ts): the person's Telegram id is the
  * same in every product, so a third-party client must never see it. Never in
@@ -105,7 +131,8 @@ export const DCR_VERTICAL_SCOPES = [
   ...BILLING_SCOPES,
   ...FUND_SCOPES,
   ...BREAK3_SCOPES,
-] as const;
+  ...TENANT_SCOPES,
+];
 
 /** Everything the AS can put in a token — discovery `scopes_supported`. */
 export function supportedScopes(): string[] {
@@ -117,6 +144,7 @@ export function supportedScopes(): string[] {
     ...BILLING_SCOPES,
     ...FUND_SCOPES,
     ...BREAK3_SCOPES,
+    ...TENANT_SCOPES,
     ...FIRST_PARTY_SCOPES,
     ...CUSTOMER_LANE_SCOPES,
   ];

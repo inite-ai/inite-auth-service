@@ -1,0 +1,18 @@
+{
+  "clientId": "rent-brain",
+  "name": "INITE Rent (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/initerent",
+  "companyId": "rent",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:erase"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

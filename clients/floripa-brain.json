@@ -1,0 +1,18 @@
+{
+  "clientId": "floripa-brain",
+  "name": "floripa.info bot (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/floripa-bot",
+  "companyId": "floripa",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:erase"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

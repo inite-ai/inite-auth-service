@@ -28,6 +28,12 @@ export const BRAIN_SCOPES = [
   // Erases one person (forget, affect erase, consent withdrawal) and nothing
   // else: a product backend's GDPR path without brain:admin (brain #948).
   'brain:erase',
+  // Acts for the client's CHILD tenants in Brain: with X-Brain-Child-Tenant a
+  // request runs in `<companyId>__<child>`, and the client may drop a child
+  // whole. Brain derives the parent from the token's own tenant, so it
+  // reaches only that client's children (brain #970, ADR 0001). For the
+  // machine clients of B2B products (one Brain tenant per client company).
+  'brain:tenants',
   'registry:publish',
   'indexer:write',
 ] as const;

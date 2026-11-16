@@ -44,6 +44,7 @@ describe('mikefluff scopes in the registry', () => {
     expect(dcrSupportedScopes()).not.toContain('brain:admin');
     expect(dcrSupportedScopes()).not.toContain('brain:read_pii');
     expect(dcrSupportedScopes()).not.toContain('brain:erase');
+    expect(dcrSupportedScopes()).not.toContain('brain:tenants');
   });
 });
 

@@ -1,0 +1,18 @@
+{
+  "clientId": "services-brain",
+  "name": "INITE Services (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/initeservices",
+  "companyId": "services",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:erase"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

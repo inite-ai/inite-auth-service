@@ -1,0 +1,18 @@
+{
+  "clientId": "shop-brain",
+  "name": "INITE Shop (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/initeshop",
+  "companyId": "shop",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:erase"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "clientId": "travel-brain",
+  "name": "INITE Travel (INITE Brain)",
+  "kind": "machine",
+  "repo": "inite-ai/initetravel",
+  "companyId": "travel",
+  "scopes": [
+    "brain:read",
+    "brain:write",
+    "brain:erase"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

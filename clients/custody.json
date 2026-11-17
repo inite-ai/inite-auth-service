@@ -1,0 +1,11 @@
+{
+  "clientId": "custody",
+  "name": "INITE Custody docs",
+  "repo": "inite-ai/custody-docs",
+  "origins": [
+    "https://custody.inite.ai"
+  ],
+  "secret": {
+    "name": "OAUTH_CLIENT_SECRET"
+  }
+}

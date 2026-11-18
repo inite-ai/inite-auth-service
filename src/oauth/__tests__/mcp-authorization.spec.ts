@@ -32,12 +32,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 const MCP_RESOURCE = 'https://www.mikefluff.com/mcp';
 
 describe('mikefluff scopes in the registry', () => {
-  it('advertises both scopes in discovery and lets DCR clients ask for them', () => {
+  it('advertises its scopes in discovery and lets DCR clients ask for them', () => {
     for (const s of MIKEFLUFF_SCOPES) {
       expect(supportedScopes()).toContain(s);
       expect(dcrSupportedScopes()).toContain(s);
     }
-    expect(MIKEFLUFF_SCOPES).toEqual(['mikefluff:purchase', 'mikefluff:booking']);
+    expect(MIKEFLUFF_SCOPES).toEqual([
+      'mikefluff:purchase',
+      'mikefluff:booking',
+      'mikefluff:discuss',
+      'mikefluff:author',
+    ]);
   });
 
   it('keeps the sensitive brain scopes out of open registration', () => {

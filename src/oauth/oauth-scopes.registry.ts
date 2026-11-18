@@ -41,10 +41,18 @@ export const BRAIN_SCOPES = [
 /**
  * www.mikefluff.com's MCP server (resource `https://www.mikefluff.com/mcp`).
  * An agent acting for a person: `mikefluff:purchase` opens a book checkout
- * in that person's account (they still confirm the payment), and
- * `mikefluff:booking` books a call in their name. Enforced by the MCP server.
+ * in that person's account (they still confirm the payment),
+ * `mikefluff:booking` books a call in their name, `mikefluff:discuss`
+ * comments in a chapter's discussion or emails the author a note in their
+ * name, and `mikefluff:author` opens the author's inbox (the MCP server
+ * also checks the account is the author's). Enforced by the MCP server.
  */
-export const MIKEFLUFF_SCOPES = ['mikefluff:purchase', 'mikefluff:booking'] as const;
+export const MIKEFLUFF_SCOPES = [
+  'mikefluff:purchase',
+  'mikefluff:booking',
+  'mikefluff:discuss',
+  'mikefluff:author',
+] as const;
 
 /**
  * Break3's MCP server (resource `https://break3.app/mcp`). `break3:read`

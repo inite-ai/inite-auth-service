@@ -25,7 +25,8 @@ import { TokenRequestBody } from '../dto/oauth-requests';
 /**
  * The demo grant (owner decision 29.10.2026): `demo:<persona>` → a read-only
  * two-hour token of that persona in «Atlântica Group (demo)», never refreshed,
- * only for a first-party confidential client, only behind DEMO_GRANT_ENABLED.
+ * only for a first-party confidential client, only while DEMO_GRANT_ENABLED is
+ * on (the default since 19.11.2026; "false" turns it off).
  * Each refusal is spec-exact and says nothing about which check refused it.
  */
 
@@ -81,7 +82,7 @@ const demoBody = (subject: string, over: Partial<TokenRequestBody> = {}): TokenR
   ...over,
 });
 
-function setup(opts: { enabled?: boolean; rows?: Record<string, unknown> } = {}) {
+function setup(opts: { flag?: string; rows?: Record<string, unknown> } = {}) {
   const jwt = new JwtService({ secret: SIGNING_KEY });
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const metrics = {
@@ -96,7 +97,7 @@ function setup(opts: { enabled?: boolean; rows?: Record<string, unknown> } = {})
     },
   };
   const config = { get: (k: string, d?: string) => (k === 'JWT_ISSUER' ? ISSUER : d) } as unknown as ConfigService;
-  const settings = fakeSettings({ DEMO_GRANT_ENABLED: opts.enabled === false ? undefined : 'true' });
+  const settings = fakeSettings({ DEMO_GRANT_ENABLED: 'flag' in opts ? opts.flag : 'true' });
   const service = new DemoGrantService(
     prisma as unknown as PrismaService,
     jwt,
@@ -196,8 +197,14 @@ describe('demo grant: a read-only 2 h token of a demo persona', () => {
     expect(demoScopes('9bad')).toBeNull();
   });
 
-  it('refuses everything with invalid_grant while DEMO_GRANT_ENABLED is off', async () => {
-    const { service, prisma, audit } = setup({ enabled: false });
+  it('is on when DEMO_GRANT_ENABLED is not set at all', async () => {
+    const { service } = setup({ flag: undefined });
+    const res = await service.issue({ body: demoBody('demo:owner'), client: productClient(), ctx });
+    expect(res.scope).toBe('openid profile estate:read');
+  });
+
+  it('refuses everything with invalid_grant while DEMO_GRANT_ENABLED is "false"', async () => {
+    const { service, prisma, audit } = setup({ flag: 'false' });
     expect(await refusal(service.issue({ body: demoBody('demo:owner'), client: productClient(), ctx }))).toEqual({
       error: 'invalid_grant',
     });

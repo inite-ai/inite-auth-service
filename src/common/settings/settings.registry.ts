@@ -130,7 +130,9 @@ export const SETTINGS_REGISTRY: readonly SettingDef[] = [
       'Let a first-party confidential client exchange `demo:<persona>` ' +
       '(RFC 8693, subject_token_type urn:inite:params:oauth:token-type:demo-persona) ' +
       'for a read-only 2 h token of that persona in the «Atlântica Group (demo)» org. ' +
-      'No refresh token. Off = every demo request is refused with invalid_grant.',
+      'No refresh token. On by default (owner, 19.11.2026); "false" turns it off, and ' +
+      'then every demo request is refused with invalid_grant.',
+    default: 'true',
   },
   {
     key: 'JWT_ACCESS_TOKEN_EXPIRY',

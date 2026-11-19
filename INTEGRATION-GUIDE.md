@@ -636,6 +636,9 @@ curl -X POST https://auth.inite.ai/v1/oauth/token \
 где `<product>` = client id без префикса `inite-`, дефисы → `_`
 (`inite-estate` → `estate:read`). Запрошенный `scope` не расширяет и не меняет его.
 
+Флаг включён по умолчанию; выключает его только `DEMO_GRANT_ENABLED=false`
+(в env или в настройках админки).
+
 Отказ: `invalid_grant` (флаг выключен, неизвестная персона, пользователь или
 организация не помечены как демо) или `unauthorized_client` (не first-party,
 публичный, `dcr_*`), без описания причины; причина пишется в аудит

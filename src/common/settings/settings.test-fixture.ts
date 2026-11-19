@@ -1,4 +1,5 @@
 import { SettingsService } from './settings.service';
+import { settingDef } from './settings.registry';
 
 /**
  * Build a SettingsService stub backed by a plain env map, for unit tests that
@@ -10,7 +11,7 @@ export function fakeSettings(
 ): SettingsService {
   return {
     raw: (k: string) => env[k],
-    flag: (k: string) => env[k] === 'true',
+    flag: (k: string) => (env[k] ?? settingDef(k)?.default) === 'true',
     value: (k: string, fallback = '') => env[k] ?? fallback,
     source: (k: string) => (env[k] !== undefined ? 'env' : 'default'),
   } as unknown as SettingsService;

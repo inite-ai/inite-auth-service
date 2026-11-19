@@ -55,7 +55,8 @@ function isCredentiallessPersona(user: PersonaRow, persona: DemoPersona): boolea
 /**
  * The demo grant (demo-grant.ts): `demo:<persona>` → a read-only, two-hour
  * access token of that persona in the demo org, for a first-party
- * confidential client, behind DEMO_GRANT_ENABLED. No refresh token and no
+ * confidential client, while DEMO_GRANT_ENABLED is on (the default; "false"
+ * turns it off). No refresh token and no
  * id_token ever: the response has no field for either, whatever the
  * request's scope says (offline_access included).
  */

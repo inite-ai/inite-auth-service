@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppSettingsStore } from './app-settings.store';
+import { settingDef } from './settings.registry';
 
 /** Where a setting's effective value came from. */
 export type SettingSource = 'db' | 'env' | 'default';
@@ -24,9 +25,13 @@ export class SettingsService {
     return this.store.get(key) ?? this.config.get<string>(key) ?? undefined;
   }
 
-  /** Boolean flag — true only when the effective value is exactly "true". */
+  /**
+   * Boolean flag — true only when the effective value is exactly "true". A
+   * flag the registry gives `default: 'true'` (on by default) resolves DB →
+   * env → that default, so it is off only when set to "false".
+   */
   flag(key: string): boolean {
-    return this.raw(key) === 'true';
+    return (this.raw(key) ?? settingDef(key)?.default) === 'true';
   }
 
   /** Effective string with a caller fallback (DB → env → fallback). */

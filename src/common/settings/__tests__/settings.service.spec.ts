@@ -29,6 +29,13 @@ describe('SettingsService — DB → env → default resolution', () => {
     expect(s.source('JWT_ACCESS_TOKEN_EXPIRY')).toBe('default');
   });
 
+  it('resolves a flag the registry defaults on to true, and to false only when set to "false"', () => {
+    expect(make({}, {}).flag('DEMO_GRANT_ENABLED')).toBe(true);
+    expect(make({}, { DEMO_GRANT_ENABLED: 'false' }).flag('DEMO_GRANT_ENABLED')).toBe(false);
+    expect(make({ DEMO_GRANT_ENABLED: 'false' }, { DEMO_GRANT_ENABLED: 'true' }).flag('DEMO_GRANT_ENABLED')).toBe(false);
+    expect(make({}, {}).source('DEMO_GRANT_ENABLED')).toBe('default');
+  });
+
   it('value() returns the raw string when present', () => {
     const s = make({ JWT_ACCESS_TOKEN_EXPIRY: '30m' }, {});
     expect(s.value('JWT_ACCESS_TOKEN_EXPIRY', '10m')).toBe('30m');

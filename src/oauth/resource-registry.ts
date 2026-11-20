@@ -53,6 +53,9 @@ export const FAMILY_DOMAINS: readonly string[] = [
   // them a self-registered connector got invalid_target for their doors.
   'break3.app',
   'floripa.info',
+  // The Press's book sites on the shared reader: their MCP doors' PRMs name this AS.
+  'neuralcosmology.com',
+  'nobody-quits.com',
 ];
 
 function extraEntries(env: string | undefined = process.env.OAUTH_RESOURCE_REGISTRY): string[] {

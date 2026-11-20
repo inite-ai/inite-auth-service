@@ -55,6 +55,16 @@ export const MIKEFLUFF_SCOPES = [
 ] as const;
 
 /**
+ * The Press's other book sites, on the shared reader (@inite/reader):
+ * `…:discuss` comments in a chapter's discussion or emails the author a note
+ * in the signed-in reader's name; `…:author` opens the author's inbox (the
+ * site also checks the account is the author's). Enforced by each site's MCP door
+ * (https://neuralcosmology.com/mcp/account, https://nobody-quits.com/mcp).
+ */
+export const NEURALCOSMOLOGY_SCOPES = ['neuralcosmology:discuss', 'neuralcosmology:author'] as const;
+export const NOBODYQUITS_SCOPES = ['nobodyquits:discuss', 'nobodyquits:author'] as const;
+
+/**
  * Break3's MCP server (resource `https://break3.app/mcp`). `break3:read`
  * lets an assistant see the person's habits, check-ins and progress;
  * `break3:write` lets it check in, start a habit and ask the coach for them.
@@ -141,6 +151,8 @@ export const DCR_VERTICAL_SCOPES = [
   'brain:read',
   'brain:write',
   ...MIKEFLUFF_SCOPES,
+  ...NEURALCOSMOLOGY_SCOPES,
+  ...NOBODYQUITS_SCOPES,
   ...WALLET_SCOPES,
   ...BILLING_SCOPES,
   ...FUND_SCOPES,
@@ -154,6 +166,8 @@ export function supportedScopes(): string[] {
     ...STANDARD_SCOPES,
     ...BRAIN_SCOPES,
     ...MIKEFLUFF_SCOPES,
+    ...NEURALCOSMOLOGY_SCOPES,
+    ...NOBODYQUITS_SCOPES,
     ...WALLET_SCOPES,
     ...BILLING_SCOPES,
     ...FUND_SCOPES,

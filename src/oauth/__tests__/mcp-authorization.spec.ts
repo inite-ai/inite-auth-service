@@ -6,6 +6,8 @@ import {
   grantableScope,
   isDynamicClientId,
   MIKEFLUFF_SCOPES,
+  NEURALCOSMOLOGY_SCOPES,
+  NOBODYQUITS_SCOPES,
   supportedScopes,
 } from '../oauth-scopes.registry';
 import { DeviceFlowService } from '../device-flow.service';
@@ -43,6 +45,13 @@ describe('mikefluff scopes in the registry', () => {
       'mikefluff:discuss',
       'mikefluff:author',
     ]);
+  });
+
+  it('advertises the other book sites\' reader scopes and lets DCR clients ask for them', () => {
+    for (const s of [...NEURALCOSMOLOGY_SCOPES, ...NOBODYQUITS_SCOPES]) {
+      expect(supportedScopes()).toContain(s);
+      expect(dcrSupportedScopes()).toContain(s);
+    }
   });
 
   it('keeps the sensitive brain scopes out of open registration', () => {

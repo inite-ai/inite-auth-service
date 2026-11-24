@@ -274,6 +274,64 @@ describe('AdminService', () => {
     });
   });
 
+  // The console must never be able to leave the deployment without a superadmin.
+  describe('the last superadmin', () => {
+    const holder = { id: 's1', did: 'did:key:s', metadata: { roles: ['admin', 'superadmin'] } };
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(holder);
+      mockPrisma.user.update.mockResolvedValue(holder);
+      mockPrisma.user.delete.mockResolvedValue(holder);
+      mockPrisma.user.count.mockResolvedValue(0);
+    });
+
+    it('cannot lose the role through the roles route', async () => {
+      await expect(service.updateUserRoles('s1', ['admin'])).rejects.toThrow(/last superadmin/);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('cannot lose the role through a metadata write', async () => {
+      await expect(service.updateUser('s1', { metadata: { roles: [] } })).rejects.toThrow(
+        /last superadmin/,
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('cannot be deleted', async () => {
+      await expect(service.deleteUser('s1')).rejects.toThrow(/last superadmin/);
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('keeps the role on an edit that leaves it alone', async () => {
+      await service.updateUserRoles('s1', ['superadmin']);
+      await service.updateUser('s1', { name: 'x', metadata: { note: 'y' } });
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('can step down while another verified account holds the role', async () => {
+      mockPrisma.user.count.mockResolvedValue(1);
+      await service.updateUserRoles('s1', ['admin']);
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: {
+          id: { not: 's1' },
+          emailVerified: true,
+          metadata: { path: ['roles'], array_contains: ['superadmin'] },
+        },
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+  });
+
+  it('reports the admin tier of every listed user', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: '1', metadata: { roles: ['superadmin'] } },
+      { id: '2', metadata: { isAdmin: true, companyId: 'acme' } },
+      { id: '3', metadata: { roles: ['user'] } },
+    ]);
+    mockPrisma.user.count.mockResolvedValue(3);
+    const { users } = await service.getAllUsers();
+    expect(users.map((u) => u.adminTier)).toEqual(['superadmin', 'company', null]);
+  });
+
   describe('getAllOAuthClients', () => {
     it('should return clients without clientSecretHash', async () => {
       mockPrisma.oAuthClient.findMany.mockResolvedValue([

@@ -1,4 +1,4 @@
-import { resolveAdminScope, applyScopeFilter } from '../admin-scope';
+import { adminTier, resolveAdminScope, applyScopeFilter } from '../admin-scope';
 
 describe('admin-scope', () => {
   describe('resolveAdminScope', () => {
@@ -44,6 +44,21 @@ describe('admin-scope', () => {
         metadata: { isAdmin: true, companyId: '' },
       });
       expect(scope).toEqual({ kind: 'superadmin' });
+    });
+  });
+
+  describe('adminTier', () => {
+    it.each([
+      [{ roles: ['superadmin'] }, 'superadmin'],
+      [{ roles: ['superadmin'], companyId: 'acme' }, 'superadmin'],
+      [{ roles: ['admin'] }, 'superadmin_implicit'],
+      [{ isAdmin: true, companyId: '' }, 'superadmin_implicit'],
+      [{ isSuperadmin: true }, 'superadmin_implicit'],
+      [{ roles: ['admin'], companyId: 'acme' }, 'company'],
+      [{ roles: ['user'] }, null],
+      [null, null],
+    ])('%j -> %s', (metadata, tier) => {
+      expect(adminTier(metadata as Record<string, unknown> | null)).toBe(tier);
     });
   });
 

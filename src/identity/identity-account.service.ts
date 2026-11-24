@@ -115,9 +115,10 @@ export class IdentityAccountService {
    */
   async updateMetadata(userId: string, metadata: Record<string, unknown>): Promise<User> {
     const user = await this.identityService.getIdentityById(userId);
-    // Never let a client escalate privilege by writing isAdmin/roles into
-    // its own metadata — those are managed by the admin path only.
-    const safeMetadata = omit(metadata, ['isAdmin', 'roles']);
+    // Never let a client escalate privilege by writing what the admin tier is
+    // read from (admin-scope.ts) into its own metadata — those keys are
+    // managed by the admin path only.
+    const safeMetadata = omit(metadata, ['isAdmin', 'isSuperadmin', 'roles', 'companyId']);
     return await this.prisma.user.update({
       where: { id: userId },
       data: {

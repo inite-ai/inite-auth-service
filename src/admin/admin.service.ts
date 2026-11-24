@@ -11,10 +11,15 @@ import { BackchannelLogoutService } from '../oauth/backchannel-logout.service';
 import { LoggerService } from '../common/logger.service';
 import { swallow } from '../common/fire-and-forget';
 import { stripUserSecrets } from '../common/sanitize';
+import { adminTier } from './admin-scope';
+import { assertNotLastSuperadmin } from './last-superadmin';
 import { AdminClientsService } from './admin-clients.service';
 import { SsfEmitterService } from '../ssf/ssf-emitter.service';
 import { ERASED_REPLAY, keptPairsIn } from '../oauth/refresh-grace';
 import { CAEP_EVENTS } from '../ssf/caep-event-types';
+
+const tierOf = (u: { metadata: unknown }) =>
+  adminTier(u.metadata as Record<string, unknown> | null);
 
 @Injectable()
 export class AdminService {
@@ -43,7 +48,7 @@ export class AdminService {
     ]);
 
     return {
-      users: users.map(stripUserSecrets),
+      users: users.map((u) => ({ ...stripUserSecrets(u), adminTier: tierOf(u) })),
       pagination: {
         page,
         limit,
@@ -73,6 +78,7 @@ export class AdminService {
 
     return {
       ...stripUserSecrets(user),
+      adminTier: tierOf(user),
       passkeys,
       wallets,
       stats: {
@@ -109,10 +115,9 @@ export class AdminService {
     if (data.profession !== undefined) updateData.profession = data.profession;
 
     if (data.metadata !== undefined) {
-      updateData.metadata = {
-        ...(user.metadata as Record<string, unknown>),
-        ...data.metadata,
-      } as Prisma.InputJsonValue;
+      const metadata = { ...(user.metadata as Record<string, unknown>), ...data.metadata };
+      await assertNotLastSuperadmin(this.prisma, user, metadata);
+      updateData.metadata = metadata as Prisma.InputJsonValue;
     }
 
     const updated = await this.prisma.user.update({
@@ -126,6 +131,7 @@ export class AdminService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return null;
 
+    await assertNotLastSuperadmin(this.prisma, user, { roles });
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -142,7 +148,11 @@ export class AdminService {
   async deleteUser(userId: string) {
     // The DID is the `sub` every relying party knows the user by, and it is
     // gone with the row — read it first.
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { did: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, did: true, metadata: true },
+    });
+    if (user) await assertNotLastSuperadmin(this.prisma, user, null);
     // Cascade delete handles related records
     await this.prisma.user.delete({ where: { id: userId } });
     if (user?.did) {

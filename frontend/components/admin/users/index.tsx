@@ -64,9 +64,8 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
     const q = search.trim().toLowerCase()
     return users.filter((u) => {
       if (roleFilter !== 'all') {
-        const roles = u.metadata?.roles ?? []
-        if (roleFilter === 'admin' && !roles.includes('admin')) return false
-        if (roleFilter === 'user' && roles.includes('admin')) return false
+        if (roleFilter === 'admin' && !u.adminTier) return false
+        if (roleFilter === 'user' && u.adminTier) return false
       }
       if (!q) return true
       return [u.name, u.email, u.did]
@@ -78,7 +77,7 @@ export default function UsersSection({ accessToken }: UsersSectionProps) {
   const counts = useMemo(() => {
     let admins = 0
     for (const u of users) {
-      if (u.metadata?.roles?.includes('admin')) admins++
+      if (u.adminTier) admins++
     }
     return { admins, users: users.length - admins }
   }, [users])

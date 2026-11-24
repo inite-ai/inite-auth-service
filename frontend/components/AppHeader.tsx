@@ -15,7 +15,7 @@ interface AppHeaderProps {
     id: string
     email: string
     name?: string | null
-    metadata?: { isAdmin?: boolean } | null
+    metadata?: { isAdmin?: boolean; roles?: string[] } | null
   } | null
   /** Slot for a small breadcrumb / page title next to the logo. */
   context?: ReactNode
@@ -149,7 +149,7 @@ function UserMenu({
             icon={<UserIcon className="w-3.5 h-3.5" />}
             label={t('common.account')}
           />
-          {user.metadata?.isAdmin && (
+          {(user.metadata?.isAdmin || user.metadata?.roles?.includes('superadmin')) && (
             <MenuItem
               onClick={() => {
                 setOpen(false)

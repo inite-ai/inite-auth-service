@@ -82,6 +82,34 @@ function resolveUserScope(
   return { kind: 'superadmin' };
 }
 
+export const SUPERADMIN_ROLE = 'superadmin';
+
+/** Whether the account carries the role itself, whatever else implies it. */
+export function hasSuperadminRole(metadata: Record<string, unknown> | null | undefined): boolean {
+  return Array.isArray(metadata?.roles) && metadata.roles.includes(SUPERADMIN_ROLE);
+}
+
+/**
+ * What an account's metadata makes it in the console, for operators to see:
+ *   superadmin           the explicit role
+ *   superadmin_implicit  counted as one without the role (see resolveUserScope)
+ *   company              admin of one company
+ *   unscoped             marked an admin, but with no scope: no access
+ *   null                 not an admin
+ */
+export type AdminTier = 'superadmin' | 'superadmin_implicit' | 'company' | 'unscoped';
+
+export function adminTier(metadata: Record<string, unknown> | null | undefined): AdminTier | null {
+  const scope = resolveUserScope({ metadata });
+  if (scope?.kind === 'scoped') return 'company';
+  if (scope) return hasSuperadminRole(metadata) ? 'superadmin' : 'superadmin_implicit';
+  const marked =
+    metadata?.isAdmin === true ||
+    metadata?.isSuperadmin === true ||
+    (Array.isArray(metadata?.roles) && metadata.roles.includes('admin'));
+  return marked ? 'unscoped' : null;
+}
+
 /**
  * Apply scope to a Prisma where-clause builder. Mutates `where` in
  * place when the operator is scoped; no-op for superadmin.

@@ -50,6 +50,16 @@ async function createAdminUser() {
   // Hash password
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
+  // The first admin of a deployment bootstraps the superadmin role. Once a
+  // verified account holds it, only a superadmin (or scripts/superadmin.ts)
+  // hands it out: this script runs on every deploy.
+  const superadmins = await prisma.user.count({
+    where: {
+      emailVerified: true,
+      metadata: { path: ['roles'], array_contains: ['superadmin'] },
+    },
+  });
+
   // Create admin user
   await prisma.user.create({
     data: {
@@ -59,7 +69,7 @@ async function createAdminUser() {
       name: adminName,
       passwordHash,
       metadata: {
-        roles: ['user', 'admin'],
+        roles: superadmins === 0 ? ['user', 'admin', 'superadmin'] : ['user', 'admin'],
         isAdmin: true,
       },
     },

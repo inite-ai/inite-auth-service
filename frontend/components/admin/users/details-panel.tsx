@@ -3,7 +3,7 @@
 import { Edit2, Trash2, Key, Wallet, Shield, LogOut } from 'lucide-react'
 import { Sheet, Badge, CopyButton } from '@/components/ui'
 import { UserDetails, formatRelative } from './types'
-import { initialAvatar, Section, Stat } from './shared'
+import { initialAvatar, Section, Stat, TierBadge } from './shared'
 
 export function UserDetailsPanel({
   user,
@@ -110,11 +110,12 @@ export function UserDetailsPanel({
 
         <Section title="Roles">
           <div className="flex flex-wrap gap-1">
+            <TierBadge tier={user.adminTier} />
             {user.metadata?.roles?.length ? (
               user.metadata.roles.map((role) => (
                 <Badge
                   key={role}
-                  variant={role === 'admin' ? 'accent' : 'neutral'}
+                  variant={role === 'admin' || role === 'superadmin' ? 'accent' : 'neutral'}
                 >
                   {role}
                 </Badge>

@@ -141,6 +141,22 @@ describe('IdentityService', () => {
     });
   });
 
+  it('updateMetadata strips every key the admin tier is read from', async () => {
+    const user = { id: '1', metadata: {}, wallets: [], passkeys: [] };
+    mockPrisma.user.findUnique.mockResolvedValue(user);
+    mockPrisma.user.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({ ...user, metadata: data.metadata }),
+    );
+    const result = await accountService.updateMetadata('1', {
+      isAdmin: true,
+      isSuperadmin: true,
+      roles: ['superadmin'],
+      companyId: 'acme',
+      kept: 1,
+    });
+    expect(result.metadata).toEqual({ kept: 1 });
+  });
+
   describe('verifyEmail', () => {
     it('should verify email with valid token', async () => {
       const future = new Date();

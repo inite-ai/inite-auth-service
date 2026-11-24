@@ -1,12 +1,48 @@
 'use client'
 
-import type { UserRow, RoleFilter } from './types'
+import { Badge } from '@/components/ui'
+import type { AdminTier, UserRow, RoleFilter } from './types'
 
 export function initialAvatar(user: UserRow): string {
   return (
     user.name?.[0]?.toUpperCase() ??
     user.email?.[0]?.toUpperCase() ??
     '?'
+  )
+}
+
+const TIERS: Record<
+  Exclude<AdminTier, 'superadmin'>,
+  { label: string; variant: 'accent' | 'warning' | 'danger' | 'neutral'; title: string }
+> = {
+  superadmin_implicit: {
+    label: 'superadmin without the role',
+    variant: 'warning',
+    title:
+      'An admin with no company, counted as a superadmin for now. Add the superadmin role, or set a company, to keep access.',
+  },
+  company: {
+    label: 'company admin',
+    variant: 'neutral',
+    title: 'Sees one company only',
+  },
+  unscoped: {
+    label: 'admin with no access',
+    variant: 'danger',
+    title:
+      'Marked an admin, but with neither the superadmin role nor a company: the console refuses this account.',
+  },
+}
+
+/** The account's place in the console, as the server reads it. */
+export function TierBadge({ tier }: { tier?: AdminTier | null }) {
+  // The explicit role shows as its own badge already.
+  if (!tier || tier === 'superadmin') return null
+  const { label, variant, title } = TIERS[tier]
+  return (
+    <span title={title}>
+      <Badge variant={variant}>{label}</Badge>
+    </span>
   )
 }
 

@@ -198,14 +198,14 @@ export function UserEditPanel({
           <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
             Roles
             <span className="ml-2 text-[var(--text-faint)] font-normal">
-              comma-separated · add &ldquo;admin&rdquo; to grant admin access
+              comma-separated · &ldquo;admin&rdquo; needs a company; &ldquo;superadmin&rdquo; sees everything
             </span>
           </label>
           <input
             type="text"
             value={form.roles}
             onChange={(e) => setForm({ ...form, roles: e.target.value })}
-            placeholder="admin, user, moderator"
+            placeholder="user, admin, superadmin"
             className={`${fieldClass} font-mono`}
           />
         </div>

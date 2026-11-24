@@ -15,11 +15,33 @@ docker exec -e ADMIN_PASSWORD -e ADMIN_EMAIL=your@email.com -e ADMIN_NAME="Your 
 
 Change the password after the first sign-in.
 
+The first account created this way also gets the `superadmin` role, because
+nobody holds it yet. Once a verified account does, the script creates plain
+admins.
+
+## Superadmins
+
+`superadmin` is a role on the account (`user.metadata.roles`). Give it in
+**Admin → Users → Edit → Roles**. The last verified holder cannot be demoted or
+deleted there. When nobody can reach the console, use the CLI in the image:
+
+```bash
+docker exec inite-auth-service node dist/cli/scripts/superadmin.js list
+# the id and the email must name the same verified account; dry run without --apply
+docker exec inite-auth-service node dist/cli/scripts/superadmin.js grant --id <uuid> --email <address> --apply
+docker exec inite-auth-service node dist/cli/scripts/superadmin.js check   # exit 1 while nobody holds the role
+```
+
+The users list shows each admin's tier. "Superadmin without the role" is an
+admin with no company, counted as a superadmin for back-compat: that ends in a
+later release, so give such an account the role or a company.
+
 ---
 
 ## Admin API Endpoints
 
-All endpoints require JWT authentication with `admin` role.
+Endpoints for users, OAuth clients and settings require a superadmin; a company
+admin sees only their own company.
 
 ### Dashboard Stats
 ```bash

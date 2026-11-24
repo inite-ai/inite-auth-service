@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { Badge, SkeletonRow } from '@/components/ui'
 import { UserRow, formatRelative } from './types'
-import { initialAvatar, IconButton } from './shared'
+import { initialAvatar, IconButton, TierBadge } from './shared'
 
 export function UsersTable({
   users,
@@ -62,7 +62,7 @@ export function UsersTable({
             </thead>
             <tbody>
               {users.map((u) => {
-                const isAdmin = u.metadata?.roles?.includes('admin')
+                const isAdmin = !!u.adminTier
                 return (
                   <tr
                     key={u.id}
@@ -105,11 +105,12 @@ export function UsersTable({
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1">
+                        <TierBadge tier={u.adminTier} />
                         {u.metadata?.roles?.length ? (
                           u.metadata.roles.map((role) => (
                             <Badge
                               key={role}
-                              variant={role === 'admin' ? 'accent' : 'neutral'}
+                              variant={role === 'admin' || role === 'superadmin' ? 'accent' : 'neutral'}
                             >
                               {role}
                             </Badge>

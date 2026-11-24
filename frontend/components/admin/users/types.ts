@@ -1,6 +1,8 @@
 // Relative "3m ago" formatting is shared across admin tables.
 export { formatRelative } from '../form-controls'
 
+export type AdminTier = 'superadmin' | 'superadmin_implicit' | 'company' | 'unscoped'
+
 export interface UserRow {
   id: string
   name?: string | null
@@ -12,6 +14,8 @@ export interface UserRow {
   profession?: string | null
   twoFactorEnabled?: boolean
   createdAt: string
+  /** What the account is in the console (the server's reading of its metadata). */
+  adminTier?: AdminTier | null
   metadata?: {
     roles?: string[]
     [key: string]: any

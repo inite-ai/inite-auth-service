@@ -13,11 +13,23 @@ describe('admin-scope', () => {
       expect(scope).toEqual({ kind: 'superadmin' });
     });
 
-    it('returns superadmin for explicit isSuperadmin flag', () => {
-      const scope = resolveAdminScope({
-        metadata: { isSuperadmin: true, roles: [] },
-      });
-      expect(scope).toEqual({ kind: 'superadmin' });
+    // Superadmin is a role somebody gave, never the absence of a company.
+    it.each([
+      [{ isAdmin: true }],
+      [{ roles: ['user', 'admin'], isAdmin: true }],
+      [{ roles: ['admin'], companyId: '' }],
+      [{ roles: ['admin'], companyId: null }],
+      [{ isSuperadmin: true, roles: [] }],
+      [{ isSuperadmin: true, isAdmin: true }],
+      [{ roles: 'superadmin' }],
+    ])('gives %j no scope at all', (metadata) => {
+      expect(resolveAdminScope({ metadata })).toBeNull();
+    });
+
+    it('an isSuperadmin flag does not widen a company admin', () => {
+      expect(
+        resolveAdminScope({ metadata: { isSuperadmin: true, roles: ['admin'], companyId: 'acme' } }),
+      ).toEqual({ kind: 'scoped', companyId: 'acme' });
     });
 
     it('returns scoped admin for admin with companyId', () => {
@@ -33,27 +45,15 @@ describe('admin-scope', () => {
       });
       expect(scope).toEqual({ kind: 'scoped', companyId: 'co_beta' });
     });
-
-    it('treats legacy admins without companyId as superadmin (back-compat)', () => {
-      const scope = resolveAdminScope({ metadata: { isAdmin: true } });
-      expect(scope).toEqual({ kind: 'superadmin' });
-    });
-
-    it('ignores empty-string companyId on a scoped admin', () => {
-      const scope = resolveAdminScope({
-        metadata: { isAdmin: true, companyId: '' },
-      });
-      expect(scope).toEqual({ kind: 'superadmin' });
-    });
   });
 
   describe('adminTier', () => {
     it.each([
       [{ roles: ['superadmin'] }, 'superadmin'],
       [{ roles: ['superadmin'], companyId: 'acme' }, 'superadmin'],
-      [{ roles: ['admin'] }, 'superadmin_implicit'],
-      [{ isAdmin: true, companyId: '' }, 'superadmin_implicit'],
-      [{ isSuperadmin: true }, 'superadmin_implicit'],
+      [{ roles: ['admin'] }, 'unscoped'],
+      [{ isAdmin: true, companyId: '' }, 'unscoped'],
+      [{ isSuperadmin: true }, 'unscoped'],
       [{ roles: ['admin'], companyId: 'acme' }, 'company'],
       [{ roles: ['user'] }, null],
       [null, null],

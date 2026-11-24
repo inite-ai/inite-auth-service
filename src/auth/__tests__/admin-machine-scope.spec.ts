@@ -50,21 +50,34 @@ describe('AdminGuard — M2M admin scope', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(/Admin scope required/);
   });
 
-  it('still admits user principal with metadata.isAdmin', async () => {
+  it('admits a company admin marked by metadata.isAdmin', async () => {
     const ctx = mockContext({
       kind: 'user',
       userId: 'u1',
-      metadata: { isAdmin: true },
+      metadata: { isAdmin: true, companyId: 'acme' },
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 
-  it('still admits user principal with roles=[admin]', async () => {
+  it('admits a company admin by roles=[admin]', async () => {
     const ctx = mockContext({
       kind: 'user',
       userId: 'u1',
-      metadata: { roles: ['admin'] },
+      metadata: { roles: ['admin'], companyId: 'acme' },
     });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it.each([[{ isAdmin: true }], [{ roles: ['admin'] }], [{ roles: ['admin'], isSuperadmin: true }]])(
+    'refuses %j, an admin with neither the role nor a company, and says why',
+    async (metadata) => {
+      const ctx = mockContext({ kind: 'user', userId: 'u1', metadata });
+      await expect(guard.canActivate(ctx)).rejects.toThrow(/no company and no superadmin role/);
+    },
+  );
+
+  it('admits the explicit superadmin role', async () => {
+    const ctx = mockContext({ kind: 'user', userId: 'u1', metadata: { roles: ['superadmin'] } });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 

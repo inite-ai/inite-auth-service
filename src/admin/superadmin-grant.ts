@@ -62,7 +62,7 @@ export function preflight(rows: SuperadminRow[]): {
 } {
   const tierOf = (r: SuperadminRow) => adminTier(metadataOf(r));
   const holders = rows.filter((r) => r.emailVerified && tierOf(r) === 'superadmin');
-  const losing = rows.filter((r) => ['superadmin_implicit', 'unscoped'].includes(tierOf(r) ?? ''));
+  const losing = rows.filter((r) => tierOf(r) === 'unscoped');
   const admins = rows.some((r) => tierOf(r) !== null);
   return { ok: holders.length > 0 || !admins, holders, losing };
 }

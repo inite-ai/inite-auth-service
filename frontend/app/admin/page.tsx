@@ -98,7 +98,10 @@ export default function AdminPage() {
       setStats(statsRes.data)
     } catch (error: any) {
       if (error.response?.status === 403) {
-        toast.error('Access denied: admin privileges required')
+        toast.error(
+          error.response.data?.message ?? 'Access denied: admin privileges required',
+          { duration: 10000 },
+        )
         router.push('/account')
       } else if (error.response?.status === 401) {
         authStorage.clear()

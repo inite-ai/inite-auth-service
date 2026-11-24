@@ -203,6 +203,15 @@ jobs:
           exit 1
         fi
 
+        # Superadmin comes only from the explicit role. Starting this build
+        # while nobody verified holds it would lock every operator out of the
+        # console, so the running build stays up instead (ADMIN-SETUP.md).
+        echo "🔑 Checking that a superadmin exists..."
+        if ! docker-compose run --rm --no-deps -T auth-service node dist/cli/scripts/superadmin.js check > /dev/null; then
+          echo "❌ No verified account holds the superadmin role: grant it first (ADMIN-SETUP.md)"
+          exit 1
+        fi
+
         echo "🚀 Starting app (auth-service, auth-frontend)..."
         docker-compose up -d auth-service auth-frontend
 

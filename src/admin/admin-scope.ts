@@ -3,16 +3,17 @@
  *
  * Two admin tiers, distinguished by JWT metadata:
  *
- *   - **Superadmin**: `metadata.roles` includes `"superadmin"`, OR
- *     `metadata.isSuperadmin === true`. Sees all tenants.
+ *   - **Superadmin**: `metadata.roles` includes `"superadmin"`, and nothing
+ *     else makes one. Sees all tenants.
  *   - **Scoped admin**: regular admin (`metadata.isAdmin` or
  *     `metadata.roles: ["admin"]`) with `metadata.companyId` set. Only
  *     sees that company.
  *
  * Returning `{ companyId: undefined }` means "no filter" (superadmin).
  * Returning `{ companyId: string }` means scoped admin.
- * Returning `null` means the operator has no admin claim at all — caller
- * should 403; in practice AdminGuard already blocks that path.
+ * Returning `null` means no admin scope: not an admin, or an admin with
+ * neither the role nor a company. Fail closed: the caller should 403, and
+ * AdminGuard already does.
  *
  * Why a separate helper: every admin read that touches tenant-scoped
  * tables (audit log, refresh tokens, authz codes) needs the same
@@ -63,23 +64,21 @@ function resolveUserScope(
   user: AdminScopePrincipal | null | undefined,
 ): AdminScope | null {
   const metadata: Record<string, unknown> = user?.metadata ?? {};
-  const roles: string[] = Array.isArray(metadata.roles) ? metadata.roles : [];
-
-  const isSuperadmin =
-    metadata.isSuperadmin === true || roles.includes('superadmin');
-  if (isSuperadmin) return { kind: 'superadmin' };
-
-  const isAdmin = metadata.isAdmin === true || roles.includes('admin');
-  if (!isAdmin) return null;
+  if (hasSuperadminRole(metadata)) return { kind: 'superadmin' };
+  if (!isMarkedAdmin(metadata)) return null;
 
   if (typeof metadata.companyId === 'string' && metadata.companyId.length > 0) {
     return { kind: 'scoped', companyId: metadata.companyId };
   }
 
-  // Legacy admins without companyId stamping are treated as
-  // superadmin for back-compat. Once admin provisioning sets
-  // companyId universally, this branch can be removed.
-  return { kind: 'superadmin' };
+  return null;
+}
+
+function isMarkedAdmin(metadata: Record<string, unknown>): boolean {
+  return (
+    metadata.isAdmin === true ||
+    (Array.isArray(metadata.roles) && metadata.roles.includes('admin'))
+  );
 }
 
 export const SUPERADMIN_ROLE = 'superadmin';
@@ -91,22 +90,18 @@ export function hasSuperadminRole(metadata: Record<string, unknown> | null | und
 
 /**
  * What an account's metadata makes it in the console, for operators to see:
- *   superadmin           the explicit role
- *   superadmin_implicit  counted as one without the role (see resolveUserScope)
- *   company              admin of one company
- *   unscoped             marked an admin, but with no scope: no access
- *   null                 not an admin
+ *   superadmin  the explicit role
+ *   company     admin of one company
+ *   unscoped    marked an admin, but with no scope: no access
+ *   null        not an admin
  */
-export type AdminTier = 'superadmin' | 'superadmin_implicit' | 'company' | 'unscoped';
+export type AdminTier = 'superadmin' | 'company' | 'unscoped';
 
 export function adminTier(metadata: Record<string, unknown> | null | undefined): AdminTier | null {
   const scope = resolveUserScope({ metadata });
   if (scope?.kind === 'scoped') return 'company';
-  if (scope) return hasSuperadminRole(metadata) ? 'superadmin' : 'superadmin_implicit';
-  const marked =
-    metadata?.isAdmin === true ||
-    metadata?.isSuperadmin === true ||
-    (Array.isArray(metadata?.roles) && metadata.roles.includes('admin'));
+  if (scope) return 'superadmin';
+  const marked = isMarkedAdmin(metadata ?? {}) || metadata?.isSuperadmin === true;
   return marked ? 'unscoped' : null;
 }
 

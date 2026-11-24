@@ -32,9 +32,11 @@ docker exec inite-auth-service node dist/cli/scripts/superadmin.js grant --id <u
 docker exec inite-auth-service node dist/cli/scripts/superadmin.js check   # exit 1 while nobody holds the role
 ```
 
-The users list shows each admin's tier. "Superadmin without the role" is an
-admin with no company, counted as a superadmin for back-compat: that ends in a
-later release, so give such an account the role or a company.
+Nothing else makes a superadmin. An admin with neither the role nor a company
+(`metadata.companyId`) has no access: the console says so, the users list marks
+the account, and its tokens carry no `platform_role`. The production deploy runs
+`check` and stops before starting the new build when admins exist and nobody
+verified holds the role.
 
 ---
 

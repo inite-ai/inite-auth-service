@@ -13,14 +13,8 @@ export function initialAvatar(user: UserRow): string {
 
 const TIERS: Record<
   Exclude<AdminTier, 'superadmin'>,
-  { label: string; variant: 'accent' | 'warning' | 'danger' | 'neutral'; title: string }
+  { label: string; variant: 'danger' | 'neutral'; title: string }
 > = {
-  superadmin_implicit: {
-    label: 'superadmin without the role',
-    variant: 'warning',
-    title:
-      'An admin with no company, counted as a superadmin for now. Add the superadmin role, or set a company, to keep access.',
-  },
   company: {
     label: 'company admin',
     variant: 'neutral',

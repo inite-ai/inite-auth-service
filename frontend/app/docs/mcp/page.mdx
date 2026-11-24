@@ -44,13 +44,13 @@ INITE ships `@inite/auth-admin` — a package that turns six auth-administration
                                          │  inite-auth-service │
                                          │   /v1/admin/*       │
                                          │  AdminGuard ✓ user  │
-                                         │  metadata.isAdmin   │
+                                         │  superadmin role    │
                                          └────────────────────┘
 ```
 
 The MCP server is **not** a standalone process — every vertical (`carRental`, `figma`, `smart-chat`, …) already mounts an MCP route. Bootstrapping `@inite/auth-admin` adds six tools to that surface.
 
-The tools call /v1/admin/* using the **signed-in admin's session JWT** — read from the vertical's `access_token` cookie via `@inite/auth.getAccessToken()`. `AdminGuard` accepts the call because the user has `metadata.isAdmin=true`. No service client, no shared secret, no provisioning step.
+The tools call /v1/admin/* using the **signed-in admin's session JWT** — read from the vertical's `access_token` cookie via `@inite/auth.getAccessToken()`. `AdminGuard` accepts the call because the user holds the `superadmin` role (or is the admin of one company, for the tools that read one company). No service client, no shared secret, no provisioning step.
 
 ## Tools
 
@@ -205,7 +205,7 @@ Layer-by-layer guarantees:
 1. **MCP client** — must hit your vertical's `/mcp/[slug]` route, behind your existing auth (session cookie or bearer).
 2. **`ToolPermissionMap`** — vertical-side RBAC filters which tools the calling user can see / invoke at all.
 3. **Tool execution** — `@inite/auth-admin` reads the user's `access_token` cookie and forwards it as Bearer to inite-auth-service.
-4. **`AdminGuard`** in auth-service — verifies the user has `metadata.isAdmin=true`.
+4. **`AdminGuard`** in auth-service — verifies the user holds the `superadmin` role or is the admin of one company.
 5. **Audit log** — every action lands under the *user's* identity (their DID, their IP, their UA) — same trail as if they'd used the UI.
 
 If any layer says no, the call fails before touching data.
@@ -233,7 +233,7 @@ This is by design — the API-key path doesn't carry an admin identity. Sign int
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `AuthAdminUnauthenticatedError` | MCP request had no `access_token` cookie | Sign into the vertical in your browser, then connect the MCP client; or supply a cookie-forwarding proxy |
-| `auth-admin request failed (403)` | Admin's user record lost `isAdmin` | Re-grant `metadata.isAdmin=true` on the user in `/admin → Users` |
+| `auth-admin request failed (403)` | The account has neither the `superadmin` role nor a company | A superadmin gives it one in `/admin → Users` |
 | `Tool not visible in Claude Desktop` | Vertical's MCP route filtered it via `ToolPermissionMap` | Grant the user `auth:read`/`auth:write`/`auth:admin` per the matrix above |
 | `revoke_user_sessions` returns `refreshTokensRevoked: 0` | User had no active sessions (already signed out) | Expected — short-lived access tokens may still live up to their TTL (`JWT_ACCESS_TOKEN_EXPIRY`, 10 min by default) |
 

@@ -10,12 +10,13 @@ import type {
   MachinePrincipal,
   UserPrincipal,
 } from '../authenticated-user';
+import { adminTier } from '../../admin/admin-scope';
 
 /**
  * Admit two distinct principals to admin endpoints:
  *
- *   1. **User** with `metadata.isAdmin === true` or `metadata.roles`
- *      including `'admin'` / `'superadmin'`. Path used by the admin
+ *   1. **User** who is a superadmin (the explicit role) or the admin of one
+ *      company. An admin with neither is refused. Path used by the admin
  *      UI in browser.
  *
  *   2. **Machine** (M2M token via `client_credentials`) whose JWT
@@ -43,11 +44,7 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
       return this.assertMachineAdmin(user);
     }
 
-    if (!this.isUserAdmin(user)) {
-      throw new ForbiddenException('Admin access required');
-    }
-
-    return true;
+    return this.assertUserAdmin(user);
   }
 
   private assertMachineAdmin(user: MachinePrincipal): boolean {
@@ -58,21 +55,17 @@ export class AdminGuard extends JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private isUserAdmin(user: UserPrincipal | undefined): boolean {
-    const metadata = user?.metadata;
-    if (!metadata) {
-      return false;
+  private assertUserAdmin(user: UserPrincipal | undefined): boolean {
+    const tier = adminTier(user?.metadata);
+    if (tier === 'unscoped') {
+      throw new ForbiddenException(
+        'This admin account has no company and no superadmin role, so it has no access here. ' +
+          'A superadmin can give it either one.',
+      );
     }
-    const roles = Array.isArray(metadata.roles) ? metadata.roles : [];
-    return (
-      metadata.isAdmin === true ||
-      roles.includes('admin') ||
-      roles.includes('superadmin')
-    );
+    if (!tier) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return true;
   }
 }
-
-
-
-
-

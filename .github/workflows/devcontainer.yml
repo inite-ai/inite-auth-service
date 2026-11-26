@@ -28,10 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # Compose's bake builder refuses the Dockerfile the devcontainer CLI
-      # writes outside the build context ("additional privileges requested:
-      # --allow=fs.read=…"); the classic builder takes it.
-      COMPOSE_BAKE: 'false'
+      # Compose builds through buildx bake, which refuses the Dockerfile the
+      # devcontainer CLI writes outside the build context ("additional
+      # privileges requested: pass --allow=fs.read=/tmp/devcontainercli-…").
+      # COMPOSE_BAKE=false used to fall back to the classic builder; the
+      # runner's Compose no longer has it (every run failed from 17.11.2026).
+      # This lets bake read that one generated file.
+      BUILDX_BAKE_ENTITLEMENTS_FS: '0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 

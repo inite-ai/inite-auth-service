@@ -1,0 +1,23 @@
+// What knip counts as reached beyond what it finds itself (https://knip.dev). Each line says why.
+// Measured only for now (the dead-code record, .inite/dead-code-baseline.json); deletions come in their own PRs.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        // Nest's entry (nest-cli.json, sourceRoot src).
+        "src/main.ts",
+        // Run by path: operator scripts (npm scripts, the image's dist/cli via tsconfig.scripts.json) and CI checks.
+        "scripts/**/*.{ts,js,mjs}",
+        // jest's testRegex (.spec.ts anywhere), which knip's jest plugin does not read.
+        "{src,test}/**/*.spec.ts"
+      ],
+      "project": ["src/**/*.ts", "scripts/**/*.{ts,js,mjs}", "test/**/*.ts"]
+    },
+    // The sign-in UI: its own Next app, package.json and lockfile; knip's next plugin finds its entries.
+    "frontend": {},
+    // The published SDKs (tsup builds src/index.ts and the subpaths package.json exports).
+    "packages/sdk": {},
+    "packages/resource": { "entry": ["src/__tests__/**/*.ts"] }
+  }
+}

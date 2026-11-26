@@ -61,7 +61,10 @@ export const MIKEFLUFF_SCOPES = [
  * site also checks the account is the author's). Enforced by each site's MCP door
  * (https://neuralcosmology.com/mcp/account, https://nobody-quits.com/mcp).
  */
-export const NEURALCOSMOLOGY_SCOPES = ['neuralcosmology:discuss', 'neuralcosmology:author'] as const;
+export const NEURALCOSMOLOGY_SCOPES = [
+  'neuralcosmology:discuss',
+  'neuralcosmology:author',
+] as const;
 export const NOBODYQUITS_SCOPES = ['nobodyquits:discuss', 'nobodyquits:author'] as const;
 
 /**
@@ -122,7 +125,10 @@ export const TENANT_PRODUCTS = [
   'bloom',
   'education',
 ] as const;
-export const TENANT_SCOPES: readonly string[] = TENANT_PRODUCTS.flatMap((p) => [`${p}:read`, `${p}:write`]);
+export const TENANT_SCOPES: readonly string[] = TENANT_PRODUCTS.flatMap((p) => [
+  `${p}:read`,
+  `${p}:write`,
+]);
 
 /**
  * Identity scopes only a first-party family product may hold. `telegram` adds
@@ -140,6 +146,16 @@ export const FIRST_PARTY_SCOPES = ['telegram'] as const;
  * dynamically registered client (it is not in DCR_VERTICAL_SCOPES).
  */
 export const CUSTOMER_LANE_SCOPES = ['customer-lane:orgs'] as const;
+
+/**
+ * Machine scope of a product backend that puts the partner roles on a
+ * person's account (POST /v1/service/users/partner-role,
+ * src/service-roles/partner-role.ts): `partner` and `partner:<code>`, never
+ * any other role. Operator-provisioned through a manifest's `scopes`; never
+ * to a dynamically registered client (not in DCR_VERTICAL_SCOPES), and not
+ * in {@link supportedScopes}, so an org API key cannot be minted with it.
+ */
+export const SERVICE_ROLE_SCOPES = ['roles:partner'] as const;
 
 /**
  * Vertical scopes an anonymous RFC 7591 registration may request. The

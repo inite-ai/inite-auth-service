@@ -27,19 +27,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # Compose builds through buildx bake, which refuses the Dockerfile the
-      # devcontainer CLI writes outside the build context ("additional
-      # privileges requested: pass --allow=fs.read=/tmp/devcontainercli-…").
-      # COMPOSE_BAKE=false used to fall back to the classic builder; the
-      # runner's Compose no longer has it (every run failed from 17.11.2026).
-      # This lets bake read that one generated file.
-      BUILDX_BAKE_ENTITLEMENTS_FS: '0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Compose builds through buildx bake, which refuses a Dockerfile outside
+      # the build context ("additional privileges requested: pass
+      # --allow=fs.read=/tmp/devcontainercli-…"), and the devcontainer CLI
+      # writes its Dockerfile-with-features under the temp dir. COMPOSE_BAKE=false
+      # no longer falls back to the classic builder (every run failed from
+      # 17.11.2026). The CLI's temp dir is put inside the build context
+      # (.devcontainer, docker-compose.yml's context) for this step, so bake
+      # reads it with no entitlement granted.
+      - name: A temp dir inside the dev container's build context
+        run: mkdir -p .devcontainer/.cli-tmp
+
       - name: Build and run the dev container
         uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
+        env:
+          TMPDIR: ${{ github.workspace }}/.devcontainer/.cli-tmp
         with:
           imageName: ghcr.io/inite-ai/inite-auth-service-devcontainer
           push: never

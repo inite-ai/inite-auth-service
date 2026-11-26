@@ -182,3 +182,24 @@ across the manifests). With a machine token for that scope the product calls:
 Only `organizations` rows are written; memberships, roles and API keys never.
 Products call it through `@inite/auth/storefrontOrgs` (inite-shared). Rules:
 `src/customer-lane/storefront-orgs.ts`; design: issue #304.
+
+## Partner roles from a product (`roles:partner`)
+
+A product that approves partners (inite.ai) puts two roles on the person's
+account without the superadmin roles API: `partner` and `partner:<code>`.
+Its manifest lists the scope (`"scopes": ["roles:partner", ...]`); it is
+never granted to a dynamically registered client and cannot be put on an org
+API key. With a machine token for that scope the product calls:
+
+- `POST /v1/service/users/partner-role` with
+  `{ "email", "code", "action": "grant" | "revoke" }`. The account is found
+  by a verified email, case-insensitive; none is `404 no-account` (no user is
+  created), two that differ only by case are `409 ambiguous-account`. `grant`
+  adds the two roles; `revoke` removes `partner:<code>`, and `partner` only
+  when no other `partner:*` is left. Every other role, `isAdmin` and every
+  other metadata key stay as they are. Idempotent (`changed: false`), audited
+  as `service.user.partner_role`, 60 calls a minute.
+  Answer: `{ "userId", "roles": <the account's partner roles>, "changed" }`.
+
+The roles are in `metadata.roles`, read at every issue, so the person's next
+sign-in or refresh carries them. Rules: `src/service-roles/partner-role.ts`.

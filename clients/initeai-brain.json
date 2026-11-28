@@ -1,0 +1,17 @@
+{
+  "clientId": "initeai-brain",
+  "name": "inite.ai worker (INITE Brain feed)",
+  "kind": "machine",
+  "repo": "inite-ai/initeai-landing",
+  "companyId": "co_admin",
+  "scopes": [
+    "brain:read",
+    "brain:write"
+  ],
+  "audiences": [
+    "https://brain.inite.ai"
+  ],
+  "secret": {
+    "name": "BRAIN_AUTH_CLIENT_SECRET"
+  }
+}

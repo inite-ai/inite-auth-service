@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [1.14.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.13.0...inite-auth-service-v1.14.0) (2026-11-28)
+
+
+### Features
+
+* **clients:** initeai-brain machine client for inite.ai's Brain feed ([#338](https://github.com/inite-ai/inite-auth-service/issues/338)) ([73b1620](https://github.com/inite-ai/inite-auth-service/commit/73b16209c1b3114ccaeaf6bb81801118454eff5c))
+* **service:** partner role door for product backends (roles:partner) ([#329](https://github.com/inite-ai/inite-auth-service/issues/329)) ([a3d3708](https://github.com/inite-ai/inite-auth-service/commit/a3d370818e9052ed3e256bae32519a63f36e9d2f))
+
+
+### Bug Fixes
+
+* **clients:** neuralcosmology returns to /callback, as its sign-in does ([#331](https://github.com/inite-ai/inite-auth-service/issues/331)) ([8d4bade](https://github.com/inite-ai/inite-auth-service/commit/8d4bade4b0e2d98d09926f8106ee8436729dfff4))
+
 ## [1.13.0](https://github.com/inite-ai/inite-auth-service/compare/inite-auth-service-v1.12.0...inite-auth-service-v1.13.0) (2026-11-19)
 
 
